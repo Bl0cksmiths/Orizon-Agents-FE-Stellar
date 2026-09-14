@@ -366,6 +366,7 @@ export default function RegisterPage() {
                 id="reg-skills"
                 value={skills}
                 onChange={setSkills}
+                onBlur={() => touch("skills")}
                 disabled={submitting}
                 aria-invalid={Boolean(touched.skills && skillsError)}
                 aria-describedby={
