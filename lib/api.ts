@@ -728,7 +728,11 @@ export function openTraceStream(
       carried += 1;
       delivered += 1;
       try {
-        onEvent(JSON.parse((e as MessageEvent).data) as TraceLine);
+        // Screen the shape before it reaches render state — a well-formed but
+        // wrong-shaped object would otherwise flow through unguarded, unlike the
+        // polling fallback (drain) which already screens each row.
+        const row: unknown = JSON.parse((e as MessageEvent).data);
+        if (isTraceLine(row)) onEvent(row);
       } catch {
         /* ignore */
       }
