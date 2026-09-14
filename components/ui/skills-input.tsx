@@ -19,6 +19,9 @@ export type SkillsInputProps = {
   /** Wired to the field's <label htmlFor>; lands on the text input. */
   id?: string;
   disabled?: boolean;
+  /** Fired when the text input loses focus, so the parent can mark the field
+   * touched and reveal any validation note. */
+  onBlur?: () => void;
   /** The field's error note — mirrored onto the inner input. */
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
@@ -53,6 +56,7 @@ export function SkillsInput({
   maxLen = 32,
   id,
   disabled = false,
+  onBlur,
   "aria-describedby": ariaDescribedby,
   "aria-invalid": ariaInvalid,
 }: SkillsInputProps) {
@@ -172,6 +176,7 @@ export function SkillsInput({
         value={input}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onBlur={onBlur}
         disabled={disabled}
         aria-invalid={invalid || undefined}
         aria-describedby={ariaDescribedby}
