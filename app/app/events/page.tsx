@@ -199,7 +199,7 @@ export default function EventsPage() {
               No events yet. Run a workflow on{" "}
               <Link
                 href="/app/orchestrator"
-                className={`text-cyan hover:underline ${focusRing}`}
+                className={`text-cyan underline decoration-cyan/40 underline-offset-2 hover:decoration-cyan ${focusRing}`}
               >
                 /app/orchestrator
               </Link>{" "}
