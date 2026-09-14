@@ -1,4 +1,5 @@
 import { IS_MAINNET } from "@/lib/env";
+import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
 export type StellarExpertKind = "tx" | "account" | "contract";
@@ -55,6 +56,7 @@ export function StellarExpertLink({
       rel="noreferrer"
       className={cn(
         "font-mono text-[10px] uppercase tracking-widest text-cyan hover:text-text",
+        focusRing,
         className,
       )}
     >
