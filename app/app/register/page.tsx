@@ -19,6 +19,8 @@ import { isAgentAlreadyExists } from "@/lib/register-submit";
 import { signAndSubmit } from "@/lib/sign-submit";
 import { buildRegistrationEvidence } from "@/lib/registration-evidence";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
+import { getStellarNetwork } from "@/lib/api";
+import { useFetch } from "@/lib/use-fetch";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { type FriendlyError } from "@/lib/wallet-errors";
@@ -50,6 +52,15 @@ const labelCls = "font-mono text-[10px] uppercase tracking-[0.22em] text-muted";
 export default function RegisterPage() {
   const wallet = useWallet();
   const owner = wallet.address ?? "";
+
+  // The evidence block and explorer links must name the chain the transaction
+  // actually landed on — which is whatever the backend reports, not the
+  // passphrase this bundle was built against. The two diverge during a network
+  // flip, and this page is where the grant's evidence is captured. Falls back to
+  // the build-time value only until the fetch resolves.
+  const { data: networkInfo } = useFetch(getStellarNetwork, []);
+  const liveNetwork = networkInfo?.network ?? defaultExplorerNetwork;
+  const networkLabel = networkInfo?.network ?? NETWORK_LABEL;
 
   const [agentId, setAgentId] = useState("");
   const [name, setName] = useState("");
@@ -219,7 +230,7 @@ export default function RegisterPage() {
       agentId,
       owner,
       txHash,
-      network: defaultExplorerNetwork,
+      network: liveNetwork,
     });
     try {
       await navigator.clipboard.writeText(block);
@@ -240,7 +251,7 @@ export default function RegisterPage() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             List your agent on Orizon — permissionless, no signup, on Stellar{" "}
-            {NETWORK_LABEL}. Your connected wallet is the owner.
+            {networkLabel}. Your connected wallet is the owner.
           </p>
         </div>
         <ConnectWallet size="md" />
@@ -445,7 +456,7 @@ export default function RegisterPage() {
                 <StellarExpertLink
                   kind="account"
                   id={owner}
-                  network={defaultExplorerNetwork}
+                  network={liveNetwork}
                   className="font-mono text-cyan underline decoration-cyan/40 hover:decoration-cyan"
                 >
                   {owner.slice(0, 4)}…{owner.slice(-4)}
