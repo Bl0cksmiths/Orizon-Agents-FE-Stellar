@@ -1,8 +1,10 @@
 import {
+  isAgentBinding,
   isAgentIdAvailability,
   isAgentList,
   isArtifactResponse,
   isAuthorizeBuild,
+  isBindChallenge,
   isDecomposeResponse,
   isFlow,
   isOverview,
@@ -20,9 +22,13 @@ import {
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
 import type {
   Agent,
+  AgentBinding,
   AgentIdAvailability,
   ArtifactResponse,
   AuthorizeBuild,
+  BindChallenge,
+  BindChallengeReq,
+  BindReq,
   DecomposeResponse,
   ExecuteResponse,
   Flow,
@@ -455,6 +461,61 @@ export const syncAgents = () =>
     {},
     ensure("/stellar/agents/sync", isSyncResponse),
   );
+
+// ── Agent endpoint binding (story 2.01) ─────────────────────
+
+/** `/agents/{id}/bind`, with the id escaped for the path segment it occupies. */
+const bindPath = (agentId: string) =>
+  `/agents/${encodeURIComponent(agentId)}/bind`;
+
+/**
+ * Ask for a signing challenge binding `endpointUrl` to the agent. The wallet
+ * signs the returned `message` verbatim — see `BindChallenge.message` for why
+ * it is never rebuilt locally.
+ *
+ * What IS re-checked is that the challenge addresses this agent and carries
+ * the nonce it reports: a wallet signature prompt shows the owner an opaque
+ * blob, not a claim, so a proxy answering with someone else's challenge would
+ * otherwise have them authorize a binding they never asked for. The endpoint
+ * segment in the middle is deliberately left unchecked — the backend is free
+ * to normalize the URL it embeds, and pinning that here would reject its own
+ * canonical form.
+ */
+export function createBindChallenge(
+  agentId: string,
+  endpointUrl: string,
+): Promise<BindChallenge> {
+  const path = `${bindPath(agentId)}/challenge`;
+  return post<BindChallenge, BindChallengeReq>(
+    path,
+    { endpoint_url: endpointUrl },
+    ensure(path, isBindChallenge),
+  ).then((challenge) => {
+    const addressesAgent =
+      challenge.agent_id === agentId &&
+      challenge.message.startsWith(`orizon-bind:v1:${agentId}:`) &&
+      challenge.message.endsWith(`:${challenge.nonce}`);
+    if (!addressesAgent) {
+      throw new Error(
+        `malformed response from ${path} — challenge does not address ${agentId}`,
+      );
+    }
+    return challenge;
+  });
+}
+
+/**
+ * Bind the endpoint, presenting the wallet's base64 ed25519 signature over the
+ * challenge message. Resolves to the stored binding, whose `replaced` flag
+ * says whether it superseded an earlier endpoint.
+ */
+export function bindAgent(
+  agentId: string,
+  body: BindReq,
+): Promise<AgentBinding> {
+  const path = bindPath(agentId);
+  return post<AgentBinding, BindReq>(path, body, ensure(path, isAgentBinding));
+}
 
 /** Consecutive failed reconnects tolerated before SSE is given up on. */
 const MAX_RECONNECTS = 3;
