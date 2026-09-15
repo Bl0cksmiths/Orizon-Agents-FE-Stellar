@@ -16,6 +16,7 @@ const ROUTES = [
   "/app",
   "/app/agents",
   "/app/register",
+  "/app/bind",
   "/app/reputation",
   "/app/orchestrator",
   "/app/trace",
