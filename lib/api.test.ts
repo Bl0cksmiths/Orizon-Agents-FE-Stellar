@@ -19,9 +19,11 @@ import {
   STREAM_CONNECT_TIMEOUT_MS,
   TRACE_POLL_MS,
   agentIdAvailable,
+  bindAgent,
   buildAuthorize,
   buildRegisterAgent,
   clearGetCache,
+  createBindChallenge,
   decompose,
   execute,
   getArtifact,
@@ -1496,5 +1498,256 @@ describe("openTraceStream connect deadline", () => {
 
     expect(StubEventSource.instances).toHaveLength(1);
     expect(first.closed).toBe(true);
+  });
+});
+
+// ── Agent endpoint binding (story 2.01) ─────────────────────
+
+const AGENT_ID = "orizon_batch";
+const ENDPOINT = "https://agent.example.com/run";
+const OWNER = "GBVN3FUM3TPMZXNSBMEGBLYBM2QFGXN7QCZL4TWZ5PJ7V36E";
+
+const challengeFixture = {
+  agent_id: AGENT_ID,
+  nonce: "n_7f3a91",
+  message: `orizon-bind:v1:${AGENT_ID}:${ENDPOINT}:n_7f3a91`,
+  expires_at: "2026-09-15T12:00:30Z",
+  ttl_seconds: 30,
+};
+
+const bindingFixture = {
+  agent_id: AGENT_ID,
+  endpoint_url: ENDPOINT,
+  owner: OWNER,
+  bound_at: "2026-09-15T12:00:00Z",
+  replaced: false,
+};
+
+describe("createBindChallenge", () => {
+  it("posts the candidate endpoint and resolves the parsed challenge", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, challengeFixture));
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).resolves.toEqual(
+      challengeFixture,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agents/orizon_batch/bind/challenge",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ endpoint_url: ENDPOINT }),
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("escapes the agent id into its path segment", async () => {
+    const id = "orizon batch";
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ...challengeFixture,
+        agent_id: id,
+        message: `orizon-bind:v1:${id}:${ENDPOINT}:n_7f3a91`,
+      }),
+    );
+
+    await createBindChallenge(id, ENDPOINT);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agents/orizon%20batch/bind/challenge",
+      expect.anything(),
+    );
+  });
+
+  it("accepts an epoch expires_at as readily as an ISO one", async () => {
+    const epoch = { ...challengeFixture, expires_at: 1_789_000_000 };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, epoch));
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).resolves.toEqual(
+      epoch,
+    );
+  });
+
+  it("rejects a challenge with no message for the wallet to sign", async () => {
+    const { message: _drop, ...rest } = challengeFixture;
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, rest));
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).rejects.toThrow(
+      "malformed response from /agents/orizon_batch/bind/challenge",
+    );
+  });
+
+  // The wallet prompt shows an opaque blob, so a challenge for someone else's
+  // agent would be signed without the owner ever seeing whose it was.
+  it("rejects a challenge that addresses a different agent", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ...challengeFixture,
+        agent_id: "someone_else",
+        message: `orizon-bind:v1:someone_else:${ENDPOINT}:n_7f3a91`,
+      }),
+    );
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).rejects.toThrow(
+      "challenge does not address orizon_batch",
+    );
+  });
+
+  it("rejects a message whose id segment disagrees with the body", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ...challengeFixture,
+        message: `orizon-bind:v1:someone_else:${ENDPOINT}:n_7f3a91`,
+      }),
+    );
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).rejects.toThrow(
+      "challenge does not address orizon_batch",
+    );
+  });
+
+  it("rejects a message that does not end in the nonce it reports", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ...challengeFixture,
+        message: `orizon-bind:v1:${AGENT_ID}:${ENDPOINT}:n_other`,
+      }),
+    );
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).rejects.toThrow(
+      "challenge does not address orizon_batch",
+    );
+  });
+
+  it("carries agent_not_found on a 404", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(404, {
+        detail: "unknown agent",
+        error: { code: "agent_not_found", message: "unknown agent" },
+      }),
+    );
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).rejects.toMatchObject(
+      { status: 404, code: "agent_not_found" },
+    );
+  });
+
+  it("carries not_agent_owner on a 401", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(401, {
+        error: { code: "not_agent_owner", message: "wallet does not own it" },
+      }),
+    );
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).rejects.toMatchObject(
+      { status: 401, code: "not_agent_owner" },
+    );
+  });
+
+  it("carries endpoint_not_allowed on a 422", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(422, {
+        error: { code: "endpoint_not_allowed", message: "loopback refused" },
+      }),
+    );
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).rejects.toMatchObject(
+      { status: 422, code: "endpoint_not_allowed" },
+    );
+  });
+
+  it("reports a 429 with the wait the limiter asked for", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ...jsonResponse(429, {
+        error: { code: "rate_limited", message: "too many requests" },
+      }),
+      headers: {
+        get: (name: string) => (name === "retry-after" ? "8" : null),
+      },
+    });
+
+    await expect(createBindChallenge(AGENT_ID, ENDPOINT)).rejects.toMatchObject(
+      { status: 429, code: "rate_limited", retryAfterMs: 8_000 },
+    );
+  });
+});
+
+describe("bindAgent", () => {
+  const body = { endpoint_url: ENDPOINT, signature: "c2lnbmF0dXJl" };
+
+  it("posts the endpoint and signature and resolves the stored binding", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, bindingFixture));
+
+    await expect(bindAgent(AGENT_ID, body)).resolves.toEqual(bindingFixture);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agents/orizon_batch/bind",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("carries the replaced flag through so the UI can say what happened", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...bindingFixture, replaced: true }),
+    );
+
+    await expect(bindAgent(AGENT_ID, body)).resolves.toMatchObject({
+      replaced: true,
+    });
+  });
+
+  it("rejects a binding whose replaced flag is a string", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...bindingFixture, replaced: "false" }),
+    );
+
+    await expect(bindAgent(AGENT_ID, body)).rejects.toThrow(
+      "malformed response from /agents/orizon_batch/bind",
+    );
+  });
+
+  it("carries challenge_invalid on a 401", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(401, {
+        error: { code: "challenge_invalid", message: "nonce expired" },
+      }),
+    );
+
+    await expect(bindAgent(AGENT_ID, body)).rejects.toMatchObject({
+      status: 401,
+      code: "challenge_invalid",
+    });
+  });
+
+  it("carries signature_malformed on a 422", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(422, {
+        error: { code: "signature_malformed", message: "not base64 ed25519" },
+      }),
+    );
+
+    await expect(bindAgent(AGENT_ID, body)).rejects.toMatchObject({
+      status: 422,
+      code: "signature_malformed",
+    });
+  });
+
+  it("carries registry_unavailable on a 503", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(503, {
+        error: { code: "registry_unavailable", message: "rpc down" },
+      }),
+    );
+
+    await expect(bindAgent(AGENT_ID, body)).rejects.toMatchObject({
+      status: 503,
+      code: "registry_unavailable",
+    });
   });
 });
