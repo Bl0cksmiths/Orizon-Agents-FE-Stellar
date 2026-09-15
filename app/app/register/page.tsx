@@ -24,7 +24,7 @@ import { useFetch } from "@/lib/use-fetch";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { type FriendlyError } from "@/lib/wallet-errors";
-import { focusRing } from "@/lib/ui";
+import { focusRing, inlineLink } from "@/lib/ui";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
@@ -457,7 +457,7 @@ export default function RegisterPage() {
                   kind="account"
                   id={owner}
                   network={liveNetwork}
-                  className="font-mono text-cyan underline decoration-cyan/40 hover:decoration-cyan"
+                  className={`font-mono ${inlineLink}`}
                 >
                   {owner.slice(0, 4)}…{owner.slice(-4)}
                 </StellarExpertLink>
