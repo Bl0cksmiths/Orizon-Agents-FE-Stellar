@@ -38,6 +38,16 @@ describe("buildRegistrationEvidence", () => {
     expect(out).toContain("/explorer/public/account/");
   });
 
+  it("treats the live endpoint's 'mainnet' like 'public'", () => {
+    // GET /stellar/network reports "mainnet", not "public" — without this
+    // normalization a real mainnet registration would be labelled testnet and
+    // its evidence links would point at the wrong explorer.
+    const out = buildRegistrationEvidence({ ...base, network: "mainnet" });
+    expect(out).toContain("network:   mainnet");
+    expect(out).toContain("/explorer/public/tx/");
+    expect(out).toContain("/explorer/public/account/");
+  });
+
   it("defaults capturedAt to an ISO timestamp when omitted", () => {
     const { capturedAt: _omit, ...noTime } = base;
     const out = buildRegistrationEvidence({ ...noTime, network: "testnet" });
