@@ -11,7 +11,20 @@ import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockApi } from "./mocks";
 
-const ROUTES = ["/", "/app", "/app/agents", "/app/register"];
+const ROUTES = [
+  "/",
+  "/app",
+  "/app/agents",
+  "/app/register",
+  "/app/reputation",
+  "/app/orchestrator",
+  "/app/trace",
+  "/app/events",
+  "/app/send",
+  "/app/flow",
+  "/app/pdax",
+  "/app/wallet",
+];
 
 test.describe("accessibility", () => {
   for (const route of ROUTES) {
