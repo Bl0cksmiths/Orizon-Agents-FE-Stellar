@@ -1028,16 +1028,22 @@ describe("openTraceStream reconnect budget", () => {
   it("refreshes the budget after a connection that merely stayed up", async () => {
     const dispose = openTraceStream("tsk_quiet", () => {});
 
-    for (let i = 0; i < 5; i += 1) {
+    // Each connection opens, outlives STABLE_CONNECTION_MS carrying nothing,
+    // then dies. Without the refresh the 3-attempt budget would be spent and
+    // the stream would hand over to polling after 3 sockets; with it, it keeps
+    // reconnecting. Kept under MAX_OUTAGE_MS in total — the attempt budget is
+    // what this test is about, and the outage ceiling (covered separately)
+    // is what now bounds a silent stream overall.
+    for (let i = 0; i < 3; i += 1) {
       const es = StubEventSource.last();
       es.emit("open");
-      await vi.advanceTimersByTimeAsync(20_000); // two keepalive windows
+      await vi.advanceTimersByTimeAsync(5_000);
       es.emit("ping");
       es.emit("error");
       await vi.advanceTimersByTimeAsync(1_000);
     }
 
-    expect(StubEventSource.instances).toHaveLength(6);
+    expect(StubEventSource.instances).toHaveLength(4);
     dispose();
   });
 
@@ -1410,13 +1416,15 @@ describe("openTraceStream connect deadline", () => {
     fetchMock.mockRejectedValue(new Error("GET /trace/tsk_dead → 404"));
     const dispose = openTraceStream("tsk_dead", () => {}, undefined, onError);
 
-    // 3 hung connects + their backoffs, then the 4th hang exhausts the
-    // budget and hands over to polling, which 404s its way out too.
+    // Hung connects and their backoffs until the outage ceiling hands over to
+    // polling, which 404s its way out too. The ceiling bounds one outage by
+    // wall clock, so the failure surfaces after fewer attempts than the raw
+    // 4-attempt budget would have taken.
     await vi.advanceTimersByTimeAsync(
       (STREAM_CONNECT_TIMEOUT_MS + 4_000) * 4 + TRACE_POLL_MS * 3 + 10,
     );
 
-    expect(StubEventSource.instances).toHaveLength(4);
+    expect(StubEventSource.instances).toHaveLength(3);
     expect(onError).toHaveBeenCalledTimes(1);
     dispose();
   });
