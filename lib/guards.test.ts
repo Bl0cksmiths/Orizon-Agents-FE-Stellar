@@ -8,11 +8,15 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  isAgentBinding,
   isAgentIdAvailability,
   isAgentList,
   isArtifactResponse,
   isAuthorizeBuild,
+  isBindChallenge,
+  isBindErrorCode,
   isDecomposeResponse,
+  isEndpointCheck,
   isFlow,
   isOverview,
   isReputationBatch,
@@ -742,5 +746,147 @@ describe("isSyncResponse", () => {
 
   it("rejects non-objects", () => {
     expect(isSyncResponse(null)).toBe(false);
+  });
+});
+
+describe("isBindChallenge", () => {
+  const challenge = {
+    agent_id: "orizon_batch",
+    nonce: "n_7f3a91",
+    message:
+      "orizon-bind:v1:orizon_batch:https://agent.example.com/run:n_7f3a91",
+    expires_at: "2026-09-15T12:00:30Z",
+    ttl_seconds: 30,
+    request_id: "req_01",
+  };
+
+  it("accepts a full challenge, extra envelope keys included", () => {
+    expect(isBindChallenge(challenge)).toBe(true);
+  });
+
+  it("accepts either timestamp serialization the contract allows", () => {
+    expect(isBindChallenge({ ...challenge, expires_at: 1_789_000_000 })).toBe(
+      true,
+    );
+  });
+
+  it("rejects a missing message (the wallet would sign 'undefined')", () => {
+    const { message: _drop, ...rest } = challenge;
+    expect(isBindChallenge(rest)).toBe(false);
+  });
+
+  it("rejects a missing nonce (matched against the message tail)", () => {
+    const { nonce: _drop, ...rest } = challenge;
+    expect(isBindChallenge(rest)).toBe(false);
+  });
+
+  it("rejects a non-numeric ttl (counts down as NaN)", () => {
+    expect(isBindChallenge({ ...challenge, ttl_seconds: "30" })).toBe(false);
+  });
+
+  it("rejects a null expires_at that would render as Invalid Date", () => {
+    expect(isBindChallenge({ ...challenge, expires_at: null })).toBe(false);
+  });
+
+  it("rejects non-objects", () => {
+    expect(isBindChallenge(null)).toBe(false);
+    expect(isBindChallenge([challenge])).toBe(false);
+  });
+});
+
+describe("isAgentBinding", () => {
+  const binding = {
+    agent_id: "orizon_batch",
+    endpoint_url: "https://agent.example.com/run",
+    owner: "GBVN3FUM3TPMZXNSBMEGBLYBM2QFGXN7QCZL4TWZ5PJ7V36E",
+    bound_at: "2026-09-15T12:00:00Z",
+    replaced: false,
+  };
+
+  it("accepts a first binding and a replacement", () => {
+    expect(isAgentBinding(binding)).toBe(true);
+    expect(isAgentBinding({ ...binding, replaced: true })).toBe(true);
+  });
+
+  it("accepts an epoch bound_at", () => {
+    expect(isAgentBinding({ ...binding, bound_at: 1_789_000_000 })).toBe(true);
+  });
+
+  it("rejects a non-boolean replaced (the string 'false' reads as true)", () => {
+    expect(isAgentBinding({ ...binding, replaced: "false" })).toBe(false);
+  });
+
+  it("rejects a missing replaced flag (hides an overwritten route)", () => {
+    const { replaced: _drop, ...rest } = binding;
+    expect(isAgentBinding(rest)).toBe(false);
+  });
+
+  it("rejects a missing endpoint_url or owner", () => {
+    const { endpoint_url: _url, ...noUrl } = binding;
+    const { owner: _owner, ...noOwner } = binding;
+    expect(isAgentBinding(noUrl)).toBe(false);
+    expect(isAgentBinding(noOwner)).toBe(false);
+  });
+
+  it("rejects non-objects", () => {
+    expect(isAgentBinding(null)).toBe(false);
+  });
+});
+
+describe("isEndpointCheck", () => {
+  it("accepts an allowed verdict and a refusal carrying its rule", () => {
+    expect(isEndpointCheck({ allowed: true, rule: null, message: null })).toBe(
+      true,
+    );
+    expect(
+      isEndpointCheck({
+        allowed: false,
+        rule: "loopback",
+        message: "loopback addresses cannot be reached from the registry",
+      }),
+    ).toBe(true);
+  });
+
+  it("accepts a verdict that omits rule and message entirely", () => {
+    expect(isEndpointCheck({ allowed: true })).toBe(true);
+  });
+
+  it("rejects a non-boolean allowed (a truthy string reads as permitted)", () => {
+    expect(isEndpointCheck({ allowed: "false" })).toBe(false);
+  });
+
+  it("rejects a non-string rule", () => {
+    expect(isEndpointCheck({ allowed: false, rule: 7 })).toBe(false);
+  });
+
+  it("rejects non-objects", () => {
+    expect(isEndpointCheck(null)).toBe(false);
+  });
+});
+
+describe("isBindErrorCode", () => {
+  it("accepts every code the bind envelope is documented to carry", () => {
+    for (const code of [
+      "agent_not_found",
+      "not_agent_owner",
+      "challenge_invalid",
+      "endpoint_not_allowed",
+      "signature_malformed",
+      "registry_unavailable",
+      "binding_not_found",
+      "rate_limited",
+    ]) {
+      expect(isBindErrorCode(code)).toBe(true);
+    }
+  });
+
+  it("rejects a code the contract does not name", () => {
+    expect(isBindErrorCode("id_taken")).toBe(false);
+    expect(isBindErrorCode("")).toBe(false);
+  });
+
+  it("rejects a missing or non-string code", () => {
+    expect(isBindErrorCode(undefined)).toBe(false);
+    expect(isBindErrorCode(404)).toBe(false);
   });
 });

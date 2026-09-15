@@ -239,3 +239,93 @@ export type AgentIdAvailability = {
 /** Response of POST /api/stellar/agents/sync — how many on-chain agents were
  * reindexed. */
 export type SyncResponse = { synced: number };
+
+// ── Agent endpoint binding (story 2.01) ─────────────────────
+
+/**
+ * A timestamp as the bind endpoints serialize it.
+ *
+ * The contract pins the field names but not their primitive, and the two
+ * plausible serializations are both in use in this codebase already: FastAPI
+ * renders a `datetime` as an ISO-8601 string, while the x402 build endpoints
+ * (`AuthorizeBuild.expires_at`) answer with a Unix epoch. Accepting both means
+ * a serializer detail can never make a perfectly valid binding read as
+ * malformed; callers normalize at render time.
+ */
+export type BindTimestamp = string | number;
+
+/** Body of POST /api/agents/{agent_id}/bind/challenge. */
+export type BindChallengeReq = { endpoint_url: string };
+
+/**
+ * Response of POST /api/agents/{agent_id}/bind/challenge — the nonce the
+ * agent's owner must sign before the endpoint is accepted.
+ */
+export type BindChallenge = {
+  agent_id: string;
+  nonce: string;
+  /**
+   * The EXACT string the wallet must sign, composed server-side as
+   * `orizon-bind:v1:{agent_id}:{endpoint_url}:{nonce}`. Signed verbatim and
+   * never re-derived on the client: the backend may normalize the URL it
+   * embeds (host case, a trailing slash), and signing a locally rebuilt
+   * string would produce a signature it then rejects as invalid.
+   */
+  message: string;
+  expires_at: BindTimestamp;
+  /** Seconds the nonce stays valid — drives the re-challenge countdown. */
+  ttl_seconds: number;
+};
+
+/** Body of POST /api/agents/{agent_id}/bind. `signature` is base64 ed25519
+ * over `BindChallenge.message`. */
+export type BindReq = { endpoint_url: string; signature: string };
+
+/**
+ * A live agent → endpoint binding: the response of both
+ * POST /api/agents/{agent_id}/bind and GET /api/agents/{agent_id}/binding.
+ */
+export type AgentBinding = {
+  agent_id: string;
+  endpoint_url: string;
+  /** The owning wallet's G-address, as the registry holds it. */
+  owner: string;
+  bound_at: BindTimestamp;
+  /** True when this bind superseded an existing endpoint rather than being
+   * the agent's first — the difference between "bound" and "re-pointed", and
+   * the only warning an owner gets that they overwrote a live route. */
+  replaced: boolean;
+};
+
+/**
+ * Response of GET /api/agents/bind/endpoint-check — an advisory verdict on a
+ * candidate URL. The backend opens no connection to reach it, so the check is
+ * cheap enough to drive INLINE field validation while the owner types, which
+ * turns what would otherwise be a bare 422 at submit time into a reason.
+ */
+export type EndpointCheck = {
+  allowed: boolean;
+  /** Which policy rule refused the URL; absent or null when allowed. */
+  rule?: string | null;
+  /** Human sentence for the field hint. */
+  message?: string | null;
+};
+
+/**
+ * The machine-readable codes the bind endpoints answer with, carried in the
+ * shared `{ detail, error: { code, message, request_id } }` envelope.
+ *
+ * These are the fork the human message cannot express: `endpoint_not_allowed`
+ * belongs inline under the URL field, `registry_unavailable` is a retryable
+ * banner, `not_agent_owner` is a connected-wallet mismatch, and
+ * `binding_not_found` is not a failure at all. One 4xx sentence, four screens.
+ */
+export type BindErrorCode =
+  | "agent_not_found"
+  | "not_agent_owner"
+  | "challenge_invalid"
+  | "endpoint_not_allowed"
+  | "signature_malformed"
+  | "registry_unavailable"
+  | "binding_not_found"
+  | "rate_limited";

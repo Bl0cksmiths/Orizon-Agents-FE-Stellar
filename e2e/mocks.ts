@@ -160,10 +160,81 @@ export async function mockApiOutage(page: Page): Promise<void> {
   );
 }
 
+// ── Agent endpoint binding (story 2.01) ─────────────────────
+
+/** The agent the bind spec drives, and the wallet that owns it. */
+export const mockBindAgentId = "weather_bot";
+export const mockWalletAddress =
+  "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
+/**
+ * What the emulated wallet answers a signMessage request with. The spec
+ * asserts this exact string reaches POST /bind as `signature`: the backend
+ * accepts both raw-bytes and SEP-53 signatures on purpose, so any re-encoding
+ * on the way through would turn a valid signature into a rejected one.
+ */
+export const mockSignature = "ZTJlLXNpZ25hdHVyZS1ieXRlcw==";
+
+const bindNonce = "e2ebindnonce00000000000000000000";
+
+/** `/api/agents/{id}/bind`, `/bind/challenge` and `/binding`, matched with the
+ * id captured so the challenge can be composed for whichever agent was asked
+ * about — lib/api.ts rejects a challenge that does not address it. */
+const BIND_CHALLENGE_RE = /^\/api\/agents\/([^/]+)\/bind\/challenge$/;
+const BIND_RE = /^\/api\/agents\/([^/]+)\/bind$/;
+const BINDING_RE = /^\/api\/agents\/([^/]+)\/binding$/;
+
 export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/**", (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
+
+    // Endpoint preflight — checked before the `/agents/{id}/…` patterns below,
+    // which it deliberately does not match.
+    if (method === "GET" && pathname === "/api/agents/bind/endpoint-check") {
+      return json(route, { allowed: true, rule: null, message: null });
+    }
+    const challengeFor = BIND_CHALLENGE_RE.exec(pathname);
+    if (method === "POST" && challengeFor) {
+      const agentId = decodeURIComponent(challengeFor[1]);
+      const body = route.request().postDataJSON() as { endpoint_url: string };
+      return json(route, {
+        agent_id: agentId,
+        nonce: bindNonce,
+        // Composed exactly as the backend does, since the client re-checks
+        // that the challenge addresses this agent before it signs anything.
+        message: `orizon-bind:v1:${agentId}:${body.endpoint_url}:${bindNonce}`,
+        expires_at: new Date(Date.now() + 120_000).toISOString(),
+        ttl_seconds: 120,
+      });
+    }
+    const bindFor = BIND_RE.exec(pathname);
+    if (method === "POST" && bindFor) {
+      const body = route.request().postDataJSON() as { endpoint_url: string };
+      return json(route, {
+        agent_id: decodeURIComponent(bindFor[1]),
+        endpoint_url: body.endpoint_url,
+        owner: mockWalletAddress,
+        bound_at: new Date().toISOString(),
+        replaced: false,
+      });
+    }
+    if (method === "GET" && BINDING_RE.test(pathname)) {
+      // The ordinary starting state: registered, never bound. A 404 carrying
+      // `binding_not_found` is how the backend says so, and
+      // `getAgentBindingOrNull` turns it into a plain null.
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "Not Found",
+          error: {
+            code: "binding_not_found",
+            message: "no endpoint bound for this agent",
+            request_id: "e2e0000000000001",
+          },
+        }),
+      });
+    }
 
     if (method === "GET" && pathname === "/api/metrics/overview") {
       return json(route, mockOverview);
@@ -187,4 +258,103 @@ export async function mockApi(page: Page): Promise<void> {
     // resolve instead of hanging or erroring.
     return json(route, {});
   });
+}
+
+/**
+ * A connected wallet, without a browser extension.
+ *
+ * Two pieces, because the app reaches the wallet by two different routes:
+ *
+ *   1. a saved session in localStorage, which WalletProvider restores on mount
+ *      — that is what makes the page think it is connected;
+ *   2. a stand-in for Freighter's content script. `@stellar/freighter-api`
+ *      talks to the extension purely by `window.postMessage`, answering a
+ *      `FREIGHTER_EXTERNAL_MSG_REQUEST` with a matching
+ *      `FREIGHTER_EXTERNAL_MSG_RESPONSE` (whose id field is spelled
+ *      `messagedId` — that typo is the real protocol), and short-circuits its
+ *      availability probe on a truthy `window.freighter`. Emulating that is
+ *      what lets an e2e spec walk the whole signing flow instead of stopping
+ *      at the popup.
+ *
+ * Horizon is intercepted too: the provider fetches a balance the moment a
+ * session is restored, and a spec must not depend on the public testnet.
+ */
+export async function mockWallet(page: Page): Promise<void> {
+  await page.route("**/horizon-testnet.stellar.org/**", (route) =>
+    json(route, {
+      balances: [{ asset_type: "native", balance: "100.0000000" }],
+    }),
+  );
+
+  await page.addInitScript(
+    ({
+      address,
+      signature,
+      passphrase,
+    }: {
+      address: string;
+      signature: string;
+      passphrase: string;
+    }) => {
+      window.localStorage.setItem(
+        "orizon.wallet.v2",
+        JSON.stringify({ walletId: "freighter", address }),
+      );
+      (window as unknown as { freighter?: boolean }).freighter = true;
+
+      window.addEventListener("message", (event: MessageEvent) => {
+        const request = event.data as
+          | { source?: string; messageId?: unknown; type?: string }
+          | null
+          | undefined;
+        if (!request || request.source !== "FREIGHTER_EXTERNAL_MSG_REQUEST") {
+          return;
+        }
+        const reply = (payload: Record<string, unknown>) =>
+          window.postMessage(
+            {
+              source: "FREIGHTER_EXTERNAL_MSG_RESPONSE",
+              messagedId: request.messageId,
+              ...payload,
+            },
+            window.location.origin,
+          );
+        switch (request.type) {
+          case "REQUEST_CONNECTION_STATUS":
+            return reply({ isConnected: true });
+          case "REQUEST_ALLOWED_STATUS":
+            return reply({ isAllowed: true });
+          case "REQUEST_ACCESS":
+          case "REQUEST_PUBLIC_KEY":
+            return reply({ publicKey: address });
+          case "REQUEST_NETWORK":
+            return reply({ network: "TESTNET", networkPassphrase: passphrase });
+          case "REQUEST_NETWORK_DETAILS":
+            return reply({
+              networkDetails: {
+                network: "TESTNET",
+                networkName: "Test Net",
+                networkUrl: "https://horizon-testnet.stellar.org",
+                networkPassphrase: passphrase,
+              },
+            });
+          // signMessage rides on SUBMIT_BLOB and comes back as `signedBlob`.
+          case "SUBMIT_BLOB":
+            return reply({ signedBlob: signature, signerAddress: address });
+          default:
+            return reply({
+              apiError: {
+                code: -1,
+                message: `unmocked freighter request: ${String(request.type)}`,
+              },
+            });
+        }
+      });
+    },
+    {
+      address: mockWalletAddress,
+      signature: mockSignature,
+      passphrase: "Test SDF Network ; September 2015",
+    },
+  );
 }

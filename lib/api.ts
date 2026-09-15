@@ -1,9 +1,13 @@
 import {
+  isAgentBinding,
   isAgentIdAvailability,
   isAgentList,
   isArtifactResponse,
   isAuthorizeBuild,
+  isBindChallenge,
+  isBindErrorCode,
   isDecomposeResponse,
+  isEndpointCheck,
   isFlow,
   isOverview,
   isReputationBatch,
@@ -20,10 +24,16 @@ import {
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
 import type {
   Agent,
+  AgentBinding,
   AgentIdAvailability,
   ArtifactResponse,
   AuthorizeBuild,
+  BindChallenge,
+  BindChallengeReq,
+  BindErrorCode,
+  BindReq,
   DecomposeResponse,
+  EndpointCheck,
   ExecuteResponse,
   Flow,
   Overview,
@@ -455,6 +465,130 @@ export const syncAgents = () =>
     {},
     ensure("/stellar/agents/sync", isSyncResponse),
   );
+
+// ── Agent endpoint binding (story 2.01) ─────────────────────
+
+/** `/agents/{id}/bind`, with the id escaped for the path segment it occupies. */
+const bindPath = (agentId: string) =>
+  `/agents/${encodeURIComponent(agentId)}/bind`;
+
+/**
+ * Ask for a signing challenge binding `endpointUrl` to the agent. The wallet
+ * signs the returned `message` verbatim — see `BindChallenge.message` for why
+ * it is never rebuilt locally.
+ *
+ * What IS re-checked is that the challenge addresses this agent and carries
+ * the nonce it reports: a wallet signature prompt shows the owner an opaque
+ * blob, not a claim, so a proxy answering with someone else's challenge would
+ * otherwise have them authorize a binding they never asked for. The endpoint
+ * segment in the middle is deliberately left unchecked — the backend is free
+ * to normalize the URL it embeds, and pinning that here would reject its own
+ * canonical form.
+ */
+export function createBindChallenge(
+  agentId: string,
+  endpointUrl: string,
+): Promise<BindChallenge> {
+  const path = `${bindPath(agentId)}/challenge`;
+  return post<BindChallenge, BindChallengeReq>(
+    path,
+    { endpoint_url: endpointUrl },
+    ensure(path, isBindChallenge),
+  ).then((challenge) => {
+    const addressesAgent =
+      challenge.agent_id === agentId &&
+      challenge.message.startsWith(`orizon-bind:v1:${agentId}:`) &&
+      challenge.message.endsWith(`:${challenge.nonce}`);
+    if (!addressesAgent) {
+      throw new Error(
+        `malformed response from ${path} — challenge does not address ${agentId}`,
+      );
+    }
+    return challenge;
+  });
+}
+
+/**
+ * Bind the endpoint, presenting the wallet's base64 ed25519 signature over the
+ * challenge message. Resolves to the stored binding, whose `replaced` flag
+ * says whether it superseded an earlier endpoint.
+ */
+export function bindAgent(
+  agentId: string,
+  body: BindReq,
+): Promise<AgentBinding> {
+  const path = bindPath(agentId);
+  return post<AgentBinding, BindReq>(path, body, ensure(path, isAgentBinding));
+}
+
+/**
+ * Advisory verdict on a candidate endpoint URL. The backend applies its policy
+ * without opening a connection, so this is cheap enough to run while the owner
+ * types: a refused URL becomes an inline field hint naming the rule, instead of
+ * a bare 422 that only arrives after they have signed with their wallet.
+ *
+ * A refusal is a 200 with `allowed: false`, not an error — only a transport or
+ * backend failure rejects.
+ */
+export function checkBindEndpoint(url: string): Promise<EndpointCheck> {
+  return get<EndpointCheck>(
+    `/agents/bind/endpoint-check?url=${encodeURIComponent(url)}`,
+    ensure("/agents/bind/endpoint-check", isEndpointCheck),
+  );
+}
+
+/**
+ * The agent's current binding. Rejects with an `ApiError` whose code is
+ * `binding_not_found` when the agent has never been bound — prefer
+ * `getAgentBindingOrNull` wherever "no endpoint yet" is the ordinary state
+ * rather than a failure worth showing.
+ */
+export function getAgentBinding(agentId: string): Promise<AgentBinding> {
+  const path = `/agents/${encodeURIComponent(agentId)}/binding`;
+  return get<AgentBinding>(path, ensure(path, isAgentBinding));
+}
+
+/**
+ * `getAgentBinding` with the unbound case as `null` instead of a rejection: an
+ * agent with no endpoint yet is where every agent starts, and bannering that
+ * as an error would make the normal path look broken.
+ *
+ * A 404 naming `agent_not_found` still rejects. The two 404s mean opposite
+ * things — one is "nothing bound yet", the other "no such agent" — and
+ * collapsing them would render a mistyped id as a healthy, unbound agent.
+ */
+export function getAgentBindingOrNull(
+  agentId: string,
+): Promise<AgentBinding | null> {
+  return getAgentBinding(agentId).catch((err: unknown) => {
+    if (
+      err instanceof ApiError &&
+      err.status === 404 &&
+      err.code !== "agent_not_found"
+    ) {
+      return null;
+    }
+    throw err;
+  });
+}
+
+/**
+ * The bind-contract code behind a rejection, or null when the failure is not
+ * one the contract names — a network drop, a client-side timeout, a malformed
+ * payload, or a code invented by a backend newer than this build.
+ *
+ * Every bind call rejects with an `ApiError` that already carries `code` as a
+ * bare string; this narrows it to the documented union so the UI can switch
+ * exhaustively. That switch is the whole point: `endpoint_not_allowed` is an
+ * inline error under the URL field, `not_agent_owner` means the wrong wallet
+ * is connected, `challenge_invalid` means re-challenge and sign again, and
+ * `registry_unavailable` is a retryable banner over an otherwise fine form.
+ * The human message cannot tell those four apart.
+ */
+export function bindErrorCode(err: unknown): BindErrorCode | null {
+  if (!(err instanceof ApiError)) return null;
+  return isBindErrorCode(err.code) ? err.code : null;
+}
 
 /** Consecutive failed reconnects tolerated before SSE is given up on. */
 const MAX_RECONNECTS = 3;

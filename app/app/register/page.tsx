@@ -461,11 +461,14 @@ export default function RegisterPage() {
                 >
                   {owner.slice(0, 4)}…{owner.slice(-4)}
                 </StellarExpertLink>
-                . Bind an execution endpoint (story 2.05) so it can take work —
-                or see it in the marketplace now.
+                . Bind an execution endpoint so it can take work — or see it in
+                the marketplace now.
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <ButtonLink variant="cyan" size="sm" href="/app/agents">
+                <ButtonLink variant="cyan" size="sm" href="/app/bind">
+                  Bind an endpoint ▸
+                </ButtonLink>
+                <ButtonLink variant="outline" size="sm" href="/app/agents">
                   View in marketplace ▸
                 </ButtonLink>
                 <Button

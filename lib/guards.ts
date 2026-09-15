@@ -11,10 +11,15 @@
 
 import type {
   Agent,
+  AgentBinding,
   AgentIdAvailability,
   ArtifactResponse,
   AuthorizeBuild,
+  BindChallenge,
+  BindErrorCode,
+  BindTimestamp,
   CodeArtifact,
+  EndpointCheck,
   DecomposeResponse,
   Flow,
   Overview,
@@ -413,4 +418,78 @@ export function isAgentIdAvailability(v: unknown): v is AgentIdAvailability {
  * non-number would print `NaN`. */
 export function isSyncResponse(v: unknown): v is SyncResponse {
   return isRecord(v) && isNum(v.synced);
+}
+
+/** A bind timestamp in either serialization the contract permits — an ISO
+ * string or a Unix epoch (see `BindTimestamp`). Rejecting one of the two would
+ * fail a valid binding over a serializer detail; what is ruled out is the
+ * object/null that would render as "[object Object]" or "Invalid Date". */
+const isBindTimestamp = (v: unknown): v is BindTimestamp =>
+  isStr(v) || isNum(v);
+
+/** Bind challenge: `message` is handed straight to the wallet as the payload
+ * to sign, so a missing one reaches Freighter as the literal "undefined" and
+ * comes back as an opaque wallet error rather than the backend failure it is —
+ * the same contract as `isAuthorizeBuild`. `nonce` is additionally matched
+ * against the message's own tail before signing, and `ttl_seconds` drives the
+ * expiry countdown, where a non-number counts down as `NaN`. */
+export function isBindChallenge(v: unknown): v is BindChallenge {
+  return (
+    isRecord(v) &&
+    isStr(v.agent_id) &&
+    isStr(v.nonce) &&
+    isStr(v.message) &&
+    isNum(v.ttl_seconds) &&
+    isBindTimestamp(v.expires_at)
+  );
+}
+
+/** A bound endpoint, from the bind POST and the binding GET alike.
+ * `endpoint_url` and `owner` are rendered, and `replaced` is checked strictly
+ * as a boolean because it picks the confirmation copy — the string "false"
+ * would tell an owner their very first binding had overwritten a live route,
+ * and a missing flag would hide that a real one was. */
+export function isAgentBinding(v: unknown): v is AgentBinding {
+  return (
+    isRecord(v) &&
+    isStr(v.agent_id) &&
+    isStr(v.endpoint_url) &&
+    isStr(v.owner) &&
+    isBindTimestamp(v.bound_at) &&
+    typeof v.replaced === "boolean"
+  );
+}
+
+/** Endpoint preflight: the bind form gates its submit on `allowed` and renders
+ * `rule`/`message` as the inline hint. A non-boolean `allowed` (the string
+ * "false") would read as permitted and walk the owner into the 422 this check
+ * exists to prevent, so it is checked strictly while the optional strings only
+ * reject a wrong type — the same contract as `isAgentIdAvailability`. */
+export function isEndpointCheck(v: unknown): v is EndpointCheck {
+  return (
+    isRecord(v) &&
+    typeof v.allowed === "boolean" &&
+    isOptionalStr(v.rule) &&
+    isOptionalStr(v.message)
+  );
+}
+
+/** The codes the bind error envelope is documented to carry. */
+const BIND_ERROR_CODES = new Set<string>([
+  "agent_not_found",
+  "not_agent_owner",
+  "challenge_invalid",
+  "endpoint_not_allowed",
+  "signature_malformed",
+  "registry_unavailable",
+  "binding_not_found",
+  "rate_limited",
+]);
+
+/** Narrows an envelope's `error.code` to the bind contract. A guard rather
+ * than a cast so a code the backend adds after this build resolves to "not one
+ * of ours" and the caller takes its generic branch, instead of being handed a
+ * value its exhaustive switch has no arm for. */
+export function isBindErrorCode(v: unknown): v is BindErrorCode {
+  return isStr(v) && BIND_ERROR_CODES.has(v);
 }
