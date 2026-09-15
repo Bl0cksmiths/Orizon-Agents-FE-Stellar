@@ -268,6 +268,10 @@ export default function BindPage() {
       setChallenge(null);
       setResult(bound);
       setPhase("success");
+      // The panel above is now a lie — it still says what the agent pointed at
+      // a second ago. Re-read it so the confirmation and the "current binding"
+      // it sits beneath cannot contradict each other.
+      void lookUpBinding(agentId);
     } catch (err) {
       setChallenge(null);
       fail(err);
@@ -277,6 +281,21 @@ export default function BindPage() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     void runBind();
+  }
+
+  /**
+   * Editing a field invalidates whatever the last attempt concluded. Above all
+   * a success: that card names an agent and an endpoint, and leaving it up
+   * while either is being retyped claims a binding that was never made.
+   */
+  function clearOutcome() {
+    setErrorView(null);
+    setWalletError(null);
+    setNotice(null);
+    if (phase === "success") {
+      setPhase("idle");
+      setResult(null);
+    }
   }
 
   function bindAnother() {
@@ -359,7 +378,7 @@ export default function BindPage() {
               value={agentId}
               onChange={(e) => {
                 setAgentId(e.target.value);
-                setErrorView(null);
+                clearOutcome();
               }}
               onBlur={() => touch("agent_id")}
               placeholder="weather_bot"
@@ -400,7 +419,7 @@ export default function BindPage() {
                     onClick={() => {
                       setAgentId(a.id);
                       touch("agent_id");
-                      setErrorView(null);
+                      clearOutcome();
                     }}
                     className={`clip-cyber-sm border border-border px-2.5 py-1 font-mono text-[11px] text-muted transition hover:border-violet/60 hover:text-text disabled:opacity-50 ${focusRing}`}
                   >
@@ -482,7 +501,7 @@ export default function BindPage() {
               value={endpointRaw}
               onChange={(e) => {
                 setEndpointRaw(e.target.value);
-                setErrorView(null);
+                clearOutcome();
               }}
               onBlur={() => touch("endpoint_url")}
               placeholder="https://agent.example.com/run"
