@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "bundle": "node scripts/check-bundle-size.mjs",
+    "lighthouse": "npx --yes @lhci/cli autorun",
     "smoke": "node scripts/smoke-deploy.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
