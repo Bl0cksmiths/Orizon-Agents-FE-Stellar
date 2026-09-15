@@ -14,14 +14,21 @@ export type RegistrationEvidence = {
   agentId: string;
   owner: string;
   txHash: string;
-  network: "testnet" | "public";
+  /**
+   * The network this registration landed on. Accepts what the backend's
+   * GET /stellar/network reports ("testnet" | "mainnet") as well as a raw
+   * explorer segment ("public"), and normalizes below — so a live value can be
+   * threaded straight through without mislabelling a mainnet tx as testnet.
+   */
+  network: string;
   capturedAt?: string;
 };
 
 export function buildRegistrationEvidence(e: RegistrationEvidence): string {
   const captured = e.capturedAt ?? new Date().toISOString();
-  const seg = e.network === "public" ? "public" : "testnet";
-  const label = e.network === "public" ? "mainnet" : "testnet";
+  const isMainnet = e.network === "public" || e.network === "mainnet";
+  const seg = isMainnet ? "public" : "testnet";
+  const label = isMainnet ? "mainnet" : "testnet";
   return [
     "Orizon Agents — registration evidence",
     `agent id:  ${e.agentId}`,
