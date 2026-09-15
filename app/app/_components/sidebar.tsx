@@ -353,7 +353,13 @@ export function Sidebar() {
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.classList.remove("overflow-hidden");
-      opener?.focus();
+      // The opener (the hamburger) lives inside ConsoleContent, which is still
+      // `inert` at this point — focusing an element inside an inert subtree is
+      // a no-op, so focus would silently fall to <body>. Restore on the next
+      // frame, once that component's effect has cleared inert.
+      requestAnimationFrame(() => {
+        if (opener?.isConnected) opener.focus();
+      });
     };
   }, [open, setOpen]);
 
