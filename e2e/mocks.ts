@@ -166,6 +166,49 @@ export async function mockApiOutage(page: Page): Promise<void> {
 export const mockBindAgentId = "weather_bot";
 export const mockWalletAddress =
   "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
+
+/**
+ * The marketplace as an operator sees it: one seeded catalog agent that needs
+ * no endpoint, and two the connected wallet owns on-chain — one of which is
+ * deliberately left unbound, because that is the state story 2.05 exists to
+ * make visible. `GET /api/agents` used to return `[]`, which made every
+ * owned-agent surface untestable.
+ */
+export const mockAgents = [
+  {
+    id: "agt_11c0",
+    name: "code.gen",
+    skills: ["code"],
+    price: 0.054,
+    rep: 4.6,
+    status: "online",
+    runs: 128,
+    real: true,
+    owner: null,
+  },
+  {
+    id: "weather_bot",
+    name: "Weather Bot",
+    skills: ["weather"],
+    price: 0.02,
+    rep: 3.5,
+    status: "online",
+    runs: 4,
+    real: false,
+    owner: mockWalletAddress,
+  },
+  {
+    id: "unbound_bot",
+    name: "Unbound Bot",
+    skills: ["research"],
+    price: 0.03,
+    rep: 3.5,
+    status: "online",
+    runs: 0,
+    real: false,
+    owner: mockWalletAddress,
+  },
+];
 /**
  * What the emulated wallet answers a signMessage request with. The spec
  * asserts this exact string reaches POST /bind as `signature`: the backend
@@ -246,7 +289,7 @@ export async function mockApi(page: Page): Promise<void> {
       return json(route, mockPlan);
     }
     if (method === "GET" && pathname === "/api/agents") {
-      return json(route, []);
+      return json(route, mockAgents);
     }
     if (
       method === "GET" &&
