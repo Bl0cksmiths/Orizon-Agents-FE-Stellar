@@ -21,11 +21,15 @@ import {
   agentIdAvailable,
   bindAgent,
   buildAuthorize,
+  bindErrorCode,
   buildRegisterAgent,
+  checkBindEndpoint,
   clearGetCache,
   createBindChallenge,
   decompose,
   execute,
+  getAgentBinding,
+  getAgentBindingOrNull,
   getArtifact,
   getFlow,
   getOverview,
@@ -1749,5 +1753,217 @@ describe("bindAgent", () => {
       status: 503,
       code: "registry_unavailable",
     });
+  });
+});
+
+describe("checkBindEndpoint", () => {
+  it("encodes the candidate url into the query string", async () => {
+    const verdict = { allowed: true, rule: null, message: null };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, verdict));
+
+    await expect(checkBindEndpoint(ENDPOINT)).resolves.toEqual(verdict);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agents/bind/endpoint-check?url=https%3A%2F%2Fagent.example.com%2Frun",
+      expect.objectContaining({
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  // The whole point of the preflight: a refusal is a friendly 200 carrying a
+  // reason for the field hint, not the bare 422 the bind itself would answer.
+  it("resolves a refusal with its rule instead of rejecting", async () => {
+    const refused = {
+      allowed: false,
+      rule: "loopback",
+      message: "the registry cannot reach 127.0.0.1",
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, refused));
+
+    const res = await checkBindEndpoint("http://127.0.0.1:8080/run");
+
+    expect(res.allowed).toBe(false);
+    expect(res.rule).toBe("loopback");
+    expect(res.message).toBe("the registry cannot reach 127.0.0.1");
+  });
+
+  it("rejects a verdict whose allowed flag is a string", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { allowed: "false" }));
+
+    await expect(checkBindEndpoint(ENDPOINT)).rejects.toThrow(
+      "malformed response from /agents/bind/endpoint-check",
+    );
+  });
+
+  it("surfaces a backend outage as a retryable code", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(503, {
+        error: { code: "registry_unavailable", message: "rpc down" },
+      }),
+    );
+
+    await expect(checkBindEndpoint(ENDPOINT)).rejects.toMatchObject({
+      status: 503,
+      code: "registry_unavailable",
+    });
+  });
+});
+
+describe("getAgentBinding", () => {
+  it("reads the agent's current binding", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, bindingFixture));
+
+    await expect(getAgentBinding(AGENT_ID)).resolves.toEqual(bindingFixture);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agents/orizon_batch/binding",
+      expect.objectContaining({
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("carries binding_not_found on a 404", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(404, {
+        error: { code: "binding_not_found", message: "no endpoint bound" },
+      }),
+    );
+
+    await expect(getAgentBinding(AGENT_ID)).rejects.toMatchObject({
+      status: 404,
+      code: "binding_not_found",
+    });
+  });
+
+  it("rejects a binding payload with no owner", async () => {
+    const { owner: _drop, ...rest } = bindingFixture;
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, rest));
+
+    await expect(getAgentBinding(AGENT_ID)).rejects.toThrow(
+      "malformed response from /agents/orizon_batch/binding",
+    );
+  });
+});
+
+describe("getAgentBindingOrNull", () => {
+  it("resolves the binding when there is one", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, bindingFixture));
+
+    await expect(getAgentBindingOrNull(AGENT_ID)).resolves.toEqual(
+      bindingFixture,
+    );
+  });
+
+  // Every agent starts unbound: bannering that as an error would make the
+  // normal path look broken.
+  it("resolves null when the agent has never been bound", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(404, {
+        error: { code: "binding_not_found", message: "no endpoint bound" },
+      }),
+    );
+
+    await expect(getAgentBindingOrNull(AGENT_ID)).resolves.toBeNull();
+  });
+
+  it("resolves null for a bare 404 that names no code", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(404, { detail: "not found" }));
+
+    await expect(getAgentBindingOrNull(AGENT_ID)).resolves.toBeNull();
+  });
+
+  // The opposite meaning behind the same status: a mistyped id must not read
+  // as a healthy agent that simply has no endpoint yet.
+  it("still rejects when the agent itself is unknown", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(404, {
+        error: { code: "agent_not_found", message: "unknown agent" },
+      }),
+    );
+
+    await expect(getAgentBindingOrNull(AGENT_ID)).rejects.toMatchObject({
+      status: 404,
+      code: "agent_not_found",
+    });
+  });
+
+  it("does not swallow a non-404 failure", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(503, {
+        error: { code: "registry_unavailable", message: "rpc down" },
+      }),
+    );
+
+    await expect(getAgentBindingOrNull(AGENT_ID)).rejects.toMatchObject({
+      status: 503,
+    });
+  });
+
+  it("does not swallow a malformed 200", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { agent_id: AGENT_ID }));
+
+    await expect(getAgentBindingOrNull(AGENT_ID)).rejects.toThrow(
+      "malformed response from /agents/orizon_batch/binding",
+    );
+  });
+});
+
+describe("bindErrorCode", () => {
+  it("narrows every code the bind contract names", () => {
+    for (const code of [
+      "agent_not_found",
+      "not_agent_owner",
+      "challenge_invalid",
+      "endpoint_not_allowed",
+      "signature_malformed",
+      "registry_unavailable",
+      "binding_not_found",
+      "rate_limited",
+    ]) {
+      expect(bindErrorCode(new ApiError("m", 422, undefined, code))).toBe(code);
+    }
+  });
+
+  it("reads the code off a real rejection, not just a handmade error", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(422, {
+        error: { code: "endpoint_not_allowed", message: "private range" },
+      }),
+    );
+
+    const err = await bindAgent(AGENT_ID, {
+      endpoint_url: "http://10.0.0.4/run",
+      signature: "c2ln",
+    }).then(
+      () => {
+        throw new Error("expected rejection");
+      },
+      (e: unknown) => e,
+    );
+
+    expect(bindErrorCode(err)).toBe("endpoint_not_allowed");
+  });
+
+  // A backend newer than this build must fall through to the generic branch,
+  // never into a switch arm that does not exist.
+  it("returns null for a code outside the contract", () => {
+    expect(bindErrorCode(new ApiError("m", 409, undefined, "id_taken"))).toBe(
+      null,
+    );
+  });
+
+  it("returns null for an ApiError carrying no code", () => {
+    expect(bindErrorCode(new ApiError("m", 500))).toBe(null);
+  });
+
+  it("returns null for a timeout or network rejection", () => {
+    expect(bindErrorCode(new Error("POST /agents/x/bind → timeout"))).toBe(
+      null,
+    );
+    expect(bindErrorCode(undefined)).toBe(null);
   });
 });
