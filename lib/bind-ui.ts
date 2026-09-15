@@ -8,6 +8,8 @@
  * network; `lib/api.ts` owns that.
  */
 
+import { ApiError, bindErrorCode } from "./api";
+import { rateLimitMessage } from "./rate-limit-message";
 import type { BindChallenge, BindTimestamp } from "./types";
 
 /**
@@ -155,4 +157,190 @@ export function formatValidity(seconds: number): string {
   if (whole < 60) return `${whole}s`;
   const minutes = Math.floor(whole / 60);
   return `${minutes}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/** Where a bind failure belongs on screen. The whole point of the contract's
+ * error codes is that these three are indistinguishable from the sentence. */
+export type BindErrorPlacement = "endpoint_field" | "agent_field" | "banner";
+
+export type BindErrorView = {
+  placement: BindErrorPlacement;
+  /** What the operator reads — already phrased as an instruction, not a code. */
+  message: string;
+  /** Whether the same attempt is worth repeating; drives the banner's retry
+   * control. False where retrying would fail identically (a refused URL, the
+   * wrong wallet) and only the inputs can fix it. */
+  retryable: boolean;
+  /** The limiter's own Retry-After, in ms, when it sent one — the submit stays
+   * disabled this long rather than burning another request on a 429. */
+  retryAfterMs?: number;
+};
+
+/**
+ * The human sentence out of an `ApiError`, or null when there is none.
+ *
+ * lib/api.ts formats a failure as `POST /path → 422 — <envelope message>`, and
+ * only the tail is worth an operator's attention: the method, path and status
+ * describe our plumbing, not their problem. Used where the backend's own
+ * wording beats anything this build could invent — above all
+ * `endpoint_not_allowed`, where the message names the rule that refused.
+ */
+export function apiErrorDetail(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const at = err.message.indexOf(" — ");
+  if (at < 0) return null;
+  const tail = err.message.slice(at + 3).trim();
+  return tail === "" ? null : tail;
+}
+
+/**
+ * A bind rejection as the screen should present it.
+ *
+ * This is the switch the whole `BindErrorCode` union exists for. One 4xx
+ * sentence covers four completely different situations, and showing it in one
+ * generic box tells the operator nothing about which one they are in:
+ *
+ *   endpoint_not_allowed  → under the URL field; the URL is what must change
+ *   agent_not_found       → under the agent field; the id is what must change
+ *   not_agent_owner       → banner; nothing on this form is wrong, the
+ *                           CONNECTED WALLET is, and no retry fixes that
+ *   challenge_invalid /
+ *   signature_malformed   → banner, retryable; the next attempt starts from a
+ *                           fresh challenge and usually just works
+ *   registry_unavailable  → banner, retryable; the backend is having a moment
+ *   rate_limited (or any
+ *   429)                  → banner, retryable once Retry-After has elapsed
+ *
+ * A code this build has never heard of, and anything that is not an `ApiError`
+ * at all (a dropped connection, a client-side timeout, a rejected guard),
+ * lands on the generic retryable banner — never silently swallowed.
+ */
+export function bindErrorView(err: unknown): BindErrorView {
+  // Checked before the code switch: a 429 carries the wait, which is the only
+  // actionable part, and the limiter's own envelope message ("too many
+  // requests") adds nothing over the status.
+  const limited = rateLimitMessage(err);
+  if (limited) {
+    const view: BindErrorView = {
+      placement: "banner",
+      message: limited,
+      retryable: true,
+    };
+    if (err instanceof ApiError && err.retryAfterMs !== undefined) {
+      view.retryAfterMs = err.retryAfterMs;
+    }
+    return view;
+  }
+
+  switch (bindErrorCode(err)) {
+    case "endpoint_not_allowed":
+      return {
+        placement: "endpoint_field",
+        message:
+          apiErrorDetail(err) ??
+          "The registry refused this endpoint. Try a different URL.",
+        retryable: false,
+      };
+    case "agent_not_found":
+      return {
+        placement: "agent_field",
+        message:
+          "No agent with this id is registered on-chain. Check the id, or register it first.",
+        retryable: false,
+      };
+    case "not_agent_owner":
+      return {
+        placement: "banner",
+        message:
+          "The connected wallet does not own this agent, so it cannot authorize an endpoint for it. Switch to the wallet that registered the agent and try again.",
+        retryable: false,
+      };
+    case "challenge_invalid":
+      return {
+        placement: "banner",
+        message:
+          "That signing challenge is no longer valid — it expired or was already used. Signing again requests a fresh one.",
+        retryable: true,
+      };
+    case "signature_malformed":
+      return {
+        placement: "banner",
+        message:
+          "The wallet's signature was not accepted. Make sure the wallet holds the agent's owner account, then sign again.",
+        retryable: true,
+      };
+    case "registry_unavailable":
+      return {
+        placement: "banner",
+        message:
+          "The agent registry is temporarily unreachable. Nothing was changed — try again in a moment.",
+        retryable: true,
+      };
+    case "rate_limited":
+      return {
+        placement: "banner",
+        message:
+          "Too many requests — wait a moment and try again. Nothing was lost.",
+        retryable: true,
+      };
+    // `binding_not_found` is not a failure of this form — it is how an agent
+    // with no endpoint yet answers the lookup, and `getAgentBindingOrNull`
+    // already turns it into `null`. Reaching here means it came back from a
+    // bind attempt, which the contract does not describe; say something true
+    // rather than nothing.
+    case "binding_not_found":
+      return {
+        placement: "banner",
+        message: "This agent has no endpoint bound yet.",
+        retryable: true,
+      };
+    default:
+      return {
+        placement: "banner",
+        message:
+          apiErrorDetail(err) ??
+          "Could not bind the endpoint. Nothing was changed — please try again.",
+        retryable: true,
+      };
+  }
+}
+
+/**
+ * Where the bind sequence is. Each step is a separate await with its own
+ * failure mode, and `awaiting_signature` is the one that matters most: the
+ * page is idle, the browser looks frozen, and the thing waiting on the
+ * operator is a popup in another window.
+ */
+export type BindPhase =
+  "idle" | "challenging" | "awaiting_signature" | "binding" | "success";
+
+/** True while an attempt is in flight — the form stays read-only and the
+ * submit disabled. */
+export function isBindBusy(phase: BindPhase): boolean {
+  return (
+    phase === "challenging" ||
+    phase === "awaiting_signature" ||
+    phase === "binding"
+  );
+}
+
+/**
+ * What the live region announces for a phase, or null when there is nothing to
+ * say. These sentences are the only notice a screen-reader user gets that the
+ * wallet is waiting on them, so `awaiting_signature` names the popup outright
+ * instead of the usual "working…".
+ */
+export function bindPhaseMessage(phase: BindPhase): string | null {
+  switch (phase) {
+    case "challenging":
+      return "Requesting a signing challenge from the registry…";
+    case "awaiting_signature":
+      return "Waiting for your wallet — open the wallet popup and approve the signature request to authorize this endpoint.";
+    case "binding":
+      return "Signature received. Binding the endpoint…";
+    case "success":
+      return "Endpoint bound.";
+    default:
+      return null;
+  }
 }
