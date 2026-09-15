@@ -6,6 +6,7 @@ import {
   isAuthorizeBuild,
   isBindChallenge,
   isDecomposeResponse,
+  isEndpointCheck,
   isFlow,
   isOverview,
   isReputationBatch,
@@ -30,6 +31,7 @@ import type {
   BindChallengeReq,
   BindReq,
   DecomposeResponse,
+  EndpointCheck,
   ExecuteResponse,
   Flow,
   Overview,
@@ -515,6 +517,57 @@ export function bindAgent(
 ): Promise<AgentBinding> {
   const path = bindPath(agentId);
   return post<AgentBinding, BindReq>(path, body, ensure(path, isAgentBinding));
+}
+
+/**
+ * Advisory verdict on a candidate endpoint URL. The backend applies its policy
+ * without opening a connection, so this is cheap enough to run while the owner
+ * types: a refused URL becomes an inline field hint naming the rule, instead of
+ * a bare 422 that only arrives after they have signed with their wallet.
+ *
+ * A refusal is a 200 with `allowed: false`, not an error — only a transport or
+ * backend failure rejects.
+ */
+export function checkBindEndpoint(url: string): Promise<EndpointCheck> {
+  return get<EndpointCheck>(
+    `/agents/bind/endpoint-check?url=${encodeURIComponent(url)}`,
+    ensure("/agents/bind/endpoint-check", isEndpointCheck),
+  );
+}
+
+/**
+ * The agent's current binding. Rejects with an `ApiError` whose code is
+ * `binding_not_found` when the agent has never been bound — prefer
+ * `getAgentBindingOrNull` wherever "no endpoint yet" is the ordinary state
+ * rather than a failure worth showing.
+ */
+export function getAgentBinding(agentId: string): Promise<AgentBinding> {
+  const path = `/agents/${encodeURIComponent(agentId)}/binding`;
+  return get<AgentBinding>(path, ensure(path, isAgentBinding));
+}
+
+/**
+ * `getAgentBinding` with the unbound case as `null` instead of a rejection: an
+ * agent with no endpoint yet is where every agent starts, and bannering that
+ * as an error would make the normal path look broken.
+ *
+ * A 404 naming `agent_not_found` still rejects. The two 404s mean opposite
+ * things — one is "nothing bound yet", the other "no such agent" — and
+ * collapsing them would render a mistyped id as a healthy, unbound agent.
+ */
+export function getAgentBindingOrNull(
+  agentId: string,
+): Promise<AgentBinding | null> {
+  return getAgentBinding(agentId).catch((err: unknown) => {
+    if (
+      err instanceof ApiError &&
+      err.status === 404 &&
+      err.code !== "agent_not_found"
+    ) {
+      return null;
+    }
+    throw err;
+  });
 }
 
 /** Consecutive failed reconnects tolerated before SSE is given up on. */
