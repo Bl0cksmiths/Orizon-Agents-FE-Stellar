@@ -51,7 +51,7 @@ const cases = [
 
 export function UseCases() {
   const [active, setActive] = useState(cases[0].id);
-  const current = cases.find((c) => c.id === active)!;
+  const current = cases.find((c) => c.id === active) ?? cases[0];
 
   return (
     <section id="use-cases" className="relative py-28">
