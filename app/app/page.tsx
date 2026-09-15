@@ -9,6 +9,7 @@ import { StaleBadge } from "@/components/ui/stale-badge";
 import { getOverview, listTasks } from "@/lib/api";
 import type { Overview, Task } from "@/lib/types";
 import { focusRing } from "@/lib/ui";
+import { isTransientFetchError } from "@/lib/use-fetch";
 import { usePolling } from "@/lib/use-polling";
 
 // Tile labels are static, so they render while the payload is loading and
@@ -74,6 +75,10 @@ export default function OverviewPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A terminal failure (a 4xx that will not fix itself) is distinct from a
+  // transient one: polling a 404 forever tells the reader nothing and hides
+  // which of the two they are looking at. Set from isTransientFetchError.
+  const [terminal, setTerminal] = useState(false);
   const [retrying, setRetrying] = useState(false);
   // When the manual retry below last succeeded; the poller tracks its own.
   const [manualSuccessAt, setManualSuccessAt] = useState<number | null>(null);
@@ -83,6 +88,7 @@ export default function OverviewPage() {
     setOverview(o);
     setTasks(t);
     setError(null);
+    setTerminal(false);
   }, []);
 
   // `trackStatus` dates the numbers still on screen: the poller keeps the last
@@ -94,12 +100,15 @@ export default function OverviewPage() {
         await load();
       } catch (e) {
         setError(e instanceof Error ? e.message : "fetch failed");
+        setTerminal(!isTransientFetchError(e));
         // Rethrow so the poller backs off while the backend is down.
         throw e;
       }
     },
     5000,
-    { trackStatus: true },
+    // A terminal failure stops the loop — re-polling a 404 every 5s is noise,
+    // and the manual retry below is the way back.
+    { enabled: !terminal, trackStatus: true },
   );
 
   // Manual retry: the poller has backed off to a 20s cadence by the time the
@@ -108,7 +117,10 @@ export default function OverviewPage() {
     setRetrying(true);
     load()
       .then(() => setManualSuccessAt(Date.now()))
-      .catch((e) => setError(e instanceof Error ? e.message : "fetch failed"))
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : "fetch failed");
+        setTerminal(!isTransientFetchError(e));
+      })
       .finally(() => setRetrying(false));
   }, [load]);
 
@@ -172,8 +184,13 @@ export default function OverviewPage() {
           onRetry={retry}
           retrying={retrying}
         >
-          couldn&apos;t reach the backend — {error}
-          {overview && " · showing the last values received"}
+          {terminal
+            ? "this data isn't available — "
+            : "couldn't reach the backend — "}
+          {error}
+          {terminal
+            ? " · this won't resolve on its own — retry once it's restored"
+            : overview && " · showing the last values received"}
         </ErrorNote>
       )}
 
