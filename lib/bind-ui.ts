@@ -159,6 +159,42 @@ export function formatValidity(seconds: number): string {
   return `${minutes}:${String(whole % 60).padStart(2, "0")}`;
 }
 
+/**
+ * A bound timestamp as the binding panel prints it: `YYYY-MM-DD HH:MM:SS UTC`.
+ *
+ * Deliberately not a locale format. This string is rendered from a value that
+ * arrives client-side, but the same helper describes evidence an operator
+ * pastes into a report, and a machine-stable UTC stamp is the one form that
+ * means the same thing to everyone reading it. An unreadable timestamp prints
+ * as "unknown" rather than "Invalid Date".
+ */
+export function formatBoundAt(t: BindTimestamp): string {
+  const ms = bindTimestampMs(t);
+  if (ms === null) return "unknown";
+  return `${new Date(ms).toISOString().slice(0, 19).replace("T", " ")} UTC`;
+}
+
+/**
+ * The inline sentence for a URL the registry's preflight refused.
+ *
+ * `message` is the backend's human wording and `rule` the policy that fired;
+ * both are optional on the contract, so all four combinations have to read
+ * like English. The rule is carried through whenever it exists — it is what
+ * lets an operator tell "this host is private" from "this scheme is refused"
+ * without a support round trip.
+ */
+export function endpointRefusalText(check: {
+  rule?: string | null;
+  message?: string | null;
+}): string {
+  const message = check.message?.trim();
+  const rule = check.rule?.trim();
+  if (message && rule) return `${message} · rule: ${rule}`;
+  if (message) return message;
+  if (rule) return `Refused by the endpoint policy · rule: ${rule}`;
+  return "The registry refused this endpoint. Try a different URL.";
+}
+
 /** Where a bind failure belongs on screen. The whole point of the contract's
  * error codes is that these three are indistinguishable from the sentence. */
 export type BindErrorPlacement = "endpoint_field" | "agent_field" | "banner";
