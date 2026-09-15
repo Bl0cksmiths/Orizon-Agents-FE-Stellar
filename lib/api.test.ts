@@ -1228,6 +1228,64 @@ describe("openTraceStream polling fallback", () => {
     dispose();
   });
 
+  it("hands over to polling when reconnects keep opening but deliver nothing", async () => {
+    const onFallback = vi.fn();
+    serve(
+      () => [traceLine("0.1", "a")],
+      () => "running",
+    );
+    const dispose = openTraceStream(
+      "tsk_silent",
+      () => {},
+      undefined,
+      undefined,
+      undefined,
+      { onFallback },
+    );
+
+    // Every connection opens, outlives STABLE_CONNECTION_MS — which refreshes
+    // the attempt budget — and dies without carrying a single line: a proxy
+    // that accepts the stream and forwards nothing. The attempt budget alone
+    // can never end this, so without the wall-clock ceiling the reader sits on
+    // "reconnecting" for ~20 minutes and is never told the stream is gone.
+    for (let i = 0; i < 4; i += 1) {
+      const es = StubEventSource.last();
+      es.emit("open");
+      await vi.advanceTimersByTimeAsync(6_000);
+      es.emit("error");
+      await vi.advanceTimersByTimeAsync(1_000);
+    }
+
+    expect(onFallback).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("does not hand over while lines keep arriving", async () => {
+    const onFallback = vi.fn();
+    const dispose = openTraceStream(
+      "tsk_flappy",
+      () => {},
+      undefined,
+      undefined,
+      undefined,
+      { onFallback },
+    );
+
+    // Eight drops spanning well past MAX_OUTAGE_MS — but each connection
+    // delivers a line, which ends the outage, so the ceiling never fires. A
+    // flapping-but-working transport must not be demoted to polling.
+    for (let i = 0; i < 8; i += 1) {
+      const es = StubEventSource.last();
+      es.emit("open");
+      es.emit("trace", traceLine(`${i}.0`, `step ${i}`));
+      es.emit("error");
+      await vi.advanceTimersByTimeAsync(4_000);
+    }
+
+    expect(onFallback).not.toHaveBeenCalled();
+    dispose();
+  });
+
   it("re-delivers nothing a previous poll already showed", async () => {
     const { state, onEvent, onReset } = deferredConsumer();
     const history = [traceLine("0.1", "a"), traceLine("0.2", "b")];
