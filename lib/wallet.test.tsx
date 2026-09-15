@@ -37,6 +37,7 @@ const { kitMock, loader } = vi.hoisted(() => ({
     authModal: vi.fn(),
     disconnect: vi.fn(async () => {}),
     signTransaction: vi.fn(),
+    signMessage: vi.fn(),
     selectedModule: { productId: "freighter", productName: "Freighter" } as {
       productId: string;
       productName?: string;
@@ -88,6 +89,7 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/freighter", () => ({
 }));
 
 import { WalletProvider, useWallet } from "./wallet";
+import { classifyError } from "./wallet-errors";
 
 function wrapper({ children }: { children: React.ReactNode }) {
   return <WalletProvider>{children}</WalletProvider>;
@@ -156,6 +158,7 @@ beforeEach(() => {
   kitMock.authModal.mockReset();
   kitMock.disconnect.mockReset();
   kitMock.signTransaction.mockReset();
+  kitMock.signMessage.mockReset();
   kitMock.selectedModule = { productId: "freighter", productName: "Freighter" };
   loader.failNextLoad = false;
   // Every mount with an address fetches a balance; keep it off the network.
@@ -910,6 +913,124 @@ describe("signXdr", () => {
     });
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toBe("popup vanished");
+  });
+});
+
+describe("signMessage", () => {
+  /** Mounts connected and waits out the restore-time network probe, so a
+   * later getNetwork() call can only have come from the code under test. */
+  async function mountProbed() {
+    const hook = await mountConnected();
+    await waitFor(() =>
+      expect(hook.result.current.walletNetwork).not.toBeNull(),
+    );
+    return hook;
+  }
+
+  it("refuses to sign while disconnected", async () => {
+    const { result } = mountFresh();
+    await expect(
+      result.current.signMessage("orizon-bind:v1:a:b:c"),
+    ).rejects.toThrow(/not connected/i);
+    expect(kitMock.signMessage).not.toHaveBeenCalled();
+  });
+
+  it("returns the wallet's base64 signature VERBATIM", async () => {
+    // The bind verifier accepts both raw-bytes and SEP-53 signatures on
+    // purpose, so anything this layer did to "normalize" the string would
+    // turn a signature the backend accepts into one it rejects.
+    const { result } = await mountProbed();
+    kitMock.signMessage.mockResolvedValueOnce({
+      signedMessage: "c2lnbmF0dXJlLWJ5dGVz",
+      signerAddress: ADDRESS,
+    });
+
+    let signature = "";
+    await act(async () => {
+      signature = await result.current.signMessage("orizon-bind:v1:a:b:c");
+    });
+
+    expect(signature).toBe("c2lnbmF0dXJlLWJ5dGVz");
+    expect(kitMock.signMessage).toHaveBeenCalledWith("orizon-bind:v1:a:b:c", {
+      address: ADDRESS,
+    });
+  });
+
+  it("does not block on a wallet reporting a different network", async () => {
+    // A message signature carries no passphrase, so it verifies the same on
+    // any network — refusing here would reject a binding the backend would
+    // have accepted. This is the one place signMessage must NOT copy signXdr.
+    kitMock.getNetwork.mockResolvedValue({
+      network: "PUBLIC",
+      networkPassphrase: PUBLIC_PASSPHRASE,
+    });
+    const { result } = await mountConnected();
+    await waitFor(() =>
+      expect(result.current.walletNetworkMismatch).toBe(true),
+    );
+    kitMock.signMessage.mockResolvedValueOnce({ signedMessage: "SIG" });
+
+    let signature = "";
+    await act(async () => {
+      signature = await result.current.signMessage("msg");
+    });
+    expect(signature).toBe("SIG");
+  });
+
+  it("rejects with a friendly timeout when the popup never settles", async () => {
+    const { result } = await mountProbed();
+    kitMock.signMessage.mockImplementationOnce(() => new Promise(() => {}));
+
+    vi.useFakeTimers();
+    try {
+      let err: unknown;
+      await act(async () => {
+        const settled = result.current
+          .signMessage("msg")
+          .catch((e: unknown) => {
+            err = e;
+          });
+        // Flush the pre-sign microtask chain (the lazy kit load) so the
+        // deadline timer is armed before the clock advances past it.
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(120_000);
+        await settled;
+      });
+      expect(err).toMatchObject({ kind: "unknown", title: "Wallet timed out" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the wallet's own wording when the kit rejects with a plain object", async () => {
+    // The kit's parseError throws `{ code, message }`, not an Error. Passing
+    // that through String() would produce "[object Object]" and erase the
+    // phrase the rejection classifier matches on — a cancelled popup would
+    // read as an unexplained failure.
+    const { result } = await mountProbed();
+    kitMock.signMessage.mockRejectedValueOnce({
+      code: -4,
+      message: "User declined access",
+    });
+
+    let err: unknown;
+    await act(async () => {
+      err = await result.current.signMessage("msg").catch((e: unknown) => e);
+    });
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe("User declined access");
+    expect(classifyError(err).kind).toBe("user_rejected");
+  });
+
+  it("propagates a thrown Error untouched", async () => {
+    const { result } = await mountProbed();
+    kitMock.signMessage.mockRejectedValueOnce(new Error("wallet is locked"));
+
+    let err: unknown;
+    await act(async () => {
+      err = await result.current.signMessage("msg").catch((e: unknown) => e);
+    });
+    expect((err as Error).message).toBe("wallet is locked");
   });
 });
 
