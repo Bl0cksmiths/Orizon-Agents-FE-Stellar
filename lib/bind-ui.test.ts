@@ -21,6 +21,8 @@ import {
   bindPhaseMessage,
   bindTimestampMs,
   challengeExpiresAtMs,
+  endpointRefusalText,
+  formatBoundAt,
   formatValidity,
   isBindBusy,
   isChallengeExpired,
@@ -268,6 +270,48 @@ describe("apiErrorDetail", () => {
     expect(apiErrorDetail(new ApiError("POST /x → 500 —    ", 500))).toBeNull();
     expect(apiErrorDetail(new Error("boom"))).toBeNull();
     expect(apiErrorDetail(null)).toBeNull();
+  });
+});
+
+describe("formatBoundAt", () => {
+  it("prints a machine-stable UTC stamp, whichever serialization arrived", () => {
+    expect(formatBoundAt("2026-09-15T10:04:05Z")).toBe(
+      "2026-09-15 10:04:05 UTC",
+    );
+    expect(formatBoundAt(1_789_000_000)).toBe(
+      `${new Date(1_789_000_000_000).toISOString().slice(0, 19).replace("T", " ")} UTC`,
+    );
+  });
+
+  it("says unknown rather than rendering Invalid Date", () => {
+    expect(formatBoundAt("recently")).toBe("unknown");
+  });
+});
+
+describe("endpointRefusalText", () => {
+  it("names both the reason and the rule when the backend sent both", () => {
+    expect(
+      endpointRefusalText({
+        rule: "no_private_hosts",
+        message: "10.0.0.0/8 is private",
+      }),
+    ).toBe("10.0.0.0/8 is private · rule: no_private_hosts");
+  });
+
+  it("uses whichever half arrived on its own", () => {
+    expect(endpointRefusalText({ message: "loopback is refused" })).toBe(
+      "loopback is refused",
+    );
+    expect(endpointRefusalText({ rule: "https_only" })).toBe(
+      "Refused by the endpoint policy · rule: https_only",
+    );
+  });
+
+  it("still reads like English when the backend sent neither", () => {
+    expect(endpointRefusalText({})).toMatch(/refused this endpoint/i);
+    expect(endpointRefusalText({ rule: null, message: "  " })).toMatch(
+      /refused this endpoint/i,
+    );
   });
 });
 
