@@ -12,12 +12,17 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { ApiError } from "./api";
 import {
   CHALLENGE_EXPIRY_GUARD_MS,
   CLOCK_SKEW_TOLERANCE_MS,
+  apiErrorDetail,
+  bindErrorView,
+  bindPhaseMessage,
   bindTimestampMs,
   challengeExpiresAtMs,
   formatValidity,
+  isBindBusy,
   isChallengeExpired,
   normalizeEndpointUrl,
   secondsRemaining,
@@ -244,5 +249,159 @@ describe("formatValidity", () => {
   it("is empty for an unknown expiry, and never negative", () => {
     expect(formatValidity(Number.POSITIVE_INFINITY)).toBe("");
     expect(formatValidity(-10)).toBe("0s");
+  });
+});
+
+describe("apiErrorDetail", () => {
+  it("keeps only the envelope sentence out of a formatted ApiError", () => {
+    const err = new ApiError(
+      "POST /agents/weather_bot/bind → 422 — private addresses cannot be bound",
+      422,
+      undefined,
+      "endpoint_not_allowed",
+    );
+    expect(apiErrorDetail(err)).toBe("private addresses cannot be bound");
+  });
+
+  it("is null when there is no sentence, or no ApiError at all", () => {
+    expect(apiErrorDetail(new ApiError("POST /x → 500", 500))).toBeNull();
+    expect(apiErrorDetail(new ApiError("POST /x → 500 —    ", 500))).toBeNull();
+    expect(apiErrorDetail(new Error("boom"))).toBeNull();
+    expect(apiErrorDetail(null)).toBeNull();
+  });
+});
+
+describe("bindErrorView", () => {
+  /** An `ApiError` shaped the way lib/api.ts builds one from the bind
+   * envelope: formatted message, status, and the machine-readable code. */
+  const bindError = (code: string, status = 422, detail = "refused") =>
+    new ApiError(
+      `POST /agents/weather_bot/bind → ${status} — ${detail}`,
+      status,
+      undefined,
+      code,
+    );
+
+  it("puts a refused endpoint under the URL field, in the registry's own words", () => {
+    // The whole reason the endpoint-check endpoint and this code exist: a
+    // blocked URL is a field problem with a reason, not a mystery banner.
+    const view = bindErrorView(
+      bindError("endpoint_not_allowed", 422, "private addresses are refused"),
+    );
+    expect(view.placement).toBe("endpoint_field");
+    expect(view.message).toBe("private addresses are refused");
+    // Retrying the same URL fails identically — only an edit helps.
+    expect(view.retryable).toBe(false);
+  });
+
+  it("falls back to its own wording when the envelope carried no sentence", () => {
+    const view = bindErrorView(
+      new ApiError("POST /x → 422", 422, undefined, "endpoint_not_allowed"),
+    );
+    expect(view.placement).toBe("endpoint_field");
+    expect(view.message).toMatch(/refused this endpoint/i);
+  });
+
+  it("puts an unknown agent under the agent field", () => {
+    const view = bindErrorView(bindError("agent_not_found", 404));
+    expect(view.placement).toBe("agent_field");
+    expect(view.message).toMatch(/registered on-chain/i);
+    expect(view.retryable).toBe(false);
+  });
+
+  it("explains a wrong wallet, and does not offer a pointless retry", () => {
+    const view = bindErrorView(bindError("not_agent_owner", 403));
+    expect(view.placement).toBe("banner");
+    expect(view.message).toMatch(/does not own this agent/i);
+    expect(view.message).toMatch(/switch to the wallet/i);
+    expect(view.retryable).toBe(false);
+  });
+
+  it("offers a retry for a stale challenge and a rejected signature", () => {
+    for (const code of ["challenge_invalid", "signature_malformed"]) {
+      const view = bindErrorView(bindError(code, 400));
+      expect(view.placement).toBe("banner");
+      expect(view.retryable).toBe(true);
+    }
+  });
+
+  it("banners a registry outage as retryable, and says nothing changed", () => {
+    const view = bindErrorView(bindError("registry_unavailable", 503));
+    expect(view.placement).toBe("banner");
+    expect(view.retryable).toBe(true);
+    expect(view.message).toMatch(/nothing was changed/i);
+  });
+
+  it("honours the limiter's Retry-After on a 429", () => {
+    const view = bindErrorView(
+      new ApiError("POST /x → 429 — rate limited", 429, 7_000, "rate_limited"),
+    );
+    expect(view.placement).toBe("banner");
+    expect(view.retryable).toBe(true);
+    expect(view.retryAfterMs).toBe(7_000);
+    expect(view.message).toMatch(/wait 7s/);
+  });
+
+  it("still handles a 429 that sent no Retry-After", () => {
+    const view = bindErrorView(new ApiError("POST /x → 429", 429));
+    expect(view.retryAfterMs).toBeUndefined();
+    expect(view.message).toMatch(/wait a moment/i);
+  });
+
+  it("handles a rate_limited code that did not arrive as a 429", () => {
+    const view = bindErrorView(bindError("rate_limited", 503));
+    expect(view.placement).toBe("banner");
+    expect(view.retryable).toBe(true);
+    expect(view.message).toMatch(/too many requests/i);
+  });
+
+  it("says something true for a binding_not_found that reached the form", () => {
+    const view = bindErrorView(bindError("binding_not_found", 404));
+    expect(view.placement).toBe("banner");
+    expect(view.message).toMatch(/no endpoint bound yet/i);
+  });
+
+  it("banners a code this build has never heard of rather than swallowing it", () => {
+    const view = bindErrorView(
+      bindError("teapot_unavailable", 418, "short and stout"),
+    );
+    expect(view.placement).toBe("banner");
+    expect(view.retryable).toBe(true);
+    expect(view.message).toBe("short and stout");
+  });
+
+  it("banners a transport failure, which carries no code at all", () => {
+    const view = bindErrorView(
+      new Error("POST /agents/x/bind → timeout after 105s"),
+    );
+    expect(view.placement).toBe("banner");
+    expect(view.retryable).toBe(true);
+    expect(view.message).toMatch(/could not bind the endpoint/i);
+  });
+});
+
+describe("bind phases", () => {
+  it("is busy for exactly the three in-flight steps", () => {
+    expect(isBindBusy("idle")).toBe(false);
+    expect(isBindBusy("challenging")).toBe(true);
+    expect(isBindBusy("awaiting_signature")).toBe(true);
+    expect(isBindBusy("binding")).toBe(true);
+    expect(isBindBusy("success")).toBe(false);
+  });
+
+  it("announces the wallet step by naming the popup, not a generic wait", () => {
+    // A screen-reader user gets no other notice that the browser is idle
+    // because something in ANOTHER window wants their attention.
+    expect(bindPhaseMessage("awaiting_signature")).toMatch(/wallet popup/i);
+  });
+
+  it("has an announcement for every in-flight step and for success", () => {
+    expect(bindPhaseMessage("challenging")).toMatch(/challenge/i);
+    expect(bindPhaseMessage("binding")).toMatch(/binding the endpoint/i);
+    expect(bindPhaseMessage("success")).toMatch(/bound/i);
+  });
+
+  it("says nothing at rest", () => {
+    expect(bindPhaseMessage("idle")).toBeNull();
   });
 });
