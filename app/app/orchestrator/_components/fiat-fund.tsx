@@ -230,7 +230,9 @@ export function FiatFund({
       <Button
         variant="primary"
         onClick={fund}
-        disabled={busy || quoting || !php || !address}
+        disabled={
+          busy || quoting || !php || !address || !first.trim() || !last.trim()
+        }
         size="md"
         className="mt-3 w-full"
       >
