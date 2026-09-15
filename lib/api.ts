@@ -5,6 +5,7 @@ import {
   isArtifactResponse,
   isAuthorizeBuild,
   isBindChallenge,
+  isBindErrorCode,
   isDecomposeResponse,
   isEndpointCheck,
   isFlow,
@@ -29,6 +30,7 @@ import type {
   AuthorizeBuild,
   BindChallenge,
   BindChallengeReq,
+  BindErrorCode,
   BindReq,
   DecomposeResponse,
   EndpointCheck,
@@ -568,6 +570,24 @@ export function getAgentBindingOrNull(
     }
     throw err;
   });
+}
+
+/**
+ * The bind-contract code behind a rejection, or null when the failure is not
+ * one the contract names — a network drop, a client-side timeout, a malformed
+ * payload, or a code invented by a backend newer than this build.
+ *
+ * Every bind call rejects with an `ApiError` that already carries `code` as a
+ * bare string; this narrows it to the documented union so the UI can switch
+ * exhaustively. That switch is the whole point: `endpoint_not_allowed` is an
+ * inline error under the URL field, `not_agent_owner` means the wrong wallet
+ * is connected, `challenge_invalid` means re-challenge and sign again, and
+ * `registry_unavailable` is a retryable banner over an otherwise fine form.
+ * The human message cannot tell those four apart.
+ */
+export function bindErrorCode(err: unknown): BindErrorCode | null {
+  if (!(err instanceof ApiError)) return null;
+  return isBindErrorCode(err.code) ? err.code : null;
 }
 
 /** Consecutive failed reconnects tolerated before SSE is given up on. */
