@@ -21,3 +21,12 @@ coverage
 # Playwright artifacts
 test-results/
 playwright-report/
+
+# Program / evidence / submission docs — kept local, not needed for development
+/WHITEBELT.md
+/YELLOWBELT.md
+/ORANGEBELT.md
+/GREENBELT.md
+/PRD.md
+/docs/evidence/*.md
+/Week-1-Tranche-Submission/**/*.md
