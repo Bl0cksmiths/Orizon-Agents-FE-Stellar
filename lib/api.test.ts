@@ -1028,16 +1028,22 @@ describe("openTraceStream reconnect budget", () => {
   it("refreshes the budget after a connection that merely stayed up", async () => {
     const dispose = openTraceStream("tsk_quiet", () => {});
 
-    for (let i = 0; i < 5; i += 1) {
+    // Each connection opens, outlives STABLE_CONNECTION_MS carrying nothing,
+    // then dies. Without the refresh the 3-attempt budget would be spent and
+    // the stream would hand over to polling after 3 sockets; with it, it keeps
+    // reconnecting. Kept under MAX_OUTAGE_MS in total — the attempt budget is
+    // what this test is about, and the outage ceiling (covered separately)
+    // is what now bounds a silent stream overall.
+    for (let i = 0; i < 3; i += 1) {
       const es = StubEventSource.last();
       es.emit("open");
-      await vi.advanceTimersByTimeAsync(20_000); // two keepalive windows
+      await vi.advanceTimersByTimeAsync(5_000);
       es.emit("ping");
       es.emit("error");
       await vi.advanceTimersByTimeAsync(1_000);
     }
 
-    expect(StubEventSource.instances).toHaveLength(6);
+    expect(StubEventSource.instances).toHaveLength(4);
     dispose();
   });
 
@@ -1219,6 +1225,64 @@ describe("openTraceStream polling fallback", () => {
       "/api/trace/tsk_fb",
       expect.objectContaining({ headers: { "X-Task-Token": "tok_fb" } }),
     );
+    dispose();
+  });
+
+  it("hands over to polling when reconnects keep opening but deliver nothing", async () => {
+    const onFallback = vi.fn();
+    serve(
+      () => [traceLine("0.1", "a")],
+      () => "running",
+    );
+    const dispose = openTraceStream(
+      "tsk_silent",
+      () => {},
+      undefined,
+      undefined,
+      undefined,
+      { onFallback },
+    );
+
+    // Every connection opens, outlives STABLE_CONNECTION_MS — which refreshes
+    // the attempt budget — and dies without carrying a single line: a proxy
+    // that accepts the stream and forwards nothing. The attempt budget alone
+    // can never end this, so without the wall-clock ceiling the reader sits on
+    // "reconnecting" for ~20 minutes and is never told the stream is gone.
+    for (let i = 0; i < 4; i += 1) {
+      const es = StubEventSource.last();
+      es.emit("open");
+      await vi.advanceTimersByTimeAsync(6_000);
+      es.emit("error");
+      await vi.advanceTimersByTimeAsync(1_000);
+    }
+
+    expect(onFallback).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("does not hand over while lines keep arriving", async () => {
+    const onFallback = vi.fn();
+    const dispose = openTraceStream(
+      "tsk_flappy",
+      () => {},
+      undefined,
+      undefined,
+      undefined,
+      { onFallback },
+    );
+
+    // Eight drops spanning well past MAX_OUTAGE_MS — but each connection
+    // delivers a line, which ends the outage, so the ceiling never fires. A
+    // flapping-but-working transport must not be demoted to polling.
+    for (let i = 0; i < 8; i += 1) {
+      const es = StubEventSource.last();
+      es.emit("open");
+      es.emit("trace", traceLine(`${i}.0`, `step ${i}`));
+      es.emit("error");
+      await vi.advanceTimersByTimeAsync(4_000);
+    }
+
+    expect(onFallback).not.toHaveBeenCalled();
     dispose();
   });
 
@@ -1410,13 +1474,15 @@ describe("openTraceStream connect deadline", () => {
     fetchMock.mockRejectedValue(new Error("GET /trace/tsk_dead → 404"));
     const dispose = openTraceStream("tsk_dead", () => {}, undefined, onError);
 
-    // 3 hung connects + their backoffs, then the 4th hang exhausts the
-    // budget and hands over to polling, which 404s its way out too.
+    // Hung connects and their backoffs until the outage ceiling hands over to
+    // polling, which 404s its way out too. The ceiling bounds one outage by
+    // wall clock, so the failure surfaces after fewer attempts than the raw
+    // 4-attempt budget would have taken.
     await vi.advanceTimersByTimeAsync(
       (STREAM_CONNECT_TIMEOUT_MS + 4_000) * 4 + TRACE_POLL_MS * 3 + 10,
     );
 
-    expect(StubEventSource.instances).toHaveLength(4);
+    expect(StubEventSource.instances).toHaveLength(3);
     expect(onError).toHaveBeenCalledTimes(1);
     dispose();
   });

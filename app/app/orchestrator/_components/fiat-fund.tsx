@@ -9,7 +9,7 @@ import {
   pdaxStartOnRamp,
 } from "@/lib/pdax";
 import type { PdaxFundingQuote, PdaxRampRecord } from "@/lib/pdax-types";
-import { inputCls } from "@/lib/ui";
+import { focusRing, inputCls } from "@/lib/ui";
 import { toMessage, useAsyncAction } from "@/lib/use-async-action";
 import { usePolling } from "@/lib/use-polling";
 
@@ -230,7 +230,9 @@ export function FiatFund({
       <Button
         variant="primary"
         onClick={fund}
-        disabled={busy || quoting || !php || !address}
+        disabled={
+          busy || quoting || !php || !address || !first.trim() || !last.trim()
+        }
         size="md"
         className="mt-3 w-full"
       >
@@ -258,7 +260,7 @@ export function FiatFund({
               href={record.checkout_url}
               target="_blank"
               rel="noreferrer"
-              className="block font-mono text-xs text-cyan underline break-all"
+              className={`block font-mono text-xs text-cyan underline break-all ${focusRing}`}
             >
               ▸ pay here: {record.checkout_url}
             </a>

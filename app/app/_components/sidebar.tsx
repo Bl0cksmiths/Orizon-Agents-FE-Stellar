@@ -317,6 +317,25 @@ export function Sidebar() {
     revalidateOnFocus: true,
   });
 
+  // Below md the closed drawer is only translated off-screen, which leaves its
+  // links in the tab order and accessibility tree (WCAG 2.4.3). Mark the closed
+  // drawer `inert` there; on md+ it is a permanently visible landmark, so never
+  // inert. This effect runs before the focus effect below, so opening removes
+  // inert before focus moves in. (inert is set via attribute — @types/react 18
+  // does not type the prop yet.)
+  useEffect(() => {
+    const el = asideRef.current;
+    if (!el) return;
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const apply = () => {
+      if (!open && !desktop.matches) el.setAttribute("inert", "");
+      else el.removeAttribute("inert");
+    };
+    apply();
+    desktop.addEventListener("change", apply);
+    return () => desktop.removeEventListener("change", apply);
+  }, [open]);
+
   // Mobile drawer: Escape closes, body scroll locks, focus moves into the
   // drawer and returns to the opener (hamburger) on close.
   useEffect(() => {
@@ -334,7 +353,13 @@ export function Sidebar() {
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.classList.remove("overflow-hidden");
-      opener?.focus();
+      // The opener (the hamburger) lives inside ConsoleContent, which is still
+      // `inert` at this point — focusing an element inside an inert subtree is
+      // a no-op, so focus would silently fall to <body>. Restore on the next
+      // frame, once that component's effect has cleared inert.
+      requestAnimationFrame(() => {
+        if (opener?.isConnected) opener.focus();
+      });
     };
   }, [open, setOpen]);
 

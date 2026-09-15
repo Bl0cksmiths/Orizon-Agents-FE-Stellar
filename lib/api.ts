@@ -467,6 +467,18 @@ const BACKOFF_MS = [1_000, 2_000, 4_000];
  */
 const MAX_TOTAL_RECONNECTS = 60;
 /**
+ * Wall-clock ceiling on a SINGLE outage.
+ *
+ * The attempt budget cannot bound this on its own: a connection that opens and
+ * merely holds refreshes it (STABLE_CONNECTION_MS below), so a proxy that
+ * accepts the stream and forwards nothing — a buffering gateway, or a backend
+ * whose in-memory trace is gone after a restart — reconnects for as long as
+ * MAX_TOTAL_RECONNECTS allows: ~20 minutes in which the reader is never told
+ * the live stream is gone. Once an outage has run this long without a single
+ * line arriving, the history endpoint takes over.
+ */
+export const MAX_OUTAGE_MS = 20_000;
+/**
  * A connection that stayed up this long counts as having worked even if it
  * carried no line: steps can take 120s, so silence is not failure.
  */
@@ -543,6 +555,9 @@ export function openTraceStream(
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let connectTimer: ReturnType<typeof setTimeout> | null = null;
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  // Armed on the first failure of an outage, cleared by a delivered line —
+  // bounds how long one outage may retry before the fallback takes over.
+  let outageTimer: ReturnType<typeof setTimeout> | null = null;
   let attempts = 0; // consecutive failures since the last working connection
   let reconnects = 0; // lifetime total
   let settled = false; // done received, terminally errored, or disposed
@@ -565,10 +580,35 @@ export function openTraceStream(
     connectTimer = null;
   };
 
+  const clearOutageTimer = () => {
+    if (outageTimer !== null) clearTimeout(outageTimer);
+    outageTimer = null;
+  };
+
+  /**
+   * Arm the one-outage ceiling on the first failure of an outage. Re-arming is
+   * a no-op, so the window measures the whole outage rather than restarting
+   * with every reconnect — which is the point: the per-attempt budget is
+   * refreshed by a connection that merely holds, this is not.
+   */
+  const armOutageTimer = () => {
+    if (outageTimer !== null) return;
+    outageTimer = setTimeout(() => {
+      outageTimer = null;
+      if (settled || polling) return;
+      if (retryTimer !== null) clearTimeout(retryTimer);
+      retryTimer = null;
+      clearConnectTimer();
+      es?.close();
+      startPolling();
+    }, MAX_OUTAGE_MS);
+  };
+
   const settle = (ok: boolean) => {
     if (settled) return;
     settled = true;
     clearConnectTimer();
+    clearOutageTimer();
     if (pollTimer !== null) clearTimeout(pollTimer);
     pollTimer = null;
     es?.close();
@@ -688,7 +728,10 @@ export function openTraceStream(
       dead = true;
       clearConnectTimer();
       source.close();
-      if (settled) return;
+      // `polling` too: once the outage ceiling has handed over to the history
+      // endpoint, a late `error` from the abandoned socket must not restart
+      // the retry chain behind the fallback.
+      if (settled || polling) return;
       // A connection that did its job earns a fresh budget; one that opened
       // and died on the spot does not, or a flapping backend would be
       // reconnected against in a tight loop.
@@ -697,6 +740,7 @@ export function openTraceStream(
         (carried > 0 || Date.now() - openedAt >= STABLE_CONNECTION_MS);
       if (worked) attempts = 0;
       if (attempts < MAX_RECONNECTS && reconnects < MAX_TOTAL_RECONNECTS) {
+        armOutageTimer();
         const delay = BACKOFF_MS[Math.min(attempts, BACKOFF_MS.length - 1)];
         attempts += 1;
         reconnects += 1;
@@ -723,12 +767,19 @@ export function openTraceStream(
     source.addEventListener("ping", established);
     source.addEventListener("trace", (e) => {
       established();
+      // A line actually arrived, so this is no longer an outage — the ceiling
+      // only bounds stretches where the transport delivers nothing.
+      clearOutageTimer();
       // Counted whether or not it parses: these are history positions, and
       // the fallback resumes from the position, not from what rendered.
       carried += 1;
       delivered += 1;
       try {
-        onEvent(JSON.parse((e as MessageEvent).data) as TraceLine);
+        // Screen the shape before it reaches render state — a well-formed but
+        // wrong-shaped object would otherwise flow through unguarded, unlike the
+        // polling fallback (drain) which already screens each row.
+        const row: unknown = JSON.parse((e as MessageEvent).data);
+        if (isTraceLine(row)) onEvent(row);
       } catch {
         /* ignore */
       }
@@ -749,6 +800,7 @@ export function openTraceStream(
     if (pollTimer !== null) clearTimeout(pollTimer);
     pollTimer = null;
     clearConnectTimer();
+    clearOutageTimer();
     es?.close();
   };
 }

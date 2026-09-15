@@ -53,6 +53,12 @@ jobs:
       - name: Bundle budget
         run: npm run bundle
 
+      # Core Web Vitals + accessibility/SEO budgets against the production
+      # build (lighthouserc.json). Runs after Build so it measures the same
+      # artifact the bundle gate just checked.
+      - name: Lighthouse budgets
+        run: npm run lighthouse
+
   e2e:
     name: E2E smoke
     runs-on: ubuntu-latest

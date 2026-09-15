@@ -140,6 +140,23 @@ describe("SkillsInput", () => {
     expect(input.value).toBe("extra");
   });
 
+  it("refuses a token longer than maxLen, flags aria-invalid and keeps it visible", () => {
+    const onChange = vi.fn();
+    render(<SkillsInput value={[]} onChange={onChange} maxLen={32} />);
+
+    const input = getInput();
+    const tooLong = "a".repeat(33);
+    fireEvent.change(input, { target: { value: tooLong } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    // The over-length token never enters state, so it can never silently fail
+    // the page's validation and disable submit with no message.
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    // Kept visible so the user can shorten it rather than losing it.
+    expect(input.value).toBe(tooLong);
+  });
+
   it("honours an aria-invalid passed by the parent", () => {
     render(<SkillsInput value={[]} onChange={vi.fn()} aria-invalid />);
     expect(getInput().getAttribute("aria-invalid")).toBe("true");

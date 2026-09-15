@@ -29,6 +29,7 @@ import {
   wrongNetworkError,
   type FriendlyError,
 } from "@/lib/wallet-errors";
+import { installWalletPickerA11y } from "@/lib/wallet-picker-a11y";
 
 import { HORIZON_URL, NETWORK_NAME, NETWORK_PASSPHRASE } from "@/lib/env";
 
@@ -371,8 +372,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const connect = useCallback(async () => {
     setLoading(true);
     setError(null);
+    let disposeA11y: (() => void) | null = null;
     try {
       const kit = await loadKit();
+      // Patch the kit's picker before it opens: as shipped it has no Escape
+      // handler, no accessible name on its close control, and wallet rows that
+      // no keyboard can reach. Escape is routed to the kit's own closeEvent, so
+      // it rejects authModal exactly the way its X button does. A shim that
+      // cannot install must never block connecting.
+      try {
+        const { closeEvent } = await import("@creit.tech/stellar-wallets-kit");
+        // Only worth installing if the kit's own close path is reachable —
+        // otherwise Escape would appear to work and do nothing.
+        if (closeEvent) {
+          disposeA11y = installWalletPickerA11y(() => closeEvent.next());
+        }
+      } catch {
+        disposeA11y = null;
+      }
       // Open the multi-wallet picker. Resolves to the chosen wallet's address.
       const { address: addr } = await kit.authModal();
       // The kit sets the active module internally before resolving authModal.
@@ -389,6 +406,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const f = classifyError(e);
       setError(f);
     } finally {
+      disposeA11y?.();
       setLoading(false);
     }
   }, []);

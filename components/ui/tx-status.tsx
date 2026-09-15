@@ -18,6 +18,7 @@ import {
   StellarExpertLink,
   defaultExplorerNetwork,
 } from "@/components/ui/stellar-link";
+import { focusRing } from "@/lib/ui";
 import type { FriendlyError } from "@/lib/wallet-errors";
 
 export type TxState =
@@ -192,7 +193,7 @@ function SuccessCard({
           href={`https://horizon${network === "public" ? "" : "-testnet"}.stellar.org/transactions/${hash}`}
           target="_blank"
           rel="noreferrer"
-          className="clip-cyber-sm border border-border px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted hover:text-text hover:border-violet/60 transition"
+          className={`clip-cyber-sm border border-border px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-muted hover:text-text hover:border-violet/60 transition ${focusRing}`}
         >
           raw horizon ▸
         </a>

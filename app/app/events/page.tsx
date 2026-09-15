@@ -7,7 +7,7 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { NETWORK_LABEL, StellarExpertLink } from "@/components/ui/stellar-link";
 import { getStellarNetwork } from "@/lib/api";
-import { focusRing } from "@/lib/ui";
+import { focusRing, inlineLink } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { useStellarEvents, type FeedEvent } from "@/lib/stellar-events";
 import { prettyName } from "@/lib/utils";
@@ -199,7 +199,7 @@ export default function EventsPage() {
               No events yet. Run a workflow on{" "}
               <Link
                 href="/app/orchestrator"
-                className={`text-cyan hover:underline ${focusRing}`}
+                className={inlineLink}
               >
                 /app/orchestrator
               </Link>{" "}

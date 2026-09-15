@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
 export function Logo({
@@ -14,6 +15,7 @@ export function Logo({
       aria-label="Orizon Agents — home"
       className={cn(
         "inline-flex items-center gap-2.5 group select-none",
+        focusRing,
         className,
       )}
     >

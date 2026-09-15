@@ -54,24 +54,30 @@ const agentTags = [
 
 export default function Home() {
   return (
-    <main id="main" className="relative overflow-hidden">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <BackendWarmup />
+      {/* Nav and Footer sit OUTSIDE <main> on purpose: <header>/<footer> only
+          expose the banner/contentinfo landmarks when they are not descendants
+          of main, and the layout's "Skip to content" link (href="#main") has to
+          land past the nav rather than on top of it. */}
       <Nav />
-      <Hero />
-      <Marquee items={agentTags} />
-      <Problem />
-      <Solution />
-      <Architecture />
-      <Reputation />
-      <UseCases />
-      <Roadmap />
-      <Personas />
-      <CTA />
+      <main id="main" className="relative overflow-hidden">
+        <Hero />
+        <Marquee items={agentTags} />
+        <Problem />
+        <Solution />
+        <Architecture />
+        <Reputation />
+        <UseCases />
+        <Roadmap />
+        <Personas />
+        <CTA />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }
