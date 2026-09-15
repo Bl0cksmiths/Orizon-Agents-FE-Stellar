@@ -105,6 +105,31 @@ const items = [
     ),
   },
   {
+    href: "/app/bind",
+    label: "Bind",
+    icon: (
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        className="h-4 w-4"
+        aria-hidden="true"
+      >
+        <path
+          d="M8.5 11.5a3.5 3.5 0 010-5l1.5-1.5a3.5 3.5 0 015 5l-1 1"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M11.5 8.5a3.5 3.5 0 010 5L10 15a3.5 3.5 0 01-5-5l1-1"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
+  {
     href: "/app/reputation",
     label: "Reputation",
     icon: (
