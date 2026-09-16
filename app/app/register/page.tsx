@@ -462,8 +462,10 @@ export default function RegisterPage() {
                 >
                   {owner.slice(0, 4)}…{owner.slice(-4)}
                 </StellarExpertLink>
-                . Bind an execution endpoint so it can take work — or see it in
-                the marketplace now.
+                . Binding an execution endpoint takes one{" "}
+                <b className="text-text">message signature</b> — the id is
+                carried into that step, so there is no form to fill in again. Or
+                see it in the marketplace now.
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 {/* Carries the id the operator just registered, so the bind
