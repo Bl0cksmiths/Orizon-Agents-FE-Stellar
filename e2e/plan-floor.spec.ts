@@ -33,6 +33,9 @@ type Box = { x: number; y: number; width: number; height: number };
  */
 const EVIDENCE_FRAME: Viewport = { width: 1440, height: 900 };
 
+/** The narrow end of the phones that reach this console. */
+const PHONE: Viewport = { width: 390, height: 844 };
+
 /**
  * The exclusions disclosure. `<details>` is the contract rather than an
  * implementation detail: AC-3 asks for a panel that is shut on arrival and
@@ -112,13 +115,12 @@ async function stableBox(target: Locator): Promise<Box> {
   return box;
 }
 
-/** Fails naming the element and the edge it crossed, not just `false`. */
-function expectInFrame(box: Box, frame: Viewport, what: string) {
-  expect(box.y, `${what} is cut off above the frame`).toBeGreaterThanOrEqual(0);
-  expect(
-    box.y + box.height,
-    `${what} falls below the ${frame.height}px frame`,
-  ).toBeLessThanOrEqual(frame.height);
+/**
+ * Horizontal containment, which is the one that cannot be recovered by
+ * scrolling: the console hides sideways overflow. Fails naming the element and
+ * the edge it crossed, not just `false`.
+ */
+function expectWithinWidth(box: Box, frame: Viewport, what: string) {
   expect(box.x, `${what} is cut off at the left edge`).toBeGreaterThanOrEqual(
     0,
   );
@@ -126,6 +128,16 @@ function expectInFrame(box: Box, frame: Viewport, what: string) {
     box.x + box.width,
     `${what} runs past the ${frame.width}px frame`,
   ).toBeLessThanOrEqual(frame.width);
+}
+
+/** Both axes — "one frame" is a claim about the height as well. */
+function expectInFrame(box: Box, frame: Viewport, what: string) {
+  expectWithinWidth(box, frame, what);
+  expect(box.y, `${what} is cut off above the frame`).toBeGreaterThanOrEqual(0);
+  expect(
+    box.y + box.height,
+    `${what} falls below the ${frame.height}px frame`,
+  ).toBeLessThanOrEqual(frame.height);
 }
 
 /**
@@ -297,5 +309,48 @@ test.describe("plan card — reputation, source and exclusions", () => {
       await expect(row).toContainText(numberPattern(notice.lower_bound_bps));
       await expect(row).toContainText(numberPattern(notice.floor_bps));
     }
+  });
+
+  test("AC-6 — the expanded exclusions fit a 390px viewport without sideways scroll", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await decomposeWith(page, mockPlanExcluded);
+
+    const summary = exclusions(page).locator("summary");
+    await summary.click();
+    await expect(exclusions(page)).toHaveJSProperty("open", true);
+
+    const rows = exclusionRows(page);
+    await expect(rows).toHaveCount(mockPlanExcluded.notices.length);
+
+    // Width only — a phone scrolls down, that is what phones do. Sideways is
+    // the direction that cannot be recovered: the console sets
+    // `overflow-x: hidden` and the card clips its own overflow, so a row past
+    // the right edge is not scrolled to, it is gone. A refused agent whose
+    // numbers are cut in half is worse than one the buyer was never told
+    // about, because it still looks like an answer.
+    expectWithinWidth(
+      await stableBox(summary),
+      PHONE,
+      "the exclusions summary",
+    );
+    for (const [index, notice] of mockPlanExcluded.notices.entries()) {
+      expectWithinWidth(
+        await stableBox(rows.nth(index)),
+        PHONE,
+        `the ${notice.agent_id} row`,
+      );
+    }
+
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(
+      overflow,
+      "expanding the exclusions must not make the page scroll sideways",
+    ).toBeLessThanOrEqual(1);
   });
 });
