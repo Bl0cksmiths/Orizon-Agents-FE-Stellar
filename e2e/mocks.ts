@@ -745,6 +745,25 @@ const SETTLEMENT_RE = /^\/api\/stellar\/settlement\/([^/]+)$/;
  * Per-spec overrides for the shared mock. Everything not named here keeps the
  * default fixture, so an existing `mockApi(page)` call is unaffected.
  */
+/**
+ * An endpoint already bound to `mockBindAgentId`, so a spec can drive the
+ * REPLACE path rather than the first-bind one.
+ *
+ * Those are different screens: `bind/page.tsx` derives `replacing` from a
+ * non-null current binding and changes its field label, its confirmation copy
+ * and its submit button on the strength of it. Story 2.05's "I can rebind
+ * later" acceptance criterion rests entirely on that branch, and nothing
+ * exercised it — the default fixture answers `binding_not_found`, so every
+ * bind spec before this one tested a first bind.
+ */
+export const mockExistingBinding = {
+  agent_id: mockBindAgentId,
+  endpoint_url: "https://agent.example.com/run",
+  owner: mockWalletAddress,
+  bound_at: "2026-09-10T08:15:00Z",
+  replaced: false,
+};
+
 export type MockApiOptions = {
   /**
    * What `POST /api/orchestrator/decompose` answers with. Defaults to
