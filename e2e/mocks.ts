@@ -135,7 +135,11 @@ export const mockPlan = {
       floor_bps: 5500,
     },
   ],
-};
+  // Checked against the response contract rather than merely resembling it: a
+  // `rep_source` of "onchian" or a `reason_code` the union does not name would
+  // otherwise sail through here and fail in a browser, as a missing badge that
+  // reads like a product bug.
+} satisfies DecomposeResponse;
 
 // ── Plan-card floor variants (story 3.04) ───────────────────
 
