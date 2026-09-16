@@ -99,7 +99,12 @@ export default function AgentsPage() {
         !ql ||
         a.name.toLowerCase().includes(ql) ||
         a.skills.some((s) => s.toLowerCase().includes(ql));
-      const matchesStatus = filter === "all" || a.status === filter;
+      // "routable" is a standing question, not a status one, so it is checked
+      // separately rather than squeezed into the status comparison — `status`
+      // means online/idle/offline and an agent can be online and ineligible.
+      const matchesStatus =
+        filter === "all" ||
+        (filter === "routable" ? isRoutable(a) : a.status === filter);
       return matchesQ && matchesStatus;
     });
   }, [agents, q, filter]);
