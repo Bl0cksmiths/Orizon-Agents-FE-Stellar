@@ -334,6 +334,10 @@ const isSettlementEntry = (v: unknown): boolean =>
   isStr(v.auth_id) &&
   isNum(v.amount_stroops) &&
   isNum(v.ledger) &&
+  // Optional, so a response from a backend predating the field still renders
+  // its charges. A wrong TYPE is still rejected: the panel builds an explorer
+  // URL out of this, and a number coerced into a path is a link to nowhere.
+  isOptionalStr(v.tx_hash) &&
   isOptionalStr(v.at) &&
   isStr(v.payer) &&
   typeof v.self_payment === "boolean" &&

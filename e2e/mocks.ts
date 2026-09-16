@@ -706,6 +706,11 @@ export const mockSettlementSelfPaid = {
       auth_id: "1a2b3c4d5e6f70819a2b3c4d5e6f7081",
       amount_stroops: 1_610_000,
       ledger: 1_284_551,
+      // 64 lowercase hex, the spelling the backend normalises to. The panel
+      // builds an explorer link out of it, so a fixture that looked roughly
+      // right would let a broken link pass.
+      tx_hash:
+        "3f7a1c9e02b84d6510aefc73d8925b04a6e13f8c27d94b0e5fa6c831d7204ebb",
       at: "2026-09-12T04:18:33Z",
       payer: "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXXX",
       self_payment: true,
@@ -745,6 +750,25 @@ const SETTLEMENT_RE = /^\/api\/stellar\/settlement\/([^/]+)$/;
  * Per-spec overrides for the shared mock. Everything not named here keeps the
  * default fixture, so an existing `mockApi(page)` call is unaffected.
  */
+/**
+ * An endpoint already bound to `mockBindAgentId`, so a spec can drive the
+ * REPLACE path rather than the first-bind one.
+ *
+ * Those are different screens: `bind/page.tsx` derives `replacing` from a
+ * non-null current binding and changes its field label, its confirmation copy
+ * and its submit button on the strength of it. Story 2.05's "I can rebind
+ * later" acceptance criterion rests entirely on that branch, and nothing
+ * exercised it — the default fixture answers `binding_not_found`, so every
+ * bind spec before this one tested a first bind.
+ */
+export const mockExistingBinding = {
+  agent_id: mockBindAgentId,
+  endpoint_url: "https://agent.example.com/run",
+  owner: mockWalletAddress,
+  bound_at: "2026-09-10T08:15:00Z",
+  replaced: false,
+};
+
 export type MockApiOptions = {
   /**
    * What `POST /api/orchestrator/decompose` answers with. Defaults to
@@ -754,6 +778,13 @@ export type MockApiOptions = {
    * typecheck` rather than at some unrelated assertion in a browser.
    */
   plan?: DecomposeResponse;
+  /**
+   * What `GET /api/agents/{id}/binding` answers with. Absent means the
+   * ordinary starting state — a 404 carrying `binding_not_found`, which
+   * `getAgentBindingOrNull` folds into a plain null. Pass
+   * `mockExistingBinding` to put the bind page on its replace path.
+   */
+  binding?: typeof mockExistingBinding;
   /**
    * What `GET /api/stellar/reputation` answers with. Defaults to
    * `mockReputationBatch`, so every existing caller is unaffected; pass
@@ -804,6 +835,11 @@ export async function mockApi(
       });
     }
     if (method === "GET" && BINDING_RE.test(pathname)) {
+      // An agent that already has an endpoint, when a spec asked for one. This
+      // is what puts the bind page on its replace path.
+      if (options.binding) {
+        return json(route, options.binding);
+      }
       // The ordinary starting state: registered, never bound. A 404 carrying
       // `binding_not_found` is how the backend says so, and
       // `getAgentBindingOrNull` turns it into a plain null.
