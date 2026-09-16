@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { assetLabel, formatSettled, stroopsToUnits, STROOPS_PER_UNIT } from "./money";
+import {
+  assetLabel,
+  formatSettled,
+  stroopsToUnits,
+  STROOPS_PER_UNIT,
+} from "./money";
 
 describe("stroopsToUnits", () => {
   it("converts at the Soroban scale", () => {
