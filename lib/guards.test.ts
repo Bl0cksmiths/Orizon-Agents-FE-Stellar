@@ -537,6 +537,23 @@ describe("isDecomposeResponse", () => {
       false,
     );
   });
+
+  it("accepts a null notices list but rejects one that is not a list", () => {
+    // Null is how FastAPI serializes the unset Optional, and it is the exact
+    // payload the common path produces: every routed agent cleared the floor,
+    // so the floor did nothing and has nothing to report. That must never be
+    // an error state — it is the good outcome.
+    expect(isDecomposeResponse({ ...valid, notices: null })).toBe(true);
+    // A non-list is a different story: the plan card maps it, and an error
+    // envelope or a keyed object arriving here would throw mid-render rather
+    // than surface as the failed read it is.
+    expect(isDecomposeResponse({ ...valid, notices: { 0: notice } })).toBe(
+      false,
+    );
+    expect(isDecomposeResponse({ ...valid, notices: [notice.reason] })).toBe(
+      false,
+    );
+  });
 });
 
 describe("isReputationInfo", () => {
