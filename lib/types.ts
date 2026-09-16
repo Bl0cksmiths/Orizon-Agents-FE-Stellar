@@ -42,6 +42,18 @@ export type PlanStep = {
 
 export type PlanFloorNoticeKind = "excluded" | "substituted" | "degraded";
 
+/**
+ * Why the floor acted on an agent (`ExclusionReason` in the backend's
+ * app/schemas.py). A closed set, because each value renders as its own
+ * sentence — an unrecognised one has no copy to show.
+ *
+ * `kind` and `reason_code` are orthogonal: `kind` is what happened to the
+ * plan, this is why. An agent excluded for having no endpoint and one excluded
+ * for failing the floor both arrive as `kind: "excluded"`.
+ */
+export type ExclusionReason =
+  "below_floor" | "unbound_endpoint" | "floor_relaxed";
+
 /** One reputation-floor action taken while building the plan
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are
  * set only when kind is "substituted". */
