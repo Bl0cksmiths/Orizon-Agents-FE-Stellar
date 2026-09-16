@@ -317,7 +317,13 @@ test.describe("agent standing in the marketplace", () => {
     // that explains the whole table must not be part of that bargain. A floor
     // a buyer has to discover by dragging a table is a floor they never read,
     // and it is the only thing on the page that explains why rows are marked.
-    const box = await page.getByText(FLOOR_SCORE).evaluate((el) => {
+    // Located before it is measured, so a missing notice fails in seconds
+    // naming what was not found, instead of `evaluate` waiting out the whole
+    // test timeout on a locator that will never resolve.
+    const notice = page.getByText(FLOOR_SCORE);
+    await expect(notice).toHaveCount(1);
+
+    const box = await notice.evaluate((el) => {
       // Measure the block that carries the notice, not the inline run holding
       // the number: an inline span wraps, so it fits inside the viewport even
       // when the element around it hangs off the edge.
