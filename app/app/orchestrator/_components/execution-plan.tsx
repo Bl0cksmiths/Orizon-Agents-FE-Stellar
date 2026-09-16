@@ -16,19 +16,10 @@ import { FloorSummary } from "./floor-summary";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
-import type { DecomposeResponse, PlanFloorNoticeKind } from "@/lib/types";
+import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 
 // Display label for the configured network — "mainnet" | "testnet".
-
-/** Tone per floor-notice kind (story 3.02). Meaning is never carried by the
- * color alone — every row also prints the kind word and the reason. */
-const NOTICE_TONE: Record<PlanFloorNoticeKind, "magenta" | "cyan" | "violet"> =
-  {
-    excluded: "magenta",
-    substituted: "cyan",
-    degraded: "violet",
-  };
 
 /** Which stage of the on-chain authorize flow is running (for button copy). */
 type ExecStep = "" | "sign" | "broadcast" | "execute";
