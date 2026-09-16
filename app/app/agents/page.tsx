@@ -261,7 +261,14 @@ export default function AgentsPage() {
           role="region"
           aria-label="Agent registry table, scrolls horizontally"
         >
-          <table className="w-full text-sm">
+          {/* A floor is set as well as a fill. Story 3.05 put standing marks
+              in the agent cell, which widened it and left the numeric columns
+              to crush — the header ran together as "REPUTATIONRUNSSTATUS" and
+              the runs figures clipped. The container is already a keyboard-
+              reachable horizontal scroller, so below this width the right
+              answer is to scroll rather than to squeeze columns a buyer is
+              trying to compare. */}
+          <table className="w-full min-w-[60rem] text-sm">
             {/* The page heading names this table on screen; the caption
                 repeats it for assistive tech only. */}
             <caption className="sr-only">
