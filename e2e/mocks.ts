@@ -1,4 +1,5 @@
 import type { Page, Route } from "@playwright/test";
+import type { DecomposeResponse } from "../lib/types";
 
 /**
  * Mock payloads shaped to satisfy lib/guards.ts (isOverview, isTaskList,
@@ -366,7 +367,25 @@ const BIND_RE = /^\/api\/agents\/([^/]+)\/bind$/;
 const BINDING_RE = /^\/api\/agents\/([^/]+)\/binding$/;
 const SETTLEMENT_RE = /^\/api\/stellar\/settlement\/([^/]+)$/;
 
-export async function mockApi(page: Page): Promise<void> {
+/**
+ * Per-spec overrides for the shared mock. Everything not named here keeps the
+ * default fixture, so an existing `mockApi(page)` call is unaffected.
+ */
+export type MockApiOptions = {
+  /**
+   * What `POST /api/orchestrator/decompose` answers with. Defaults to
+   * `mockPlan`, which several specs assert against by name — the floor
+   * variants below are opt-in for exactly that reason. Typed as the real
+   * response so a variant that drifts from the contract fails `npm run
+   * typecheck` rather than at some unrelated assertion in a browser.
+   */
+  plan?: DecomposeResponse;
+};
+
+export async function mockApi(
+  page: Page,
+  options: MockApiOptions = {},
+): Promise<void> {
   await page.route("**/api/**", (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
@@ -426,7 +445,7 @@ export async function mockApi(page: Page): Promise<void> {
       return json(route, mockTasks);
     }
     if (method === "POST" && pathname === "/api/orchestrator/decompose") {
-      return json(route, mockPlan);
+      return json(route, options.plan ?? mockPlan);
     }
     if (method === "GET" && pathname === "/api/agents") {
       return json(route, mockAgents);
