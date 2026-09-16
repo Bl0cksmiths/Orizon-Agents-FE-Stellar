@@ -145,6 +145,38 @@ test.describe("operator dashboard", () => {
     ).toHaveCount(0);
   });
 
+  test("fits a 320px viewport without losing a figure off the edge", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page);
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto("/app/operator");
+
+    await expect(
+      page.getByRole("heading", { name: OWNED[0].name, exact: true }),
+    ).toBeVisible();
+
+    // The summary figures are the specific hazard: the card's clip-path cuts
+    // overflow and the console sets `overflow-x: hidden`, so a number too wide
+    // for its tile is not scrolled to — it is silently gone. A dashboard that
+    // drops half a figure is worse than one that shows none.
+    for (const label of ["agents owned", "endpoint bound", "eligible"]) {
+      const tile = page.getByText(label, { exact: true });
+      const box = await tile.boundingBox();
+      if (box === null) throw new Error(`expected ${label} to be laid out`);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(320);
+    }
+
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
   test("opens per-agent settings without leaving the dashboard", async ({
     page,
   }) => {
