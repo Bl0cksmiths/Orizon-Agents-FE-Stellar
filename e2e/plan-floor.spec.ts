@@ -16,6 +16,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
   mockApi,
+  mockPlan,
   mockPlanDegraded,
   mockPlanExcluded,
   mockPlanLegacy,
@@ -421,5 +422,41 @@ test.describe("plan card — reputation, source and exclusions", () => {
     expect(crashes, "a pre-3.02 payload must not throw in the card").toEqual(
       [],
     );
+  });
+
+  test("says in words whether a score was read from chain or assumed", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlan);
+
+    // 3.50 read from the ledger and 3.50 taken from the prior are the same
+    // digits and two different claims — one is evidence, the other is where
+    // every unrated agent starts. The card separates them with a tint and a
+    // `≈`, and neither reaches a buyer who is listening rather than looking, so
+    // the accessible label is where the distinction has to survive.
+    for (const [index, step] of mockPlan.steps.entries()) {
+      const chip = steps(page)
+        .nth(index)
+        .getByLabel(/reputation|estimat/i);
+      await expect(chip).toHaveCount(1);
+      await expect(chip).toContainText(scoreOutOfFive(step.rep_bps));
+
+      const label = (await chip.getAttribute("aria-label")) ?? "";
+      // "no on-chain ratings yet" also contains "on-chain", so the prior is the
+      // case that must name itself; an on-chain score is then whatever does not
+      // describe itself as one.
+      if (step.rep_source === "prior") {
+        expect(
+          label,
+          `${step.agent_id} carries the prior and has to say so`,
+        ).toMatch(/prior|estimat/i);
+      } else {
+        expect(
+          label,
+          `${step.agent_id} was read from chain and must not read as an estimate`,
+        ).not.toMatch(/prior|estimat/i);
+      }
+    }
   });
 });
