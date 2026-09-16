@@ -290,6 +290,40 @@ export const mockPlanFloorRelaxed = {
   ],
 } satisfies DecomposeResponse;
 
+/**
+ * What a backend deployed before story 3.02 sends: no `floor_bps`, no
+ * `reputation_degraded`, and a notice carrying prose only — no `reason_code`,
+ * no `lower_bound_bps`, no per-notice floor.
+ *
+ * The frontend and the backend deploy separately, so this payload is not
+ * hypothetical; it is what the console renders against for however long a
+ * rollback or a lagging Render deploy lasts. Every new field is optional in
+ * lib/types.ts for that reason, and the card has to survive all of them being
+ * absent — a plan the buyer cannot read is worse than a plan without a floor
+ * summary. Reputation itself predates 3.02, so the steps keep their scores.
+ */
+export const mockPlanLegacy = {
+  plan_id: "plan_e2e_legacy",
+  intent: "code a calculator web app",
+  steps: [
+    mockPlanExcluded.steps[0],
+    mockPlanExcluded.steps[1],
+    mockPlanExcluded.steps[2],
+  ],
+  total_usdc: 0.123,
+  total_eta: 6.7,
+  notices: [
+    {
+      kind: "substituted",
+      agent_id: "vision.ocr",
+      agent_name: "vision.ocr",
+      replacement_id: "design.figma",
+      replacement_name: "design.figma",
+      reason: "below routing floor (4167 < 5500 bps)",
+    },
+  ],
+} satisfies DecomposeResponse;
+
 function json(route: Route, body: unknown) {
   return route.fulfill({
     status: 200,
