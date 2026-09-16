@@ -27,7 +27,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 
-import type { AgentSettlement, SettlementEntry } from "@/lib/types";
+import type { AgentSettlement } from "@/lib/types";
 
 // Hoisted: the vi.mock factory runs before module-scope consts exist.
 const { getSettlement } = vi.hoisted(() => ({ getSettlement: vi.fn() }));
@@ -36,8 +36,6 @@ vi.mock("@/lib/api", () => ({ getSettlement }));
 import { SettlementPanel } from "./settlement-panel";
 
 const AGENT = "weather_bot";
-const PLATFORM = "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXX";
-const CUSTOMER = "GBUYER4H6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLECUSTOMERXXXX";
 
 /**
  * A rejection useFetch will NOT retry on its own (see isTransientFetchError):
@@ -61,19 +59,6 @@ function settlement(over: Partial<AgentSettlement> = {}): AgentSettlement {
   };
 }
 
-function entry(over: Partial<SettlementEntry> = {}): SettlementEntry {
-  return {
-    job_id: "9f2c41a8b7e04d5c8a1b2c3d4e5f6071",
-    auth_id: "1a2b3c4d5e6f70819a2b3c4d5e6f7081",
-    amount_stroops: 1_610_000,
-    ledger: 1_284_551,
-    at: "2026-09-12T04:18:33Z",
-    payer: PLATFORM,
-    self_payment: true,
-    ...over,
-  };
-}
-
 function renderPanel() {
   return render(<SettlementPanel agentId={AGENT} agentName={AGENT} />);
 }
@@ -81,6 +66,20 @@ function renderPanel() {
 /** Everything the user can read, whitespace-normalized for substring checks. */
 function visibleText(): string {
   return (document.body.textContent ?? "").replace(/\s+/g, " ");
+}
+
+/**
+ * A StatTile's figure and its unit, read as the two separate elements the
+ * component deliberately keeps them in — the split is what stops Card's
+ * clip-path from swallowing half a money value, so it is asserted rather than
+ * flattened into one string.
+ */
+function tileFigure(label: string): { value: string; unit: string } {
+  const wrapper = screen.getByText(label).parentElement;
+  const figure = wrapper?.children[1];
+  const unit = figure?.querySelector("span")?.textContent?.trim() ?? "";
+  const whole = (figure?.textContent ?? "").trim();
+  return { value: whole.slice(0, whole.length - unit.length).trim(), unit };
 }
 
 afterEach(() => {
@@ -179,5 +178,95 @@ describe("SettlementPanel — a scan that could not run", () => {
     // on screen is frozen rather than current.
     expect(screen.getByRole("status").textContent).toContain("stale");
     expect(visibleText()).toContain("the last reading that succeeded");
+  });
+});
+
+describe("SettlementPanel — a window that ran and found nothing", () => {
+  it("scopes an empty window to the retention limit, not to the agent's history", async () => {
+    getSettlement.mockResolvedValue(settlement());
+    renderPanel();
+
+    await screen.findByText(`No payment has settled to ${AGENT}.`);
+    const text = visibleText();
+    expect(text).toContain(
+      "The escrow recorded no charge against this agent in the last 7 days",
+    );
+    expect(text).toContain(
+      "Soroban RPC keeps 7 days of contract events and drops everything older",
+    );
+    // The sentence the whole state exists for: an empty log is a statement
+    // about seven days, never about everything the agent has ever done.
+    expect(text).toContain("not about the agent's whole history");
+
+    // A measured zero is shown, unlike the failure states above.
+    expect(tileFigure("settled revenue")).toEqual({
+      value: "0.0",
+      unit: "XLM",
+    });
+  });
+
+  it("attributes the absence to the escrow defect, not to demand for the agent", async () => {
+    getSettlement.mockResolvedValue(settlement());
+    renderPanel();
+
+    const heading = await screen.findByRole("heading", {
+      name: "Why nothing settles",
+    });
+    expect(heading.tagName).toBe("H3");
+
+    const text = visibleText();
+    expect(text).toContain(
+      "The escrow's charge path cannot move a customer's funds",
+    );
+    expect(text).toContain(
+      "That transfer fails without failing the run — the run still finalizes as complete",
+    );
+    expect(text).toContain(
+      "It is not a measure of your agent, and not a signal about demand for it",
+    );
+  });
+
+  it("never promises a payment that is going to arrive later", async () => {
+    getSettlement.mockResolvedValue(settlement());
+    renderPanel();
+
+    await screen.findByText(`No payment has settled to ${AGENT}.`);
+    // Consolation of that shape would be an invention: nobody can say this
+    // agent gets paid once the contract is fixed, so nothing may imply it.
+    expect(visibleText()).not.toMatch(
+      /will be paid|paid later|once (this|the|it)[^.]*fixed|coming soon|pending payment/i,
+    );
+  });
+
+  it("takes the unit from the payload instead of naming a currency", async () => {
+    getSettlement.mockResolvedValue(settlement());
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    const text = visibleText();
+    // Testnet's SAC wraps the native asset, so this figure is XLM. "USDC"
+    // here would be a fabricated currency on a money figure.
+    expect(text).not.toContain("USDC");
+    expect(text).toContain(
+      "the escrow's token wraps this chain's native asset",
+    );
+    expect(tileFigure("excluded self-payments")).toEqual({
+      value: "0.0",
+      unit: "XLM",
+    });
+  });
+
+  it("follows the payload when the escrow wraps something other than the native asset", async () => {
+    getSettlement.mockResolvedValue(
+      settlement({ asset: "usdc", total_stroops: 25_000_000 }),
+    );
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    expect(tileFigure("settled revenue")).toEqual({
+      value: "2.5",
+      unit: "USDC",
+    });
+    expect(visibleText()).not.toContain("native asset");
   });
 });
