@@ -172,6 +172,34 @@ export function SettlementPanel({
     );
   }
 
+  // `unavailable` is the backend telling us it never looked — the RPC was
+  // unreachable, the escrow id was not configured, the window could not be
+  // resolved. Every figure in the payload is therefore a default, and
+  // rendering `total_stroops` here would publish a zero we did not measure.
+  // This is the single most tempting bug in the panel and the least visible
+  // one afterwards, since a wrongly-rendered zero looks exactly like a real
+  // one.
+  if (data.unavailable !== null) {
+    return (
+      <PanelShell headingId={headingId} agentName={agentName}>
+        <ErrorNote
+          className="clip-cyber-sm"
+          onRetry={reload}
+          retrying={retrying || loading}
+        >
+          The settlement scan could not run, so there is no figure for{" "}
+          {agentName} — this is a missing reading, not a zero. Reason given:{" "}
+          {data.unavailable}
+        </ErrorNote>
+        <p className="max-w-2xl text-xs leading-relaxed text-muted">
+          A scan that never ran and a scan that ran and found nothing are
+          different results. Only the second one is evidence about payment.
+        </p>
+        <ScanFacts data={data} />
+      </PanelShell>
+    );
+  }
+
   return (
     <PanelShell headingId={headingId} agentName={agentName}>
       <SettlementFigures data={data} />
