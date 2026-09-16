@@ -10,22 +10,16 @@ import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { TxStatus, type TxState } from "@/components/ui/tx-status";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
 import { buildAuthorize, execute, submitSigned } from "@/lib/api";
+import { DegradedBanner } from "./degraded-banner";
+import { ExclusionsPanel } from "./exclusions-panel";
+import { FloorSummary } from "./floor-summary";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
-import type { DecomposeResponse, PlanFloorNoticeKind } from "@/lib/types";
+import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 
 // Display label for the configured network — "mainnet" | "testnet".
-
-/** Tone per floor-notice kind (story 3.02). Meaning is never carried by the
- * color alone — every row also prints the kind word and the reason. */
-const NOTICE_TONE: Record<PlanFloorNoticeKind, "magenta" | "cyan" | "violet"> =
-  {
-    excluded: "magenta",
-    substituted: "cyan",
-    degraded: "violet",
-  };
 
 /** Which stage of the on-chain authorize flow is running (for button copy). */
 type ExecStep = "" | "sign" | "broadcast" | "execute";
@@ -199,6 +193,12 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
           </div>
         </div>
 
+        {/* Above the steps, not below them. The floor is the frame the plan
+            was built in, and a buyer who reads the steps first has already
+            formed a view of the plan by the time they meet the threshold that
+            shaped it. */}
+        <FloorSummary plan={plan} />
+
         <ol className="space-y-3">
           {plan.steps.map((s, i) => (
             <m.li
@@ -213,6 +213,25 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="violet">{s.agent_name ?? s.agent_id}</Badge>
+                {/* `floorBps` is deliberately NOT passed, and this is not an
+                    oversight waiting to be closed.
+
+                    ReputationBadge decides below-floor with
+                    `(lowerBoundBps ?? bps) < floorBps`. A PlanStep carries
+                    only `rep_bps` — the smoothed headline score — and no lower
+                    bound, so handing it the floor would compare the wrong
+                    number: the backend gates on the Wilson lower bound, and
+                    the two disagree exactly where it matters, for an agent
+                    with a healthy average and too few ratings to back it.
+                    The badge would then clear an agent the planner would have
+                    excluded.
+
+                    It costs nothing to omit. A routed step cleared the floor
+                    by definition — the planner only ever sees routable agents
+                    — so the only below-floor step is one the starvation
+                    backstop re-admitted, and that already carries its own
+                    `▾ below floor` badge below. Passing the floor could only
+                    add a wrong verdict, never a right one. */}
                 {s.rep_bps != null && (
                   <ReputationBadge
                     bps={s.rep_bps}
@@ -241,37 +260,22 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
           ))}
         </ol>
 
-        {(plan.notices?.length ?? 0) > 0 && (
-          <div className="mt-4 clip-cyber-sm border border-violet/40 bg-violet/5 p-4">
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-violet mb-2">
-              ▸ reputation floor — why this plan changed shape
-            </div>
-            <ul className="space-y-2">
-              {plan.notices?.map((n, i) => (
-                <li
-                  key={`${n.kind}-${n.agent_id}-${i}`}
-                  className="flex flex-wrap items-center gap-2 text-sm"
-                >
-                  <Badge tone={NOTICE_TONE[n.kind]}>{n.kind}</Badge>
-                  <span>
-                    <b className="text-text">{n.agent_name ?? n.agent_id}</b>
-                    {n.kind === "substituted" && (
-                      <>
-                        {" → "}
-                        <b className="text-text">
-                          {n.replacement_name ?? n.replacement_id}
-                        </b>
-                      </>
-                    )}
-                  </span>
-                  <span className="font-mono text-xs text-muted">
-                    {n.reason}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Replaces an always-expanded list. It was the right information in
+            the wrong shape: a plan with four floor actions pushed the steps
+            and the Authorize control down the card, so the protection read as
+            an obstacle. Collapsed, with the count on the summary, it informs
+            without dominating — and it is a product rule of the story that it
+            is never hidden outright. */}
+        <div className="mt-4">
+          <ExclusionsPanel plan={plan} />
+        </div>
+
+        {/* Immediately above the Authorize panel, and that position is the
+            requirement rather than a layout preference. The banner says the
+            floor could not check anyone against on-chain evidence for this
+            plan — a buyer who meets that after committing funds has been told
+            nothing useful. */}
+        <DegradedBanner plan={plan} />
 
         <m.div
           initial={{ opacity: 0, y: 8 }}

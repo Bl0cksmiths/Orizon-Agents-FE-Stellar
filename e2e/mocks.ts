@@ -1,4 +1,5 @@
 import type { Page, Route } from "@playwright/test";
+import type { DecomposeResponse } from "../lib/types";
 
 /**
  * Mock payloads shaped to satisfy lib/guards.ts (isOverview, isTaskList,
@@ -42,12 +43,21 @@ export const mockPlan = {
   plan_id: "plan_e2e_1",
   intent: "code a calculator web app",
   steps: [
+    // Every step carries the score the backend stamps on it (`_rep_fields` in
+    // orchestrator_svc.py). Without these the card renders no reputation at
+    // all, and the SOW §6.1 evidence sentence — "the decompose plan card
+    // showing on-chain reputation per agent" — has no first half.
     {
       agent_id: "seo.brief",
       agent_name: "seo.brief",
       rationale: "outline requirements and keywords",
       est_price_usdc: 0.009,
       est_eta_seconds: 1.2,
+      // Never rated, so it carries the prior itself — and is routed anyway,
+      // because `lowerBoundBps(7000, 0)` is 5677 and that clears the 5500
+      // floor. A cold-start agent is not a sub-floor agent.
+      rep_bps: 7000,
+      rep_source: "prior",
     },
     {
       agent_id: "design.figma",
@@ -57,6 +67,10 @@ export const mockPlan = {
       est_eta_seconds: 2.4,
       // story 3.02 — this step replaced a sub-floor designated agent.
       substituted_for: "vision.ocr",
+      // Rated 8600 over 18 USDC → smoothed 7960, lower bound 7224: the kind of
+      // standing that earns a substitution in.
+      rep_bps: 7960,
+      rep_source: "onchain",
     },
     {
       agent_id: "code.next",
@@ -66,6 +80,12 @@ export const mockPlan = {
       est_eta_seconds: 3.1,
       // story 3.02 — re-admitted below the floor by the starvation backstop.
       degraded: true,
+      // Rated 5060 over 117 USDC → smoothed 5240, whose lower bound is exactly
+      // the 4800 the notice below quotes. The step's headline score therefore
+      // reads 2.62 while it sits below a 2.75 floor, which is the honest shape
+      // of a backstop re-admission rather than a contradiction.
+      rep_bps: 5240,
+      rep_source: "onchain",
     },
   ],
   total_usdc: 0.123,
@@ -115,7 +135,217 @@ export const mockPlan = {
       floor_bps: 5500,
     },
   ],
-};
+  // Checked against the response contract rather than merely resembling it: a
+  // `rep_source` of "onchian" or a `reason_code` the union does not name would
+  // otherwise sail through here and fail in a browser, as a missing badge that
+  // reads like a product bug.
+} satisfies DecomposeResponse;
+
+// ── Plan-card floor variants (story 3.04) ───────────────────
+
+/**
+ * THE RULE every fixture below obeys, written down because breaking it
+ * inverts the guarantee this sprint is evidence for:
+ *
+ *   an agent may sit BELOW the routing floor only if it was RATED DOWN.
+ *
+ * A never-rated agent is not a low-scoring agent. With no entry at all it
+ * carries the Bayesian prior — 7000 bps over 12 USDC of prior mass — and
+ * `lowerBoundBps(7000, 0)` returns 5677, which CLEARS the 5500 floor
+ * (lib/reputation-math.test.ts pins that exact number). A fixture that parked
+ * a cold-start agent below the floor would make every assertion built on it
+ * measure the opposite of what the card is supposed to prove.
+ *
+ * So each figure here is what lib/reputation-math.ts actually returns for the
+ * stated evidence, and the card's numbers can be reasoned about end to end:
+ *
+ *   agent          mean / weight   smoothed   lower bound   vs 5500 floor
+ *   seo.brief       9400 /  30      8714       8197          clears
+ *   design.figma    8600 /  18      7960       7224          clears
+ *   code.next       6500 /  60      6583       6024          clears
+ *   vision.ocr      4000 /  24      5000       4167          BELOW, rated down
+ *   scrape.fast     5600 / 100      5750       5283          BELOW, rated down
+ *   audio.whisper   5000 /  40      5461       4771          BELOW, rated down
+ *   never rated        — /   0      7000       5677          clears
+ */
+
+/**
+ * The SOW §6.1 evidence case: a plan whose routed agents all carry on-chain
+ * reputation, and which names the sub-floor agents it refused to route.
+ *
+ * `scrape.fast` is the fixture that earns its keep. Its smoothed score is 5750
+ * — above the 5500 floor — and it is still excluded, because routing decides
+ * on the Wilson lower bound (5283) and not on the headline number. A card that
+ * printed the smoothed score next to the floor would look self-contradictory
+ * here, which is precisely the bug worth catching before a buyer sees it.
+ */
+export const mockPlanExcluded = {
+  plan_id: "plan_e2e_excluded",
+  intent: "code a calculator web app",
+  steps: [
+    {
+      agent_id: "seo.brief",
+      agent_name: "seo.brief",
+      rationale: "outline requirements and keywords",
+      est_price_usdc: 0.009,
+      est_eta_seconds: 1.2,
+      rep_bps: 8714,
+      rep_source: "onchain",
+    },
+    {
+      agent_id: "design.figma",
+      agent_name: "design.figma",
+      rationale: "produce the interface layout",
+      est_price_usdc: 0.048,
+      est_eta_seconds: 2.4,
+      rep_bps: 7960,
+      rep_source: "onchain",
+    },
+    {
+      agent_id: "code.next",
+      agent_name: "code.next",
+      rationale: "implement and wire up the app",
+      est_price_usdc: 0.066,
+      est_eta_seconds: 3.1,
+      rep_bps: 6583,
+      rep_source: "onchain",
+    },
+  ],
+  total_usdc: 0.123,
+  total_eta: 6.7,
+  floor_bps: 5500,
+  // Every bound quoted below was read from the ledger, so the numbers on the
+  // card are measurements rather than estimates.
+  reputation_degraded: false,
+  notices: [
+    {
+      kind: "excluded",
+      agent_id: "vision.ocr",
+      agent_name: "vision.ocr",
+      reason: "below routing floor (4167 < 5500 bps)",
+      reason_code: "below_floor",
+      lower_bound_bps: 4167,
+      floor_bps: 5500,
+    },
+    {
+      kind: "excluded",
+      agent_id: "scrape.fast",
+      agent_name: "scrape.fast",
+      reason: "below routing floor (5283 < 5500 bps)",
+      reason_code: "below_floor",
+      lower_bound_bps: 5283,
+      floor_bps: 5500,
+    },
+  ],
+} satisfies DecomposeResponse;
+
+/**
+ * The same plan, built while the ledger was partly unreadable.
+ *
+ * `reputation_degraded` is the response-level flag for "at least one read fell
+ * back to the prior", which is why it can be true while the two exclusions
+ * still quote measured bounds: those two reads succeeded, `code.next`'s did
+ * not. That is the honest shape of a partial outage, and it is the state the
+ * buyer has to be warned about before authorizing — the score they are
+ * weighing for `code.next` is 7000 because that is the prior, not because
+ * anyone rated it 3.50.
+ */
+export const mockPlanDegraded = {
+  ...mockPlanExcluded,
+  plan_id: "plan_e2e_degraded",
+  steps: [
+    mockPlanExcluded.steps[0],
+    mockPlanExcluded.steps[1],
+    {
+      ...mockPlanExcluded.steps[2],
+      // The prior itself, unmoved: a failed read yields no evidence, so the
+      // only honest number is the one every unrated agent starts from.
+      rep_bps: 7000,
+      rep_source: "prior",
+    },
+  ],
+  reputation_degraded: true,
+} satisfies DecomposeResponse;
+
+/**
+ * A plan the starvation backstop had to rescue: applying the 5500 floor left
+ * no agent able to do the third step, so the floor was relaxed and
+ * `audio.whisper` was re-admitted at a lower bound of 4771.
+ *
+ * `kind` is "degraded" and not "excluded" on purpose — nothing was refused
+ * here, the threshold moved — while `reason_code` is `floor_relaxed`. The step
+ * keeps `degraded: true` so the compromise is marked where the buyer is
+ * looking, not only in the summary. A card that states the applied floor
+ * without this sentence tells the buyer a number that was not, in the end,
+ * enforced.
+ */
+export const mockPlanFloorRelaxed = {
+  plan_id: "plan_e2e_relaxed",
+  intent: "transcribe and summarize a podcast episode",
+  steps: [
+    mockPlanExcluded.steps[0],
+    mockPlanExcluded.steps[1],
+    {
+      agent_id: "audio.whisper",
+      agent_name: "audio.whisper",
+      rationale: "transcribe the audio track",
+      est_price_usdc: 0.031,
+      est_eta_seconds: 4.4,
+      rep_bps: 5461,
+      rep_source: "onchain",
+      degraded: true,
+    },
+  ],
+  total_usdc: 0.088,
+  total_eta: 8.0,
+  floor_bps: 5500,
+  reputation_degraded: false,
+  notices: [
+    {
+      kind: "degraded",
+      agent_id: "audio.whisper",
+      agent_name: "audio.whisper",
+      reason: "re-admitted by starvation backstop (4771 < 5500 bps)",
+      reason_code: "floor_relaxed",
+      lower_bound_bps: 4771,
+      floor_bps: 5500,
+    },
+  ],
+} satisfies DecomposeResponse;
+
+/**
+ * What a backend deployed before story 3.02 sends: no `floor_bps`, no
+ * `reputation_degraded`, and a notice carrying prose only — no `reason_code`,
+ * no `lower_bound_bps`, no per-notice floor.
+ *
+ * The frontend and the backend deploy separately, so this payload is not
+ * hypothetical; it is what the console renders against for however long a
+ * rollback or a lagging Render deploy lasts. Every new field is optional in
+ * lib/types.ts for that reason, and the card has to survive all of them being
+ * absent — a plan the buyer cannot read is worse than a plan without a floor
+ * summary. Reputation itself predates 3.02, so the steps keep their scores.
+ */
+export const mockPlanLegacy = {
+  plan_id: "plan_e2e_legacy",
+  intent: "code a calculator web app",
+  steps: [
+    mockPlanExcluded.steps[0],
+    mockPlanExcluded.steps[1],
+    mockPlanExcluded.steps[2],
+  ],
+  total_usdc: 0.123,
+  total_eta: 6.7,
+  notices: [
+    {
+      kind: "substituted",
+      agent_id: "vision.ocr",
+      agent_name: "vision.ocr",
+      replacement_id: "design.figma",
+      replacement_name: "design.figma",
+      reason: "below routing floor (4167 < 5500 bps)",
+    },
+  ],
+} satisfies DecomposeResponse;
 
 function json(route: Route, body: unknown) {
   return route.fulfill({
@@ -173,10 +403,16 @@ export const mockReputationParams = {
  *   - `weather_bot` scored on-chain but with a lower bound only just clear of
  *     it — the interesting case, since routing uses the bound and not the
  *     headline score;
- *   - `unbound_bot` never rated, so it carries the Bayesian prior and its
- *     lower bound sits *below* the floor. That is the honest cold-start
- *     position of a brand-new agent and the reason an operator sees
- *     "not eligible" on something they just registered.
+ *   - `unbound_bot` never rated, so it carries the Bayesian prior — and its
+ *     lower bound of 5677 CLEARS the 5500 floor. That is the honest cold-start
+ *     position of a brand-new agent: reputation is not what holds it back.
+ *     What an operator sees as "not eligible" on something they just
+ *     registered is the endpoint gate, and the two must not be conflated.
+ *
+ * That bound used to read 5100, which no cold-start agent can have:
+ * `lowerBoundBps(7000, 0)` is 5677 (lib/reputation-math.test.ts pins it), and
+ * an agent may only fall below the floor by being rated down. The wrong number
+ * quietly inverted the guarantee the reputation work exists to make.
  *
  * Without this, `GET /api/stellar/reputation` fell through to the catch-all
  * `{}`, `isReputationBatch` rejected it, and every score silently became a
@@ -213,7 +449,7 @@ export const mockReputationBatch = {
     unbound_bot: {
       agent_id: "unbound_bot",
       smoothed_bps: 7000,
-      lower_bound_bps: 5100,
+      lower_bound_bps: 5677,
       avg_bps: 7000,
       count: 0,
       weight: 0,
@@ -366,7 +602,25 @@ const BIND_RE = /^\/api\/agents\/([^/]+)\/bind$/;
 const BINDING_RE = /^\/api\/agents\/([^/]+)\/binding$/;
 const SETTLEMENT_RE = /^\/api\/stellar\/settlement\/([^/]+)$/;
 
-export async function mockApi(page: Page): Promise<void> {
+/**
+ * Per-spec overrides for the shared mock. Everything not named here keeps the
+ * default fixture, so an existing `mockApi(page)` call is unaffected.
+ */
+export type MockApiOptions = {
+  /**
+   * What `POST /api/orchestrator/decompose` answers with. Defaults to
+   * `mockPlan`, which several specs assert against by name — the floor
+   * variants below are opt-in for exactly that reason. Typed as the real
+   * response so a variant that drifts from the contract fails `npm run
+   * typecheck` rather than at some unrelated assertion in a browser.
+   */
+  plan?: DecomposeResponse;
+};
+
+export async function mockApi(
+  page: Page,
+  options: MockApiOptions = {},
+): Promise<void> {
   await page.route("**/api/**", (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
@@ -426,7 +680,7 @@ export async function mockApi(page: Page): Promise<void> {
       return json(route, mockTasks);
     }
     if (method === "POST" && pathname === "/api/orchestrator/decompose") {
-      return json(route, mockPlan);
+      return json(route, options.plan ?? mockPlan);
     }
     if (method === "GET" && pathname === "/api/agents") {
       return json(route, mockAgents);
