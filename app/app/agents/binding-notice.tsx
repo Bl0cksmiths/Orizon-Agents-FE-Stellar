@@ -48,9 +48,17 @@ export function UnboundNotice({
   agentName: string;
 }) {
   return (
-    <div className="clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-[70ch] font-mono text-[11px] leading-relaxed text-magenta">
+    // The panel is capped by the viewport as well as by a comfortable
+    // measure: it lives in a cell as wide as the whole table, which scrolls
+    // sideways on a phone, so an uncapped panel would lay its text and its
+    // action out past the right edge of the screen.
+    <div className="clip-cyber-sm max-w-[min(72ch,calc(100vw-5rem))] border border-magenta/40 bg-magenta/5 px-4 py-3">
+      {/* Left-aligned rather than spread apart: this panel lives in a cell as
+          wide as the whole table, and `justify-between` would pin the action to
+          the table's right edge — off the side of the screen whenever the
+          registry is scrolled. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="font-mono text-[11px] leading-relaxed text-magenta">
           ⚠ <span className="text-text">{agentName}</span> — {UNBOUND_WARNING}
         </p>
         <ButtonLink
