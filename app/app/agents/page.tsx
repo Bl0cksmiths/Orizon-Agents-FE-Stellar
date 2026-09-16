@@ -193,20 +193,27 @@ export default function AgentsPage() {
             />
           </div>
           <div className="flex gap-2">
-            {(["all", "online", "idle", "offline"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={
-                  `clip-cyber-sm border px-3 h-10 font-mono text-[10px] uppercase tracking-widest transition ${focusRing} ` +
-                  (filter === f
-                    ? "border-violet bg-violet/20 text-text"
-                    : "border-border text-muted hover:text-text")
-                }
-              >
-                {f}
-              </button>
-            ))}
+            {/* "routable" sits next to "all" rather than at the end: it is the
+                question a buyer actually arrives with — who can I hire — and
+                the three status values after it are a narrower, more technical
+                cut. Clicking "all" is the way back, which is why this joins
+                the existing group instead of becoming a second control. */}
+            {(["all", "routable", "online", "idle", "offline"] as const).map(
+              (f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={
+                    `clip-cyber-sm border px-3 h-10 font-mono text-[10px] uppercase tracking-widest transition ${focusRing} ` +
+                    (filter === f
+                      ? "border-violet bg-violet/20 text-text"
+                      : "border-border text-muted hover:text-text")
+                  }
+                >
+                  {f}
+                </button>
+              ),
+            )}
           </div>
           {/* Rendered only once a registry has actually been fetched — the
               hook drops `lastSuccessAt` with the data it dates, so a first
