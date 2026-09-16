@@ -36,6 +36,15 @@
  * about. The signals provenance must NOT be read from are documented on
  * `isOnchain` below — each of them is a plausible-looking mistake.
  *
+ * Binding is the third fact, and it is tri-state on purpose. `bound === false`
+ * on an on-chain agent means registered but with no endpoint bound yet — not
+ * yet operational. `null` or absent means the question does not apply: a
+ * seeded agent runs on a worker inside the backend and has no endpoint to
+ * bind, so "unbound" there would report a defect that does not exist. The
+ * wording for it is imported from `lib/binding-status`, never retyped; that
+ * sentence is the fourth surface to state the same claim and three copies of
+ * a claim drift.
+ *
  * The cell fetches nothing. The page owns the reputation batch, so every
  * branch below is a pure reading of what that batch returned — which is also
  * what makes each one testable without a network.
@@ -44,6 +53,7 @@
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { UNBOUND_WARNING } from "@/lib/binding-status";
 import type { Agent, ReputationInfo } from "@/lib/types";
 
 /**
@@ -158,6 +168,28 @@ export function AgentStanding({
         tone="violet"
         glyph="⬡"
         label="on-chain"
+        detail={detail}
+      />,
+    );
+  }
+
+  // Only the explicit `false` is a claim, and only about an on-chain agent.
+  // The provenance guard is the same rule as the tri-state, stated twice on
+  // purpose: a seeded row must never reach this marker even if a payload
+  // someday carries `bound: false` on one, because that would read as a
+  // broken service to a buyer looking at a perfectly working catalog agent.
+  if (onchain && agent.bound === false) {
+    // The short visible label is for a buyer scanning the registry; the long
+    // form is `UNBOUND_WARNING` verbatim, addressed to the operator who can
+    // act on it. The lead-in adds the buyer's framing without contradicting
+    // a word of it — the agent is listed, it simply cannot be picked yet.
+    const detail = `${agent.name} is registered, but no endpoint is bound yet. ${UNBOUND_WARNING}`;
+    marks.push(
+      <StandingMark
+        key="bound"
+        tone="magenta"
+        glyph="⊘"
+        label="no endpoint bound"
         detail={detail}
       />,
     );
