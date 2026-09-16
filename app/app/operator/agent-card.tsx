@@ -85,7 +85,13 @@ export function AgentCard({
             and a control that costs a wallet prompt does not belong in a
             surface the operator is only glancing at. The agent id is in the
             button label so several of these on one page are told apart by a
-            screen reader rather than all reading "settings". */}
+            screen reader rather than all reading "settings".
+
+            The accessible name deliberately does NOT change to "hide" when
+            open — `aria-expanded` already carries that, and a control that
+            renames itself on click reads to a screen reader as a different
+            control appearing where the last one was. The caret is decorative
+            for the same reason. */}
         <Button
           variant="outline"
           size="sm"
@@ -93,7 +99,10 @@ export function AgentCard({
           aria-expanded={managing}
           className={focusRing}
         >
-          {managing ? "hide settings" : `settings for ${agent.id}`}
+          <span aria-hidden="true" className="mr-1.5 inline-block">
+            {managing ? "▾" : "▸"}
+          </span>
+          settings for {agent.id}
         </Button>
         {managing && (
           <div className="mt-4">
