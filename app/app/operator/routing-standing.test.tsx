@@ -32,7 +32,11 @@ afterEach(cleanup);
 
 /** 3.00 on the 0–5 scale the panel prints. */
 const FLOOR_BPS = 6000;
-/** 2.50 — the Bayesian prior, deliberately below the floor, as it is in prod. */
+/** 2.50 — a prior BELOW this file's floor, which production's is NOT: the
+ *  shipped prior yields a 5677 lower bound against a 5500 floor. The numbers
+ *  here are deliberately unlike production so the component is tested on its
+ *  logic rather than on one lucky configuration — but nothing in this file may
+ *  be read as a claim about what production does. */
 const PRIOR_BPS = 5000;
 
 /** A rated agent comfortably clear of the floor unless a test says otherwise. */
@@ -51,8 +55,11 @@ function rep(over: Partial<ReputationInfo> = {}): ReputationInfo {
   };
 }
 
-/** The prior an unrated agent carries: headline looks fine, lower bound does
- *  not clear the floor. The honest cold-start position. */
+/** An unrated agent carrying a prior that does NOT clear this file's floor.
+ *  A hostile configuration, not the shipped one — production's prior clears
+ *  its floor by 177 bps. This fixture exists to exercise the below-floor
+ *  branch; `never tells a newcomer their agent is below the floor by default`
+ *  covers the real cold-start position. */
 function priorRep(over: Partial<ReputationInfo> = {}): ReputationInfo {
   return rep({
     smoothed_bps: PRIOR_BPS,
@@ -242,8 +249,32 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     const text = document.body.textContent ?? "";
     expect(text).toContain("Never rated on-chain");
     expect(text).toContain("the Bayesian prior of 2.50");
-    expect(text).toContain("the honest cold-start position, not a fault");
+    expect(text).toContain("until completed work replaces it");
     expect(text).not.toContain("not a reading of the chain");
+  });
+
+  /**
+   * The shipped arithmetic, and the reason this assertion exists.
+   *
+   * With the production config a never-rated agent scores a lower bound of
+   * 5677 against a 5500 floor — it clears by 177 bps and is routable on the
+   * day it is registered. This panel previously told operators the opposite
+   * ("a brand-new agent's lower bound sits below the floor"), which is both
+   * false and a direct contradiction of the premise permissionless
+   * registration rests on. Nothing here may imply a new agent is excluded.
+   */
+  it("never tells a newcomer their agent is below the floor by default", () => {
+    const { container } = renderStanding({
+      // The real cold-start position: prior source, no ratings, and a lower
+      // bound that clears the floor.
+      reputation: priorRep({ lower_bound_bps: FLOOR_BPS + 177 }),
+      floorBps: FLOOR_BPS,
+    });
+    const text = container.textContent ?? "";
+    expect(text).toContain("Eligible");
+    expect(text).not.toMatch(/Not eligible/);
+    expect(text).not.toMatch(/sits below the floor/);
+    expect(text).toContain("routable from the day it is registered");
   });
 
   // Same payload apart from one optional flag, and one of them means the chain

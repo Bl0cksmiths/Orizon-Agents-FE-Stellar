@@ -197,10 +197,7 @@ export default function EventsPage() {
           <div className="space-y-2">
             <div className="text-sm text-muted">
               No events yet. Run a workflow on{" "}
-              <Link
-                href="/app/orchestrator"
-                className={inlineLink}
-              >
+              <Link href="/app/orchestrator" className={inlineLink}>
                 /app/orchestrator
               </Link>{" "}
               — it'll publish <code className="text-cyan">charge</code> and{" "}

@@ -1,5 +1,6 @@
 "use client";
 import { m } from "framer-motion";
+import { fallbackReputationLedgerId } from "@/lib/contract-addresses";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -10,14 +11,15 @@ import {
   stellarExpertUrl,
 } from "@/components/ui/stellar-link";
 
-// deployed ledger ids per network — link follows the build's passphrase env
-const LEDGER_CONTRACT_IDS = {
-  public: "CDFWQJY72GPH7PEQVFGBDZESZNVRF6LQLVWU42CFMWPGRME5RWN5AXSX",
-  testnet: "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
-} as const;
+// Link follows the build's passphrase env. The marketing page has no
+// /reputation/params read to defer to, so this id is ALWAYS the build-time
+// one — which is why it pulls from the shared address book instead of keeping
+// a second copy of the same two constants next to the console's copy. Two
+// hand-maintained copies of one address is the same drift this story is about,
+// just inside a single repo.
 const LEDGER_CONTRACT_URL = stellarExpertUrl(
   "contract",
-  LEDGER_CONTRACT_IDS[defaultExplorerNetwork] ?? LEDGER_CONTRACT_IDS.testnet,
+  fallbackReputationLedgerId(defaultExplorerNetwork),
   defaultExplorerNetwork,
 );
 

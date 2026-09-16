@@ -1,5 +1,5 @@
 import type { Page, Route } from "@playwright/test";
-import type { DecomposeResponse } from "../lib/types";
+import type { DecomposeResponse, ReputationBatch } from "../lib/types";
 
 /**
  * Mock payloads shaped to satisfy lib/guards.ts (isOverview, isTaskList,
@@ -396,8 +396,8 @@ export const mockReputationParams = {
 };
 
 /**
- * The batch every reputation-aware surface reads. Three deliberately
- * different states, because they render as three different sentences:
+ * The batch every reputation-aware surface reads. Four deliberately different
+ * states, because they render as four different sentences:
  *
  *   - `agt_11c0`   scored on-chain, comfortably above the floor;
  *   - `weather_bot` scored on-chain but with a lower bound only just clear of
@@ -408,17 +408,34 @@ export const mockReputationParams = {
  *     position of a brand-new agent: reputation is not what holds it back.
  *     What an operator sees as "not eligible" on something they just
  *     registered is the endpoint gate, and the two must not be conflated.
+ *   - `rated_down_bot` the only entry the floor excludes, and the only way an
+ *     agent can be there: it was rated down.
  *
- * That bound used to read 5100, which no cold-start agent can have:
- * `lowerBoundBps(7000, 0)` is 5677 (lib/reputation-math.test.ts pins it), and
- * an agent may only fall below the floor by being rated down. The wrong number
- * quietly inverted the guarantee the reputation work exists to make.
+ * THE ARITHMETIC RULE, which every future edit to this fixture has to respect:
+ * the floor is 5500 bps and the prior is 7000 bps, so a never-rated agent's
+ * lower bound is `lowerBoundBps(7000, 0)` = 5677 — it CLEARS the floor
+ * (lib/reputation-math.test.ts pins the number). A cold start therefore cannot
+ * sit below the floor at any weight; only evidence can put it there. Any
+ * below-floor fixture must be an agent with ratings behind it, or it encodes a
+ * position the system cannot produce and every assertion resting on it
+ * measures the inverse of the guarantee.
+ *
+ * That is not hypothetical: `unbound_bot`'s bound used to read 5100, a value
+ * no cold-start agent can have, and it quietly inverted the guarantee the
+ * reputation work exists to make.
+ *
+ * `rated_down_bot` is worked from the real math rather than chosen to look
+ * right — mean 5400 bps over 20.4 USDC of settled weight gives
+ * `smoothedBps` = 5992 and `lowerBoundBps` = 5131. That is the case the whole
+ * design turns on: the smoothed score (3.00) is ABOVE the 2.75 floor while the
+ * lower bound (2.57) is below it, so a row that showed the headline score next
+ * to the floor would read as self-contradictory — routing gates on the bound.
  *
  * Without this, `GET /api/stellar/reputation` fell through to the catch-all
  * `{}`, `isReputationBatch` rejected it, and every score silently became a
  * seeded placeholder — a fixture gap that reads as working software.
  */
-export const mockReputationBatch = {
+export const mockReputationBatch: ReputationBatch = {
   floor_bps: 5500,
   prior_bps: 7000,
   reputations: {
@@ -449,6 +466,12 @@ export const mockReputationBatch = {
     unbound_bot: {
       agent_id: "unbound_bot",
       smoothed_bps: 7000,
+      // 5677, not a number chosen to look plausible. It is what
+      // `lower_bound_bps(7000, 0)` actually returns, and it CLEARS the 5500
+      // floor by 177 bps. This fixture previously carried 5100 — arithmetically
+      // impossible for a cold start — which made every e2e assertion about a
+      // newly registered agent measure the inverse of the guarantee the sprint
+      // rests on: permissionless registration is not a dead end.
       lower_bound_bps: 5677,
       avg_bps: 7000,
       count: 0,
@@ -458,7 +481,65 @@ export const mockReputationBatch = {
       source: "prior",
       degraded: false,
     },
+    // Rated down, not cold: 24 rated jobs carrying 20.4 USDC of weight, six of
+    // them disputed (2500 bps = 25.0%). The evidence is what puts the lower
+    // bound under the floor, and the count and dispute rate are the evidence —
+    // an excluded agent still has to show them, or "not routable" reads as
+    // "unknown" rather than as a verdict the buyer can check.
+    rated_down_bot: {
+      agent_id: "rated_down_bot",
+      smoothed_bps: 5992,
+      lower_bound_bps: 5131,
+      avg_bps: 5400,
+      count: 24,
+      weight: 20.4,
+      disputed: 6,
+      dispute_rate_bps: 2500,
+      source: "onchain",
+      degraded: false,
+    },
   },
+};
+
+/**
+ * The same registry when the reputation service cannot read the ledger.
+ *
+ * Every entry is the Bayesian prior with `degraded: true`, because that is
+ * what a failed read actually produces: the service fails OPEN and serves the
+ * prior in place of the score it could not fetch. Faking a degraded flag over
+ * the real numbers would describe a state the backend never emits.
+ *
+ * The flag is the entire point. `source: "prior"` on its own is also what a
+ * genuine never-rated newcomer looks like, so without `degraded` a page cannot
+ * tell "this agent has no history" from "we could not read any history", and
+ * the buyer is shown an estimate presented as a measurement.
+ *
+ * Derived from the healthy batch's keys rather than written out, so an agent
+ * added to one can never go missing from the other. The 5677 lower bound is
+ * `lowerBoundBps(7000, 0)`, pinned by lib/reputation-math.test.ts — and it
+ * clears the floor, so a degraded read excludes nobody. Losing the ledger must
+ * not silently unroute the whole registry.
+ */
+export const mockReputationBatchDegraded: ReputationBatch = {
+  floor_bps: mockReputationBatch.floor_bps,
+  prior_bps: mockReputationBatch.prior_bps,
+  reputations: Object.fromEntries(
+    Object.keys(mockReputationBatch.reputations).map((agentId) => [
+      agentId,
+      {
+        agent_id: agentId,
+        smoothed_bps: mockReputationBatch.prior_bps,
+        lower_bound_bps: 5677,
+        avg_bps: mockReputationBatch.prior_bps,
+        count: 0,
+        weight: 0,
+        disputed: 0,
+        dispute_rate_bps: 0,
+        source: "prior" as const,
+        degraded: true,
+      },
+    ]),
+  ),
 };
 
 /**
@@ -492,11 +573,36 @@ export const mockWalletAddress =
   "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
 
 /**
+ * Somebody else's registering wallet. Well-formed (56 base32 characters) but
+ * not an account that exists, and deliberately never the connected wallet: an
+ * on-chain agent owned here is one the marketplace lists and the operator
+ * surfaces must leave alone. Keeping `rated_down_bot` on this address is what
+ * stops it from changing what `e2e/operator.spec.ts` and
+ * `e2e/agents-unbound.spec.ts` count as "the wallet's own agents".
+ */
+export const mockOtherOwnerAddress =
+  "GCXQ7T5LMJ4RZB2NPKAH6WVUE3SFDYG2CQ5TMXJ7RLB4NZKAH6WVUE3S";
+
+/**
  * The marketplace as an operator sees it: one seeded catalog agent that needs
  * no endpoint, and two the connected wallet owns on-chain — one of which is
  * deliberately left unbound, because that is the state story 2.05 exists to
  * make visible. `GET /api/agents` used to return `[]`, which made every
  * owned-agent surface untestable.
+ *
+ * Provenance is carried by `source`, and `real` is deliberately set against it
+ * (story 3.05). `real` means "backed by a real Agno worker rather than a
+ * mock": `registry_sync` sets it false for every on-chain agent, and the
+ * seeded catalog is a mix — so it marks roughly the OPPOSITE population to the
+ * one an "externally registered" marker is about. `agt_11c0` below is seeded
+ * *and* `real: true`, which is the trap: anything keyed off `real` marks the
+ * first-party catalog as somebody else's agent, and leaves every on-chain
+ * registration looking first-party.
+ *
+ * `bound` is tri-state for the same reason the binding lookup is skipped for
+ * the catalog: a seeded agent runs on a worker inside the backend and has no
+ * endpoint, so `null` means the question does not apply, and only `false` on an
+ * on-chain agent reports a registration that cannot yet be routed to.
  */
 export const mockAgents = [
   {
@@ -509,6 +615,8 @@ export const mockAgents = [
     runs: 128,
     real: true,
     owner: null,
+    source: "seeded",
+    bound: null,
   },
   {
     id: "weather_bot",
@@ -520,6 +628,8 @@ export const mockAgents = [
     runs: 4,
     real: false,
     owner: mockWalletAddress,
+    source: "onchain",
+    bound: true,
   },
   {
     id: "unbound_bot",
@@ -531,6 +641,35 @@ export const mockAgents = [
     runs: 0,
     real: false,
     owner: mockWalletAddress,
+    source: "onchain",
+    bound: false,
+  },
+  /**
+   * Registered on-chain by a third party, endpoint bound, and below the
+   * routing floor — the only row here that the floor itself excludes.
+   *
+   * It is paired with `unbound_bot` on purpose: that one clears the floor and
+   * is held back by its endpoint, this one is operational and held back by its
+   * score. Both are unroutable, for reasons an operator must not be allowed to
+   * confuse, and a fixture set where the same row carried both faults could
+   * never tell the two messages apart.
+   *
+   * `runs` (41) exceeds the 24 rated jobs behind its score because not every
+   * run is rated, and the price is what makes the rating weight coherent:
+   * 24 × 0.85 USDC = the 20.4 weight its reputation entry carries.
+   */
+  {
+    id: "rated_down_bot",
+    name: "Rated Down Bot",
+    skills: ["analysis"],
+    price: 0.85,
+    rep: 3.0,
+    status: "online",
+    runs: 41,
+    real: false,
+    owner: mockOtherOwnerAddress,
+    source: "onchain",
+    bound: true,
   },
 ];
 /**
@@ -615,6 +754,15 @@ export type MockApiOptions = {
    * typecheck` rather than at some unrelated assertion in a browser.
    */
   plan?: DecomposeResponse;
+  /**
+   * What `GET /api/stellar/reputation` answers with. Defaults to
+   * `mockReputationBatch`, so every existing caller is unaffected; pass
+   * `mockReputationBatchDegraded` to exercise the estimates path. Typed as the
+   * real response for the same reason `plan` is — a variant that drifts from
+   * the contract fails `npm run typecheck` rather than at some unrelated
+   * assertion in a browser.
+   */
+  reputation?: ReputationBatch;
 };
 
 export async function mockApi(
@@ -686,7 +834,7 @@ export async function mockApi(
       return json(route, mockAgents);
     }
     if (method === "GET" && pathname === "/api/stellar/reputation") {
-      return json(route, mockReputationBatch);
+      return json(route, options.reputation ?? mockReputationBatch);
     }
     const settlementFor = SETTLEMENT_RE.exec(pathname);
     if (method === "GET" && settlementFor) {
