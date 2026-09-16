@@ -91,8 +91,13 @@ export function RoutingStanding({
   agentId: string;
   bindingState: BindingState | null;
   reputation: ReputationInfo | null;
-  floorBps: number;
-  priorBps: number;
+  /** Null when the reputation batch has not loaded. The floor and the score
+   *  arrive together, so a null floor and a null `reputation` co-occur — but
+   *  both are typed independently rather than bundled, because inventing a
+   *  floor to satisfy a signature is exactly how a missing number becomes a
+   *  confident verdict. */
+  floorBps: number | null;
+  priorBps: number | null;
 }): JSX.Element {
   // `null` is "no claim applies" — a seeded catalog agent, another wallet's
   // agent, or one past the hook's cap. It is NOT an unbound agent, and it is
@@ -118,9 +123,11 @@ export function RoutingStanding({
   const floorGate: Gate =
     reputation === null
       ? "unknown"
-      : reputation.lower_bound_bps >= floorBps
-        ? "pass"
-        : "fail";
+      : floorBps === null
+        ? "unknown"
+        : reputation.lower_bound_bps >= floorBps
+          ? "pass"
+          : "fail";
 
   // A failure outranks an unknown. Both gates must hold, so one confirmed
   // failure settles the verdict no matter what the other gate is doing.
@@ -144,7 +151,11 @@ export function RoutingStanding({
         : "the endpoint lookup has not come back yet",
     );
   if (floorGate === "unknown")
-    unread.push("no reputation score is known for this agent");
+    unread.push(
+      reputation === null
+        ? "no reputation score is known for this agent"
+        : "the network floor is not known",
+    );
 
   const holds: string[] = [];
   if (bindingState === "bound") holds.push("an endpoint is bound");
@@ -250,12 +261,12 @@ export function RoutingStanding({
       <div className="space-y-2">
         <h3 className={gateHeading}>Gate 2 · Network floor</h3>
 
-        {reputation === null ? (
+        {reputation === null || floorBps === null ? (
           <p className={body}>
-            <span aria-hidden="true">⋯ </span>No reputation score is known for
-            this agent — it was not in the batch, so whether it clears the{" "}
-            {score(floorBps)} floor cannot be answered here. It is not carrying
-            the prior either; assuming the prior would be inventing a number.
+            <span aria-hidden="true">⋯ </span>
+            {reputation === null
+              ? `No reputation score is known for this agent — it was not in the batch, so whether it clears ${floorBps === null ? "the network floor" : `the ${score(floorBps)} floor`} cannot be answered here. It is not carrying the prior either; assuming the prior would be inventing a number.`
+              : "The network floor is not known, so whether this agent clears it cannot be answered here. The score above is real; the line it has to cross is what is missing."}
           </p>
         ) : (
           <>
@@ -323,18 +334,19 @@ export function RoutingStanding({
               <p className={`${body} text-magenta`}>
                 <span aria-hidden="true">⚠ </span>This score is not a reading of
                 the chain. The on-chain read failed and the Bayesian prior of{" "}
-                {score(priorBps)} was served in its place — the reputation
-                service fails open. Treat the result above as provisional: it
-                was computed from the prior, not from this agent&apos;s history.
-                Reload once the read recovers.
+                {priorBps === null ? "the network" : score(priorBps)} was served
+                in its place — the reputation service fails open. Treat the
+                result above as provisional: it was computed from the prior, not
+                from this agent&apos;s history. Reload once the read recovers.
               </p>
             ) : (
               reputation.source === "prior" && (
                 <p className={body}>
                   <span aria-hidden="true">≈ </span>Never rated on-chain. This
-                  is the Bayesian prior of {score(priorBps)}, and a brand-new
-                  agent&apos;s lower bound sits below the floor — the honest
-                  cold-start position, not a fault.
+                  is the Bayesian prior
+                  {priorBps === null ? "" : ` of ${score(priorBps)}`}, and a
+                  brand-new agent&apos;s lower bound sits below the floor — the
+                  honest cold-start position, not a fault.
                 </p>
               )
             )}
