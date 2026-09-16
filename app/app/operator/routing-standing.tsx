@@ -286,7 +286,11 @@ export function RoutingStanding({
               </span>
             </div>
 
-            <dl className="space-y-1 font-mono text-[11px]">
+            {/* Capped rather than full-bleed: a KVRow spreads its label and
+                its value to the edges, and on a desktop card that put a
+                two-character score the better part of a metre from the word
+                it belongs to. */}
+            <dl className="max-w-md space-y-1 font-mono text-[11px]">
               <KVRow
                 k="lower bound"
                 value={score(reputation.lower_bound_bps)}
