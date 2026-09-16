@@ -96,6 +96,49 @@ function SettlementFigures({ data }: { data: AgentSettlement }) {
   );
 }
 
+/**
+ * The zero, said out loud.
+ *
+ * An empty panel is not neutral. Read by the operator who built the agent, a
+ * settlement card with nothing in it says "nobody hired you" — a claim about
+ * their work that this deployment has no evidence for. So the absence is
+ * stated as a finding, in words, with its scope attached.
+ *
+ * The headline is split on `entries.length` because the two cases are not the
+ * same statement and the weaker one would be a lie in either direction. With
+ * no charge events at all, nothing settled, full stop. With a self-payment
+ * present, a charge *did* settle on-chain — it simply moved the platform's
+ * funds to the platform — so the claim narrows to customer payment, which is
+ * the part that is genuinely zero.
+ */
+function NothingSettledNotice({
+  data,
+  agentName,
+}: {
+  data: AgentSettlement;
+  agentName: string;
+}) {
+  return (
+    <div className="clip-cyber-sm space-y-3 border border-magenta/40 bg-magenta/5 px-4 py-3">
+      <p className="font-mono text-[11px] leading-relaxed text-magenta">
+        <span aria-hidden="true">⚑ </span>
+        {data.entries.length === 0
+          ? `No payment has settled to ${agentName}.`
+          : `No customer payment has settled to ${agentName}.`}
+      </p>
+      {data.entries.length === 0 ? (
+        <p className="max-w-2xl text-xs leading-relaxed text-muted">
+          The escrow recorded no charge against this agent in the last{" "}
+          {data.window_days} days. That window is the whole of the log we can
+          read — Soroban RPC keeps {data.window_days} days of contract events
+          and drops everything older — so this is a statement about the last{" "}
+          {data.window_days} days, not about the agent's whole history.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** What the scan covered, so the figures above can be argued with. */
 function ScanFacts({ data }: { data: AgentSettlement }) {
   return (
@@ -202,6 +245,12 @@ export function SettlementPanel({
 
   return (
     <PanelShell headingId={headingId} agentName={agentName}>
+      {/* Stated before the tiles, not under them: the operator's question is
+          "have I been paid", and a row of zeroes answers it only if you
+          already know what the zeroes mean. */}
+      {data.total_stroops === 0 ? (
+        <NothingSettledNotice data={data} agentName={agentName} />
+      ) : null}
       <SettlementFigures data={data} />
       <ScanFacts data={data} />
     </PanelShell>
