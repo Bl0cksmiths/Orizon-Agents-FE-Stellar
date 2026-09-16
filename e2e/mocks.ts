@@ -496,6 +496,47 @@ export const mockReputationBatch: ReputationBatch = {
 };
 
 /**
+ * The same registry when the reputation service cannot read the ledger.
+ *
+ * Every entry is the Bayesian prior with `degraded: true`, because that is
+ * what a failed read actually produces: the service fails OPEN and serves the
+ * prior in place of the score it could not fetch. Faking a degraded flag over
+ * the real numbers would describe a state the backend never emits.
+ *
+ * The flag is the entire point. `source: "prior"` on its own is also what a
+ * genuine never-rated newcomer looks like, so without `degraded` a page cannot
+ * tell "this agent has no history" from "we could not read any history", and
+ * the buyer is shown an estimate presented as a measurement.
+ *
+ * Derived from the healthy batch's keys rather than written out, so an agent
+ * added to one can never go missing from the other. The 5677 lower bound is
+ * `lowerBoundBps(7000, 0)`, pinned by lib/reputation-math.test.ts — and it
+ * clears the floor, so a degraded read excludes nobody. Losing the ledger must
+ * not silently unroute the whole registry.
+ */
+export const mockReputationBatchDegraded: ReputationBatch = {
+  floor_bps: mockReputationBatch.floor_bps,
+  prior_bps: mockReputationBatch.prior_bps,
+  reputations: Object.fromEntries(
+    Object.keys(mockReputationBatch.reputations).map((agentId) => [
+      agentId,
+      {
+        agent_id: agentId,
+        smoothed_bps: mockReputationBatch.prior_bps,
+        lower_bound_bps: 5677,
+        avg_bps: mockReputationBatch.prior_bps,
+        count: 0,
+        weight: 0,
+        disputed: 0,
+        dispute_rate_bps: 0,
+        source: "prior" as const,
+        degraded: true,
+      },
+    ]),
+  ),
+};
+
+/**
  * Fails every `/api/*` call the way the production outage did: a 404 carrying
  * the backend's real error envelope. This is deliberately indistinguishable
  * from a healthy backend behind a misconfigured proxy — the exact condition
@@ -707,6 +748,15 @@ export type MockApiOptions = {
    * typecheck` rather than at some unrelated assertion in a browser.
    */
   plan?: DecomposeResponse;
+  /**
+   * What `GET /api/stellar/reputation` answers with. Defaults to
+   * `mockReputationBatch`, so every existing caller is unaffected; pass
+   * `mockReputationBatchDegraded` to exercise the estimates path. Typed as the
+   * real response for the same reason `plan` is — a variant that drifts from
+   * the contract fails `npm run typecheck` rather than at some unrelated
+   * assertion in a browser.
+   */
+  reputation?: ReputationBatch;
 };
 
 export async function mockApi(
@@ -778,7 +828,7 @@ export async function mockApi(
       return json(route, mockAgents);
     }
     if (method === "GET" && pathname === "/api/stellar/reputation") {
-      return json(route, mockReputationBatch);
+      return json(route, options.reputation ?? mockReputationBatch);
     }
     const settlementFor = SETTLEMENT_RE.exec(pathname);
     if (method === "GET" && settlementFor) {
