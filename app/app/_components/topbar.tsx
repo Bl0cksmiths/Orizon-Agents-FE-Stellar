@@ -17,6 +17,9 @@ const titles: Record<string, { t: string; b: string[] }> = {
   "/app/register": { t: "Register Agent", b: ["console", "register"] },
   "/app/bind": { t: "Bind Endpoint", b: ["console", "bind"] },
   "/app/operator": { t: "My Agents", b: ["console", "my agents"] },
+  // Missing since the route shipped, so /app/reputation fell through to the
+  // bare "Console" crumb and the page had no name anywhere in the chrome.
+  "/app/reputation": { t: "Reputation", b: ["console", "reputation"] },
   "/app/orchestrator": { t: "Orchestrator", b: ["console", "orchestrator"] },
   "/app/trace": { t: "Trace", b: ["console", "trace"] },
   "/app/events": { t: "Events", b: ["console", "events"] },
