@@ -233,4 +233,21 @@ test.describe("plan card — reputation, source and exclusions", () => {
       "the warning must clear the top edge of the authorize button",
     ).toBeLessThanOrEqual(authorizeBox.y);
   });
+
+  test("AC-4 — says nothing about estimates when every score was read from chain", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanExcluded, { wallet: true });
+    await expect(
+      page.getByRole("button", { name: /authorize/i }),
+    ).toBeVisible();
+
+    // `reputation_degraded` is false here and the bounds beside the exclusions
+    // are measurements. A banner that shows on every plan is one buyers learn
+    // to scroll past, which costs nothing until the day the ledger really is
+    // unreadable. (Vacuously true until the banner exists — it keeps its value
+    // the moment it does.)
+    await expect(estimateBanner(page)).toHaveCount(0);
+  });
 });
