@@ -170,12 +170,18 @@ export function AgentStanding({
     const detail =
       `${agent.name} was registered on-chain against the public registry by ` +
       `its owner, rather than seeded into the first-party catalog.`;
+    // "external", not "on-chain". This row also carries a reputation chip that
+    // says "on-chain reputation" when the score was read from the ledger — and
+    // a SEEDED agent can have one, because the first-party catalog is rated on
+    // chain like everything else. Two different "on-chain"s in one row makes
+    // the buyer resolve an ambiguity we created: is this agent external, or is
+    // its score settled? Provenance is the question this marker answers.
     marks.push(
       <StandingMark
         key="source"
         tone="violet"
         glyph="⬡"
-        label="on-chain"
+        label="external"
         detail={detail}
       />,
     );
