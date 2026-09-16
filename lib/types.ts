@@ -149,6 +149,55 @@ export type ReputationBatch = {
   prior_bps: number;
 };
 
+/**
+ * One `charged` event the escrow emitted for an agent — a real settlement, or
+ * a self-payment dressed as one.
+ *
+ * `self_payment` is the field that carries the weight. The `charged` event
+ * payload has no payer and no owner in it, so the backend resolves
+ * `authorization(auth_id).payer` and compares it against `owner_of(agent_id)`.
+ * Every settlement on this deployment so far has come back true: the platform
+ * account paying itself. Rendering those as operator revenue would be the
+ * single most misleading thing this dashboard could do.
+ */
+export type SettlementEntry = {
+  job_id: string;
+  auth_id: string;
+  amount_stroops: number;
+  ledger: number;
+  /** Ledger close time, or null when the RPC response omitted it. */
+  at: string | null;
+  payer: string;
+  self_payment: boolean;
+};
+
+/**
+ * Response of GET /api/stellar/settlement/{agent_id} — what an agent has
+ * actually been paid, and the limits of that claim.
+ *
+ * Both limits are part of the payload on purpose. `window_days` is the Soroban
+ * RPC event retention (7 days, measured — not a policy we chose), so an empty
+ * list means "nothing in the last week", never "nothing ever". `unavailable`
+ * carries the reason the scan could not run at all, which must never be
+ * rendered as a zero.
+ */
+export type AgentSettlement = {
+  agent_id: string;
+  /** The asset the escrow's SAC wraps — "native" on testnet. */
+  asset: string;
+  window_days: number;
+  scanned_ledgers: number;
+  entries: SettlementEntry[];
+  /** Sum of entries where `self_payment` is false. The honest number. */
+  total_stroops: number;
+  /** Sum of the excluded self-payments, reported rather than hidden. */
+  self_payment_stroops: number;
+  /** The scan stopped at its page cap before reaching the window's end. */
+  truncated: boolean;
+  /** Why no scan happened, or null when one did. */
+  unavailable: string | null;
+};
+
 /** Response of GET /api/stellar/reputation/params — the full parameter set
  * of the reputation system (routing constants + on-chain decay constants). */
 export type ReputationParams = {
