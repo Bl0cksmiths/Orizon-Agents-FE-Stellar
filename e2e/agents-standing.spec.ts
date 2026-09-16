@@ -15,6 +15,7 @@
  * count means exactly what it says.
  */
 import { test, expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import {
   mockAgents,
   mockApi,
@@ -253,5 +254,86 @@ test.describe("agent standing in the marketplace", () => {
     // get the excluded rows back cannot see the agent they came to fix.
     await page.getByRole("button", { name: /^all$/i }).click();
     await registryLoaded(page);
+  });
+
+  test("the degraded, filtered registry has no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await mockApi(page, { reputation: mockReputationBatchDegraded });
+    await page.goto("/app/agents");
+    await registryLoaded(page);
+    await expect(page.getByText(ESTIMATE_MARK).first()).toBeVisible();
+
+    const routable = page.getByRole("button", { name: ROUTABLE_FILTER });
+    await expect(routable).toHaveCount(1);
+    await routable.click();
+
+    // Narrowed, and never to nothing: a degraded read puts every score back on
+    // the prior, whose lower bound clears the floor, so only the endpoint gate
+    // still bites. Losing the ledger must not empty the marketplace.
+    const rows = page.getByRole("rowheader");
+    await expect(rows).not.toHaveCount(mockAgents.length);
+    await expect(rows).not.toHaveCount(0);
+
+    // `e2e/a11y.spec.ts` only ever sweeps this route in its default state, so
+    // neither the degraded notice nor a filtered table has reached axe before.
+    // Both are states where meaning is easy to leave in colour alone — an
+    // estimate that only looks different, a filter whose selected option is
+    // never announced — and a buyer using a screen reader would then be given
+    // a prior as a measurement, with no way to tell which agents were hidden.
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+
+    expect(
+      violations.map(
+        (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+      ),
+    ).toEqual([]);
+  });
+
+  test("keeps the page-level notice inside a 390px viewport", async ({
+    page,
+  }) => {
+    const WIDTH = 390;
+    await mockApi(page);
+    await page.setViewportSize({ width: WIDTH, height: 844 });
+    await page.goto("/app/agents");
+    await registryLoaded(page);
+
+    // The registry table scrolls sideways at this width by design; the notice
+    // that explains the whole table must not be part of that bargain. A floor
+    // a buyer has to discover by dragging a table is a floor they never read,
+    // and it is the only thing on the page that explains why rows are marked.
+    const box = await page.getByText(FLOOR_SCORE).evaluate((el) => {
+      // Measure the block that carries the notice, not the inline run holding
+      // the number: an inline span wraps, so it fits inside the viewport even
+      // when the element around it hangs off the edge.
+      let node = el as HTMLElement;
+      while (
+        node.parentElement !== null &&
+        getComputedStyle(node).display.startsWith("inline")
+      ) {
+        node = node.parentElement;
+      }
+      const rect = node.getBoundingClientRect();
+      return { x: rect.x, width: rect.width };
+    });
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(WIDTH);
+
+    // Outside the scroll container, which is the structural half of the same
+    // claim — a notice inside the table would satisfy the box check whenever
+    // the table happens to start at x=0, and still scroll away on touch.
+    await expect(page.locator("table").getByText(FLOOR_SCORE)).toHaveCount(0);
+
+    // …and the page itself still does not scroll sideways. One pixel of slack
+    // for sub-pixel layout rounding, as `e2e/agents-unbound.spec.ts` allows.
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
   });
 });
