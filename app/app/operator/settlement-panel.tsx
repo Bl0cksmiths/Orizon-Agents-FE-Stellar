@@ -238,6 +238,58 @@ function formatLedgerTime(at: string | null): string {
 }
 
 /**
+ * Why one charge was left out of revenue, in the operator's terms.
+ *
+ * Four different situations arrive as the same `self_payment: true`, and they
+ * are not interchangeable. Telling an operator whose own wallet funded a
+ * charge that "the platform paid itself" invents an accusation; telling them
+ * the platform paid itself when the backend merely could not read the settler
+ * states as fact something we specifically could not establish. So the reason
+ * is carried per entry and each one says only what is known.
+ *
+ * The fallback is deliberately vague rather than absent: an unrecognised
+ * reason (an older backend, or a value added after this build) still has to
+ * explain why a figure the operator can see is not in their total.
+ */
+function exclusionReason(exclusion: string | null | undefined): string {
+  switch (exclusion) {
+    case "owner":
+      return (
+        "The payer on this charge is this agent's own owner account — the " +
+        "wallet that registered it. The money moved from you to you, so it " +
+        "is listed as it happened on-chain and left out of revenue."
+      );
+    case "settler":
+      return (
+        "The payer on this charge resolves to the platform's own settler — " +
+        "the account that signs settlements — so it moved platform funds to " +
+        "the platform. It is listed because it happened on-chain, and left " +
+        "out of revenue because no customer paid it."
+      );
+    case "payer_unreadable":
+      return (
+        "The escrow's authorization record for this charge could not be " +
+        "read, so who funded it is unknown. It is left out of revenue " +
+        "rather than counted on an assumption: an unread payer is not a " +
+        "customer until it is shown to be one."
+      );
+    case "settler_unreadable":
+      return (
+        "The platform's settler account could not be read, so this charge " +
+        "could not be shown to have come from anyone else. It may well have " +
+        "been a real payment — it is excluded because we could not rule the " +
+        "platform out, not because we established it was us."
+      );
+    default:
+      return (
+        "This charge is not counted as revenue: it could not be confirmed " +
+        "as a payment from a customer. It is listed because it happened " +
+        "on-chain."
+      );
+  }
+}
+
+/**
  * One `charged` event, with the payer's identity treated as the headline fact.
  *
  * A self-payment is shown, not hidden. Dropping it would leave an operator
@@ -274,10 +326,7 @@ function ChargeEntry({
       </div>
       {entry.self_payment ? (
         <p className="max-w-2xl text-xs leading-relaxed text-muted">
-          The payer on this charge resolves to the platform's own account — the
-          same account that signs settlements — so it moved platform funds to
-          the platform. It is listed because it happened on-chain, and left out
-          of revenue because no customer paid it.
+          {exclusionReason(entry.exclusion)}
         </p>
       ) : null}
       <dl className="space-y-2 font-mono text-[11px]">
