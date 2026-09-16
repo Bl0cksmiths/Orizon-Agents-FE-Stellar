@@ -198,51 +198,6 @@ export const mockReputationBatch = {
 };
 
 /**
- * Settlement as it actually is on this deployment, not as a demo would like
- * it. One `charged` event exists for `weather_bot`, and the payer resolves to
- * the platform's own account rather than a customer — so it is reported,
- * excluded from revenue, and named as a self-payment. `total_stroops` is zero
- * because zero is the true figure.
- *
- * `agt_11c0` and `unbound_bot` return an empty window, which is the ordinary
- * case and must read as "nothing in the last 7 days", never "nothing ever".
- */
-export const mockSettlementSelfPaid = {
-  agent_id: mockBindAgentId,
-  asset: "native",
-  window_days: 7,
-  scanned_ledgers: 120_960,
-  entries: [
-    {
-      job_id: "9f2c41a8b7e04d5c8a1b2c3d4e5f6071",
-      auth_id: "1a2b3c4d5e6f70819a2b3c4d5e6f7081",
-      amount_stroops: 1_610_000,
-      ledger: 1_284_551,
-      at: "2026-09-12T04:18:33Z",
-      payer: "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXX",
-      self_payment: true,
-    },
-  ],
-  total_stroops: 0,
-  self_payment_stroops: 1_610_000,
-  truncated: false,
-  unavailable: null,
-};
-
-/** The empty window every other agent returns. */
-export const emptySettlement = (agentId: string) => ({
-  agent_id: agentId,
-  asset: "native",
-  window_days: 7,
-  scanned_ledgers: 120_960,
-  entries: [],
-  total_stroops: 0,
-  self_payment_stroops: 0,
-  truncated: false,
-  unavailable: null,
-});
-
-/**
  * Fails every `/api/*` call the way the production outage did: a 404 carrying
  * the backend's real error envelope. This is deliberately indistinguishable
  * from a healthy backend behind a misconfigured proxy — the exact condition
@@ -326,6 +281,51 @@ export const mockSignature = "ZTJlLXNpZ25hdHVyZS1ieXRlcw==";
  *  opaque on purpose: the app forwards it to POST /api/stellar/submit, which
  *  is itself mocked, so no spec should ever parse it as real XDR. */
 export const mockSignedTxXdr = "AAAAAGUyZS1zaWduZWQtdHgtZW52ZWxvcGU=";
+
+/**
+ * Settlement as it actually is on this deployment, not as a demo would like
+ * it. One `charged` event exists for `weather_bot`, and the payer resolves to
+ * the platform's own account rather than a customer — so it is reported,
+ * excluded from revenue, and named as a self-payment. `total_stroops` is zero
+ * because zero is the true figure.
+ *
+ * `agt_11c0` and `unbound_bot` return an empty window, which is the ordinary
+ * case and must read as "nothing in the last 7 days", never "nothing ever".
+ */
+export const mockSettlementSelfPaid = {
+  agent_id: mockBindAgentId,
+  asset: "native",
+  window_days: 7,
+  scanned_ledgers: 120_960,
+  entries: [
+    {
+      job_id: "9f2c41a8b7e04d5c8a1b2c3d4e5f6071",
+      auth_id: "1a2b3c4d5e6f70819a2b3c4d5e6f7081",
+      amount_stroops: 1_610_000,
+      ledger: 1_284_551,
+      at: "2026-09-12T04:18:33Z",
+      payer: "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXX",
+      self_payment: true,
+    },
+  ],
+  total_stroops: 0,
+  self_payment_stroops: 1_610_000,
+  truncated: false,
+  unavailable: null,
+};
+
+/** The empty window every other agent returns. */
+export const emptySettlement = (agentId: string) => ({
+  agent_id: agentId,
+  asset: "native",
+  window_days: 7,
+  scanned_ledgers: 120_960,
+  entries: [],
+  total_stroops: 0,
+  self_payment_stroops: 0,
+  truncated: false,
+  unavailable: null,
+});
 
 const bindNonce = "e2ebindnonce00000000000000000000";
 
