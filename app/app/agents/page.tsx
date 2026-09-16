@@ -8,6 +8,8 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
+import { AgentStanding } from "@/components/agents/agent-standing";
+import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
 import { isOwnedBy } from "@/lib/binding-status";
 import { focusRing } from "@/lib/ui";
@@ -48,9 +50,39 @@ export default function AgentsPage() {
     reloadReputation();
   }, [reloadAgents, reloadReputation]);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "online" | "idle" | "offline">(
-    "all",
+  /**
+   * Whether an agent can be selected for work right now — both gates the
+   * orchestrator applies, and nothing else.
+   *
+   * 1. Its reputation LOWER BOUND clears the floor (`>=`, the backend's
+   *    comparison). Never the smoothed headline score: the two disagree
+   *    exactly for an agent with a good average and too little settled work
+   *    behind it, and filtering on the headline would show a buyer a
+   *    "routable" agent the planner passes over every time.
+   * 2. If it is an on-chain agent, it has an endpoint bound. A seeded agent
+   *    has no endpoint and needs none, so `bound` being null is not a failure.
+   *
+   * An agent with no reputation entry, or a page whose batch has not landed,
+   * is NOT filtered out: absence of a score is not evidence of a bad one, and
+   * hiding a row because we have not read it yet would quietly shrink the
+   * marketplace during an outage.
+   */
+  // Memoised on the batch it reads, so the row filter below can depend on it
+  // without rebuilding the whole table on every keystroke in the search box.
+  const isRoutable = useCallback(
+    (a: Agent): boolean => {
+      if (a.source === "onchain" && a.bound === false) return false;
+      const floor = repBatch?.floor_bps;
+      const bound = repBatch?.reputations[a.id]?.lower_bound_bps;
+      if (floor == null || bound == null) return true;
+      return bound >= floor;
+    },
+    [repBatch],
   );
+
+  const [filter, setFilter] = useState<
+    "all" | "routable" | "online" | "idle" | "offline"
+  >("all");
   // Operator management (story 1.08): the connected wallet reveals Manage on
   // the agents it owns on-chain; one row expands at a time.
   const wallet = useWallet();
@@ -72,10 +104,15 @@ export default function AgentsPage() {
         !ql ||
         a.name.toLowerCase().includes(ql) ||
         a.skills.some((s) => s.toLowerCase().includes(ql));
-      const matchesStatus = filter === "all" || a.status === filter;
+      // "routable" is a standing question, not a status one, so it is checked
+      // separately rather than squeezed into the status comparison — `status`
+      // means online/idle/offline and an agent can be online and ineligible.
+      const matchesStatus =
+        filter === "all" ||
+        (filter === "routable" ? isRoutable(a) : a.status === filter);
       return matchesQ && matchesStatus;
     });
-  }, [agents, q, filter]);
+  }, [agents, q, filter, isRoutable]);
 
   const renderReputation = (a: Agent) => {
     const live = repBatch?.reputations[a.id];
@@ -96,6 +133,11 @@ export default function AgentsPage() {
         bps={a.rep * 2000}
         lowerBoundBps={live?.lower_bound_bps}
         source="prior"
+        // Whether this prior is a cold start or a chain read that did not come
+        // back. The two are identical in the payload apart from this flag, and
+        // the badge's cold-start wording is a false claim about the history of
+        // an agent whose record we merely could not reach.
+        degraded={live?.degraded}
         floorBps={repBatch?.floor_bps}
       />
     );
@@ -116,6 +158,12 @@ export default function AgentsPage() {
           + Register agent
         </ButtonLink>
       </div>
+
+      {/* Above the table, because it states the threshold every verdict inside
+          the table refers to. A buyer who meets "below floor" on a row before
+          they have been told what the floor is has to reverse-engineer the
+          rule from the verdicts. */}
+      <RegistryStandingNotice batch={repBatch ?? null} />
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -150,20 +198,27 @@ export default function AgentsPage() {
             />
           </div>
           <div className="flex gap-2">
-            {(["all", "online", "idle", "offline"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={
-                  `clip-cyber-sm border px-3 h-10 font-mono text-[10px] uppercase tracking-widest transition ${focusRing} ` +
-                  (filter === f
-                    ? "border-violet bg-violet/20 text-text"
-                    : "border-border text-muted hover:text-text")
-                }
-              >
-                {f}
-              </button>
-            ))}
+            {/* "routable" sits next to "all" rather than at the end: it is the
+                question a buyer actually arrives with — who can I hire — and
+                the three status values after it are a narrower, more technical
+                cut. Clicking "all" is the way back, which is why this joins
+                the existing group instead of becoming a second control. */}
+            {(["all", "routable", "online", "idle", "offline"] as const).map(
+              (f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={
+                    `clip-cyber-sm border px-3 h-10 font-mono text-[10px] uppercase tracking-widest transition ${focusRing} ` +
+                    (filter === f
+                      ? "border-violet bg-violet/20 text-text"
+                      : "border-border text-muted hover:text-text")
+                  }
+                >
+                  {f}
+                </button>
+              ),
+            )}
           </div>
           {/* Rendered only once a registry has actually been fetched — the
               hook drops `lastSuccessAt` with the data it dates, so a first
@@ -206,7 +261,14 @@ export default function AgentsPage() {
           role="region"
           aria-label="Agent registry table, scrolls horizontally"
         >
-          <table className="w-full text-sm">
+          {/* A floor is set as well as a fill. Story 3.05 put standing marks
+              in the agent cell, which widened it and left the numeric columns
+              to crush — the header ran together as "REPUTATIONRUNSSTATUS" and
+              the runs figures clipped. The container is already a keyboard-
+              reachable horizontal scroller, so below this width the right
+              answer is to scroll rather than to squeeze columns a buyer is
+              trying to compare. */}
+          <table className="w-full min-w-[60rem] text-sm">
             {/* The page heading names this table on screen; the caption
                 repeats it for assistive tech only. */}
             <caption className="sr-only">
@@ -300,13 +362,40 @@ export default function AgentsPage() {
                       <td className="py-3 font-mono">
                         <div className="flex flex-wrap items-center gap-2">
                           {a.name}
-                          {a.real && <Badge tone="cyan">LIVE</Badge>}
+                          {/* The `LIVE` badge that used to sit here has been
+                              removed rather than relabelled.
+
+                              It rendered on `a.real`, which means "backed by a
+                              real Agno worker rather than a MockWorker" — an
+                              internal fact about the first-party catalog, and
+                              very nearly the inverse of provenance:
+                              `registry_sync` sets it false for EVERY on-chain
+                              agent, and the seeded catalog is a mix. So the
+                              one population it could never mark is the
+                              externally registered agents this marketplace
+                              exists to make visible, while a buyer reading a
+                              cyan "LIVE" chip would reasonably take it for the
+                              opposite.
+
+                              Provenance is now `AgentStanding`'s job, from
+                              `source`. Leaving both would put two contradictory
+                              provenance signals in one row. */}
                           {/* Marks the agent itself, not its liveness — the
                               status column next door means online/idle/offline
                               and must not be confused with this. */}
                           {bindingState !== null && (
                             <BindingStateBadge state={bindingState} />
                           )}
+                          {/* Standing sits beside the name rather than in its
+                              own column: it is a set of conditional marks, and
+                              an empty column on every healthy row would cost
+                              horizontal space on a table that already scrolls
+                              sideways on a phone. */}
+                          <AgentStanding
+                            agent={a}
+                            rep={repBatch?.reputations[a.id] ?? null}
+                            floorBps={repBatch?.floor_bps ?? null}
+                          />
                         </div>
                       </td>
                       <td className="py-3">

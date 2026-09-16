@@ -20,6 +20,7 @@ export function ReputationBadge({
   bps,
   lowerBoundBps,
   source,
+  degraded,
   count,
   disputeRateBps,
   floorBps,
@@ -28,6 +29,11 @@ export function ReputationBadge({
   bps: number;
   lowerBoundBps?: number;
   source: ReputationSource;
+  /** The on-chain read FAILED and this prior stands in for it — not a cold
+   *  start. `source` alone reports both as "prior", which is what made the
+   *  fail-open behaviour invisible in the first place. Optional: a caller
+   *  that does not know simply gets the cold-start wording. */
+  degraded?: boolean;
   count?: number;
   disputeRateBps?: number;
   floorBps?: number;
@@ -42,8 +48,16 @@ export function ReputationBadge({
       : null;
 
   const parts = [
+    // "no on-chain ratings yet" is only true of a COLD START. A degraded read
+    // reports `source: "prior"` too — the chain was unreadable and the network
+    // prior was served in its place — and that agent may have a long rating
+    // history we simply could not reach. Saying it has none is a false claim
+    // about somebody's record, made identically on three surfaces: the
+    // marketplace, the plan card and the operator dashboard.
     prior
-      ? `prior estimate ${score(bps)} — no on-chain ratings yet`
+      ? degraded
+        ? `prior estimate ${score(bps)} — the on-chain read did not come back, so this is not a reading of this agent's history`
+        : `prior estimate ${score(bps)} — no on-chain ratings yet`
       : showCount
         ? `on-chain reputation ${score(bps)} from ${count} rated job${count === 1 ? "" : "s"}`
         : `on-chain reputation ${score(bps)}`,
