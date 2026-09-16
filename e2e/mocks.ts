@@ -70,7 +70,23 @@ export const mockPlan = {
   ],
   total_usdc: 0.123,
   total_eta: 6.7,
+  // story 3.02 — the floor this plan was actually built against. Sent by the
+  // backend rather than assumed here, because it is deployment configuration:
+  // a hardcoded copy would narrate the wrong threshold the day it changes.
+  floor_bps: 5500,
+  // No reputation read fell back to the prior while planning this. It matters
+  // that it is false and not merely absent: the two notices below quote
+  // measured on-chain bounds, and a degraded read would make those numbers
+  // estimates, which is a different sentence on the card.
+  reputation_degraded: false,
   // story 3.02 — the floor actions behind the step marks above.
+  //
+  // Both excluded agents sit below the floor because they were RATED DOWN, and
+  // that is the only way a fixture may put an agent below it. A never-rated
+  // agent is not a low-scoring one: with no entry at all its Wilson lower
+  // bound comes off the Bayesian prior at 5677 bps, which CLEARS the 5500
+  // floor. A fixture that gave a cold-start agent a sub-floor bound would have
+  // every assertion built on it measuring the inverse of the guarantee.
   notices: [
     {
       kind: "substituted",
@@ -79,12 +95,24 @@ export const mockPlan = {
       replacement_id: "design.figma",
       replacement_name: "design.figma",
       reason: "below routing floor (4200 < 5500 bps)",
+      reason_code: "below_floor",
+      // The same two numbers as the prose beside them, as data: rendering
+      // "4200 against a 5500 floor" must not require parsing English.
+      lower_bound_bps: 4200,
+      floor_bps: 5500,
     },
     {
       kind: "degraded",
       agent_id: "code.next",
       agent_name: "code.next",
       reason: "re-admitted by starvation backstop (4800 < 5500 bps)",
+      // Not "below_floor": this agent IS below the floor, but the notice is
+      // about the backstop relaxing the floor to keep the plan workable. The
+      // step still carries `degraded: true` — the buyer is told it was a
+      // compromise, not sold it as a clean pick.
+      reason_code: "floor_relaxed",
+      lower_bound_bps: 4800,
+      floor_bps: 5500,
     },
   ],
 };
