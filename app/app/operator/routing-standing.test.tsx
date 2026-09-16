@@ -294,6 +294,10 @@ describe("RoutingStanding — the claims it must never make", () => {
     { name: "prior", props: { reputation: priorRep() } },
     { name: "degraded", props: { reputation: priorRep({ degraded: true }) } },
     { name: "no score", props: { reputation: null } },
+    {
+      name: "no batch",
+      props: { reputation: null, floorBps: null, priorBps: null },
+    },
   ];
 
   // "being routed" is the conflation of eligibility with selection, and the
@@ -307,6 +311,36 @@ describe("RoutingStanding — the claims it must never make", () => {
       expect(text).not.toMatch(/delist/i);
     },
   );
+
+  // The reputation batch carries the floor as well as the scores, so an
+  // unreachable reputation service leaves us with no line for the agent to
+  // clear. Defaulting the floor to zero would pass every agent; defaulting it
+  // high would fail every agent. Both are verdicts we have no basis for.
+  it("does not judge the floor when the floor itself is unknown", () => {
+    const { container } = renderStanding({
+      reputation: null,
+      floorBps: null,
+      priorBps: null,
+    });
+    const text = container.textContent ?? "";
+    expect(text).toMatch(/Standing not confirmed/);
+    expect(text).not.toMatch(/Not eligible/);
+    expect(text).toMatch(/whether it clears the network floor/);
+    // No fabricated figure anywhere: 0.00 is what a `?? 0` default prints.
+    expect(text).not.toMatch(/0\.00 floor/);
+  });
+
+  it("keeps a known score visible when only the floor is missing", () => {
+    const { container } = renderStanding({
+      reputation: rep(),
+      floorBps: null,
+      priorBps: null,
+    });
+    const text = container.textContent ?? "";
+    expect(text).toMatch(/the network floor is not known/i);
+    expect(text).toMatch(/The score above is real/);
+    expect(text).not.toMatch(/Not eligible/);
+  });
 
   it.each(states)("keeps the heading order intact ($name)", ({ props }) => {
     renderStanding(props);
