@@ -41,6 +41,7 @@ import {
   type BindErrorView,
   type BindPhase,
 } from "@/lib/bind-ui";
+import { TRUST_BOUNDARY } from "@/lib/binding-status";
 import { validateAgentId } from "@/lib/register-validation";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useFetch } from "@/lib/use-fetch";
@@ -562,6 +563,24 @@ function BindPageInner() {
             )}
           </div>
 
+          {/* AC-6, and it sits inside the form on purpose. This is a fact
+              about the value in the field directly above it — the endpoint is
+              the one part of an agent that is not on the chain — so it is read
+              while the operator decides what to bind rather than after they
+              have bound it. Down in the explainer card it would be
+              documentation; here it is part of doing the binding, and it is
+              what makes the "you can bind again" below it credible. The
+              wording is shared (lib/binding-status): the registration flow
+              makes the same claim, and two drifting copies of a claim about
+              what is and is not permanent is worse than one. */}
+          <p className="border-l-2 border-violet/60 bg-violet/5 py-2.5 pl-3.5 pr-3 text-sm leading-relaxed text-muted">
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
+              trust boundary
+            </span>
+            <br />
+            {TRUST_BOUNDARY}
+          </p>
+
           {replacing ? (
             <p className="font-mono text-[11px] leading-relaxed text-muted">
               Binding replaces the endpoint above. Work already routed keeps the
@@ -762,6 +781,8 @@ function BindSkeleton() {
             <Skeleton className="mt-1.5 h-[46px] w-full" />
             <Skeleton className="mt-1 h-3 w-80 max-w-full" />
           </div>
+          {/* trust boundary */}
+          <Skeleton className="h-[72px] w-full" />
           <Skeleton className="h-10 w-44" />
         </div>
       </Card>
