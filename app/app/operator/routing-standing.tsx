@@ -345,12 +345,23 @@ export function RoutingStanding({
               </p>
             ) : (
               reputation.source === "prior" && (
+                // This said a brand-new agent's lower bound "sits below the
+                // floor". That is false, and it is the opposite of the
+                // guarantee the whole permissionless-registration premise
+                // rests on: the prior of 7000 bps yields a lower bound of 5677
+                // against a 5500 floor, so a never-rated agent clears it by
+                // 177 bps and is routable on day one. Telling an operator
+                // their new agent is excluded — when the system routes it —
+                // is the single most discouraging thing this page could say,
+                // and it is wrong. The verdict above is computed from the real
+                // numbers and was already correct; only this sentence lied.
                 <p className={body}>
                   <span aria-hidden="true">≈ </span>Never rated on-chain. This
                   is the Bayesian prior
-                  {priorBps === null ? "" : ` of ${score(priorBps)}`}, and a
-                  brand-new agent&apos;s lower bound sits below the floor — the
-                  honest cold-start position, not a fault.
+                  {priorBps === null ? "" : ` of ${score(priorBps)}`}, which a
+                  new agent carries until completed work replaces it. The prior
+                  is set above the floor deliberately, so an agent with no
+                  history is routable from the day it is registered.
                 </p>
               )
             )}
