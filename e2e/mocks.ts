@@ -145,10 +145,11 @@ export const mockReputationParams = {
  *   - `weather_bot` scored on-chain but with a lower bound only just clear of
  *     it — the interesting case, since routing uses the bound and not the
  *     headline score;
- *   - `unbound_bot` never rated, so it carries the Bayesian prior and its
- *     lower bound sits *below* the floor. That is the honest cold-start
- *     position of a brand-new agent and the reason an operator sees
- *     "not eligible" on something they just registered.
+ *   - `unbound_bot` never rated, so it carries the Bayesian prior. Its lower
+ *     bound still CLEARS the floor — a new agent is routable on day one — so
+ *     the only thing standing between it and work is the missing endpoint.
+ *     That separation is the point: "not eligible" here means unbound, never
+ *     "too new".
  *
  * Without this, `GET /api/stellar/reputation` fell through to the catch-all
  * `{}`, `isReputationBatch` rejected it, and every score silently became a
@@ -185,7 +186,13 @@ export const mockReputationBatch = {
     unbound_bot: {
       agent_id: "unbound_bot",
       smoothed_bps: 7000,
-      lower_bound_bps: 5100,
+      // 5677, not a number chosen to look plausible. It is what
+      // `lower_bound_bps(7000, 0)` actually returns, and it CLEARS the 5500
+      // floor by 177 bps. This fixture previously carried 5100 — arithmetically
+      // impossible for a cold start — which made every e2e assertion about a
+      // newly registered agent measure the inverse of the guarantee the sprint
+      // rests on: permissionless registration is not a dead end.
+      lower_bound_bps: 5677,
       avg_bps: 7000,
       count: 0,
       weight: 0,
