@@ -252,7 +252,15 @@ function isPlanFloorNotice(v: unknown): boolean {
     isStr(v.reason) &&
     isOptionalStr(v.agent_name) &&
     isOptionalStr(v.replacement_id) &&
-    isOptionalStr(v.replacement_name)
+    isOptionalStr(v.replacement_name) &&
+    // Optional, and deliberately NOT set-checked the way `kind` is. `kind`
+    // picks the row's tone, so an unlisted value renders unstyled; an
+    // unrecognised `reason_code` still has the prose `reason` beside it, so
+    // rejecting the whole payload over one would trade a rendered plan for no
+    // plan at all.
+    isOptionalStr(v.reason_code) &&
+    isOptionalNum(v.lower_bound_bps) &&
+    isOptionalNum(v.floor_bps)
   );
 }
 
