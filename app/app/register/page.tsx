@@ -19,7 +19,7 @@ import { isAgentAlreadyExists } from "@/lib/register-submit";
 import { signAndSubmit } from "@/lib/sign-submit";
 import { buildRegistrationEvidence } from "@/lib/registration-evidence";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
-import { TWO_SIGNATURES } from "@/lib/binding-status";
+import { TWO_SIGNATURES, bindHref } from "@/lib/binding-status";
 import { getStellarNetwork } from "@/lib/api";
 import { useFetch } from "@/lib/use-fetch";
 import { useAsyncAction } from "@/lib/use-async-action";
@@ -466,7 +466,13 @@ export default function RegisterPage() {
                 the marketplace now.
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <ButtonLink variant="cyan" size="sm" href="/app/bind">
+                {/* Carries the id the operator just registered, so the bind
+                    page opens against this agent instead of asking them to
+                    retype an id they only ever saw on a confirmation screen.
+                    Deliberately a link and not a redirect: binding is optional
+                    and an operator who stops here still owns a valid on-chain
+                    agent, so the navigation stays theirs to make. */}
+                <ButtonLink variant="cyan" size="sm" href={bindHref(agentId)}>
                   Bind an endpoint ▸
                 </ButtonLink>
                 <ButtonLink variant="outline" size="sm" href="/app/agents">
