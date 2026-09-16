@@ -354,16 +354,7 @@ function BindPageInner() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Bind an Endpoint
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            Point one of your agents at the HTTPS endpoint that runs its work.
-            The wallet that owns the agent signs the binding — nothing else can
-            authorize it.
-          </p>
-        </div>
+        <BindHeading />
         <ConnectWallet size="md" />
       </div>
 
@@ -563,23 +554,7 @@ function BindPageInner() {
             )}
           </div>
 
-          {/* AC-6, and it sits inside the form on purpose. This is a fact
-              about the value in the field directly above it — the endpoint is
-              the one part of an agent that is not on the chain — so it is read
-              while the operator decides what to bind rather than after they
-              have bound it. Down in the explainer card it would be
-              documentation; here it is part of doing the binding, and it is
-              what makes the "you can bind again" below it credible. The
-              wording is shared (lib/binding-status): the registration flow
-              makes the same claim, and two drifting copies of a claim about
-              what is and is not permanent is worse than one. */}
-          <p className="border-l-2 border-violet/60 bg-violet/5 py-2.5 pl-3.5 pr-3 text-sm leading-relaxed text-muted">
-            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
-              trust boundary
-            </span>
-            <br />
-            {TRUST_BOUNDARY}
-          </p>
+          <TrustBoundaryNote />
 
           {replacing ? (
             <p className="font-mono text-[11px] leading-relaxed text-muted">
@@ -701,35 +676,83 @@ function BindPageInner() {
         </form>
       </Card>
 
-      <Card>
-        <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan">
-          ▸ how binding works
-        </div>
-        <ol className="mt-3 space-y-2 text-sm text-muted list-decimal pl-5">
-          <li>
-            The registry issues a one-time challenge naming your agent, the
-            endpoint and a nonce.
-          </li>
-          <li>
-            Your wallet signs that exact string. The signature proves the
-            binding came from the account that owns the agent — no password, no
-            account to create.
-          </li>
-          <li>
-            The challenge is short-lived. If it expires while the wallet popup
-            is open, a fresh one is requested rather than a dead signature
-            submitted.
-          </li>
-        </ol>
-        <p className="mt-3 text-sm text-muted">
-          No agent yet?{" "}
-          <Link href="/app/register" className={inlineLink}>
-            Register one first
-          </Link>
-          .
-        </p>
-      </Card>
+      <HowBindingWorks />
     </div>
+  );
+}
+
+/** The page's own words. Static, so the Suspense fallback below renders the
+ *  real thing rather than a grey bar of some other height. */
+function BindHeading() {
+  return (
+    <div>
+      <h1 className="text-3xl font-semibold tracking-tight">
+        Bind an Endpoint
+      </h1>
+      <p className="mt-1 text-sm text-muted">
+        Point one of your agents at the HTTPS endpoint that runs its work. The
+        wallet that owns the agent signs the binding — nothing else can
+        authorize it.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * AC-6, and it sits inside the form on purpose. This is a fact about the value
+ * in the endpoint field it follows — the endpoint is the one part of an agent
+ * that is not on the chain — so it is read while the operator decides what to
+ * bind rather than after they have bound it. Down in the explainer card it
+ * would be documentation; here it is part of doing the binding, and it is what
+ * makes the "bind again to move hosts" claim credible.
+ *
+ * The wording is shared (lib/binding-status) because the registration flow
+ * makes the same claim, and two drifting copies of a claim about what is and
+ * is not permanent is worse than one. Static, so the fallback renders it too.
+ */
+function TrustBoundaryNote() {
+  return (
+    <p className="border-l-2 border-violet/60 bg-violet/5 py-2.5 pl-3.5 pr-3 text-sm leading-relaxed text-muted">
+      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
+        trust boundary
+      </span>
+      <br />
+      {TRUST_BOUNDARY}
+    </p>
+  );
+}
+
+/** The authentication explainer — how a signature stands in for a password.
+ *  Static for the same reason, and rendered by the fallback too. */
+function HowBindingWorks() {
+  return (
+    <Card>
+      <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan">
+        ▸ how binding works
+      </div>
+      <ol className="mt-3 space-y-2 text-sm text-muted list-decimal pl-5">
+        <li>
+          The registry issues a one-time challenge naming your agent, the
+          endpoint and a nonce.
+        </li>
+        <li>
+          Your wallet signs that exact string. The signature proves the binding
+          came from the account that owns the agent — no password, no account to
+          create.
+        </li>
+        <li>
+          The challenge is short-lived. If it expires while the wallet popup is
+          open, a fresh one is requested rather than a dead signature submitted.
+        </li>
+      </ol>
+      <p className="mt-3 text-sm text-muted">
+        No agent yet?{" "}
+        <Link href="/app/register" className={inlineLink}>
+          Register one first
+        </Link>
+        .
+      </p>
+    </Card>
   );
 }
 
@@ -739,62 +762,60 @@ function BindPageInner() {
  * fallback — not the form — is what ships in the prerendered HTML. A one-line
  * "loading…" would reserve none of the binding card's height and the real
  * layout would slam in underneath it, moving the agent id field out from under
- * a cursor already on its way there. This mirrors the live structure (header,
- * the binding card with both fields and the current-binding panel between
- * them, then the explainer) so the swap is a fill, not a jump.
+ * a cursor already on its way there.
+ *
+ * So everything that does not depend on the URL is rendered for real — the
+ * heading, the trust boundary, the explainer — and only the card that does is
+ * reserved, field by field, at the measured heights of the real controls.
+ * Fallback and form then come out the same height to the pixel from 640px up.
+ * Below that the two field hints wrap to a second line and the form runs
+ * ~100px taller; that is a function of content width rather than viewport
+ * width (the sidebar appears at 768px), so it is left as a small settle rather
+ * than encoded as four breakpoints of magic numbers.
  */
 function BindSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true">
       <LoadingStatus label="Loading the binding form…" />
       <div className="flex items-end justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Bind an Endpoint
-          </h1>
-          <Skeleton className="mt-2 h-4 w-[32rem] max-w-full" />
-          <Skeleton className="mt-1.5 h-4 w-72 max-w-full" />
-        </div>
+        <BindHeading />
         <Skeleton className="h-10 w-40" />
       </div>
 
       <Card>
-        <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex h-[15px] items-center justify-between gap-3">
           <Skeleton className="h-3 w-36" />
           <Skeleton className="h-3 w-48" />
         </div>
         <div className="mt-5 space-y-5">
-          {/* agent id */}
-          <div>
+          {/* agent id: label, input, hint */}
+          <div className="h-[97px]">
             <Skeleton className="h-3 w-20" />
-            <Skeleton className="mt-1.5 h-[46px] w-full" />
-            <Skeleton className="mt-1 h-3 w-80 max-w-full" />
+            <Skeleton className="mt-2 h-[46px] w-full" />
+            <Skeleton className="mt-2.5 h-3 w-80 max-w-full" />
           </div>
-          {/* current binding */}
-          <div className="border border-border/60 bg-bg/40 p-4">
+          {/* current binding — the real panel's own border, since that much is
+              on screen either way */}
+          <div className="h-[74px] border border-border/60 bg-bg/40 p-4">
             <Skeleton className="h-3 w-28" />
-            <Skeleton className="mt-2 h-3 w-64 max-w-full" />
+            <Skeleton className="mt-2.5 h-3 w-64 max-w-full" />
           </div>
-          {/* endpoint url */}
-          <div>
+          {/* endpoint url: label, input, hint */}
+          <div className="h-[97px]">
             <Skeleton className="h-3 w-32" />
-            <Skeleton className="mt-1.5 h-[46px] w-full" />
-            <Skeleton className="mt-1 h-3 w-80 max-w-full" />
+            <Skeleton className="mt-2 h-[46px] w-full" />
+            <Skeleton className="mt-2.5 h-3 w-80 max-w-full" />
           </div>
-          {/* trust boundary */}
-          <Skeleton className="h-[72px] w-full" />
-          <Skeleton className="h-10 w-44" />
+          <TrustBoundaryNote />
+          {/* the live region, empty at rest */}
+          <div className="h-4" />
+          <div className="h-11 pt-1">
+            <Skeleton className="h-10 w-44" />
+          </div>
         </div>
       </Card>
 
-      <Card>
-        <Skeleton className="h-3 w-36" />
-        <div className="mt-3 space-y-2.5">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-11/12" />
-          <Skeleton className="h-4 w-4/5" />
-        </div>
-      </Card>
+      <HowBindingWorks />
     </div>
   );
 }
