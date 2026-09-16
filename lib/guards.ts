@@ -53,6 +53,12 @@ const isOptionalStr = (v: unknown): v is string | undefined =>
 const isOptionalBool = (v: unknown): v is boolean | undefined =>
   v === undefined || v === null || typeof v === "boolean";
 
+/** A finite number, or absent. The numeric mate of `isOptionalStr`: a wrong
+ * type is still rejected, a missing one is not. Exists because a field the UI
+ * divides or compares must never arrive as a string that coerces. */
+const isOptionalNum = (v: unknown): v is number | undefined =>
+  v === undefined || v === null || isNum(v);
+
 const isNumArray = (v: unknown): v is number[] =>
   Array.isArray(v) && v.every(isNum);
 
@@ -228,7 +234,13 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
         isOptionalBool(s.degraded),
     ) &&
     (v.notices == null ||
-      (Array.isArray(v.notices) && v.notices.every(isPlanFloorNotice)))
+      (Array.isArray(v.notices) && v.notices.every(isPlanFloorNotice))) &&
+    // Both optional, because a plan card must keep rendering against a backend
+    // that predates them. `floor_bps` is checked as a number rather than
+    // defaulted here: a floor that arrives as a string would print "NaN" in
+    // the threshold the buyer is being asked to trust.
+    isOptionalNum(v.floor_bps) &&
+    isOptionalBool(v.reputation_degraded)
   );
 }
 
@@ -246,7 +258,15 @@ function isPlanFloorNotice(v: unknown): boolean {
     isStr(v.reason) &&
     isOptionalStr(v.agent_name) &&
     isOptionalStr(v.replacement_id) &&
-    isOptionalStr(v.replacement_name)
+    isOptionalStr(v.replacement_name) &&
+    // Optional, and deliberately NOT set-checked the way `kind` is. `kind`
+    // picks the row's tone, so an unlisted value renders unstyled; an
+    // unrecognised `reason_code` still has the prose `reason` beside it, so
+    // rejecting the whole payload over one would trade a rendered plan for no
+    // plan at all.
+    isOptionalStr(v.reason_code) &&
+    isOptionalNum(v.lower_bound_bps) &&
+    isOptionalNum(v.floor_bps)
   );
 }
 

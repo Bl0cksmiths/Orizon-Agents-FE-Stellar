@@ -42,6 +42,18 @@ export type PlanStep = {
 
 export type PlanFloorNoticeKind = "excluded" | "substituted" | "degraded";
 
+/**
+ * Why the floor acted on an agent (`ExclusionReason` in the backend's
+ * app/schemas.py). A closed set, because each value renders as its own
+ * sentence — an unrecognised one has no copy to show.
+ *
+ * `kind` and `reason_code` are orthogonal: `kind` is what happened to the
+ * plan, this is why. An agent excluded for having no endpoint and one excluded
+ * for failing the floor both arrive as `kind: "excluded"`.
+ */
+export type ExclusionReason =
+  "below_floor" | "unbound_endpoint" | "floor_relaxed";
+
 /** One reputation-floor action taken while building the plan
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are
  * set only when kind is "substituted". */
@@ -51,7 +63,17 @@ export type PlanFloorNotice = {
   agent_name?: string | null;
   replacement_id?: string | null;
   replacement_name?: string | null;
+  /** Human prose, e.g. "below routing floor (4200 < 5500 bps)". Kept because
+   *  it already renders; `reason_code` is what new code should branch on. */
   reason: string;
+  /** Optional so a response from a backend predating this field still
+   *  validates — the same contract `degraded` and `exclusion` already use. */
+  reason_code?: ExclusionReason;
+  /** The deciding numbers as data. Rendering "4.10 against a 3.00 floor"
+   *  should not require parsing an English sentence. `lower_bound_bps` is null
+   *  when the agent had no reputation entry at all. */
+  lower_bound_bps?: number | null;
+  floor_bps?: number;
 };
 
 export type DecomposeResponse = {
@@ -63,6 +85,15 @@ export type DecomposeResponse = {
   /** Floor actions behind this plan's shape; empty on the common path where
    * every routed agent clears the floor. Absent from backends predating it. */
   notices?: PlanFloorNotice[];
+  /** The floor actually applied to this plan. Not assumed client-side: the
+   *  value is configurable per deployment, so a hardcoded copy would narrate
+   *  the wrong threshold after a change. Absent from older backends. */
+  floor_bps?: number;
+  /** At least one reputation read behind this plan fell back to the Bayesian
+   *  prior because the ledger was unreadable — the buyer is being shown a
+   *  trust signal computed from an estimate. Named apart from `degraded`,
+   *  which already means "re-admitted below the floor" on steps and notices. */
+  reputation_degraded?: boolean;
 };
 
 /** Response of POST /api/orchestrator/execute. */
