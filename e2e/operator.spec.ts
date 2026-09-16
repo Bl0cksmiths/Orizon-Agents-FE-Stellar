@@ -10,7 +10,13 @@
  * endpoint is marked as such.
  */
 import { test, expect } from "@playwright/test";
-import { mockApi, mockAgents, mockWallet, mockWalletAddress } from "./mocks";
+import {
+  mockAgents,
+  mockApi,
+  mockApiOutage,
+  mockWallet,
+  mockWalletAddress,
+} from "./mocks";
 
 const SEEDED = mockAgents.find((a) => a.owner === null)!;
 const OWNED = mockAgents.filter((a) => a.owner === mockWalletAddress);
@@ -69,6 +75,27 @@ test.describe("operator dashboard", () => {
     ).toBeVisible();
     // An empty list would be indistinguishable from "you own nothing", which
     // is a different and much more alarming statement.
+    await expect(
+      page.getByRole("heading", { name: "This wallet owns no agents" }),
+    ).toHaveCount(0);
+  });
+
+  test("announces a registry failure instead of an empty dashboard", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApiOutage(page);
+    await page.goto("/app/operator");
+
+    // This route is deliberately absent from the shared failure-states sweep:
+    // that sweep mocks no wallet, and a wallet-less operator page correctly
+    // shows "connect a wallet" rather than an error. The failure worth
+    // catching is the one below — connected, and the registry read is down.
+    // Rendering that as "this wallet owns no agents" would tell an operator
+    // their agents had been deregistered.
+    await expect(page.locator('[role="alert"]').first()).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(
       page.getByRole("heading", { name: "This wallet owns no agents" }),
     ).toHaveCount(0);
