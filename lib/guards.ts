@@ -308,7 +308,11 @@ const isSettlementEntry = (v: unknown): boolean =>
   isNum(v.ledger) &&
   isOptionalStr(v.at) &&
   isStr(v.payer) &&
-  typeof v.self_payment === "boolean";
+  typeof v.self_payment === "boolean" &&
+  // Optional rather than required: a backend that predates the field still
+  // serves correct figures, and rejecting the whole payload over a missing
+  // explanation would trade real evidence for none.
+  isOptionalStr(v.exclusion);
 
 /** Settlement panel: every numeric below is rendered as money or as a window
  * boundary, and `unavailable` is what separates "nothing was paid" from "we
