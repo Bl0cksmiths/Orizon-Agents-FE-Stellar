@@ -449,6 +449,12 @@ export const mockReputationBatch = {
     unbound_bot: {
       agent_id: "unbound_bot",
       smoothed_bps: 7000,
+      // 5677, not a number chosen to look plausible. It is what
+      // `lower_bound_bps(7000, 0)` actually returns, and it CLEARS the 5500
+      // floor by 177 bps. This fixture previously carried 5100 — arithmetically
+      // impossible for a cold start — which made every e2e assertion about a
+      // newly registered agent measure the inverse of the guarantee the sprint
+      // rests on: permissionless registration is not a dead end.
       lower_bound_bps: 5677,
       avg_bps: 7000,
       count: 0,
