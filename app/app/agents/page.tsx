@@ -9,6 +9,7 @@ import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { listAgents, listReputation } from "@/lib/api";
+import { isOwnedBy } from "@/lib/binding-status";
 import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { useWallet } from "@/lib/wallet";
@@ -245,8 +246,9 @@ export default function AgentsPage() {
               {rows.map((a, i) => {
                 // Ownership is resolved from the connected wallet against the
                 // on-chain owner — never a local record (story 1.08 rule).
-                const owned =
-                  wallet.connected && !!a.owner && a.owner === wallet.address;
+                // Shared with the bind surfaces via `isOwnedBy` so the rule has
+                // one definition rather than a copy per page.
+                const owned = wallet.connected && isOwnedBy(a, wallet.address);
                 const open = owned && expandedId === a.id;
                 return (
                   <Fragment key={a.id}>
