@@ -75,7 +75,11 @@ export function SkillsInput({
    * (case-insensitive) → max. Emits a single onChange and reports whether the
    * cap was hit so the caller can decide what to keep in the input.
    */
-  function addTokens(rawTokens: string[]): { added: number; maxHit: boolean; tooLong: boolean } {
+  function addTokens(rawTokens: string[]): {
+    added: number;
+    maxHit: boolean;
+    tooLong: boolean;
+  } {
     const next = [...value];
     let maxHit = false;
     let tooLong = false;
