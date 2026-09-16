@@ -706,6 +706,11 @@ export const mockSettlementSelfPaid = {
       auth_id: "1a2b3c4d5e6f70819a2b3c4d5e6f7081",
       amount_stroops: 1_610_000,
       ledger: 1_284_551,
+      // 64 lowercase hex, the spelling the backend normalises to. The panel
+      // builds an explorer link out of it, so a fixture that looked roughly
+      // right would let a broken link pass.
+      tx_hash:
+        "3f7a1c9e02b84d6510aefc73d8925b04a6e13f8c27d94b0e5fa6c831d7204ebb",
       at: "2026-09-12T04:18:33Z",
       payer: "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXXX",
       self_payment: true,
