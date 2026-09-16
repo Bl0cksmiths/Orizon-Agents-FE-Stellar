@@ -45,6 +45,14 @@
  * sentence is the fourth surface to state the same claim and three copies of
  * a claim drift.
  *
+ * Degrees of not-knowing are kept apart rather than collapsed, because each
+ * one is a different reason to say less. A null `rep` is "no score is known";
+ * a null `floorBps` is "the batch has not loaded"; and `rep.degraded` is the
+ * sharpest of the three — the score IS the Bayesian prior, served because the
+ * on-chain read did not come back rather than because the agent is new. Both
+ * arrive as `source: "prior"` and are otherwise indistinguishable, so a floor
+ * verdict computed from a degraded score is provisional and has to say so.
+ *
  * The cell fetches nothing. The page owns the reputation batch, so every
  * branch below is a pure reading of what that batch returned — which is also
  * what makes each one testable without a network.
@@ -218,6 +226,29 @@ export function AgentStanding({
         tone="magenta"
         glyph="⚑"
         label="below floor · not eligible"
+        detail={detail}
+      />,
+    );
+  }
+
+  // Ordered last so it qualifies the verdict it follows, and gated on a floor
+  // having actually been read: with no floor there is no verdict to call
+  // provisional, and the score on its own is the reputation column's story
+  // rather than this cell's. A passing comparison is qualified too — a silent
+  // pass computed from the prior is just as provisional as a loud one.
+  if (rep !== null && floorBps !== null && rep.degraded === true) {
+    const detail =
+      `This standing is provisional. The on-chain reputation read did not ` +
+      `come back, so the network's Bayesian prior was served in its place ` +
+      `and the floor comparison on this row was computed from that prior ` +
+      `rather than from ${agent.name}'s own history. That is not a cold ` +
+      `start: this agent may well have a record we could not reach.`;
+    marks.push(
+      <StandingMark
+        key="degraded"
+        tone="muted"
+        glyph="⚠"
+        label="provisional"
         detail={detail}
       />,
     );
