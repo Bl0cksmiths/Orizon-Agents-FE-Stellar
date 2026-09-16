@@ -72,6 +72,7 @@ function entry(over: Partial<SettlementEntry> = {}): SettlementEntry {
     at: "2026-09-12T04:18:33Z",
     payer: PLATFORM,
     self_payment: true,
+    exclusion: "settler",
     ...over,
   };
 }
@@ -329,7 +330,7 @@ describe("SettlementPanel — a charge paid by the platform to itself", () => {
     // The label carries its meaning in words, not in the magenta alone.
     expect(text).toContain("self-payment · excluded");
     expect(text).toContain(
-      "The payer on this charge resolves to the platform's own account",
+      "The payer on this charge resolves to the platform's own settler",
     );
     expect(text).toContain("it moved platform funds to the platform");
     expect(text).toContain("0.161 XLM");
