@@ -29,7 +29,9 @@ import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { getSettlement } from "@/lib/api";
 import { assetLabel, formatSettled } from "@/lib/money";
 import type { AgentSettlement, SettlementEntry } from "@/lib/types";
+import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
+import { cn } from "@/lib/utils";
 
 /**
  * The card, its heading and its standing description.
@@ -458,6 +460,26 @@ export function SettlementPanel({
       {data.total_stroops === 0 ? <ChargeDefectNote /> : null}
       <ChargeList data={data} />
       <ScanFacts data={data} />
+      {/* The one control that re-reads the chain. Without it `reload` is only
+          reachable from a failure, so a resolved panel is frozen for the life
+          of the mount — and an operator who has just been told they were paid
+          nothing is precisely the person who wants to check again. Manual
+          rather than polled or focus-revalidated: each press costs the backend
+          a full event scan over the window. */}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={reload}
+          disabled={loading}
+          className={cn(
+            "border border-border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted",
+            "transition-colors hover:text-text disabled:opacity-50",
+            focusRing,
+          )}
+        >
+          {loading ? "re-scanning…" : "re-scan"}
+        </button>
+      </div>
     </PanelShell>
   );
 }
