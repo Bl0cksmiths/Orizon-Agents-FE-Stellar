@@ -13,7 +13,12 @@
  * Run isolated, always:  E2E_PORT=3181 npx playwright test e2e/plan-floor.spec.ts
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { mockApi, mockPlanExcluded, mockWallet } from "./mocks";
+import {
+  mockApi,
+  mockPlanDegraded,
+  mockPlanExcluded,
+  mockWallet,
+} from "./mocks";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -45,6 +50,21 @@ const exclusions = (page: Page) => page.locator("details");
  * rather than a loose run of text.
  */
 const exclusionRows = (page: Page) => exclusions(page).locator("li, tr");
+
+/**
+ * The warning that the scores on this plan were estimated rather than read
+ * from the ledger.
+ *
+ * Located by live-region role plus the one word the warning cannot mean
+ * anything without — never by its sentence, which is under review and
+ * deliberately avoids "degraded". The role is not a wording constraint either:
+ * a warning painted into the page without one is never announced, so a
+ * screen-reader buyer authorizes the payment without ever hearing it.
+ */
+const estimateBanner = (page: Page) =>
+  page
+    .locator('[role="status"], [role="alert"]')
+    .filter({ hasText: /estimat/i });
 
 /** The plan's step rows — the first ordered list in the card. */
 const steps = (page: Page) => page.locator("ol").first().getByRole("listitem");
@@ -186,5 +206,31 @@ test.describe("plan card — reputation, source and exclusions", () => {
       await page.evaluate(() => window.scrollY),
       "the evidence frame must not depend on the page being scrolled",
     ).toBe(0);
+  });
+
+  test("AC-4 — the estimate warning is painted above the authorize button", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    // The wallet has to be connected for the authorize control to exist at all:
+    // the AC is about the moment money is committed, not about a disabled
+    // button on a page nobody can pay from.
+    await decomposeWith(page, mockPlanDegraded, { wallet: true });
+
+    const banner = estimateBanner(page);
+    await expect(banner).toHaveCount(1);
+    const authorize = page.getByRole("button", { name: /authorize/i });
+    await expect(authorize).toBeVisible();
+
+    const bannerBox = await stableBox(banner);
+    const authorizeBox = await stableBox(authorize);
+    // Geometry, not DOM order. A warning that comes first in the markup but
+    // paints below the button — a flex `order`, a grid area, an absolutely
+    // positioned footer — is a warning the buyer reads after paying. The boxes
+    // must not even overlap.
+    expect(
+      bannerBox.y + bannerBox.height,
+      "the warning must clear the top edge of the authorize button",
+    ).toBeLessThanOrEqual(authorizeBox.y);
   });
 });
