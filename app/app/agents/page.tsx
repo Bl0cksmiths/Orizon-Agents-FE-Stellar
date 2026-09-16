@@ -8,6 +8,8 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
+import { AgentStanding } from "@/components/agents/agent-standing";
+import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
 import { isOwnedBy } from "@/lib/binding-status";
 import { focusRing } from "@/lib/ui";
