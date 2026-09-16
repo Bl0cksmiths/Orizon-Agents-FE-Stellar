@@ -631,8 +631,15 @@ function BindPageInner() {
                 />
               </dl>
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <ButtonLink variant="cyan" size="sm" href="/app/agents">
-                  View in marketplace ▸
+                {/* The dashboard leads, not the marketplace. Having just
+                    bound an endpoint, the operator's next question is whether
+                    the agent can now actually be selected for work — and the
+                    marketplace row cannot answer that. */}
+                <ButtonLink variant="cyan" size="sm" href="/app/operator">
+                  View in my agents ▸
+                </ButtonLink>
+                <ButtonLink variant="outline" size="sm" href="/app/agents">
+                  View in marketplace
                 </ButtonLink>
                 <Button
                   type="button"
