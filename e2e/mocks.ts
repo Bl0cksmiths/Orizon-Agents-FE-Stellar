@@ -396,8 +396,8 @@ export const mockReputationParams = {
 };
 
 /**
- * The batch every reputation-aware surface reads. Three deliberately
- * different states, because they render as three different sentences:
+ * The batch every reputation-aware surface reads. Four deliberately different
+ * states, because they render as four different sentences:
  *
  *   - `agt_11c0`   scored on-chain, comfortably above the floor;
  *   - `weather_bot` scored on-chain but with a lower bound only just clear of
@@ -408,11 +408,28 @@ export const mockReputationParams = {
  *     position of a brand-new agent: reputation is not what holds it back.
  *     What an operator sees as "not eligible" on something they just
  *     registered is the endpoint gate, and the two must not be conflated.
+ *   - `rated_down_bot` the only entry the floor excludes, and the only way an
+ *     agent can be there: it was rated down.
  *
- * That bound used to read 5100, which no cold-start agent can have:
- * `lowerBoundBps(7000, 0)` is 5677 (lib/reputation-math.test.ts pins it), and
- * an agent may only fall below the floor by being rated down. The wrong number
- * quietly inverted the guarantee the reputation work exists to make.
+ * THE ARITHMETIC RULE, which every future edit to this fixture has to respect:
+ * the floor is 5500 bps and the prior is 7000 bps, so a never-rated agent's
+ * lower bound is `lowerBoundBps(7000, 0)` = 5677 — it CLEARS the floor
+ * (lib/reputation-math.test.ts pins the number). A cold start therefore cannot
+ * sit below the floor at any weight; only evidence can put it there. Any
+ * below-floor fixture must be an agent with ratings behind it, or it encodes a
+ * position the system cannot produce and every assertion resting on it
+ * measures the inverse of the guarantee.
+ *
+ * That is not hypothetical: `unbound_bot`'s bound used to read 5100, a value
+ * no cold-start agent can have, and it quietly inverted the guarantee the
+ * reputation work exists to make.
+ *
+ * `rated_down_bot` is worked from the real math rather than chosen to look
+ * right — mean 5400 bps over 20.4 USDC of settled weight gives
+ * `smoothedBps` = 5992 and `lowerBoundBps` = 5131. That is the case the whole
+ * design turns on: the smoothed score (3.00) is ABOVE the 2.75 floor while the
+ * lower bound (2.57) is below it, so a row that showed the headline score next
+ * to the floor would read as self-contradictory — routing gates on the bound.
  *
  * Without this, `GET /api/stellar/reputation` fell through to the catch-all
  * `{}`, `isReputationBatch` rejected it, and every score silently became a
@@ -458,6 +475,23 @@ export const mockReputationBatch: ReputationBatch = {
       source: "prior",
       degraded: false,
     },
+    // Rated down, not cold: 24 rated jobs carrying 20.4 USDC of weight, six of
+    // them disputed (2500 bps = 25.0%). The evidence is what puts the lower
+    // bound under the floor, and the count and dispute rate are the evidence —
+    // an excluded agent still has to show them, or "not routable" reads as
+    // "unknown" rather than as a verdict the buyer can check.
+    rated_down_bot: {
+      agent_id: "rated_down_bot",
+      smoothed_bps: 5992,
+      lower_bound_bps: 5131,
+      avg_bps: 5400,
+      count: 24,
+      weight: 20.4,
+      disputed: 6,
+      dispute_rate_bps: 2500,
+      source: "onchain",
+      degraded: false,
+    },
   },
 };
 
@@ -490,6 +524,17 @@ export async function mockApiOutage(page: Page): Promise<void> {
 export const mockBindAgentId = "weather_bot";
 export const mockWalletAddress =
   "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
+
+/**
+ * Somebody else's registering wallet. Well-formed (56 base32 characters) but
+ * not an account that exists, and deliberately never the connected wallet: an
+ * on-chain agent owned here is one the marketplace lists and the operator
+ * surfaces must leave alone. Keeping `rated_down_bot` on this address is what
+ * stops it from changing what `e2e/operator.spec.ts` and
+ * `e2e/agents-unbound.spec.ts` count as "the wallet's own agents".
+ */
+export const mockOtherOwnerAddress =
+  "GCXQ7T5LMJ4RZB2NPKAH6WVUE3SFDYG2CQ5TMXJ7RLB4NZKAH6WVUE3S";
 
 /**
  * The marketplace as an operator sees it: one seeded catalog agent that needs
@@ -551,6 +596,33 @@ export const mockAgents = [
     owner: mockWalletAddress,
     source: "onchain",
     bound: false,
+  },
+  /**
+   * Registered on-chain by a third party, endpoint bound, and below the
+   * routing floor — the only row here that the floor itself excludes.
+   *
+   * It is paired with `unbound_bot` on purpose: that one clears the floor and
+   * is held back by its endpoint, this one is operational and held back by its
+   * score. Both are unroutable, for reasons an operator must not be allowed to
+   * confuse, and a fixture set where the same row carried both faults could
+   * never tell the two messages apart.
+   *
+   * `runs` (41) exceeds the 24 rated jobs behind its score because not every
+   * run is rated, and the price is what makes the rating weight coherent:
+   * 24 × 0.85 USDC = the 20.4 weight its reputation entry carries.
+   */
+  {
+    id: "rated_down_bot",
+    name: "Rated Down Bot",
+    skills: ["analysis"],
+    price: 0.85,
+    rep: 3.0,
+    status: "online",
+    runs: 41,
+    real: false,
+    owner: mockOtherOwnerAddress,
+    source: "onchain",
+    bound: true,
   },
 ];
 /**
