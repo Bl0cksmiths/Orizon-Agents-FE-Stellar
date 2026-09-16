@@ -32,7 +32,11 @@ afterEach(cleanup);
 
 /** 3.00 on the 0–5 scale the panel prints. */
 const FLOOR_BPS = 6000;
-/** 2.50 — the Bayesian prior, deliberately below the floor, as it is in prod. */
+/** 2.50 — a prior BELOW this file's floor, which production's is NOT: the
+ *  shipped prior yields a 5677 lower bound against a 5500 floor. The numbers
+ *  here are deliberately unlike production so the component is tested on its
+ *  logic rather than on one lucky configuration — but nothing in this file may
+ *  be read as a claim about what production does. */
 const PRIOR_BPS = 5000;
 
 /** A rated agent comfortably clear of the floor unless a test says otherwise. */
@@ -51,8 +55,11 @@ function rep(over: Partial<ReputationInfo> = {}): ReputationInfo {
   };
 }
 
-/** The prior an unrated agent carries: headline looks fine, lower bound does
- *  not clear the floor. The honest cold-start position. */
+/** An unrated agent carrying a prior that does NOT clear this file's floor.
+ *  A hostile configuration, not the shipped one — production's prior clears
+ *  its floor by 177 bps. This fixture exists to exercise the below-floor
+ *  branch; `never tells a newcomer their agent is below the floor by default`
+ *  covers the real cold-start position. */
 function priorRep(over: Partial<ReputationInfo> = {}): ReputationInfo {
   return rep({
     smoothed_bps: PRIOR_BPS,
