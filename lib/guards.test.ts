@@ -355,6 +355,42 @@ describe("isDecomposeResponse", () => {
     const step = { ...valid.steps[0], substituted_for: 7 };
     expect(isDecomposeResponse({ ...valid, steps: [step] })).toBe(false);
   });
+
+  // AC-5 — a build predating story 3.02 keeps rendering the plan. The whole
+  // design rests on the four floor fields being ADDITIVE, and that claim has
+  // two halves the guard is the only thing holding: a backend that predates
+  // them serves a plan with none of them (below), and a frontend that predates
+  // them meets keys its guard never heard of (these guards are non-exhaustive
+  // on purpose, so unknown keys are ignored rather than rejected).
+  //
+  // The old shape is spelled out in full rather than derived from `valid` —
+  // a later edit to the shared fixture must not be able to quietly delete the
+  // thing being pinned here.
+  it("accepts a pre-3.02 plan carrying none of the floor fields (AC-5)", () => {
+    const legacy = {
+      plan_id: "pln_legacy",
+      intent: "tetris",
+      steps: [
+        {
+          agent_id: "agt_01",
+          agent_name: "code.next",
+          rationale: "codes",
+          est_price_usdc: 0.03,
+          est_eta_seconds: 4.5,
+          rep_bps: 8200,
+          rep_source: "onchain",
+        },
+      ],
+      total_usdc: 0.03,
+      total_eta: 4.5,
+    };
+    expect(isDecomposeResponse(legacy)).toBe(true);
+    // The mid-roll shape too: `notices` shipped with the kit-path half of
+    // 3.02, the numbers inside them with this half, so a backend serving
+    // notices without `reason_code`/`lower_bound_bps`/`floor_bps` is a real
+    // deployment state and not a hypothetical.
+    expect(isDecomposeResponse({ ...legacy, notices: [notice] })).toBe(true);
+  });
 });
 
 describe("isReputationInfo", () => {
