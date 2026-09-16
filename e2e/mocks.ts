@@ -830,6 +830,11 @@ export async function mockApi(
       });
     }
     if (method === "GET" && BINDING_RE.test(pathname)) {
+      // An agent that already has an endpoint, when a spec asked for one. This
+      // is what puts the bind page on its replace path.
+      if (options.binding) {
+        return json(route, options.binding);
+      }
       // The ordinary starting state: registered, never bound. A 404 carrying
       // `binding_not_found` is how the backend says so, and
       // `getAgentBindingOrNull` turns it into a plain null.
