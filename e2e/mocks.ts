@@ -43,12 +43,21 @@ export const mockPlan = {
   plan_id: "plan_e2e_1",
   intent: "code a calculator web app",
   steps: [
+    // Every step carries the score the backend stamps on it (`_rep_fields` in
+    // orchestrator_svc.py). Without these the card renders no reputation at
+    // all, and the SOW §6.1 evidence sentence — "the decompose plan card
+    // showing on-chain reputation per agent" — has no first half.
     {
       agent_id: "seo.brief",
       agent_name: "seo.brief",
       rationale: "outline requirements and keywords",
       est_price_usdc: 0.009,
       est_eta_seconds: 1.2,
+      // Never rated, so it carries the prior itself — and is routed anyway,
+      // because `lowerBoundBps(7000, 0)` is 5677 and that clears the 5500
+      // floor. A cold-start agent is not a sub-floor agent.
+      rep_bps: 7000,
+      rep_source: "prior",
     },
     {
       agent_id: "design.figma",
@@ -58,6 +67,10 @@ export const mockPlan = {
       est_eta_seconds: 2.4,
       // story 3.02 — this step replaced a sub-floor designated agent.
       substituted_for: "vision.ocr",
+      // Rated 8600 over 18 USDC → smoothed 7960, lower bound 7224: the kind of
+      // standing that earns a substitution in.
+      rep_bps: 7960,
+      rep_source: "onchain",
     },
     {
       agent_id: "code.next",
@@ -67,6 +80,12 @@ export const mockPlan = {
       est_eta_seconds: 3.1,
       // story 3.02 — re-admitted below the floor by the starvation backstop.
       degraded: true,
+      // Rated 5060 over 117 USDC → smoothed 5240, whose lower bound is exactly
+      // the 4800 the notice below quotes. The step's headline score therefore
+      // reads 2.62 while it sits below a 2.75 floor, which is the honest shape
+      // of a backstop re-admission rather than a contradiction.
+      rep_bps: 5240,
+      rep_source: "onchain",
     },
   ],
   total_usdc: 0.123,
