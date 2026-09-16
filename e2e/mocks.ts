@@ -356,6 +356,9 @@ export async function mockApi(page: Page): Promise<void> {
     if (method === "GET" && pathname === "/api/agents") {
       return json(route, mockAgents);
     }
+    if (method === "GET" && pathname === "/api/stellar/reputation") {
+      return json(route, mockReputationBatch);
+    }
     if (
       method === "GET" &&
       pathname.startsWith("/api/stellar/agent-id-available/")
