@@ -207,6 +207,9 @@ export default function OperatorPage() {
                   agent={agent}
                   owner={address}
                   bindingState={binding.stateOf(agent.id)}
+                  reputation={repBatch?.reputations[agent.id] ?? null}
+                  floorBps={repBatch?.floor_bps ?? null}
+                  priorBps={repBatch?.prior_bps ?? null}
                   onChanged={retry}
                 />
               </li>
