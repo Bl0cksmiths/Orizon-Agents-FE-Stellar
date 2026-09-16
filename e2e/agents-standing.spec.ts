@@ -215,13 +215,25 @@ test.describe("agent standing in the marketplace", () => {
     // are what let a buyer check it and an owner argue with it. Strip them and
     // the row says "no" with no way to ask why, which is indistinguishable
     // from the agent having no history at all.
+    // Read as rendered text, not as `textContent`: cells abut with no
+    // separator in the DOM, so the raw string runs "25.0%41online" together
+    // and a check for the runs figure would match inside its neighbour. What
+    // the buyer sees is what has to carry the evidence.
     const evidence = row(page, BELOW_FLOOR_ID);
+    const asRendered = { useInnerText: true } as const;
     await expect(evidence).toBeVisible();
-    await expect(evidence).toContainText(new RegExp(`\\b${rep.count}\\b`));
+    await expect(evidence).toContainText(
+      new RegExp(`\\b${rep.count}\\b`),
+      asRendered,
+    );
     await expect(evidence).toContainText(
       new RegExp(`\\b${disputePct}(\\.0)?\\s*%`),
+      asRendered,
     );
-    await expect(evidence).toContainText(new RegExp(`\\b${agent.runs}\\b`));
+    await expect(evidence).toContainText(
+      new RegExp(`\\b${agent.runs}\\b`),
+      asRendered,
+    );
   });
 
   test("the standing filter narrows the registry to routable agents, and back", async ({
