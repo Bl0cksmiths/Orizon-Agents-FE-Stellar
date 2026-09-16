@@ -505,6 +505,38 @@ describe("isDecomposeResponse", () => {
     const { lower_bound_bps: _drop, ...noField } = noEntry;
     expect(isDecomposeResponse({ ...valid, notices: [noField] })).toBe(true);
   });
+
+  /**
+   * The asymmetry between `kind` and `reason_code`, pinned because it reads
+   * like an oversight and the "fix" is one line away.
+   *
+   * `kind` is set-checked: it picks the notice row's tone and label, so a
+   * value this build has no arm for renders an unstyled, unexplained row —
+   * a plan that looks fine and is not. Failing the guard, and showing the
+   * ordinary error state, is the better of the two.
+   *
+   * `reason_code` is NOT, and must not become so. It is a machine-readable
+   * companion to `reason`, which carries the same fact in prose and already
+   * renders. An unrecognised code therefore costs nothing: the row still
+   * explains itself. Set-checking it would mean a backend adding a fourth
+   * exclusion reason blanks the whole plan card on every frontend build older
+   * than that deploy — trading a rendered plan for no plan, to gain nothing.
+   */
+  it("accepts an unknown reason_code while still rejecting an unknown kind", () => {
+    const futureCode = { ...notice, reason_code: "floor_raised_by_operator" };
+    expect(isDecomposeResponse({ ...valid, notices: [futureCode] })).toBe(true);
+    const futureKind = { ...notice, kind: "reshuffled" };
+    expect(isDecomposeResponse({ ...valid, notices: [futureKind] })).toBe(
+      false,
+    );
+    // The vocabulary is open; the type is not. A non-string code would reach
+    // a comparison as an object and match nothing, which is the one outcome
+    // worse than an unknown string.
+    const objectCode = { ...notice, reason_code: { code: "below_floor" } };
+    expect(isDecomposeResponse({ ...valid, notices: [objectCode] })).toBe(
+      false,
+    );
+  });
 });
 
 describe("isReputationInfo", () => {
