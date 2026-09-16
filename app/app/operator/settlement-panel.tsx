@@ -189,7 +189,11 @@ function TruncatedNotice({ data }: { data: AgentSettlement }) {
  */
 function ChargeDefectNote() {
   return (
-    <div className="space-y-2">
+    // The rule above the heading is not decoration. A small uppercase mono
+    // label in this console is what a StatTile puts over a figure, so without
+    // a divider this heading reads as a fourth tile in the row above it and
+    // the explanation below reads as that tile's footnote.
+    <div className="space-y-2 border-t border-border/60 pt-5">
       <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
         Why nothing settles
       </h3>
@@ -297,7 +301,7 @@ function ChargeEntry({
 function ChargeList({ data }: { data: AgentSettlement }) {
   if (data.entries.length === 0) return null;
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 border-t border-border/60 pt-5">
       <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
         Charged events
       </h3>
