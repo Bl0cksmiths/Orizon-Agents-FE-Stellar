@@ -391,6 +391,53 @@ describe("isDecomposeResponse", () => {
     // deployment state and not a hypothetical.
     expect(isDecomposeResponse({ ...legacy, notices: [notice] })).toBe(true);
   });
+
+  it("accepts the full 3.02 shape, with every reason_code the union names", () => {
+    const extended = {
+      ...valid,
+      // The floor is carried in the payload rather than assumed client-side:
+      // it is configurable per deployment, so a hardcoded copy would narrate
+      // the wrong threshold after an operator changed it.
+      floor_bps: 5500,
+      reputation_degraded: true,
+      steps: [
+        { ...valid.steps[0], substituted_for: "agt_02", degraded: false },
+      ],
+      notices: [
+        {
+          ...notice,
+          reason_code: "below_floor",
+          lower_bound_bps: 4200,
+          floor_bps: 5500,
+        },
+        {
+          kind: "excluded",
+          agent_id: "agt_03",
+          agent_name: "vision.ocr",
+          reason: "no endpoint bound",
+          reason_code: "unbound_endpoint",
+          // Excluded before its standing was ever consulted, so there is no
+          // bound to report — see the null test below for why that is not 0.
+          lower_bound_bps: null,
+          floor_bps: 5500,
+        },
+        {
+          kind: "degraded",
+          agent_id: "agt_04",
+          agent_name: "code.next",
+          reason: "re-admitted by starvation backstop (4800 < 5500 bps)",
+          reason_code: "floor_relaxed",
+          lower_bound_bps: 4800,
+          floor_bps: 5500,
+        },
+      ],
+    };
+    expect(isDecomposeResponse(extended)).toBe(true);
+    // The other half of AC-5: a guard from a build that predates these fields
+    // ignores what it does not know. Pinning unknown-key tolerance here is
+    // what keeps the next additive field from needing a frontend release.
+    expect(isDecomposeResponse({ ...extended, floor_policy: "v3" })).toBe(true);
+  });
 });
 
 describe("isReputationInfo", () => {
