@@ -256,12 +256,12 @@ describe("AgentStanding — degrees of not knowing", () => {
 describe("AgentStanding — provenance", () => {
   it("marks an agent registered against the on-chain registry", () => {
     const { container } = renderCell({ agent: onchain() });
-    expect(labels(container)).toContain("⬡ on-chain");
+    expect(labels(container)).toContain("⬡ external");
   });
 
   it("leaves a seeded catalog agent unmarked", () => {
     const { container } = renderCell({ agent: seeded() });
-    expect(labels(container)).not.toContain("⬡ on-chain");
+    expect(labels(container)).not.toContain("⬡ external");
   });
 
   // `real` means "backed by a real Agno worker rather than a mock". It marks
@@ -278,7 +278,7 @@ describe("AgentStanding — provenance", () => {
   // on-chain agent, so `real` false must not hide a genuine external listing.
   it("marks an on-chain agent that registry_sync flagged real: false", () => {
     const { container } = renderCell({ agent: onchain({ real: false }) });
-    expect(labels(container)).toContain("⬡ on-chain");
+    expect(labels(container)).toContain("⬡ external");
   });
 
   // A product rule forbids inferring provenance from the id format; every
@@ -295,7 +295,7 @@ describe("AgentStanding — provenance", () => {
     const { container } = renderCell({
       agent: seeded({ source: undefined, owner: "GABC" }),
     });
-    expect(labels(container)).toContain("⬡ on-chain");
+    expect(labels(container)).toContain("⬡ external");
   });
 
   it("makes no provenance claim when neither source nor owner is present", () => {
@@ -314,18 +314,18 @@ describe("AgentStanding — endpoint binding", () => {
 
   it("says nothing about an on-chain agent that is bound", () => {
     const { container } = renderCell({ agent: onchain({ bound: true }) });
-    expect(labels(container)).toEqual(["⬡ on-chain"]);
+    expect(labels(container)).toEqual(["⬡ external"]);
   });
 
   // Tri-state: null is "the question does not apply", not "unbound".
   it("treats a null bound as a question that does not apply", () => {
     const { container } = renderCell({ agent: onchain({ bound: null }) });
-    expect(labels(container)).toEqual(["⬡ on-chain"]);
+    expect(labels(container)).toEqual(["⬡ external"]);
   });
 
   it("treats an absent bound the same way as null", () => {
     const { container } = renderCell({ agent: onchain({ bound: undefined }) });
-    expect(labels(container)).toEqual(["⬡ on-chain"]);
+    expect(labels(container)).toEqual(["⬡ external"]);
   });
 
   // A seeded agent runs on a worker inside the backend and has no endpoint to
@@ -347,7 +347,7 @@ describe("AgentStanding — endpoint binding", () => {
       rep: thinEvidence(),
     });
     expect(labels(container)).toEqual([
-      "⬡ on-chain",
+      "⬡ external",
       "⊘ no endpoint bound",
       "⚑ below floor · not eligible",
     ]);
