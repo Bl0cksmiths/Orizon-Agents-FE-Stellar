@@ -302,8 +302,12 @@ function ChargeList({ data }: { data: AgentSettlement }) {
   if (data.entries.length === 0) return null;
   return (
     <div className="space-y-3 border-t border-border/60 pt-5">
+      {/* Not "charged events" — that is the exact label on the tile counting
+          them a few lines above, and two different things with the same name
+          on one card is how a reader decides the count belongs to this list
+          and stops trusting either. */}
       <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
-        Charged events
+        Every charge on record
       </h3>
       <ul className="space-y-3">
         {data.entries.map((entry) => (
