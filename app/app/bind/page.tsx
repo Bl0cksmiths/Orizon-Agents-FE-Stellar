@@ -18,6 +18,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   bindAgent,
   checkBindEndpoint,
@@ -71,9 +72,22 @@ function BindPageInner() {
   const wallet = useWallet();
   const owner = wallet.address ?? "";
 
-  const [agentId, setAgentId] = useState("");
+  // The agent handed over by whoever sent the operator here — the registration
+  // success card and the marketplace's bind links both build this URL with
+  // `bindHref`, so an id that was just watched onto the chain is never retyped
+  // from memory. Read once, as a seed: this is a form field, and the operator
+  // has to stay free to edit or clear it. (Nothing routes from one ?agent= to
+  // another without leaving the page, so there is no re-seed to get wrong.)
+  const handedOffAgentId = useSearchParams().get("agent") ?? "";
+
+  const [agentId, setAgentId] = useState(handedOffAgentId);
   const [endpointRaw, setEndpointRaw] = useState("");
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  // A handed-off id arrives already in the field, so it can never be blurred —
+  // count it touched from the start or a malformed one would sit there
+  // unremarked until the operator poked a field they had no reason to poke.
+  const [touched, setTouched] = useState<Record<string, boolean>>(
+    handedOffAgentId === "" ? {} : { agent_id: true },
+  );
   const touch = (field: string) =>
     setTouched((t) => (t[field] ? t : { ...t, [field]: true }));
 
