@@ -774,6 +774,13 @@ export type MockApiOptions = {
    */
   plan?: DecomposeResponse;
   /**
+   * What `GET /api/agents/{id}/binding` answers with. Absent means the
+   * ordinary starting state — a 404 carrying `binding_not_found`, which
+   * `getAgentBindingOrNull` folds into a plain null. Pass
+   * `mockExistingBinding` to put the bind page on its replace path.
+   */
+  binding?: typeof mockExistingBinding;
+  /**
    * What `GET /api/stellar/reputation` answers with. Defaults to
    * `mockReputationBatch`, so every existing caller is unaffected; pass
    * `mockReputationBatchDegraded` to exercise the estimates path. Typed as the
