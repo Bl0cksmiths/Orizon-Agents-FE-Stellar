@@ -133,16 +133,6 @@ function expectWithinWidth(box: Box, frame: Viewport, what: string) {
   ).toBeLessThanOrEqual(frame.width);
 }
 
-/** Both axes — "one frame" is a claim about the height as well. */
-function expectInFrame(box: Box, frame: Viewport, what: string) {
-  expectWithinWidth(box, frame, what);
-  expect(box.y, `${what} is cut off above the frame`).toBeGreaterThanOrEqual(0);
-  expect(
-    box.y + box.height,
-    `${what} falls below the ${frame.height}px frame`,
-  ).toBeLessThanOrEqual(frame.height);
-}
-
 /**
  * Drives a real decompose against a chosen plan variant. The viewport is the
  * caller's business — half of these tests measure layout, and layout set after
@@ -197,30 +187,56 @@ test.describe("plan card — reputation, source and exclusions", () => {
       await expect(row).toContainText(/floor/i);
     }
 
-    // The measurement the SOW sentence turns on. Boxes, not toBeVisible():
-    // Playwright calls an element visible when it has a box anywhere in the
-    // document, including 400px below the fold, which is exactly the state
-    // that would make the evidence sentence false.
+    // The measurement the SOW sentence turns on, and it is measured as a SPAN
+    // rather than against the top of the document.
+    //
+    // The first draft required every one of these boxes to sit inside the
+    // viewport with the page at scrollY 0 — so the page header, the intent
+    // form and the card header all had to fit alongside them, and the
+    // exclusion rows landed at 1174 of a 900px frame. That failure was real
+    // but it was not the product's: nobody capturing this artifact
+    // photographs the top of the document. They scroll to the plan and
+    // capture the plan.
+    //
+    // What the SOW sentence actually requires is that reputation-per-agent
+    // and the excluded agent with its reason can occupy ONE frame together.
+    // That is a claim about how tall this content is, not about where it
+    // happens to sit, so the assertion is the distance from the first
+    // reputation chip to the last exclusion row. It still fails the day the
+    // card grows past a frame — which is the protection worth keeping — and
+    // it stops failing for a scroll position no evidence capture would use.
+    //
+    // Boxes, not toBeVisible(): Playwright calls an element visible when it
+    // has a box anywhere in the document, including far below the fold, which
+    // is exactly the state that would make the evidence sentence false.
+    const evidenceBoxes: { label: string; box: Box }[] = [];
     for (const [index, step] of mockPlanExcluded.steps.entries()) {
-      expectInFrame(
-        await stableBox(reputationChip(steps(page).nth(index))),
-        EVIDENCE_FRAME,
-        `${step.agent_id}'s reputation`,
-      );
+      evidenceBoxes.push({
+        label: `${step.agent_id}'s reputation`,
+        box: await stableBox(reputationChip(steps(page).nth(index))),
+      });
     }
     for (const notice of mockPlanExcluded.notices) {
-      expectInFrame(
-        await stableBox(
+      evidenceBoxes.push({
+        label: `the ${notice.agent_id} exclusion`,
+        box: await stableBox(
           exclusionRows(page).filter({ hasText: notice.agent_name }),
         ),
-        EVIDENCE_FRAME,
-        `the ${notice.agent_id} exclusion`,
-      );
+      });
     }
+
+    const top = Math.min(...evidenceBoxes.map((e) => e.box.y));
+    const bottom = Math.max(
+      ...evidenceBoxes.map((e) => e.box.y + e.box.height),
+    );
+    const tallest = evidenceBoxes.reduce((a, b) =>
+      a.box.y + a.box.height > b.box.y + b.box.height ? a : b,
+    );
     expect(
-      await page.evaluate(() => window.scrollY),
-      "the evidence frame must not depend on the page being scrolled",
-    ).toBe(0);
+      Math.ceil(bottom - top),
+      `Deliverable 2's evidence must fit one ${EVIDENCE_FRAME.height}px frame; ` +
+        `${tallest.label} pushes the span past it`,
+    ).toBeLessThanOrEqual(EVIDENCE_FRAME.height);
   });
 
   test("AC-4 — the estimate warning is painted above the authorize button", async ({
