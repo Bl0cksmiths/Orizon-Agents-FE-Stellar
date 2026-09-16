@@ -213,6 +213,25 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="violet">{s.agent_name ?? s.agent_id}</Badge>
+                {/* `floorBps` is deliberately NOT passed, and this is not an
+                    oversight waiting to be closed.
+
+                    ReputationBadge decides below-floor with
+                    `(lowerBoundBps ?? bps) < floorBps`. A PlanStep carries
+                    only `rep_bps` — the smoothed headline score — and no lower
+                    bound, so handing it the floor would compare the wrong
+                    number: the backend gates on the Wilson lower bound, and
+                    the two disagree exactly where it matters, for an agent
+                    with a healthy average and too few ratings to back it.
+                    The badge would then clear an agent the planner would have
+                    excluded.
+
+                    It costs nothing to omit. A routed step cleared the floor
+                    by definition — the planner only ever sees routable agents
+                    — so the only below-floor step is one the starvation
+                    backstop re-admitted, and that already carries its own
+                    `▾ below floor` badge below. Passing the floor could only
+                    add a wrong verdict, never a right one. */}
                 {s.rep_bps != null && (
                   <ReputationBadge
                     bps={s.rep_bps}
