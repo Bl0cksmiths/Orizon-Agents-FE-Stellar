@@ -124,6 +124,12 @@ export default function AgentsPage() {
         </ButtonLink>
       </div>
 
+      {/* Above the table, because it states the threshold every verdict inside
+          the table refers to. A buyer who meets "below floor" on a row before
+          they have been told what the floor is has to reverse-engineer the
+          rule from the verdicts. */}
+      <RegistryStandingNotice batch={repBatch ?? null} />
+
       <Card>
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <div className="relative flex-1 min-w-[240px]">
