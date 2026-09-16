@@ -91,10 +91,10 @@ export function DegradedBanner({
           history.
         </p>
         <p>
-          The network floor still ran, but on this plan it compared against those
-          estimates rather than against on-chain records. It did not filter on
-          evidence here, and an agent whose record would normally keep it out of
-          your plan can be routed while the read is failing.
+          The network floor still ran, but on this plan it compared against
+          those estimates rather than against on-chain records. It did not
+          filter on evidence here, and an agent whose record would normally keep
+          it out of your plan can be routed while the read is failing.
         </p>
         <p>
           That is not a finding about the agents in this plan. The failure is on

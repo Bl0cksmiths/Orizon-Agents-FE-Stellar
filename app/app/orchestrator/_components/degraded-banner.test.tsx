@@ -60,7 +60,9 @@ function bannerText(): string {
 
 describe("DegradedBanner — when it renders at all", () => {
   it("renders only when a reputation read actually failed", () => {
-    render(<DegradedBanner plan={planFixture({ reputation_degraded: true })} />);
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
     expect(bannerText()).not.toBe("");
   });
 
@@ -105,13 +107,17 @@ describe("DegradedBanner — when it renders at all", () => {
 
 describe("DegradedBanner — what it says", () => {
   function renderBanner() {
-    render(<DegradedBanner plan={planFixture({ reputation_degraded: true })} />);
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
     return bannerText();
   }
 
   it("says the scores are estimates rather than a reading of the chain", () => {
     const text = renderBanner();
-    expect(text).toContain("At least one reputation read behind this plan failed");
+    expect(text).toContain(
+      "At least one reputation read behind this plan failed",
+    );
     expect(text).toContain("the estimate every agent starts with");
     expect(text).toContain("not a reading of that agent's on-chain history");
   });
@@ -133,14 +139,18 @@ describe("DegradedBanner — what it says", () => {
   // a buyer stops trusting any of them — and the attribute check catches a
   // stray test id or aria-label as well as visible prose.
   it("never uses the word the rest of this card already spent", () => {
-    render(<DegradedBanner plan={planFixture({ reputation_degraded: true })} />);
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
     expect(screen.getByRole("status").outerHTML).not.toMatch(/degraded/i);
   });
 });
 
 describe("DegradedBanner — claims it must not make", () => {
   function renderBanner() {
-    render(<DegradedBanner plan={planFixture({ reputation_degraded: true })} />);
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
     return bannerText();
   }
 
@@ -175,7 +185,9 @@ describe("DegradedBanner — claims it must not make", () => {
 
 describe("DegradedBanner — how it is announced and structured", () => {
   it("announces politely rather than interrupting the plan", () => {
-    render(<DegradedBanner plan={planFixture({ reputation_degraded: true })} />);
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
     // Assertive would cut a screen reader off mid-plan on every render. The
     // banner sits in document order above the Authorize control instead, so
     // it cannot be walked past.
@@ -185,7 +197,9 @@ describe("DegradedBanner — how it is announced and structured", () => {
 
   // The card's own "Execution plan" is the h2 this sits under.
   it("heads the banner at h3, under the card heading", () => {
-    render(<DegradedBanner plan={planFixture({ reputation_degraded: true })} />);
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
     const heading = screen.getByRole("heading", { level: 3 });
     expect(heading.textContent).toBe("Reputation could not be read");
   });
@@ -193,7 +207,9 @@ describe("DegradedBanner — how it is announced and structured", () => {
   // Meaning is never carried by the magenta alone: the glyph is decorative and
   // the words beside it do the work.
   it("pairs the warning glyph with a word, and hides the glyph from readers", () => {
-    render(<DegradedBanner plan={planFixture({ reputation_degraded: true })} />);
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
     const status = screen.getByRole("status");
     const glyph = status.querySelector('[aria-hidden="true"]');
     expect(glyph?.textContent).toBe("⚠");
