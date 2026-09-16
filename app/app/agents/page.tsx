@@ -360,6 +360,7 @@ export default function AgentsPage() {
                             className="clip-cyber-sm"
                             onRetry={binding.recheck}
                             retryLabel="recheck"
+                            retrying={binding.rechecking}
                           >
                             couldn&apos;t check whether {a.name} has an endpoint
                             bound — its status is unknown.
