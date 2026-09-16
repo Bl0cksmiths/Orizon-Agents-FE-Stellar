@@ -82,6 +82,32 @@ test.describe("operator dashboard", () => {
     await expect(page.getByText(/being routed|will be routed/i)).toHaveCount(0);
   });
 
+  test("reports a platform self-payment as excluded, not as revenue", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page);
+    await page.goto("/app/operator");
+
+    // `weather_bot`'s only charge event was paid by the platform's own settler
+    // into an account the platform owns. Counting it as earnings is the single
+    // most misleading thing this dashboard could do, and it is the easy bug:
+    // the `charged` event carries no payer, so anything that trusts the event
+    // alone gets it wrong.
+    await expect(
+      page.getByText(`No customer payment has settled to ${OWNED[0].name}.`),
+    ).toBeVisible();
+    await expect(page.getByText(/self-payment · excluded/)).toBeVisible();
+
+    // An agent with no charge events at all must not be told the same story —
+    // it has an empty window, which is a different fact.
+    await expect(
+      page.getByText(
+        /The escrow recorded no charge against this agent in the last 7 days/,
+      ),
+    ).toBeVisible();
+  });
+
   test("tells a disconnected wallet why the page is empty", async ({
     page,
   }) => {
