@@ -27,7 +27,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 
-import type { AgentSettlement } from "@/lib/types";
+import type { AgentSettlement, SettlementEntry } from "@/lib/types";
 
 // Hoisted: the vi.mock factory runs before module-scope consts exist.
 const { getSettlement } = vi.hoisted(() => ({ getSettlement: vi.fn() }));
@@ -36,6 +36,9 @@ vi.mock("@/lib/api", () => ({ getSettlement }));
 import { SettlementPanel } from "./settlement-panel";
 
 const AGENT = "weather_bot";
+/** The account that signs settlements and owns the platform's batch agent. */
+const PLATFORM = "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXX";
+const CUSTOMER = "GBUYER4H6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLECUSTOMERXXXX";
 
 /**
  * A rejection useFetch will NOT retry on its own (see isTransientFetchError):
@@ -55,6 +58,20 @@ function settlement(over: Partial<AgentSettlement> = {}): AgentSettlement {
     self_payment_stroops: 0,
     truncated: false,
     unavailable: null,
+    ...over,
+  };
+}
+
+/** One charge event; a platform self-payment unless a test says otherwise. */
+function entry(over: Partial<SettlementEntry> = {}): SettlementEntry {
+  return {
+    job_id: "9f2c41a8b7e04d5c8a1b2c3d4e5f6071",
+    auth_id: "1a2b3c4d5e6f70819a2b3c4d5e6f7081",
+    amount_stroops: 1_610_000,
+    ledger: 1_284_551,
+    at: "2026-09-12T04:18:33Z",
+    payer: PLATFORM,
+    self_payment: true,
     ...over,
   };
 }
@@ -268,5 +285,111 @@ describe("SettlementPanel — a window that ran and found nothing", () => {
       unit: "USDC",
     });
     expect(visibleText()).not.toContain("native asset");
+  });
+});
+
+describe("SettlementPanel — a charge paid by the platform to itself", () => {
+  const selfPaid = () =>
+    settlement({
+      entries: [entry()],
+      total_stroops: 0,
+      self_payment_stroops: 1_610_000,
+    });
+
+  it("narrows the claim to customer payment when a charge does exist", async () => {
+    getSettlement.mockResolvedValue(selfPaid());
+    renderPanel();
+
+    // A charge did settle on-chain here, so the blunt "no payment settled"
+    // would be false; only the customer half of it is zero.
+    await screen.findByText(`No customer payment has settled to ${AGENT}.`);
+    expect(visibleText()).toContain(
+      "The charges below are the only ones in the last 7 days, and none of them is a customer paying for work",
+    );
+  });
+
+  it("shows the self-payment, labels it in words, and keeps it out of revenue", async () => {
+    getSettlement.mockResolvedValue(selfPaid());
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    // Revenue excludes it; the excluded figure is reported next to it rather
+    // than dropped, which is the difference between excluding and hiding.
+    expect(tileFigure("settled revenue")).toEqual({
+      value: "0.0",
+      unit: "XLM",
+    });
+    expect(tileFigure("excluded self-payments")).toEqual({
+      value: "0.161",
+      unit: "XLM",
+    });
+    expect(tileFigure("charged events")).toEqual({ value: "1", unit: "" });
+
+    const text = visibleText();
+    // The label carries its meaning in words, not in the magenta alone.
+    expect(text).toContain("self-payment · excluded");
+    expect(text).toContain(
+      "The payer on this charge resolves to the platform's own account",
+    );
+    expect(text).toContain("it moved platform funds to the platform");
+    expect(text).toContain("0.161 XLM");
+  });
+
+  it("links the payer to the explorer so the claim can be checked", async () => {
+    getSettlement.mockResolvedValue(selfPaid());
+    renderPanel();
+
+    const link = await screen.findByRole("link");
+    // "trust us, it was us" is not evidence; the address has to be verifiable.
+    expect(link.getAttribute("href")).toBe(
+      `https://stellar.expert/explorer/testnet/account/${PLATFORM}`,
+    );
+    expect(visibleText()).toContain(PLATFORM);
+  });
+
+  it("names a missing close time instead of printing Invalid Date", async () => {
+    getSettlement.mockResolvedValue(
+      settlement({
+        entries: [entry({ at: null })],
+        self_payment_stroops: 1_610_000,
+      }),
+    );
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    expect(visibleText()).toContain("not reported by the rpc");
+    expect(visibleText()).not.toContain("Invalid Date");
+  });
+});
+
+describe("SettlementPanel — a charge a customer actually paid", () => {
+  it("counts it as revenue and drops the defect explanation", async () => {
+    getSettlement.mockResolvedValue(
+      settlement({
+        entries: [
+          entry({
+            payer: CUSTOMER,
+            self_payment: false,
+            amount_stroops: 25_000_000,
+          }),
+        ],
+        total_stroops: 25_000_000,
+      }),
+    );
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    expect(tileFigure("settled revenue")).toEqual({
+      value: "2.5",
+      unit: "XLM",
+    });
+    expect(visibleText()).toContain("customer payment");
+
+    // An agent with real revenue is not living under the charge defect, and a
+    // standing contract-bug essay over a working figure would be noise.
+    expect(
+      screen.queryByRole("heading", { name: "Why nothing settles" }),
+    ).toBeNull();
+    expect(visibleText()).not.toContain("has settled to");
   });
 });
