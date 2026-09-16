@@ -218,6 +218,17 @@ export type SettlementEntry = {
   auth_id: string;
   amount_stroops: number;
   ledger: number;
+  /**
+   * The charge transaction, as 64 lowercase hex characters.
+   *
+   * Null means the node handed us something that is not a usable hash — the
+   * SDK requires the field, so it can never be absent, but it validates only
+   * that it is a string. The backend shape-checks it and sends null rather
+   * than pass a malformed value through. **Render no link at all for null**,
+   * never an empty href: a dead evidence link looks like proof and sends an
+   * operator off to verify a charge against a 404.
+   */
+  tx_hash?: string | null;
   /** Ledger close time, or null when the RPC response omitted it. */
   at: string | null;
   /** A G… address, or the literal "unknown" when the escrow's authorization
