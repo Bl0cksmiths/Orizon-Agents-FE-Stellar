@@ -173,7 +173,8 @@ export function RoutingStanding({
         </h2>
         <p className={`mt-1 ${body}`}>
           Whether the orchestrator can pick{" "}
-          <span className="text-text">{agentId}</span>, and what decides it.
+          <span className="break-all text-text">{agentId}</span>, and what
+          decides it.
         </p>
       </div>
 
@@ -211,12 +212,14 @@ export function RoutingStanding({
                 {/* ButtonLink carries the shared `focusRing` through the button
                     base, and the id rides in the href so an id that reached us
                     from the chain is never retyped by hand. The label repeats
-                    it so several of these on one page are told apart aloud. */}
+                    it so several of these on one page are told apart aloud.
+                    Capped and breakable because an agent id is one unbreakable
+                    token and this panel has to survive a 320px viewport. */}
                 <ButtonLink
                   variant="outline"
                   size="sm"
                   href={bindHref(agentId)}
-                  className="max-w-full"
+                  className="max-w-full break-all"
                 >
                   bind {agentId}
                 </ButtonLink>
