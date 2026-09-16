@@ -67,13 +67,18 @@ export default function AgentsPage() {
    * hiding a row because we have not read it yet would quietly shrink the
    * marketplace during an outage.
    */
-  const isRoutable = (a: Agent): boolean => {
-    if (a.source === "onchain" && a.bound === false) return false;
-    const floor = repBatch?.floor_bps;
-    const bound = repBatch?.reputations[a.id]?.lower_bound_bps;
-    if (floor == null || bound == null) return true;
-    return bound >= floor;
-  };
+  // Memoised on the batch it reads, so the row filter below can depend on it
+  // without rebuilding the whole table on every keystroke in the search box.
+  const isRoutable = useCallback(
+    (a: Agent): boolean => {
+      if (a.source === "onchain" && a.bound === false) return false;
+      const floor = repBatch?.floor_bps;
+      const bound = repBatch?.reputations[a.id]?.lower_bound_bps;
+      if (floor == null || bound == null) return true;
+      return bound >= floor;
+    },
+    [repBatch],
+  );
 
   const [filter, setFilter] = useState<
     "all" | "routable" | "online" | "idle" | "offline"
@@ -107,7 +112,7 @@ export default function AgentsPage() {
         (filter === "routable" ? isRoutable(a) : a.status === filter);
       return matchesQ && matchesStatus;
     });
-  }, [agents, q, filter]);
+  }, [agents, q, filter, isRoutable]);
 
   const renderReputation = (a: Agent) => {
     const live = repBatch?.reputations[a.id];
