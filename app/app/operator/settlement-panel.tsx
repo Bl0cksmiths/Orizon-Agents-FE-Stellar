@@ -142,6 +142,28 @@ function NothingSettledNotice({
 }
 
 /**
+ * The scan did not finish, so nothing below it is a total.
+ *
+ * Placed against the claim it weakens rather than at the foot of the card: a
+ * truncated scan read part of the window, so "nothing settled" is only true of
+ * the part it reached, and an operator who meets that caveat after the numbers
+ * has already drawn the conclusion. The wording says floor rather than
+ * "approximate" — the figure can only go up with more scanning, never down,
+ * and "approximate" would invite reading it as possibly high.
+ */
+function TruncatedNotice({ data }: { data: AgentSettlement }) {
+  return (
+    <p className="clip-cyber-sm max-w-2xl border border-violet/40 bg-violet/5 px-4 py-3 text-xs leading-relaxed text-muted">
+      <span aria-hidden="true">⚠ </span>
+      The scan stopped at its page limit before it reached the end of the{" "}
+      {data.window_days}-day window, so it did not read the whole log. Every
+      figure below is a floor rather than a total: a charge older than the last
+      ledger scanned would not appear here.
+    </p>
+  );
+}
+
+/**
  * Why a completed run can leave no payment behind.
  *
  * This is the finding, not a caveat. `PaymentEscrow.authorize` records an
@@ -296,10 +318,10 @@ function ScanFacts({ data }: { data: AgentSettlement }) {
       <KVRow k="scan window">
         last {data.window_days} days · soroban rpc event retention
       </KVRow>
-      <KVRow
-        k="ledgers scanned"
-        value={data.scanned_ledgers.toLocaleString()}
-      />
+      <KVRow k="ledgers scanned">
+        {data.scanned_ledgers.toLocaleString()}
+        {data.truncated ? " · stopped at the page cap" : null}
+      </KVRow>
       <KVRow k="unit">
         {assetLabel(data.asset)}
         {data.asset === "native"
@@ -401,6 +423,7 @@ export function SettlementPanel({
       {data.total_stroops === 0 ? (
         <NothingSettledNotice data={data} agentName={agentName} />
       ) : null}
+      {data.truncated ? <TruncatedNotice data={data} /> : null}
       <SettlementFigures data={data} />
       {/* Tied to the zero it explains rather than shown always: an agent with
           real customer revenue is not living under this defect, and a standing
