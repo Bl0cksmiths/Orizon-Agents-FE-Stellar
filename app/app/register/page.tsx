@@ -19,6 +19,7 @@ import { isAgentAlreadyExists } from "@/lib/register-submit";
 import { signAndSubmit } from "@/lib/sign-submit";
 import { buildRegistrationEvidence } from "@/lib/registration-evidence";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
+import { TWO_SIGNATURES } from "@/lib/binding-status";
 import { getStellarNetwork } from "@/lib/api";
 import { useFetch } from "@/lib/use-fetch";
 import { useAsyncAction } from "@/lib/use-async-action";
@@ -489,21 +490,43 @@ export default function RegisterPage() {
           ) : null}
 
           {txState === "success" ? null : (
-            <div className="flex items-center gap-3 pt-1">
-              <Button
-                type="submit"
-                variant="cyan"
-                size="md"
-                disabled={!canSubmit}
-              >
-                {submitting ? "◉ Working…" : "Register agent ▸"}
-              </Button>
-              {!wallet.connected ? (
-                <span className="font-mono text-[11px] text-muted">
-                  connect a wallet to register
-                </span>
-              ) : null}
-            </div>
+            <>
+              {/* Both prompts, named before the first one fires. An operator
+                  who meets an unexplained second wallet popup is right to read
+                  it as an attack, so this cannot wait for the success card —
+                  by then the first signature has already been spent. It sits
+                  against the submit button rather than at the top of the form
+                  because that is what is on screen at the moment of the click.
+
+                  The sentence is rendered from TWO_SIGNATURES verbatim: the
+                  bind page and the marketplace state the same fact, and three
+                  hand-written copies of a security claim drift apart. That is
+                  also why the emphasis lives in the kicker instead of <b> tags
+                  woven through the copy — splitting the shared string to bold
+                  a noun would fork the wording it exists to keep identical. */}
+              <div className="clip-cyber-sm border border-cyan/40 bg-cyan/5 p-4">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan mb-1">
+                  ▸ two signatures, one at a time
+                </div>
+                <p className="text-sm text-text">{TWO_SIGNATURES}</p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  type="submit"
+                  variant="cyan"
+                  size="md"
+                  disabled={!canSubmit}
+                >
+                  {submitting ? "◉ Working…" : "Register agent ▸"}
+                </Button>
+                {!wallet.connected ? (
+                  <span className="font-mono text-[11px] text-muted">
+                    connect a wallet to register
+                  </span>
+                ) : null}
+              </div>
+            </>
           )}
         </form>
       </Card>
