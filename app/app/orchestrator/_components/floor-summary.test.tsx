@@ -159,8 +159,20 @@ describe("FloorSummary — what it counts", () => {
     expect(text({ notices: [] })).not.toMatch(fraction);
   });
 
-  it("separates eligibility from selection instead of implying the floor picked the steps", () => {
-    expect(text()).toContain("eligible, not selected");
+  /**
+   * The eligibility-versus-selection sentence moved to the exclusions panel,
+   * which says it beside the agents it applies to. What must remain true HERE
+   * is the structural half of the same claim: the two counts are reported as
+   * two independent figures and never joined into a ratio. A fraction would
+   * assert a denominator — how many agents cleared the floor — that this
+   * response does not carry, and a buyer reading "2 of 6" would believe a
+   * number nobody computed.
+   */
+  it("never joins the two counts into a ratio", () => {
+    const shown = text({ notices: [notice(), notice({ agent_id: "b" })] });
+    expect(shown).toMatch(/steps planned/);
+    expect(shown).toMatch(/the floor acted on/);
+    expect(shown).not.toMatch(/\b\d+(?:\.\d+)?\s*(?:\/|out of|of)\s*\d/i);
   });
 });
 
@@ -258,9 +270,18 @@ describe("FloorSummary — wording that has been wrong before", () => {
     },
   );
 
-  it("says plainly what the floor did to an agent it acted on", () => {
-    expect(text({ notices: [notice()] })).toContain(
-      "passed over or replaced while the plan was built",
-    );
+  /**
+   * "Passed over or replaced, before any work was assigned" moved to the
+   * exclusions panel's intro, where it sits next to the agents it describes.
+   * The invariant that has to hold in this component is the narrower one it
+   * was protecting: nothing here may suggest an agent the floor acted on
+   * delivered badly. The floor runs while the plan is built, so no agent it
+   * touched was ever asked to do anything — saying otherwise would put a
+   * performance accusation on a screen the agent's operator never sees.
+   */
+  it("never attributes a floor action to work an agent did", () => {
+    const shown = text({ notices: [notice()] });
+    expect(shown).not.toMatch(/fail/i);
+    expect(shown).not.toMatch(/deliver|poor|bad work|underperform/i);
   });
 });
