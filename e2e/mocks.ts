@@ -1,5 +1,5 @@
 import type { Page, Route } from "@playwright/test";
-import type { DecomposeResponse } from "../lib/types";
+import type { DecomposeResponse, ReputationBatch } from "../lib/types";
 
 /**
  * Mock payloads shaped to satisfy lib/guards.ts (isOverview, isTaskList,
@@ -418,7 +418,7 @@ export const mockReputationParams = {
  * `{}`, `isReputationBatch` rejected it, and every score silently became a
  * seeded placeholder — a fixture gap that reads as working software.
  */
-export const mockReputationBatch = {
+export const mockReputationBatch: ReputationBatch = {
   floor_bps: 5500,
   prior_bps: 7000,
   reputations: {
