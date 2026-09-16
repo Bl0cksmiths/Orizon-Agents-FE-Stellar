@@ -337,6 +337,16 @@ export default function AgentsPage() {
                           {bindingState !== null && (
                             <BindingStateBadge state={bindingState} />
                           )}
+                          {/* Standing sits beside the name rather than in its
+                              own column: it is a set of conditional marks, and
+                              an empty column on every healthy row would cost
+                              horizontal space on a table that already scrolls
+                              sideways on a phone. */}
+                          <AgentStanding
+                            agent={a}
+                            rep={repBatch?.reputations[a.id] ?? null}
+                            floorBps={repBatch?.floor_bps ?? null}
+                          />
                         </div>
                       </td>
                       <td className="py-3">
