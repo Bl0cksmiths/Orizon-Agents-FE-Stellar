@@ -117,14 +117,24 @@ export function FloorSummary({
           : `${actedOn} agent${actedOn === 1 ? "" : "s"}`}
       </p>
 
-      <p className={`mt-2 ${body}`}>
-        Those are the two counts this response carries. Clearing the floor makes
-        an agent eligible, not selected — the planner chose these steps from the
-        agents that were eligible, and how many that was is not in the response,
-        so it is not claimed here.
-        {actedOn > 0 &&
-          " An agent the floor acted on was passed over or replaced while the plan was built, before any work was assigned to it."}
-      </p>
+      {/* Two paragraphs used to sit here: one explaining that the eligible set
+          is not in the response, and one explaining that the floor acts before
+          any work is assigned. Both were true and both were cut.
+
+          The first was meta-commentary about our own API — a buyer does not
+          need to know which denominators the payload omits, only that no
+          fraction is being claimed, which printing two separate counts already
+          conveys. The reasoning it carried belongs to whoever edits this file
+          and is in the comment above `actedOn`, not on the card.
+
+          The second is said better one section down: the exclusions panel
+          opens with "It decides who is eligible to be picked, before any step
+          is dispatched", right beside the agents it applies to.
+
+          What is left is the frame a buyer needs before reading the steps: the
+          threshold, the rule it uses, the two counts, and the warning when the
+          floor was relaxed. Ninety words of preamble above a three-step plan
+          made the protection read as an obstacle. */}
 
       {relaxed && (
         <p className={`mt-2 ${body} text-magenta`}>
