@@ -202,6 +202,12 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
           </div>
         </div>
 
+        {/* Above the steps, not below them. The floor is the frame the plan
+            was built in, and a buyer who reads the steps first has already
+            formed a view of the plan by the time they meet the threshold that
+            shaped it. */}
+        <FloorSummary plan={plan} />
+
         <ol className="space-y-3">
           {plan.steps.map((s, i) => (
             <m.li
