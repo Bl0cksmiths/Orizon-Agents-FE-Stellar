@@ -152,7 +152,14 @@ describe("AgentStanding — the floor verdict", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("names the agent and both numbers so the verdict is checkable", () => {
+  /**
+   * The agent's own bound is named so the verdict can be checked. The FLOOR's
+   * value is deliberately absent: it is one network-wide number, stated once
+   * above the table, and repeated down a column it becomes N chances to
+   * disagree with itself after a deployment changes it — while quietly
+   * reading as a property of the agent rather than of the marketplace.
+   */
+  it("names the agent and its own bound, and not the network floor", () => {
     const { container } = renderCell({
       agent: seeded({ name: "Kestrel" }),
       rep: rep({ lower_bound_bps: 4100 }),
@@ -160,7 +167,8 @@ describe("AgentStanding — the floor verdict", () => {
     const text = detail(container);
     expect(text).toContain("Kestrel");
     expect(text).toContain("2.05");
-    expect(text).toContain("3.00");
+    expect(text).not.toContain("3.00");
+    expect(text).toContain("the floor stated above this table");
   });
 
   // The product rule: below the floor is not routable, not delisted.
@@ -309,7 +317,7 @@ describe("AgentStanding — provenance", () => {
 describe("AgentStanding — endpoint binding", () => {
   it("flags an on-chain agent with no endpoint bound", () => {
     const { container } = renderCell({ agent: onchain({ bound: false }) });
-    expect(labels(container)).toContain("⊘ no endpoint bound");
+    expect(labels(container)).toContain("⊘ not yet operational");
   });
 
   it("says nothing about an on-chain agent that is bound", () => {
@@ -348,7 +356,7 @@ describe("AgentStanding — endpoint binding", () => {
     });
     expect(labels(container)).toEqual([
       "⬡ external",
-      "⊘ no endpoint bound",
+      "⊘ not yet operational",
       "⚑ below floor · not eligible",
     ]);
   });
