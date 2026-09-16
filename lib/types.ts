@@ -167,8 +167,25 @@ export type SettlementEntry = {
   ledger: number;
   /** Ledger close time, or null when the RPC response omitted it. */
   at: string | null;
+  /** A G… address, or the literal "unknown" when the escrow's authorization
+   *  record could not be read. Never a plausible-looking fake address. */
   payer: string;
   self_payment: boolean;
+  /**
+   * Why this charge is not counted as revenue, or null when it is.
+   *
+   * `self_payment` alone collapses four different facts into one boolean, and
+   * they do not mean the same thing to an operator: their own wallet funding a
+   * charge, the platform's settler funding it, and the backend being unable to
+   * establish either are separate situations, and only the middle one is the
+   * platform paying itself. Reported as an open string rather than a union so
+   * an older backend, or a value added later, degrades to "excluded, reason
+   * not recognised" instead of failing the guard.
+   *
+   * Known values: "payer_unreadable", "owner", "settler",
+   * "settler_unreadable". Null exactly when `self_payment` is false.
+   */
+  exclusion: string | null;
 };
 
 /**
