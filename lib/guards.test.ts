@@ -472,6 +472,39 @@ describe("isDecomposeResponse", () => {
     const nanBound = { ...notice, lower_bound_bps: Number.NaN };
     expect(isDecomposeResponse({ ...valid, notices: [nanBound] })).toBe(false);
   });
+
+  it("accepts a null lower bound and leaves it distinguishable from 0", () => {
+    // null is not a missing number, and it is emphatically not zero. It means
+    // the agent has no reputation entry at ALL, and a never-rated agent CLEARS
+    // the floor: its Wilson lower bound comes off the Bayesian prior at 5677
+    // bps against a floor of 5500. Zero would be the opposite fact — an agent
+    // rated into the ground.
+    const noEntry = {
+      kind: "excluded",
+      agent_id: "agt_new",
+      agent_name: "fresh.agent",
+      reason: "no endpoint bound",
+      reason_code: "unbound_endpoint",
+      lower_bound_bps: null,
+      floor_bps: 5500,
+    };
+    const payload = { ...valid, notices: [noEntry] };
+    expect(isDecomposeResponse(payload)).toBe(true);
+    // Both accepted, because both are real backend answers…
+    const ratedToZero = { ...noEntry, lower_bound_bps: 0 };
+    expect(isDecomposeResponse({ ...valid, notices: [ratedToZero] })).toBe(
+      true,
+    );
+    // …and the guard narrows rather than normalizes, so the caller can still
+    // tell them apart afterwards. A guard that "helpfully" coerced null to 0
+    // would put "0 bps against a 5500 floor" beside an agent that passed the
+    // floor — a contradiction the buyer cannot resolve and we cannot defend.
+    expect(payload.notices[0].lower_bound_bps).toBeNull();
+    expect(payload.notices[0].lower_bound_bps).not.toBe(0);
+    // Absent is the third distinct case: a backend predating the field.
+    const { lower_bound_bps: _drop, ...noField } = noEntry;
+    expect(isDecomposeResponse({ ...valid, notices: [noField] })).toBe(true);
+  });
 });
 
 describe("isReputationInfo", () => {
