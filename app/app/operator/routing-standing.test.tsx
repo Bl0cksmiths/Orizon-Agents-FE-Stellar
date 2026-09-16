@@ -100,7 +100,7 @@ describe("RoutingStanding — the verdict", () => {
   it("names the floor when a bound agent sits below it", () => {
     renderStanding({ reputation: rep({ lower_bound_bps: 4000 }) });
     expect(verdict()).toBe(
-      "✕Not eligible — its Wilson lower bound is below the network floor.",
+      "✕Not eligible — its reputation lower bound is below the network floor.",
     );
   });
 
@@ -116,7 +116,7 @@ describe("RoutingStanding — the verdict", () => {
     });
     expect(verdict()).toContain("no endpoint is bound");
     expect(verdict()).toContain(
-      "its Wilson lower bound is below the network floor",
+      "its reputation lower bound is below the network floor",
     );
   });
 

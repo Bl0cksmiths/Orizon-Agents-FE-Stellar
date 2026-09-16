@@ -109,6 +109,10 @@ export function RoutingStanding({
         : "unknown";
 
   // The backend's rule, verbatim: the Wilson lower bound against the floor.
+  // "Wilson" stays in the comments and out of the copy: naming the
+  // statistic tells an operator nothing they can act on, and the sentence
+  // below the gate already explains what the lower bound is and why it,
+  // rather than the headline score, is the number that decides.
   // A null reputation means this agent was not in the batch — unknown, and
   // deliberately not defaulted to the prior, which would be inventing a score.
   const floorGate: Gate =
@@ -130,7 +134,7 @@ export function RoutingStanding({
   const blockers: string[] = [];
   if (bindingGate === "fail") blockers.push("no endpoint is bound");
   if (floorGate === "fail")
-    blockers.push("its Wilson lower bound is below the network floor");
+    blockers.push("its reputation lower bound is below the network floor");
 
   const unread: string[] = [];
   if (bindingGate === "unknown")
@@ -145,7 +149,7 @@ export function RoutingStanding({
   const holds: string[] = [];
   if (bindingState === "bound") holds.push("an endpoint is bound");
   if (floorGate === "pass")
-    holds.push("the Wilson lower bound clears the network floor");
+    holds.push("the reputation lower bound clears the network floor");
 
   const headline =
     verdict === "pass"
@@ -158,7 +162,7 @@ export function RoutingStanding({
     verdict === "pass"
       ? `Nothing is blocking selection: ${joinClauses(holds)}. Eligibility is not selection — it puts this agent in the candidate pool, and the planner chooses from that pool on every request.`
       : verdict === "fail"
-        ? "An agent is selected only when both gates hold: an endpoint is bound, and the Wilson lower bound clears the network floor."
+        ? "An agent is selected only when both gates hold: an endpoint is bound, and the reputation lower bound clears the network floor."
         : "This is not a verdict. Nothing here says the agent cannot be selected — one of the two gates has simply not been read.";
 
   // Derived from the agent id rather than useId: this panel holds no state and
