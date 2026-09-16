@@ -64,6 +64,24 @@ test.describe("operator dashboard", () => {
     await expect(page.getByText("unbound").first()).toBeVisible();
   });
 
+  test("gives each agent an explicit routing verdict", async ({ page }) => {
+    await mockWallet(page);
+    await mockApi(page);
+    await page.goto("/app/operator");
+
+    // Every mocked agent resolves to `binding_not_found`, so the binding gate
+    // fails and the verdict is settled regardless of the score. The point of
+    // the assertion is that a verdict is stated at all: the failure this story
+    // exists to prevent is a dashboard that shows an agent's details and lets
+    // the operator infer, wrongly, that it is working.
+    const verdicts = page.getByText(/^(Eligible|Not eligible|Standing not)/);
+    await expect(verdicts.first()).toBeVisible();
+    expect(await verdicts.count()).toBe(OWNED.length);
+    // Eligibility is a candidacy, not a promise of work. The phrase below is
+    // the conflation this codebase has already shipped once.
+    await expect(page.getByText(/being routed|will be routed/i)).toHaveCount(0);
+  });
+
   test("tells a disconnected wallet why the page is empty", async ({
     page,
   }) => {
