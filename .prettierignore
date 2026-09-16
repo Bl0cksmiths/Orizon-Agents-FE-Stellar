@@ -1,6 +1,7 @@
 # Mirrors of other repos — formatted by their own toolchains.
 backend/
 contract/
+.canonical-contracts/
 # Build and generated output.
 .next/
 coverage/
