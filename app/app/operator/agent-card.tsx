@@ -17,10 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { focusRing } from "@/lib/ui";
-import type { Agent } from "@/lib/types";
+import type { Agent, ReputationInfo } from "@/lib/types";
 import { BindingStateBadge } from "../agents/binding-notice";
 import { ManagePanel } from "../agents/manage-panel";
 import type { BindingState } from "../agents/use-binding-status";
+import { RoutingStanding } from "./routing-standing";
 
 const statusTone = {
   online: "cyan" as const,
@@ -32,12 +33,19 @@ export function AgentCard({
   agent,
   owner,
   bindingState,
+  reputation,
+  floorBps,
+  priorBps,
   onChanged,
 }: {
   agent: Agent;
   owner: string;
   /** Null when no binding claim applies — never render a verdict from it. */
   bindingState: BindingState | null;
+  /** Null when the batch did not carry this agent — not a low score. */
+  reputation: ReputationInfo | null;
+  floorBps: number | null;
+  priorBps: number | null;
   onChanged: () => void;
 }) {
   const [managing, setManaging] = useState(false);
@@ -78,6 +86,20 @@ export function AgentCard({
             skills <span className="text-text">{agent.skills.join(", ")}</span>
           </span>
         )}
+      </div>
+
+      {/* Placed above the settings, not below them. This is the answer to the
+          question the operator came with, and burying it under a fold of
+          controls is how "my agent is listed, so it must be working" survives
+          a dashboard that technically reported otherwise. */}
+      <div className="border-t border-border pt-5">
+        <RoutingStanding
+          agentId={agent.id}
+          bindingState={bindingState}
+          reputation={reputation}
+          floorBps={floorBps}
+          priorBps={priorBps}
+        />
       </div>
 
       <div className="border-t border-border pt-4">
