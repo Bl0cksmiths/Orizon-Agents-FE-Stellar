@@ -53,6 +53,12 @@ const isOptionalStr = (v: unknown): v is string | undefined =>
 const isOptionalBool = (v: unknown): v is boolean | undefined =>
   v === undefined || v === null || typeof v === "boolean";
 
+/** A finite number, or absent. The numeric mate of `isOptionalStr`: a wrong
+ * type is still rejected, a missing one is not. Exists because a field the UI
+ * divides or compares must never arrive as a string that coerces. */
+const isOptionalNum = (v: unknown): v is number | undefined =>
+  v === undefined || v === null || isNum(v);
+
 const isNumArray = (v: unknown): v is number[] =>
   Array.isArray(v) && v.every(isNum);
 
