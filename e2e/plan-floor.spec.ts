@@ -18,6 +18,7 @@ import {
   mockApi,
   mockPlanDegraded,
   mockPlanExcluded,
+  mockPlanLegacy,
   mockWallet,
 } from "./mocks";
 import { scoreOutOfFive } from "../lib/reputation-math";
@@ -379,5 +380,46 @@ test.describe("plan card — reputation, source and exclusions", () => {
         (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
       ),
     ).toEqual([]);
+  });
+
+  test("renders a plan from a backend that predates the floor fields", async ({
+    page,
+  }) => {
+    // A thrown render is the failure mode that matters here: React unmounts the
+    // tree and the buyer gets the error boundary instead of their plan.
+    const crashes: string[] = [];
+    page.on("pageerror", (e) => crashes.push(e.message));
+
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanLegacy);
+
+    // Frontend and backend deploy separately, so this is not a hypothetical
+    // payload — it is what the console renders against during a rollback or a
+    // lagging deploy. No `floor_bps`, no `reputation_degraded`, and notices
+    // with prose only.
+    await expect(steps(page)).toHaveCount(mockPlanLegacy.steps.length);
+    for (const step of mockPlanLegacy.steps) {
+      await expect(steps(page).filter({ hasText: step.agent_id })).toHaveCount(
+        1,
+      );
+    }
+    await expect(
+      page.getByText(`${mockPlanLegacy.total_usdc.toFixed(3)} USDC`).first(),
+    ).toBeVisible();
+
+    // An old backend's prose is the only explanation it can give for the shape
+    // of the plan. Dropping it because the structured fields are missing would
+    // leave a substitution the buyer can see but nothing that accounts for it.
+    for (const notice of mockPlanLegacy.notices) {
+      expect(
+        await page.getByText(notice.reason).count(),
+        "the pre-3.02 notice prose must still reach the card",
+      ).toBeGreaterThan(0);
+    }
+
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    expect(crashes, "a pre-3.02 payload must not throw in the card").toEqual(
+      [],
+    );
   });
 });
