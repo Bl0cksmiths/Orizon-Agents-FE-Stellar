@@ -166,6 +166,49 @@ export async function mockApiOutage(page: Page): Promise<void> {
 export const mockBindAgentId = "weather_bot";
 export const mockWalletAddress =
   "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
+
+/**
+ * The marketplace as an operator sees it: one seeded catalog agent that needs
+ * no endpoint, and two the connected wallet owns on-chain — one of which is
+ * deliberately left unbound, because that is the state story 2.05 exists to
+ * make visible. `GET /api/agents` used to return `[]`, which made every
+ * owned-agent surface untestable.
+ */
+export const mockAgents = [
+  {
+    id: "agt_11c0",
+    name: "code.gen",
+    skills: ["code"],
+    price: 0.054,
+    rep: 4.6,
+    status: "online",
+    runs: 128,
+    real: true,
+    owner: null,
+  },
+  {
+    id: "weather_bot",
+    name: "Weather Bot",
+    skills: ["weather"],
+    price: 0.02,
+    rep: 3.5,
+    status: "online",
+    runs: 4,
+    real: false,
+    owner: mockWalletAddress,
+  },
+  {
+    id: "unbound_bot",
+    name: "Unbound Bot",
+    skills: ["research"],
+    price: 0.03,
+    rep: 3.5,
+    status: "online",
+    runs: 0,
+    real: false,
+    owner: mockWalletAddress,
+  },
+];
 /**
  * What the emulated wallet answers a signMessage request with. The spec
  * asserts this exact string reaches POST /bind as `signature`: the backend
@@ -173,6 +216,11 @@ export const mockWalletAddress =
  * on the way through would turn a valid signature into a rejected one.
  */
 export const mockSignature = "ZTJlLXNpZ25hdHVyZS1ieXRlcw==";
+
+/** What the emulated wallet hands back from signTransaction. The value is
+ *  opaque on purpose: the app forwards it to POST /api/stellar/submit, which
+ *  is itself mocked, so no spec should ever parse it as real XDR. */
+export const mockSignedTxXdr = "AAAAAGUyZS1zaWduZWQtdHgtZW52ZWxvcGU=";
 
 const bindNonce = "e2ebindnonce00000000000000000000";
 
@@ -246,7 +294,7 @@ export async function mockApi(page: Page): Promise<void> {
       return json(route, mockPlan);
     }
     if (method === "GET" && pathname === "/api/agents") {
-      return json(route, []);
+      return json(route, mockAgents);
     }
     if (
       method === "GET" &&
@@ -290,10 +338,12 @@ export async function mockWallet(page: Page): Promise<void> {
     ({
       address,
       signature,
+      signedTxXdr,
       passphrase,
     }: {
       address: string;
       signature: string;
+      signedTxXdr: string;
       passphrase: string;
     }) => {
       window.localStorage.setItem(
@@ -341,6 +391,18 @@ export async function mockWallet(page: Page): Promise<void> {
           // signMessage rides on SUBMIT_BLOB and comes back as `signedBlob`.
           case "SUBMIT_BLOB":
             return reply({ signedBlob: signature, signerAddress: address });
+          // signTransaction rides on SUBMIT_TRANSACTION and comes back as
+          // `signedTransaction`. Registration needs this one; binding needs
+          // SUBMIT_BLOB above. They are genuinely different wallet operations
+          // — an on-chain transaction versus a signed message — which is the
+          // whole reason story 2.05 has to warn the operator about two
+          // prompts. A spec that drives registration without this reply dies
+          // on the fallback below rather than failing anywhere informative.
+          case "SUBMIT_TRANSACTION":
+            return reply({
+              signedTransaction: signedTxXdr,
+              signerAddress: address,
+            });
           default:
             return reply({
               apiError: {
@@ -354,6 +416,7 @@ export async function mockWallet(page: Page): Promise<void> {
     {
       address: mockWalletAddress,
       signature: mockSignature,
+      signedTxXdr: mockSignedTxXdr,
       passphrase: "Test SDF Network ; September 2015",
     },
   );

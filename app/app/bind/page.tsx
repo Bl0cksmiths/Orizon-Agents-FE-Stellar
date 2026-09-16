@@ -16,8 +16,9 @@
  * there; what is left here is state and markup.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   bindAgent,
   checkBindEndpoint,
@@ -40,6 +41,7 @@ import {
   type BindErrorView,
   type BindPhase,
 } from "@/lib/bind-ui";
+import { TRUST_BOUNDARY } from "@/lib/binding-status";
 import { validateAgentId } from "@/lib/register-validation";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useFetch } from "@/lib/use-fetch";
@@ -51,6 +53,7 @@ import { Card } from "@/components/ui/card";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
+import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import type { AgentBinding, BindChallenge } from "@/lib/types";
 
 const inputCls = `mt-1.5 w-full bg-bg/60 border border-input p-3 font-mono text-sm placeholder:text-muted focus:border-violet transition disabled:opacity-50 ${focusRing}`;
@@ -66,13 +69,26 @@ function shortG(g: string): string {
   return g.length <= 12 ? g : `${g.slice(0, 6)}…${g.slice(-6)}`;
 }
 
-export default function BindPage() {
+function BindPageInner() {
   const wallet = useWallet();
   const owner = wallet.address ?? "";
 
-  const [agentId, setAgentId] = useState("");
+  // The agent handed over by whoever sent the operator here — the registration
+  // success card and the marketplace's bind links both build this URL with
+  // `bindHref`, so an id that was just watched onto the chain is never retyped
+  // from memory. Read once, as a seed: this is a form field, and the operator
+  // has to stay free to edit or clear it. (Nothing routes from one ?agent= to
+  // another without leaving the page, so there is no re-seed to get wrong.)
+  const handedOffAgentId = useSearchParams().get("agent") ?? "";
+
+  const [agentId, setAgentId] = useState(handedOffAgentId);
   const [endpointRaw, setEndpointRaw] = useState("");
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  // A handed-off id arrives already in the field, so it can never be blurred —
+  // count it touched from the start or a malformed one would sit there
+  // unremarked until the operator poked a field they had no reason to poke.
+  const [touched, setTouched] = useState<Record<string, boolean>>(
+    handedOffAgentId === "" ? {} : { agent_id: true },
+  );
   const touch = (field: string) =>
     setTouched((t) => (t[field] ? t : { ...t, [field]: true }));
 
@@ -338,16 +354,7 @@ export default function BindPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Bind an Endpoint
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            Point one of your agents at the HTTPS endpoint that runs its work.
-            The wallet that owns the agent signs the binding — nothing else can
-            authorize it.
-          </p>
-        </div>
+        <BindHeading />
         <ConnectWallet size="md" />
       </div>
 
@@ -547,6 +554,8 @@ export default function BindPage() {
             )}
           </div>
 
+          <TrustBoundaryNote />
+
           {replacing ? (
             <p className="font-mono text-[11px] leading-relaxed text-muted">
               Binding replaces the endpoint above. Work already routed keeps the
@@ -667,34 +676,154 @@ export default function BindPage() {
         </form>
       </Card>
 
-      <Card>
-        <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan">
-          ▸ how binding works
-        </div>
-        <ol className="mt-3 space-y-2 text-sm text-muted list-decimal pl-5">
-          <li>
-            The registry issues a one-time challenge naming your agent, the
-            endpoint and a nonce.
-          </li>
-          <li>
-            Your wallet signs that exact string. The signature proves the
-            binding came from the account that owns the agent — no password, no
-            account to create.
-          </li>
-          <li>
-            The challenge is short-lived. If it expires while the wallet popup
-            is open, a fresh one is requested rather than a dead signature
-            submitted.
-          </li>
-        </ol>
-        <p className="mt-3 text-sm text-muted">
-          No agent yet?{" "}
-          <Link href="/app/register" className={inlineLink}>
-            Register one first
-          </Link>
-          .
-        </p>
-      </Card>
+      <HowBindingWorks />
     </div>
+  );
+}
+
+/** The page's own words. Static, so the Suspense fallback below renders the
+ *  real thing rather than a grey bar of some other height. */
+function BindHeading() {
+  return (
+    <div>
+      <h1 className="text-3xl font-semibold tracking-tight">
+        Bind an Endpoint
+      </h1>
+      <p className="mt-1 text-sm text-muted">
+        Point one of your agents at the HTTPS endpoint that runs its work. The
+        wallet that owns the agent signs the binding — nothing else can
+        authorize it.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * AC-6, and it sits inside the form on purpose. This is a fact about the value
+ * in the endpoint field it follows — the endpoint is the one part of an agent
+ * that is not on the chain — so it is read while the operator decides what to
+ * bind rather than after they have bound it. Down in the explainer card it
+ * would be documentation; here it is part of doing the binding, and it is what
+ * makes the "bind again to move hosts" claim credible.
+ *
+ * The wording is shared (lib/binding-status) because the registration flow
+ * makes the same claim, and two drifting copies of a claim about what is and
+ * is not permanent is worse than one. Static, so the fallback renders it too.
+ */
+function TrustBoundaryNote() {
+  return (
+    <p className="border-l-2 border-violet/60 bg-violet/5 py-2.5 pl-3.5 pr-3 text-sm leading-relaxed text-muted">
+      <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
+        trust boundary
+      </span>
+      <br />
+      {TRUST_BOUNDARY}
+    </p>
+  );
+}
+
+/** The authentication explainer — how a signature stands in for a password.
+ *  Static for the same reason, and rendered by the fallback too. */
+function HowBindingWorks() {
+  return (
+    <Card>
+      <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan">
+        ▸ how binding works
+      </div>
+      <ol className="mt-3 space-y-2 text-sm text-muted list-decimal pl-5">
+        <li>
+          The registry issues a one-time challenge naming your agent, the
+          endpoint and a nonce.
+        </li>
+        <li>
+          Your wallet signs that exact string. The signature proves the binding
+          came from the account that owns the agent — no password, no account to
+          create.
+        </li>
+        <li>
+          The challenge is short-lived. If it expires while the wallet popup is
+          open, a fresh one is requested rather than a dead signature submitted.
+        </li>
+      </ol>
+      <p className="mt-3 text-sm text-muted">
+        No agent yet?{" "}
+        <Link href="/app/register" className={inlineLink}>
+          Register one first
+        </Link>
+        .
+      </p>
+    </Card>
+  );
+}
+
+/**
+ * Shell for the Suspense boundary. Reading the handed-off agent id with
+ * `useSearchParams` opts this whole page into client-side rendering, so this
+ * fallback — not the form — is what ships in the prerendered HTML. A one-line
+ * "loading…" would reserve none of the binding card's height and the real
+ * layout would slam in underneath it, moving the agent id field out from under
+ * a cursor already on its way there.
+ *
+ * So everything that does not depend on the URL is rendered for real — the
+ * heading, the trust boundary, the explainer — and only the card that does is
+ * reserved, field by field, at the measured heights of the real controls.
+ * Fallback and form then come out the same height to the pixel from 640px up.
+ * Below that the two field hints wrap to a second line and the form runs
+ * ~100px taller; that is a function of content width rather than viewport
+ * width (the sidebar appears at 768px), so it is left as a small settle rather
+ * than encoded as four breakpoints of magic numbers.
+ */
+function BindSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true">
+      <LoadingStatus label="Loading the binding form…" />
+      <div className="flex items-end justify-between flex-wrap gap-4">
+        <BindHeading />
+        <Skeleton className="h-10 w-40" />
+      </div>
+
+      <Card>
+        <div className="flex h-[15px] items-center justify-between gap-3">
+          <Skeleton className="h-3 w-36" />
+          <Skeleton className="h-3 w-48" />
+        </div>
+        <div className="mt-5 space-y-5">
+          {/* agent id: label, input, hint */}
+          <div className="h-[97px]">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-[46px] w-full" />
+            <Skeleton className="mt-2.5 h-3 w-80 max-w-full" />
+          </div>
+          {/* current binding — the real panel's own border, since that much is
+              on screen either way */}
+          <div className="h-[74px] border border-border/60 bg-bg/40 p-4">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="mt-2.5 h-3 w-64 max-w-full" />
+          </div>
+          {/* endpoint url: label, input, hint */}
+          <div className="h-[97px]">
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="mt-2 h-[46px] w-full" />
+            <Skeleton className="mt-2.5 h-3 w-80 max-w-full" />
+          </div>
+          <TrustBoundaryNote />
+          {/* the live region, empty at rest */}
+          <div className="h-4" />
+          <div className="h-11 pt-1">
+            <Skeleton className="h-10 w-44" />
+          </div>
+        </div>
+      </Card>
+
+      <HowBindingWorks />
+    </div>
+  );
+}
+
+export default function BindPage() {
+  return (
+    <Suspense fallback={<BindSkeleton />}>
+      <BindPageInner />
+    </Suspense>
   );
 }
