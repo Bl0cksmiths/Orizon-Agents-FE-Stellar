@@ -250,4 +250,52 @@ test.describe("plan card — reputation, source and exclusions", () => {
     // the moment it does.)
     await expect(estimateBanner(page)).toHaveCount(0);
   });
+
+  test("AC-3 — the exclusions start shut, carry their count, and open to numbers", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanExcluded);
+
+    const panel = exclusions(page);
+    // One disclosure on the page, so every `details` assertion here is about
+    // this panel and not about some collapsible that arrives later.
+    await expect(panel).toHaveCount(1);
+    await expect(panel).toHaveJSProperty("open", false);
+
+    const summary = panel.locator("summary");
+    await expect(summary).toBeVisible();
+
+    // The count is the half that has to survive being shut. A buyer who never
+    // opens the panel still has to learn that agents were refused at all —
+    // silence reads as "nothing was refused", which is a different plan.
+    const excluded = mockPlanExcluded.notices.length;
+    expect(
+      (await summary.innerText()).trim(),
+      "the shut summary must say how many agents were excluded",
+    ).toMatch(new RegExp(`(?<![\\d.])${excluded}(?![\\d.])`));
+
+    // Shut means shut: the reasons are not readable until asked for, which is
+    // the whole point of spending a disclosure on them rather than an
+    // always-open block that pushes the authorize control off the screen.
+    await expect(
+      panel.getByText(mockPlanExcluded.notices[0].agent_name),
+    ).toBeHidden();
+
+    await summary.click();
+    await expect(panel).toHaveJSProperty("open", true);
+
+    const rows = exclusionRows(page);
+    await expect(rows).toHaveCount(excluded);
+    for (const notice of mockPlanExcluded.notices) {
+      const row = rows.filter({ hasText: notice.agent_name });
+      await expect(row).toHaveCount(1);
+      // Both deciding numbers, per row. `scrape.fast` is why: its smoothed
+      // score (5750) is above the floor and it was still refused, because
+      // routing decides on the lower bound (5283). A row that prints only one
+      // of the two numbers cannot be checked by the person reading it.
+      await expect(row).toContainText(numberPattern(notice.lower_bound_bps));
+      await expect(row).toContainText(numberPattern(notice.floor_bps));
+    }
+  });
 });
