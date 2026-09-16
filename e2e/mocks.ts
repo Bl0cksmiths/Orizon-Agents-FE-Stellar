@@ -138,6 +138,66 @@ export const mockReputationParams = {
 };
 
 /**
+ * The batch every reputation-aware surface reads. Three deliberately
+ * different states, because they render as three different sentences:
+ *
+ *   - `agt_11c0`   scored on-chain, comfortably above the floor;
+ *   - `weather_bot` scored on-chain but with a lower bound only just clear of
+ *     it — the interesting case, since routing uses the bound and not the
+ *     headline score;
+ *   - `unbound_bot` never rated, so it carries the Bayesian prior and its
+ *     lower bound sits *below* the floor. That is the honest cold-start
+ *     position of a brand-new agent and the reason an operator sees
+ *     "not eligible" on something they just registered.
+ *
+ * Without this, `GET /api/stellar/reputation` fell through to the catch-all
+ * `{}`, `isReputationBatch` rejected it, and every score silently became a
+ * seeded placeholder — a fixture gap that reads as working software.
+ */
+export const mockReputationBatch = {
+  floor_bps: 5500,
+  prior_bps: 7000,
+  reputations: {
+    agt_11c0: {
+      agent_id: "agt_11c0",
+      smoothed_bps: 9200,
+      lower_bound_bps: 8410,
+      avg_bps: 9350,
+      count: 128,
+      weight: 6.912,
+      disputed: 0,
+      dispute_rate_bps: 0,
+      source: "onchain",
+      degraded: false,
+    },
+    weather_bot: {
+      agent_id: "weather_bot",
+      smoothed_bps: 7420,
+      lower_bound_bps: 5746,
+      avg_bps: 7750,
+      count: 8,
+      weight: 1.29,
+      disputed: 0,
+      dispute_rate_bps: 0,
+      source: "onchain",
+      degraded: false,
+    },
+    unbound_bot: {
+      agent_id: "unbound_bot",
+      smoothed_bps: 7000,
+      lower_bound_bps: 5100,
+      avg_bps: 7000,
+      count: 0,
+      weight: 0,
+      disputed: 0,
+      dispute_rate_bps: 0,
+      source: "prior",
+      degraded: false,
+    },
+  },
+};
+
+/**
  * Fails every `/api/*` call the way the production outage did: a 404 carrying
  * the backend's real error envelope. This is deliberately indistinguishable
  * from a healthy backend behind a misconfigured proxy — the exact condition
