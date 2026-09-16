@@ -13,6 +13,7 @@
  * Run isolated, always:  E2E_PORT=3181 npx playwright test e2e/plan-floor.spec.ts
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import {
   mockApi,
   mockPlanDegraded,
@@ -352,5 +353,31 @@ test.describe("plan card — reputation, source and exclusions", () => {
       overflow,
       "expanding the exclusions must not make the page scroll sideways",
     ).toBeLessThanOrEqual(1);
+  });
+
+  test("the expanded card, warning and all, has no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanDegraded, { wallet: true });
+
+    await exclusions(page).locator("summary").click();
+    await expect(exclusions(page)).toHaveJSProperty("open", true);
+    await expect(estimateBanner(page)).toHaveCount(1);
+
+    // e2e/a11y.spec.ts sweeps /app/orchestrator with an empty intent box, so
+    // none of this state — a plan, an expanded disclosure, a live-region
+    // warning — has ever reached axe. It is also the state that most wants
+    // checking: three components composed by a fourth, each carrying meaning
+    // in colour, and a decision about money at the end of it.
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+
+    expect(
+      violations.map(
+        (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+      ),
+    ).toEqual([]);
   });
 });
