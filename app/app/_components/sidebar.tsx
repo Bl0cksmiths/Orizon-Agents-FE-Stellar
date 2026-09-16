@@ -130,6 +130,38 @@ const items = [
     ),
   },
   {
+    // Deliberately "My Agents" and not "Operator": the label has to separate
+    // this from /app/agents, which is the whole public registry. This one is
+    // only what the connected wallet owns.
+    href: "/app/operator",
+    label: "My Agents",
+    icon: (
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        className="h-4 w-4"
+        aria-hidden="true"
+      >
+        <rect
+          x="2.5"
+          y="4"
+          width="15"
+          height="12"
+          rx="1.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M6 8.5h3M6 11.5h6"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <circle cx="14" cy="8.5" r="1.2" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
     href: "/app/reputation",
     label: "Reputation",
     icon: (

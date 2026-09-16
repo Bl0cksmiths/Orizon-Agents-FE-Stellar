@@ -31,7 +31,10 @@ export function needsBinding(agent: Pick<Agent, "owner">): boolean {
 /** Is this agent owned by the connected wallet? Mirrors the story-1.08 rule
  *  already applied in the marketplace: trust the on-chain owner, never a
  *  local record. */
-export function isOwnedBy(agent: Pick<Agent, "owner">, address: string | null): boolean {
+export function isOwnedBy(
+  agent: Pick<Agent, "owner">,
+  address: string | null,
+): boolean {
   return !!address && !!agent.owner && agent.owner === address;
 }
 
@@ -70,3 +73,14 @@ export const TRUST_BOUNDARY =
   "Ownership of this agent is on-chain and permanent. The endpoint is not: " +
   "it is an off-chain service record held by the registry, so you can move " +
   "hosts by binding again, and nothing about your ownership changes.";
+
+/** The agents this wallet owns on-chain. The console resolved ownership inline
+ *  in three different places before this existed; a dashboard whose entire
+ *  premise is "your agents" needs it as a function, not a row predicate. */
+export function ownedAgents(
+  agents: Agent[] | null,
+  address: string | null,
+): Agent[] {
+  if (!agents || !address) return [];
+  return agents.filter((a) => isOwnedBy(a, address));
+}

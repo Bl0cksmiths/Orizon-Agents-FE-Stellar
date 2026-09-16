@@ -1,5 +1,6 @@
 import {
   isAgentBinding,
+  isAgentSettlement,
   isAgentIdAvailability,
   isAgentList,
   isArtifactResponse,
@@ -26,6 +27,7 @@ import type {
   Agent,
   AgentBinding,
   AgentIdAvailability,
+  AgentSettlement,
   ArtifactResponse,
   AuthorizeBuild,
   BindChallenge,
@@ -423,6 +425,15 @@ export const getReputation = (agentId: string) =>
   get<ReputationInfo>(
     `/stellar/reputation/${agentId}`,
     ensure(`/stellar/reputation/${agentId}`, isReputationInfo),
+  );
+
+/** What this agent has actually been paid, over the RPC's retention window.
+ *  Not cheap on the backend (an event scan plus a contract read per hit), so
+ *  it is fetched once per dashboard mount and never polled. */
+export const getSettlement = (agentId: string) =>
+  get<AgentSettlement>(
+    `/stellar/settlement/${encodeURIComponent(agentId)}`,
+    ensure("/stellar/settlement", isAgentSettlement),
   );
 
 export const submitSigned = (signedXdr: string) =>

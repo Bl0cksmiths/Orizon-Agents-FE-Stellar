@@ -12,6 +12,7 @@
 import type {
   Agent,
   AgentBinding,
+  AgentSettlement,
   AgentIdAvailability,
   ArtifactResponse,
   AuthorizeBuild,
@@ -293,6 +294,42 @@ export function isReputationBatch(v: unknown): v is ReputationBatch {
     isNum(v.prior_bps) &&
     isRecord(v.reputations) &&
     Object.values(v.reputations).every(isReputationInfo)
+  );
+}
+
+/** One settlement row. `amount_stroops` is summed and divided, `self_payment`
+ * decides whether it counts as revenue at all, so a wrong type on either is
+ * worse than a missing payload. */
+const isSettlementEntry = (v: unknown): boolean =>
+  isRecord(v) &&
+  isStr(v.job_id) &&
+  isStr(v.auth_id) &&
+  isNum(v.amount_stroops) &&
+  isNum(v.ledger) &&
+  isOptionalStr(v.at) &&
+  isStr(v.payer) &&
+  typeof v.self_payment === "boolean" &&
+  // Optional rather than required: a backend that predates the field still
+  // serves correct figures, and rejecting the whole payload over a missing
+  // explanation would trade real evidence for none.
+  isOptionalStr(v.exclusion);
+
+/** Settlement panel: every numeric below is rendered as money or as a window
+ * boundary, and `unavailable` is what separates "nothing was paid" from "we
+ * could not look". */
+export function isAgentSettlement(v: unknown): v is AgentSettlement {
+  return (
+    isRecord(v) &&
+    isStr(v.agent_id) &&
+    isStr(v.asset) &&
+    isNum(v.window_days) &&
+    isNum(v.scanned_ledgers) &&
+    Array.isArray(v.entries) &&
+    v.entries.every(isSettlementEntry) &&
+    isNum(v.total_stroops) &&
+    isNum(v.self_payment_stroops) &&
+    typeof v.truncated === "boolean" &&
+    isOptionalStr(v.unavailable)
   );
 }
 

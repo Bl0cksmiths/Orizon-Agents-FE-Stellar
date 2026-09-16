@@ -149,6 +149,75 @@ export type ReputationBatch = {
   prior_bps: number;
 };
 
+/**
+ * One `charged` event the escrow emitted for an agent — a real settlement, or
+ * a self-payment dressed as one.
+ *
+ * `self_payment` is the field that carries the weight. The `charged` event
+ * payload has no payer and no owner in it, so the backend resolves
+ * `authorization(auth_id).payer` and compares it against `owner_of(agent_id)`.
+ * Every settlement on this deployment so far has come back true: the platform
+ * account paying itself. Rendering those as operator revenue would be the
+ * single most misleading thing this dashboard could do.
+ */
+export type SettlementEntry = {
+  job_id: string;
+  auth_id: string;
+  amount_stroops: number;
+  ledger: number;
+  /** Ledger close time, or null when the RPC response omitted it. */
+  at: string | null;
+  /** A G… address, or the literal "unknown" when the escrow's authorization
+   *  record could not be read. Never a plausible-looking fake address. */
+  payer: string;
+  self_payment: boolean;
+  /**
+   * Why this charge is not counted as revenue, or null when it is.
+   *
+   * `self_payment` alone collapses four different facts into one boolean, and
+   * they do not mean the same thing to an operator: their own wallet funding a
+   * charge, the platform's settler funding it, and the backend being unable to
+   * establish either are separate situations, and only the middle one is the
+   * platform paying itself. Reported as an open string rather than a union so
+   * an older backend, or a value added later, degrades to "excluded, reason
+   * not recognised" instead of failing the guard.
+   *
+   * Known values: "payer_unreadable", "owner", "settler",
+   * "settler_unreadable". Null exactly when `self_payment` is false, and
+   * absent altogether on a response from a backend that predates the field —
+   * optional for the same reason `degraded` is, so the older shape stays a
+   * valid payload rather than a rejected one.
+   */
+  exclusion?: string | null;
+};
+
+/**
+ * Response of GET /api/stellar/settlement/{agent_id} — what an agent has
+ * actually been paid, and the limits of that claim.
+ *
+ * Both limits are part of the payload on purpose. `window_days` is the Soroban
+ * RPC event retention (7 days, measured — not a policy we chose), so an empty
+ * list means "nothing in the last week", never "nothing ever". `unavailable`
+ * carries the reason the scan could not run at all, which must never be
+ * rendered as a zero.
+ */
+export type AgentSettlement = {
+  agent_id: string;
+  /** The asset the escrow's SAC wraps — "native" on testnet. */
+  asset: string;
+  window_days: number;
+  scanned_ledgers: number;
+  entries: SettlementEntry[];
+  /** Sum of entries where `self_payment` is false. The honest number. */
+  total_stroops: number;
+  /** Sum of the excluded self-payments, reported rather than hidden. */
+  self_payment_stroops: number;
+  /** The scan stopped at its page cap before reaching the window's end. */
+  truncated: boolean;
+  /** Why no scan happened, or null when one did. */
+  unavailable: string | null;
+};
+
 /** Response of GET /api/stellar/reputation/params — the full parameter set
  * of the reputation system (routing constants + on-chain decay constants). */
 export type ReputationParams = {

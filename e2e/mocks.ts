@@ -138,6 +138,66 @@ export const mockReputationParams = {
 };
 
 /**
+ * The batch every reputation-aware surface reads. Three deliberately
+ * different states, because they render as three different sentences:
+ *
+ *   - `agt_11c0`   scored on-chain, comfortably above the floor;
+ *   - `weather_bot` scored on-chain but with a lower bound only just clear of
+ *     it — the interesting case, since routing uses the bound and not the
+ *     headline score;
+ *   - `unbound_bot` never rated, so it carries the Bayesian prior and its
+ *     lower bound sits *below* the floor. That is the honest cold-start
+ *     position of a brand-new agent and the reason an operator sees
+ *     "not eligible" on something they just registered.
+ *
+ * Without this, `GET /api/stellar/reputation` fell through to the catch-all
+ * `{}`, `isReputationBatch` rejected it, and every score silently became a
+ * seeded placeholder — a fixture gap that reads as working software.
+ */
+export const mockReputationBatch = {
+  floor_bps: 5500,
+  prior_bps: 7000,
+  reputations: {
+    agt_11c0: {
+      agent_id: "agt_11c0",
+      smoothed_bps: 9200,
+      lower_bound_bps: 8410,
+      avg_bps: 9350,
+      count: 128,
+      weight: 6.912,
+      disputed: 0,
+      dispute_rate_bps: 0,
+      source: "onchain",
+      degraded: false,
+    },
+    weather_bot: {
+      agent_id: "weather_bot",
+      smoothed_bps: 7420,
+      lower_bound_bps: 5746,
+      avg_bps: 7750,
+      count: 8,
+      weight: 1.29,
+      disputed: 0,
+      dispute_rate_bps: 0,
+      source: "onchain",
+      degraded: false,
+    },
+    unbound_bot: {
+      agent_id: "unbound_bot",
+      smoothed_bps: 7000,
+      lower_bound_bps: 5100,
+      avg_bps: 7000,
+      count: 0,
+      weight: 0,
+      disputed: 0,
+      dispute_rate_bps: 0,
+      source: "prior",
+      degraded: false,
+    },
+  },
+};
+
+/**
  * Fails every `/api/*` call the way the production outage did: a 404 carrying
  * the backend's real error envelope. This is deliberately indistinguishable
  * from a healthy backend behind a misconfigured proxy — the exact condition
@@ -222,6 +282,52 @@ export const mockSignature = "ZTJlLXNpZ25hdHVyZS1ieXRlcw==";
  *  is itself mocked, so no spec should ever parse it as real XDR. */
 export const mockSignedTxXdr = "AAAAAGUyZS1zaWduZWQtdHgtZW52ZWxvcGU=";
 
+/**
+ * Settlement as it actually is on this deployment, not as a demo would like
+ * it. One `charged` event exists for `weather_bot`, and the payer resolves to
+ * the platform's own account rather than a customer — so it is reported,
+ * excluded from revenue, and named as a self-payment. `total_stroops` is zero
+ * because zero is the true figure.
+ *
+ * `agt_11c0` and `unbound_bot` return an empty window, which is the ordinary
+ * case and must read as "nothing in the last 7 days", never "nothing ever".
+ */
+export const mockSettlementSelfPaid = {
+  agent_id: mockBindAgentId,
+  asset: "native",
+  window_days: 7,
+  scanned_ledgers: 120_960,
+  entries: [
+    {
+      job_id: "9f2c41a8b7e04d5c8a1b2c3d4e5f6071",
+      auth_id: "1a2b3c4d5e6f70819a2b3c4d5e6f7081",
+      amount_stroops: 1_610_000,
+      ledger: 1_284_551,
+      at: "2026-09-12T04:18:33Z",
+      payer: "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXXX",
+      self_payment: true,
+      exclusion: "settler",
+    },
+  ],
+  total_stroops: 0,
+  self_payment_stroops: 1_610_000,
+  truncated: false,
+  unavailable: null,
+};
+
+/** The empty window every other agent returns. */
+export const emptySettlement = (agentId: string) => ({
+  agent_id: agentId,
+  asset: "native",
+  window_days: 7,
+  scanned_ledgers: 120_960,
+  entries: [],
+  total_stroops: 0,
+  self_payment_stroops: 0,
+  truncated: false,
+  unavailable: null,
+});
+
 const bindNonce = "e2ebindnonce00000000000000000000";
 
 /** `/api/agents/{id}/bind`, `/bind/challenge` and `/binding`, matched with the
@@ -230,6 +336,7 @@ const bindNonce = "e2ebindnonce00000000000000000000";
 const BIND_CHALLENGE_RE = /^\/api\/agents\/([^/]+)\/bind\/challenge$/;
 const BIND_RE = /^\/api\/agents\/([^/]+)\/bind$/;
 const BINDING_RE = /^\/api\/agents\/([^/]+)\/binding$/;
+const SETTLEMENT_RE = /^\/api\/stellar\/settlement\/([^/]+)$/;
 
 export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/**", (route) => {
@@ -295,6 +402,19 @@ export async function mockApi(page: Page): Promise<void> {
     }
     if (method === "GET" && pathname === "/api/agents") {
       return json(route, mockAgents);
+    }
+    if (method === "GET" && pathname === "/api/stellar/reputation") {
+      return json(route, mockReputationBatch);
+    }
+    const settlementFor = SETTLEMENT_RE.exec(pathname);
+    if (method === "GET" && settlementFor) {
+      const agentId = decodeURIComponent(settlementFor[1]);
+      return json(
+        route,
+        agentId === mockBindAgentId
+          ? mockSettlementSelfPaid
+          : emptySettlement(agentId),
+      );
     }
     if (
       method === "GET" &&
