@@ -8,10 +8,32 @@ export type Agent = {
   rep: number;
   status: AgentStatus;
   runs: number;
+  /**
+   * Whether this agent is backed by a real Agno worker rather than a mock.
+   *
+   * An INTERNAL detail of the first-party catalog, and emphatically not a
+   * provenance signal: `registry_sync` sets it false for every on-chain agent,
+   * and the seeded catalog is a mix. Use `source` to tell an externally
+   * registered agent from a seeded one.
+   */
   real?: boolean;
   /** Registering wallet's G-address; on-chain indexed agents only, null for seeded. */
   owner?: string | null;
+  /** Where the agent came from (`AgentSource` in the backend's app/schemas.py).
+   *  The provenance signal of record. Absent on responses predating it. */
+  source?: AgentSource;
+  /**
+   * Whether an endpoint is bound. Tri-state: `null`/absent means the question
+   * does not apply — a seeded agent runs on a worker inside the backend and
+   * has no endpoint to bind, so `false` there would report a defect that is
+   * not one. Only an on-chain agent can be meaningfully unbound.
+   */
+  bound?: boolean | null;
 };
+
+/** Where an agent came from: the first-party seeded catalog, or an on-chain
+ *  registration by anyone (`AgentSource` in the backend's app/schemas.py). */
+export type AgentSource = "seeded" | "onchain";
 
 export type TaskStatus = "pending" | "running" | "complete" | "failed";
 
