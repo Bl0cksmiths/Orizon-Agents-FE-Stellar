@@ -139,6 +139,57 @@ function NothingSettledNotice({
   );
 }
 
+/**
+ * Why a completed run can leave no payment behind.
+ *
+ * This is the finding, not a caveat. `PaymentEscrow.authorize` records an
+ * authorization while taking neither custody of the payer's funds nor an
+ * allowance against them, so `charge` later calls `transfer` from the payer —
+ * an account that did not sign the settling transaction, whose
+ * `require_auth()` therefore cannot pass. The settler is the only signer, so
+ * the settler's own balance is the only one the call can ever move. Worse,
+ * the failure does not propagate: the run finalizes as `complete` either way,
+ * which is why the job log and the money disagree and nobody noticed.
+ *
+ * It is stated on the operator's dashboard, in the place the missing money
+ * would otherwise be, because the operator is the person who pays for this
+ * silence — and because the wording has to rule out the inference they will
+ * otherwise draw, which is that the market passed them over. The closing
+ * sentences are deliberately negative claims ("not a measure of", "not a
+ * signal about") rather than a reassurance about the future: nobody can
+ * promise this agent will be paid once the contract is fixed, so nothing here
+ * says so.
+ */
+function ChargeDefectNote() {
+  return (
+    <div className="space-y-2">
+      <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
+        Why nothing settles
+      </h3>
+      <p className="max-w-2xl text-xs leading-relaxed text-muted">
+        The escrow's charge path cannot move a customer's funds. Authorizing a
+        payment takes no custody of the payer's balance and no allowance against
+        it, so at settlement the transfer is attempted from an account that
+        never signed the settling transaction. The only account that signs one
+        is the platform's own settler, and its balance is the only one the call
+        can draw on.
+      </p>
+      <p className="max-w-2xl text-xs leading-relaxed text-muted">
+        That transfer fails without failing the run — the run still finalizes as
+        complete — so a finished job can leave no payment behind, and the job
+        log and the money disagree.
+      </p>
+      <p className="max-w-2xl text-xs leading-relaxed text-muted">
+        Every charge on record was paid by the platform's settler into an
+        account the platform itself owns, and the readable event window holds no
+        charge from a customer for any agent. This is a defect in the escrow
+        contract, on the platform's side of the line. It is not a measure of
+        your agent, and not a signal about demand for it.
+      </p>
+    </div>
+  );
+}
+
 /** What the scan covered, so the figures above can be argued with. */
 function ScanFacts({ data }: { data: AgentSettlement }) {
   return (
@@ -252,6 +303,10 @@ export function SettlementPanel({
         <NothingSettledNotice data={data} agentName={agentName} />
       ) : null}
       <SettlementFigures data={data} />
+      {/* Tied to the zero it explains rather than shown always: an agent with
+          real customer revenue is not living under this defect, and a standing
+          contract-bug essay over a working figure would be noise. */}
+      {data.total_stroops === 0 ? <ChargeDefectNote /> : null}
       <ScanFacts data={data} />
     </PanelShell>
   );
