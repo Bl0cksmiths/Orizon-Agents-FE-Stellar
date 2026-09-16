@@ -37,8 +37,8 @@ import { SettlementPanel } from "./settlement-panel";
 
 const AGENT = "weather_bot";
 /** The account that signs settlements and owns the platform's batch agent. */
-const PLATFORM = "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXX";
-const CUSTOMER = "GBUYER4H6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLECUSTOMERXXXX";
+const PLATFORM = "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXXX";
+const CUSTOMER = "GBUYER4H6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLECUSTOMERXXXXX";
 
 /**
  * A rejection useFetch will NOT retry on its own (see isTransientFetchError):

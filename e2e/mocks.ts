@@ -304,7 +304,7 @@ export const mockSettlementSelfPaid = {
       amount_stroops: 1_610_000,
       ledger: 1_284_551,
       at: "2026-09-12T04:18:33Z",
-      payer: "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXX",
+      payer: "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXXX",
       self_payment: true,
     },
   ],
