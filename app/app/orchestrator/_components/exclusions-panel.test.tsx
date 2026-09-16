@@ -197,10 +197,10 @@ describe("ExclusionsPanel · the disclosure", () => {
     const { container } = opened(
       plan({ notices: [notice({ agent_id: longId, agent_name: null })] }),
     );
-    const holder = Array.from(container.querySelectorAll("span")).find((el) =>
+    const holder = Array.from(container.querySelectorAll("b")).find((el) =>
       el.className.includes("break-all"),
     );
-    expect(holder?.textContent).toContain(longId);
+    expect(holder?.textContent).toBe(longId);
   });
 });
 

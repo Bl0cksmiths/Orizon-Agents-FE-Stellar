@@ -172,18 +172,20 @@ function NoticeRow({
           <span aria-hidden="true">{KIND_GLYPH[notice.kind]}</span>
           {KIND_LABEL[notice.kind]}
         </Badge>
-        {/* break-all, not break-words: an agent id is one 32-character token
-            with no break opportunity in it, and this card has to survive a
-            390px viewport with the panel open. */}
-        <span className="min-w-0 break-all text-sm">
-          <b className="text-text">{nameOf(notice)}</b>
+        {/* break-all on the ids alone, not on the whole line: an agent id is
+            one 32-character token with no break opportunity in it and this
+            card has to survive a 390px viewport with the panel open, but the
+            same rule applied to the sentence around it would hyphenate
+            "replaced" down the middle in a narrow column. */}
+        <span className="min-w-0 break-words text-sm">
+          <b className="break-all text-text">{nameOf(notice)}</b>
           {replacement !== null && (
             <>
               {/* Words, not a bare arrow: "⇄" alone leaves the direction of a
                   substitution to the reader and to a screen reader, and the
                   direction is the whole content of the row. */}
               <span className="text-muted"> replaced by </span>
-              <b className="text-text">{replacement}</b>
+              <b className="break-all text-text">{replacement}</b>
             </>
           )}
         </span>
