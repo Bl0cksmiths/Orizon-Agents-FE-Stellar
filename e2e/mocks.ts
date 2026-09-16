@@ -118,6 +118,104 @@ export const mockPlan = {
   ],
 };
 
+// ── Plan-card floor variants (story 3.04) ───────────────────
+
+/**
+ * THE RULE every fixture below obeys, written down because breaking it
+ * inverts the guarantee this sprint is evidence for:
+ *
+ *   an agent may sit BELOW the routing floor only if it was RATED DOWN.
+ *
+ * A never-rated agent is not a low-scoring agent. With no entry at all it
+ * carries the Bayesian prior — 7000 bps over 12 USDC of prior mass — and
+ * `lowerBoundBps(7000, 0)` returns 5677, which CLEARS the 5500 floor
+ * (lib/reputation-math.test.ts pins that exact number). A fixture that parked
+ * a cold-start agent below the floor would make every assertion built on it
+ * measure the opposite of what the card is supposed to prove.
+ *
+ * So each figure here is what lib/reputation-math.ts actually returns for the
+ * stated evidence, and the card's numbers can be reasoned about end to end:
+ *
+ *   agent          mean / weight   smoothed   lower bound   vs 5500 floor
+ *   seo.brief       9400 /  30      8714       8197          clears
+ *   design.figma    8600 /  18      7960       7224          clears
+ *   code.next       6500 /  60      6583       6024          clears
+ *   vision.ocr      4000 /  24      5000       4167          BELOW, rated down
+ *   scrape.fast     5600 / 100      5750       5283          BELOW, rated down
+ *   audio.whisper   5000 /  40      5461       4771          BELOW, rated down
+ *   never rated        — /   0      7000       5677          clears
+ */
+
+/**
+ * The SOW §6.1 evidence case: a plan whose routed agents all carry on-chain
+ * reputation, and which names the sub-floor agents it refused to route.
+ *
+ * `scrape.fast` is the fixture that earns its keep. Its smoothed score is 5750
+ * — above the 5500 floor — and it is still excluded, because routing decides
+ * on the Wilson lower bound (5283) and not on the headline number. A card that
+ * printed the smoothed score next to the floor would look self-contradictory
+ * here, which is precisely the bug worth catching before a buyer sees it.
+ */
+export const mockPlanExcluded = {
+  plan_id: "plan_e2e_excluded",
+  intent: "code a calculator web app",
+  steps: [
+    {
+      agent_id: "seo.brief",
+      agent_name: "seo.brief",
+      rationale: "outline requirements and keywords",
+      est_price_usdc: 0.009,
+      est_eta_seconds: 1.2,
+      rep_bps: 8714,
+      rep_source: "onchain",
+    },
+    {
+      agent_id: "design.figma",
+      agent_name: "design.figma",
+      rationale: "produce the interface layout",
+      est_price_usdc: 0.048,
+      est_eta_seconds: 2.4,
+      rep_bps: 7960,
+      rep_source: "onchain",
+    },
+    {
+      agent_id: "code.next",
+      agent_name: "code.next",
+      rationale: "implement and wire up the app",
+      est_price_usdc: 0.066,
+      est_eta_seconds: 3.1,
+      rep_bps: 6583,
+      rep_source: "onchain",
+    },
+  ],
+  total_usdc: 0.123,
+  total_eta: 6.7,
+  floor_bps: 5500,
+  // Every bound quoted below was read from the ledger, so the numbers on the
+  // card are measurements rather than estimates.
+  reputation_degraded: false,
+  notices: [
+    {
+      kind: "excluded",
+      agent_id: "vision.ocr",
+      agent_name: "vision.ocr",
+      reason: "below routing floor (4167 < 5500 bps)",
+      reason_code: "below_floor",
+      lower_bound_bps: 4167,
+      floor_bps: 5500,
+    },
+    {
+      kind: "excluded",
+      agent_id: "scrape.fast",
+      agent_name: "scrape.fast",
+      reason: "below routing floor (5283 < 5500 bps)",
+      reason_code: "below_floor",
+      lower_bound_bps: 5283,
+      floor_bps: 5500,
+    },
+  ],
+} satisfies DecomposeResponse;
+
 function json(route: Route, body: unknown) {
   return route.fulfill({
     status: 200,
