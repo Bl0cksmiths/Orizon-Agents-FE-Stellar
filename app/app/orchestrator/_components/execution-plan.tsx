@@ -269,37 +269,15 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
           ))}
         </ol>
 
-        {(plan.notices?.length ?? 0) > 0 && (
-          <div className="mt-4 clip-cyber-sm border border-violet/40 bg-violet/5 p-4">
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-violet mb-2">
-              ▸ reputation floor — why this plan changed shape
-            </div>
-            <ul className="space-y-2">
-              {plan.notices?.map((n, i) => (
-                <li
-                  key={`${n.kind}-${n.agent_id}-${i}`}
-                  className="flex flex-wrap items-center gap-2 text-sm"
-                >
-                  <Badge tone={NOTICE_TONE[n.kind]}>{n.kind}</Badge>
-                  <span>
-                    <b className="text-text">{n.agent_name ?? n.agent_id}</b>
-                    {n.kind === "substituted" && (
-                      <>
-                        {" → "}
-                        <b className="text-text">
-                          {n.replacement_name ?? n.replacement_id}
-                        </b>
-                      </>
-                    )}
-                  </span>
-                  <span className="font-mono text-xs text-muted">
-                    {n.reason}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Replaces an always-expanded list. It was the right information in
+            the wrong shape: a plan with four floor actions pushed the steps
+            and the Authorize control down the card, so the protection read as
+            an obstacle. Collapsed, with the count on the summary, it informs
+            without dominating — and it is a product rule of the story that it
+            is never hidden outright. */}
+        <div className="mt-4">
+          <ExclusionsPanel plan={plan} />
+        </div>
 
         <m.div
           initial={{ opacity: 0, y: 8 }}
