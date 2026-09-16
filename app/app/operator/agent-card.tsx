@@ -22,6 +22,7 @@ import { BindingStateBadge } from "../agents/binding-notice";
 import { ManagePanel } from "../agents/manage-panel";
 import type { BindingState } from "../agents/use-binding-status";
 import { RoutingStanding } from "./routing-standing";
+import { SettlementPanel } from "./settlement-panel";
 
 const statusTone = {
   online: "cyan" as const,
@@ -100,6 +101,14 @@ export function AgentCard({
           floorBps={floorBps}
           priorBps={priorBps}
         />
+      </div>
+
+      {/* Below the routing standing, because settlement is downstream of it:
+          an agent that cannot be selected has no chance of being paid, and
+          leading with the payment figure would invite the operator to read a
+          platform-side escrow defect as a verdict on their agent. */}
+      <div className="border-t border-border pt-5">
+        <SettlementPanel agentId={agent.id} agentName={agent.name} />
       </div>
 
       <div className="border-t border-border pt-4">
