@@ -261,6 +261,37 @@ test.describe("unbound agents in the marketplace", () => {
     await expect(page.getByRole("button", { name: "recheck" })).toBeVisible();
   });
 
+  test("keeps the warning and its action on screen at 400px", async ({
+    page,
+  }) => {
+    await setUpMarketplace(page);
+    await page.setViewportSize({ width: 400, height: 900 });
+    await page.goto("/app/agents");
+    await flagResolved(page);
+
+    // The registry table scrolls sideways at this width, and the warning sits
+    // in a cell as wide as that table. Neither the words nor the button may
+    // depend on that scroll: an operator who cannot see the action to finish
+    // binding is no better off than one who was never told.
+    for (const target of [
+      page.getByText(UNBOUND_WARNING),
+      page.getByRole("link", { name: /^bind /i }),
+    ]) {
+      const box = await target.boundingBox();
+      if (box === null) throw new Error("expected a laid-out element");
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(400);
+    }
+
+    // …and the page itself still does not scroll sideways.
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
   test("the flagged marketplace has no WCAG A/AA violations", async ({
     page,
   }) => {
