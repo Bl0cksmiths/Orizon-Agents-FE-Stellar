@@ -85,6 +85,15 @@ export type DecomposeResponse = {
   /** Floor actions behind this plan's shape; empty on the common path where
    * every routed agent clears the floor. Absent from backends predating it. */
   notices?: PlanFloorNotice[];
+  /** The floor actually applied to this plan. Not assumed client-side: the
+   *  value is configurable per deployment, so a hardcoded copy would narrate
+   *  the wrong threshold after a change. Absent from older backends. */
+  floor_bps?: number;
+  /** At least one reputation read behind this plan fell back to the Bayesian
+   *  prior because the ledger was unreadable — the buyer is being shown a
+   *  trust signal computed from an estimate. Named apart from `degraded`,
+   *  which already means "re-admitted below the floor" on steps and notices. */
+  reputation_degraded?: boolean;
 };
 
 /** Response of POST /api/orchestrator/execute. */
