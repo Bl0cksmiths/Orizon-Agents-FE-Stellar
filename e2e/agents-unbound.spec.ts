@@ -110,11 +110,9 @@ async function setUpMarketplace(page: Page): Promise<string[]> {
  * inside it would be ambiguous.
  */
 function row(page: Page, agentId: string) {
-  return page
-    .getByRole("row")
-    .filter({
-      has: page.getByRole("rowheader", { name: agentId, exact: true }),
-    });
+  return page.getByRole("row").filter({
+    has: page.getByRole("rowheader", { name: agentId, exact: true }),
+  });
 }
 
 /** The badge itself — `exact` because the row header carries the agent id
@@ -235,6 +233,32 @@ test.describe("unbound agents in the marketplace", () => {
     release();
     await expect(unboundBadge(pending)).toBeVisible();
     await expect(page.getByText(UNBOUND_WARNING)).toBeVisible();
+  });
+
+  test("says so, instead of guessing, when a lookup fails", async ({
+    page,
+  }) => {
+    await setUpMarketplace(page);
+    await page.route(`**/api/agents/${UNBOUND_ID}/binding`, (route) =>
+      route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "registry unavailable" }),
+      }),
+    );
+
+    await page.goto("/app/agents");
+
+    // A failed read is not evidence of anything. The row says its status is
+    // unknown and offers a recheck; what it must never do is print the warning,
+    // which would tell an operator their agent is being passed over on the
+    // strength of a 500.
+    const failed = row(page, UNBOUND_ID);
+    await expect(failed.getByText("endpoint unknown")).toBeVisible();
+    await expect(unboundBadge(failed)).toHaveCount(0);
+    await expect(page.getByText(UNBOUND_WARNING)).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /^bind /i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "recheck" })).toBeVisible();
   });
 
   test("the flagged marketplace has no WCAG A/AA violations", async ({
