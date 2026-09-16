@@ -203,7 +203,11 @@ export function AgentStanding({
         key="bound"
         tone="magenta"
         glyph="⊘"
-        label="no endpoint bound"
+        // "not yet operational" rather than "no endpoint bound": the buyer
+        // scanning this column is deciding who to hire, and the missing
+        // endpoint is the cause, not the consequence they care about. The
+        // long form names the endpoint, so nothing is lost.
+        label="not yet operational"
         detail={detail}
       />,
     );
@@ -217,10 +221,15 @@ export function AgentStanding({
     // Named so several of these on one page are told apart by a screen
     // reader, the same reason the bind surfaces repeat the agent in their
     // labels: "below the network floor" with no subject names no row.
+    // The agent's own bound is named; the FLOOR's value deliberately is not.
+    // The floor is one network-wide number, stated once above the table.
+    // Repeated down a column it becomes N chances to disagree with itself
+    // after a deployment changes it, and it starts reading as a property of
+    // the agent rather than of the marketplace.
     const detail =
       `${agent.name} is below the network floor: its reputation lower bound ` +
-      `${score(rep.lower_bound_bps)} is under the ${score(floorBps)} floor, ` +
-      `so it is not eligible for selection under the normal rule. It keeps ` +
+      `of ${score(rep.lower_bound_bps)} is under the floor stated above this ` +
+      `table, so it is not eligible for selection under the normal rule. It keeps ` +
       `its listing and its history — the orchestrator passes over it while ` +
       `building a plan, and a starvation backstop can still re-admit it when ` +
       `too few agents clear the floor. The floor reads the lower bound, ` +
