@@ -16,6 +16,7 @@ const titles: Record<string, { t: string; b: string[] }> = {
   "/app/agents": { t: "Agent Registry", b: ["console", "agents"] },
   "/app/register": { t: "Register Agent", b: ["console", "register"] },
   "/app/bind": { t: "Bind Endpoint", b: ["console", "bind"] },
+  "/app/operator": { t: "My Agents", b: ["console", "my agents"] },
   "/app/orchestrator": { t: "Orchestrator", b: ["console", "orchestrator"] },
   "/app/trace": { t: "Trace", b: ["console", "trace"] },
   "/app/events": { t: "Events", b: ["console", "events"] },
