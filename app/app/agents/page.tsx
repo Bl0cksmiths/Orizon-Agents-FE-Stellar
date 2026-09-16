@@ -50,9 +50,34 @@ export default function AgentsPage() {
     reloadReputation();
   }, [reloadAgents, reloadReputation]);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "online" | "idle" | "offline">(
-    "all",
-  );
+  /**
+   * Whether an agent can be selected for work right now — both gates the
+   * orchestrator applies, and nothing else.
+   *
+   * 1. Its reputation LOWER BOUND clears the floor (`>=`, the backend's
+   *    comparison). Never the smoothed headline score: the two disagree
+   *    exactly for an agent with a good average and too little settled work
+   *    behind it, and filtering on the headline would show a buyer a
+   *    "routable" agent the planner passes over every time.
+   * 2. If it is an on-chain agent, it has an endpoint bound. A seeded agent
+   *    has no endpoint and needs none, so `bound` being null is not a failure.
+   *
+   * An agent with no reputation entry, or a page whose batch has not landed,
+   * is NOT filtered out: absence of a score is not evidence of a bad one, and
+   * hiding a row because we have not read it yet would quietly shrink the
+   * marketplace during an outage.
+   */
+  const isRoutable = (a: Agent): boolean => {
+    if (a.source === "onchain" && a.bound === false) return false;
+    const floor = repBatch?.floor_bps;
+    const bound = repBatch?.reputations[a.id]?.lower_bound_bps;
+    if (floor == null || bound == null) return true;
+    return bound >= floor;
+  };
+
+  const [filter, setFilter] = useState<
+    "all" | "routable" | "online" | "idle" | "offline"
+  >("all");
   // Operator management (story 1.08): the connected wallet reveals Manage on
   // the agents it owns on-chain; one row expands at a time.
   const wallet = useWallet();
