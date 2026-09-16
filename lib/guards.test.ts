@@ -458,6 +458,20 @@ describe("isDecomposeResponse", () => {
       false,
     );
   });
+
+  it("rejects a non-finite floor or bound (NaN compares false, silently)", () => {
+    // `isNum` screens on Number.isFinite, and this is the reason: NaN passes
+    // `typeof === "number"`, prints as "NaN" in the threshold sentence, and —
+    // worse — every `bound < floor` comparison against it is false, so a
+    // below-floor agent would read as clearing a floor nobody can see.
+    expect(isDecomposeResponse({ ...valid, floor_bps: Number.NaN })).toBe(
+      false,
+    );
+    const infinite = { ...valid, floor_bps: Number.POSITIVE_INFINITY };
+    expect(isDecomposeResponse(infinite)).toBe(false);
+    const nanBound = { ...notice, lower_bound_bps: Number.NaN };
+    expect(isDecomposeResponse({ ...valid, notices: [nanBound] })).toBe(false);
+  });
 });
 
 describe("isReputationInfo", () => {
