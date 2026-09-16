@@ -300,7 +300,24 @@ export default function AgentsPage() {
                       <td className="py-3 font-mono">
                         <div className="flex flex-wrap items-center gap-2">
                           {a.name}
-                          {a.real && <Badge tone="cyan">LIVE</Badge>}
+                          {/* The `LIVE` badge that used to sit here has been
+                              removed rather than relabelled.
+
+                              It rendered on `a.real`, which means "backed by a
+                              real Agno worker rather than a MockWorker" — an
+                              internal fact about the first-party catalog, and
+                              very nearly the inverse of provenance:
+                              `registry_sync` sets it false for EVERY on-chain
+                              agent, and the seeded catalog is a mix. So the
+                              one population it could never mark is the
+                              externally registered agents this marketplace
+                              exists to make visible, while a buyer reading a
+                              cyan "LIVE" chip would reasonably take it for the
+                              opposite.
+
+                              Provenance is now `AgentStanding`'s job, from
+                              `source`. Leaving both would put two contradictory
+                              provenance signals in one row. */}
                           {/* Marks the agent itself, not its liveness — the
                               status column next door means online/idle/offline
                               and must not be confused with this. */}
