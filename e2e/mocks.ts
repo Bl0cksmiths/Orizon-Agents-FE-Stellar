@@ -335,6 +335,7 @@ const bindNonce = "e2ebindnonce00000000000000000000";
 const BIND_CHALLENGE_RE = /^\/api\/agents\/([^/]+)\/bind\/challenge$/;
 const BIND_RE = /^\/api\/agents\/([^/]+)\/bind$/;
 const BINDING_RE = /^\/api\/agents\/([^/]+)\/binding$/;
+const SETTLEMENT_RE = /^\/api\/stellar\/settlement\/([^/]+)$/;
 
 export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/**", (route) => {
@@ -403,6 +404,16 @@ export async function mockApi(page: Page): Promise<void> {
     }
     if (method === "GET" && pathname === "/api/stellar/reputation") {
       return json(route, mockReputationBatch);
+    }
+    const settlementFor = SETTLEMENT_RE.exec(pathname);
+    if (method === "GET" && settlementFor) {
+      const agentId = decodeURIComponent(settlementFor[1]);
+      return json(
+        route,
+        agentId === mockBindAgentId
+          ? mockSettlementSelfPaid
+          : emptySettlement(agentId),
+      );
     }
     if (
       method === "GET" &&
