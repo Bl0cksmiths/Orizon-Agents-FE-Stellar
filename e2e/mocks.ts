@@ -497,6 +497,20 @@ export const mockWalletAddress =
  * deliberately left unbound, because that is the state story 2.05 exists to
  * make visible. `GET /api/agents` used to return `[]`, which made every
  * owned-agent surface untestable.
+ *
+ * Provenance is carried by `source`, and `real` is deliberately set against it
+ * (story 3.05). `real` means "backed by a real Agno worker rather than a
+ * mock": `registry_sync` sets it false for every on-chain agent, and the
+ * seeded catalog is a mix — so it marks roughly the OPPOSITE population to the
+ * one an "externally registered" marker is about. `agt_11c0` below is seeded
+ * *and* `real: true`, which is the trap: anything keyed off `real` marks the
+ * first-party catalog as somebody else's agent, and leaves every on-chain
+ * registration looking first-party.
+ *
+ * `bound` is tri-state for the same reason the binding lookup is skipped for
+ * the catalog: a seeded agent runs on a worker inside the backend and has no
+ * endpoint, so `null` means the question does not apply, and only `false` on an
+ * on-chain agent reports a registration that cannot yet be routed to.
  */
 export const mockAgents = [
   {
@@ -509,6 +523,8 @@ export const mockAgents = [
     runs: 128,
     real: true,
     owner: null,
+    source: "seeded",
+    bound: null,
   },
   {
     id: "weather_bot",
@@ -520,6 +536,8 @@ export const mockAgents = [
     runs: 4,
     real: false,
     owner: mockWalletAddress,
+    source: "onchain",
+    bound: true,
   },
   {
     id: "unbound_bot",
@@ -531,6 +549,8 @@ export const mockAgents = [
     runs: 0,
     real: false,
     owner: mockWalletAddress,
+    source: "onchain",
+    bound: false,
   },
 ];
 /**
