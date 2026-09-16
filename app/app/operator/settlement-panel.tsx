@@ -355,6 +355,27 @@ function ChargeEntry({
           ) : null}
         </KVRow>
         <KVRow k="job" value={entry.job_id} />
+        {/* The charge itself, which is the evidence story 2.06 AC-2 asks for:
+            a link to a transaction that resolves, not just to the account that
+            paid. Soroban hands the hash to us on every event and it used to be
+            dropped on the way through.
+
+            Rendered only when there is a usable hash. The backend sends null
+            when the node returned something that is not one — the field is
+            required by the SDK so it is never missing, but only validated as a
+            string. A link built from a malformed hash resolves to nothing,
+            which is worse than no link: it looks like proof and sends the
+            operator off to check a charge against a 404. */}
+        {entry.tx_hash ? (
+          <KVRow k="transaction">
+            <span className="block break-all">{entry.tx_hash}</span>
+            <StellarExpertLink
+              kind="tx"
+              id={entry.tx_hash}
+              className="mt-1 inline-block"
+            />
+          </KVRow>
+        ) : null}
         <KVRow k="ledger" value={entry.ledger.toLocaleString()} />
         <KVRow k="closed" value={formatLedgerTime(entry.at)} />
       </dl>
