@@ -438,6 +438,26 @@ describe("isDecomposeResponse", () => {
     // what keeps the next additive field from needing a frontend release.
     expect(isDecomposeResponse({ ...extended, floor_policy: "v3" })).toBe(true);
   });
+
+  it("rejects wrong types on the four new fields", () => {
+    // Optional means "may be absent", never "may be anything". Each of these
+    // reaches a comparison or a rendered sentence.
+    expect(isDecomposeResponse({ ...valid, floor_bps: "5500" })).toBe(false);
+    // The classic truthy non-boolean: `"false"` reads as true, which would
+    // tell every buyer the trust signals beside their plan came off the
+    // Bayesian prior when the ledger read was in fact healthy.
+    expect(
+      isDecomposeResponse({ ...valid, reputation_degraded: "false" }),
+    ).toBe(false);
+    const stringBound = { ...notice, lower_bound_bps: "4200" };
+    expect(isDecomposeResponse({ ...valid, notices: [stringBound] })).toBe(
+      false,
+    );
+    const stringFloor = { ...notice, floor_bps: "5500" };
+    expect(isDecomposeResponse({ ...valid, notices: [stringFloor] })).toBe(
+      false,
+    );
+  });
 });
 
 describe("isReputationInfo", () => {
