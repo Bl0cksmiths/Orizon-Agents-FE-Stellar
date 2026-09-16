@@ -189,7 +189,23 @@ export default function AgentsPage() {
           </ErrorNote>
         )}
 
-        <div className="overflow-x-auto">
+        {/* Focusable, and named, because it scrolls. The registry is wider
+            than a phone and often wider than a laptop once reputation loads,
+            so this div becomes a horizontal scroll container — and a scroll
+            container a keyboard cannot reach hides the columns beyond the
+            fold from anyone not using a mouse (WCAG 2.1.1). axe flags it
+            `scrollable-region-focusable`, at serious severity.
+
+            It failed intermittently rather than always for an instructive
+            reason: the region is only scrollable once its content overflows,
+            and the content only widens when the reputation batch lands. So
+            the violation raced the fetch, and looked like a flaky test. */}
+        <div
+          className={`overflow-x-auto ${focusRing}`}
+          tabIndex={0}
+          role="region"
+          aria-label="Agent registry table, scrolls horizontally"
+        >
           <table className="w-full text-sm">
             {/* The page heading names this table on screen; the caption
                 repeats it for assistive tech only. */}
