@@ -234,7 +234,13 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
         isOptionalBool(s.degraded),
     ) &&
     (v.notices == null ||
-      (Array.isArray(v.notices) && v.notices.every(isPlanFloorNotice)))
+      (Array.isArray(v.notices) && v.notices.every(isPlanFloorNotice))) &&
+    // Both optional, because a plan card must keep rendering against a backend
+    // that predates them. `floor_bps` is checked as a number rather than
+    // defaulted here: a floor that arrives as a string would print "NaN" in
+    // the threshold the buyer is being asked to trust.
+    isOptionalNum(v.floor_bps) &&
+    isOptionalBool(v.reputation_degraded)
   );
 }
 
