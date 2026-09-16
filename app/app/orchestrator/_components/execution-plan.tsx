@@ -270,6 +270,13 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
           <ExclusionsPanel plan={plan} />
         </div>
 
+        {/* Immediately above the Authorize panel, and that position is the
+            requirement rather than a layout preference. The banner says the
+            floor could not check anyone against on-chain evidence for this
+            plan — a buyer who meets that after committing funds has been told
+            nothing useful. */}
+        <DegradedBanner plan={plan} />
+
         <m.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
