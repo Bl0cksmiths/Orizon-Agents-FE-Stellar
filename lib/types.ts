@@ -63,7 +63,17 @@ export type PlanFloorNotice = {
   agent_name?: string | null;
   replacement_id?: string | null;
   replacement_name?: string | null;
+  /** Human prose, e.g. "below routing floor (4200 < 5500 bps)". Kept because
+   *  it already renders; `reason_code` is what new code should branch on. */
   reason: string;
+  /** Optional so a response from a backend predating this field still
+   *  validates — the same contract `degraded` and `exclusion` already use. */
+  reason_code?: ExclusionReason;
+  /** The deciding numbers as data. Rendering "4.10 against a 3.00 floor"
+   *  should not require parsing an English sentence. `lower_bound_bps` is null
+   *  when the agent had no reputation entry at all. */
+  lower_bound_bps?: number | null;
+  floor_bps?: number;
 };
 
 export type DecomposeResponse = {
