@@ -217,6 +217,11 @@ export const mockAgents = [
  */
 export const mockSignature = "ZTJlLXNpZ25hdHVyZS1ieXRlcw==";
 
+/** What the emulated wallet hands back from signTransaction. The value is
+ *  opaque on purpose: the app forwards it to POST /api/stellar/submit, which
+ *  is itself mocked, so no spec should ever parse it as real XDR. */
+export const mockSignedTxXdr = "AAAAAGUyZS1zaWduZWQtdHgtZW52ZWxvcGU=";
+
 const bindNonce = "e2ebindnonce00000000000000000000";
 
 /** `/api/agents/{id}/bind`, `/bind/challenge` and `/binding`, matched with the
@@ -333,10 +338,12 @@ export async function mockWallet(page: Page): Promise<void> {
     ({
       address,
       signature,
+      signedTxXdr,
       passphrase,
     }: {
       address: string;
       signature: string;
+      signedTxXdr: string;
       passphrase: string;
     }) => {
       window.localStorage.setItem(
@@ -384,6 +391,18 @@ export async function mockWallet(page: Page): Promise<void> {
           // signMessage rides on SUBMIT_BLOB and comes back as `signedBlob`.
           case "SUBMIT_BLOB":
             return reply({ signedBlob: signature, signerAddress: address });
+          // signTransaction rides on SUBMIT_TRANSACTION and comes back as
+          // `signedTransaction`. Registration needs this one; binding needs
+          // SUBMIT_BLOB above. They are genuinely different wallet operations
+          // — an on-chain transaction versus a signed message — which is the
+          // whole reason story 2.05 has to warn the operator about two
+          // prompts. A spec that drives registration without this reply dies
+          // on the fallback below rather than failing anywhere informative.
+          case "SUBMIT_TRANSACTION":
+            return reply({
+              signedTransaction: signedTxXdr,
+              signerAddress: address,
+            });
           default:
             return reply({
               apiError: {
@@ -397,6 +416,7 @@ export async function mockWallet(page: Page): Promise<void> {
     {
       address: mockWalletAddress,
       signature: mockSignature,
+      signedTxXdr: mockSignedTxXdr,
       passphrase: "Test SDF Network ; September 2015",
     },
   );
