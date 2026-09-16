@@ -395,6 +395,95 @@ describe("SettlementPanel — a charge a customer actually paid", () => {
   });
 });
 
+/**
+ * Four situations reach this panel as the same `self_payment: true`, and the
+ * sentence for each is a different factual claim. Getting one wrong is not a
+ * copy nit: telling an operator whose own wallet funded a charge that the
+ * platform paid itself invents an accusation, and telling them the platform
+ * paid itself when the backend merely could not read the settler asserts the
+ * one thing we specifically failed to establish.
+ */
+describe("SettlementPanel — why a charge was excluded", () => {
+  const cases: { exclusion: string; payer: string; says: string }[] = [
+    {
+      exclusion: "settler",
+      payer: PLATFORM,
+      says: "resolves to the platform's own settler",
+    },
+    {
+      exclusion: "owner",
+      payer: PLATFORM,
+      says: "is this agent's own owner account",
+    },
+    {
+      exclusion: "payer_unreadable",
+      payer: "unknown",
+      says: "could not be read, so who funded it is unknown",
+    },
+    {
+      exclusion: "settler_unreadable",
+      payer: CUSTOMER,
+      says: "could not be shown to have come from anyone else",
+    },
+  ];
+
+  it.each(cases)(
+    "names the $exclusion rule rather than assuming the platform paid",
+    async ({ exclusion, payer, says }) => {
+      getSettlement.mockResolvedValue(
+        settlement({
+          entries: [entry({ payer, exclusion })],
+          self_payment_stroops: 1_610_000,
+        }),
+      );
+      renderPanel();
+
+      await screen.findByText("settled revenue");
+      const text = visibleText();
+      expect(text).toContain(says);
+      // Each reason is exclusive: no two of these sentences may appear at once.
+      for (const other of cases.filter((c) => c.exclusion !== exclusion)) {
+        expect(text).not.toContain(other.says);
+      }
+    },
+  );
+
+  // A backend that predates the field, or a value added after this build.
+  it("still explains an exclusion it does not recognise", async () => {
+    getSettlement.mockResolvedValue(
+      settlement({
+        entries: [entry({ exclusion: "something_new" })],
+        self_payment_stroops: 1_610_000,
+      }),
+    );
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    const text = visibleText();
+    expect(text).toContain("could not be confirmed as a payment from a");
+    // Crucially it does not fall back to the platform claim, which would be
+    // the convenient default and an invented fact.
+    expect(text).not.toContain("resolves to the platform's own settler");
+  });
+
+  // "unknown" is what the backend sends when it never established the payer.
+  // An explorer link built from it resolves to nothing, and a dead evidence
+  // link is worse than none: it invites the operator to go and check.
+  it("offers no explorer link for a payer it never read", async () => {
+    getSettlement.mockResolvedValue(
+      settlement({
+        entries: [entry({ payer: "unknown", exclusion: "payer_unreadable" })],
+        self_payment_stroops: 1_610_000,
+      }),
+    );
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    expect(visibleText()).toContain("could not be read");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});
+
 describe("SettlementPanel — a scan that stopped early", () => {
   it("calls a truncated scan a floor rather than a total", async () => {
     getSettlement.mockResolvedValue(settlement({ truncated: true }));
