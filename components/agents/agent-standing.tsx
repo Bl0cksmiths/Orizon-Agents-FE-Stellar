@@ -29,6 +29,13 @@
  *     built, so a below-floor agent was not asked and found wanting: it was
  *     not asked. Thin evidence is not bad work.
  *
+ * Provenance is the cell's other fact. `source === "onchain"` means anyone
+ * registered this agent against the on-chain registry; `"seeded"` is the
+ * first-party catalog. The on-chain ones are marked, because on a marketplace
+ * open to anyone, who put an agent here is part of what a buyer is deciding
+ * about. The signals provenance must NOT be read from are documented on
+ * `isOnchain` below — each of them is a plausible-looking mistake.
+ *
  * The cell fetches nothing. The page owns the reputation batch, so every
  * branch below is a pure reading of what that batch returned — which is also
  * what makes each one testable without a network.
@@ -48,6 +55,32 @@ import type { Agent, ReputationInfo } from "@/lib/types";
  * different numbers for one score.
  */
 const score = (bps: number) => (bps / 2000).toFixed(2);
+
+/**
+ * Was this agent registered on-chain by someone, rather than seeded into the
+ * first-party catalog?
+ *
+ * `source` is the signal of record and is read first. `owner` only
+ * corroborates it, for a response from a backend that predates the field, and
+ * it is sound there for the reason `needsBinding` already relies on: the seed
+ * never sets an owner.
+ *
+ * Two tempting signals are deliberately NOT used here.
+ *
+ * `agent.real` means "backed by a real Agno worker rather than a mock". It is
+ * an internal detail of the catalog: `registry_sync` sets it false for EVERY
+ * on-chain agent and the seeded catalog is a mix, so keying provenance off it
+ * would mark roughly the opposite population — every marker on the page would
+ * be pointing at the wrong rows while looking entirely plausible.
+ *
+ * The `agt_` id prefix is not provenance either. Reading provenance out of an
+ * id format is forbidden by a product rule, and for a good reason: an id is a
+ * naming convention, and a convention is not a fact about who registered what.
+ */
+function isOnchain(agent: Agent): boolean {
+  if (agent.source) return agent.source === "onchain";
+  return !!agent.owner;
+}
 
 /**
  * One marker, built on the shared Badge rather than beside it.
@@ -108,7 +141,27 @@ export function AgentStanding({
    */
   floorBps: number | null;
 }): JSX.Element | null {
+  const onchain = isOnchain(agent);
+
   const marks: ReactNode[] = [];
+
+  if (onchain) {
+    // Stated as a fact about where the listing came from, not as a warning.
+    // An externally registered agent is the point of opening the registry up,
+    // so this marker identifies the agent — it does not caution against it.
+    const detail =
+      `${agent.name} was registered on-chain against the public registry by ` +
+      `its owner, rather than seeded into the first-party catalog.`;
+    marks.push(
+      <StandingMark
+        key="source"
+        tone="violet"
+        glyph="⬡"
+        label="on-chain"
+        detail={detail}
+      />,
+    );
+  }
 
   // Both numbers or no verdict. A score with no floor has no line to cross,
   // and a floor with no score has nothing to measure; either way the honest
