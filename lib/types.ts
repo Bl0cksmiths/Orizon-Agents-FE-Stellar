@@ -183,9 +183,12 @@ export type SettlementEntry = {
    * not recognised" instead of failing the guard.
    *
    * Known values: "payer_unreadable", "owner", "settler",
-   * "settler_unreadable". Null exactly when `self_payment` is false.
+   * "settler_unreadable". Null exactly when `self_payment` is false, and
+   * absent altogether on a response from a backend that predates the field —
+   * optional for the same reason `degraded` is, so the older shape stays a
+   * valid payload rather than a rejected one.
    */
-  exclusion: string | null;
+  exclusion?: string | null;
 };
 
 /**
