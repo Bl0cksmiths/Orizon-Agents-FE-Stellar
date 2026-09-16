@@ -237,6 +237,13 @@ function formatLedgerTime(at: string | null): string {
   return `${new Date(ms).toISOString().slice(0, 19).replace("T", " ")} UTC`;
 }
 
+/** A Stellar account id, as opposed to the backend's "unknown" placeholder.
+ *  Shape-checked rather than compared against that one literal, so any future
+ *  placeholder is caught too. */
+function isAddress(payer: string): boolean {
+  return /^G[A-Z2-7]{55}$/.test(payer);
+}
+
 /**
  * Why one charge was left out of revenue, in the operator's terms.
  *
@@ -331,12 +338,21 @@ function ChargeEntry({
       ) : null}
       <dl className="space-y-2 font-mono text-[11px]">
         <KVRow k="payer">
-          <span className="block break-all">{entry.payer}</span>
-          <StellarExpertLink
-            kind="account"
-            id={entry.payer}
-            className="mt-1 inline-block"
-          />
+          <span className="block break-all">
+            {isAddress(entry.payer) ? entry.payer : "could not be read"}
+          </span>
+          {/* No link for a payer we never established. The backend sends the
+              literal "unknown" rather than a plausible-looking address on
+              purpose, and an explorer link built from it would 404 — an
+              evidence link that resolves to nothing is worse than none,
+              because it invites the operator to go and check. */}
+          {isAddress(entry.payer) ? (
+            <StellarExpertLink
+              kind="account"
+              id={entry.payer}
+              className="mt-1 inline-block"
+            />
+          ) : null}
         </KVRow>
         <KVRow k="job" value={entry.job_id} />
         <KVRow k="ledger" value={entry.ledger.toLocaleString()} />
