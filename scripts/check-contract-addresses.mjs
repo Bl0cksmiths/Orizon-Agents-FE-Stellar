@@ -157,6 +157,48 @@ if (compared === 0) {
   );
 }
 
+// README.md is the higher-risk surface of the two, and the one people copy ids
+// FROM: ten ids across four contracts and both networks, every one rendered as
+// a clickable stellar.expert link at the top of the repo. A stale one there has
+// the same failure mode as a stale fallback — a live link to the wrong contract
+// — over five times the surface.
+//
+// Matched by shape rather than by position, deliberately. Asserting "the id on
+// line 13 is the mainnet escrow" would break every time someone reflows a
+// table; asserting "every full-length strkey in this file is a real deployed
+// address" survives any amount of prose editing while still catching the one
+// thing that matters. Truncated display forms (`CBJCQBA4…R5CNF`) do not match
+// the 56-character pattern, so they are ignored rather than flagged.
+const README = "README.md";
+const readmeText = readFileSync(join(root, README), "utf8");
+const deployed = new Set(
+  MIRRORS.flatMap(({ file }) =>
+    Object.entries(readJson(join(contractsDir, file), `canonical ${file}`))
+      .filter(
+        ([, value]) =>
+          typeof value === "string" && /^C[A-Z2-7]{55}$/.test(value),
+      )
+      .map(([, value]) => value),
+  ),
+);
+const strays = [...new Set(readmeText.match(/C[A-Z2-7]{55}/g) ?? [])].filter(
+  (id) => !deployed.has(id),
+);
+if (strays.length > 0) {
+  failed = true;
+  for (const id of strays) {
+    rows.push({
+      ok: false,
+      contract: README,
+      segment: "link",
+      mine: id,
+      theirs: "not a deployed address",
+    });
+  }
+} else {
+  compared += 1;
+}
+
 for (const { ok, contract, segment, mine, theirs } of rows) {
   console.log(
     `${ok ? "  ok" : "FAIL"}  ${contract} (${segment})  ${ok ? mine : `${mine} != ${theirs}`}`,
