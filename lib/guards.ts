@@ -90,6 +90,14 @@ export function isAgentList(v: unknown): v is Agent[] {
         isNum(a.rep) &&
         isNum(a.runs) &&
         isOptionalStr(a.owner) &&
+        // Optional and NOT set-checked, unlike `status` below. `status` picks
+        // a tone from a closed map, so an unlisted value renders untoned; a
+        // provenance value we do not recognise still renders as "not seeded",
+        // which is the safe reading, and rejecting the whole registry over one
+        // would empty the marketplace.
+        isOptionalStr(a.source) &&
+        // Tri-state: true, false, or absent/null meaning "does not apply".
+        isOptionalBool(a.bound) &&
         isStr(a.status) &&
         AGENT_STATUSES.has(a.status),
     )
