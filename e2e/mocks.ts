@@ -216,6 +216,34 @@ export const mockPlanExcluded = {
   ],
 } satisfies DecomposeResponse;
 
+/**
+ * The same plan, built while the ledger was partly unreadable.
+ *
+ * `reputation_degraded` is the response-level flag for "at least one read fell
+ * back to the prior", which is why it can be true while the two exclusions
+ * still quote measured bounds: those two reads succeeded, `code.next`'s did
+ * not. That is the honest shape of a partial outage, and it is the state the
+ * buyer has to be warned about before authorizing — the score they are
+ * weighing for `code.next` is 7000 because that is the prior, not because
+ * anyone rated it 3.50.
+ */
+export const mockPlanDegraded = {
+  ...mockPlanExcluded,
+  plan_id: "plan_e2e_degraded",
+  steps: [
+    mockPlanExcluded.steps[0],
+    mockPlanExcluded.steps[1],
+    {
+      ...mockPlanExcluded.steps[2],
+      // The prior itself, unmoved: a failed read yields no evidence, so the
+      // only honest number is the one every unrated agent starts from.
+      rep_bps: 7000,
+      rep_source: "prior",
+    },
+  ],
+  reputation_degraded: true,
+} satisfies DecomposeResponse;
+
 function json(route: Route, body: unknown) {
   return route.fulfill({
     status: 200,
