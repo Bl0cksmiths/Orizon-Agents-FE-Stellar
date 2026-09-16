@@ -306,6 +306,7 @@ export const mockSettlementSelfPaid = {
       at: "2026-09-12T04:18:33Z",
       payer: "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBEXAMPLEPLATFORMXXXXX",
       self_payment: true,
+      exclusion: "settler",
     },
   ],
   total_stroops: 0,
