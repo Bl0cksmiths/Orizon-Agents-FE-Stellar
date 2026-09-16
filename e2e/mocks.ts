@@ -244,6 +244,52 @@ export const mockPlanDegraded = {
   reputation_degraded: true,
 } satisfies DecomposeResponse;
 
+/**
+ * A plan the starvation backstop had to rescue: applying the 5500 floor left
+ * no agent able to do the third step, so the floor was relaxed and
+ * `audio.whisper` was re-admitted at a lower bound of 4771.
+ *
+ * `kind` is "degraded" and not "excluded" on purpose — nothing was refused
+ * here, the threshold moved — while `reason_code` is `floor_relaxed`. The step
+ * keeps `degraded: true` so the compromise is marked where the buyer is
+ * looking, not only in the summary. A card that states the applied floor
+ * without this sentence tells the buyer a number that was not, in the end,
+ * enforced.
+ */
+export const mockPlanFloorRelaxed = {
+  plan_id: "plan_e2e_relaxed",
+  intent: "transcribe and summarize a podcast episode",
+  steps: [
+    mockPlanExcluded.steps[0],
+    mockPlanExcluded.steps[1],
+    {
+      agent_id: "audio.whisper",
+      agent_name: "audio.whisper",
+      rationale: "transcribe the audio track",
+      est_price_usdc: 0.031,
+      est_eta_seconds: 4.4,
+      rep_bps: 5461,
+      rep_source: "onchain",
+      degraded: true,
+    },
+  ],
+  total_usdc: 0.088,
+  total_eta: 8.0,
+  floor_bps: 5500,
+  reputation_degraded: false,
+  notices: [
+    {
+      kind: "degraded",
+      agent_id: "audio.whisper",
+      agent_name: "audio.whisper",
+      reason: "re-admitted by starvation backstop (4771 < 5500 bps)",
+      reason_code: "floor_relaxed",
+      lower_bound_bps: 4771,
+      floor_bps: 5500,
+    },
+  ],
+} satisfies DecomposeResponse;
+
 function json(route: Route, body: unknown) {
   return route.fulfill({
     status: 200,
