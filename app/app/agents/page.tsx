@@ -14,7 +14,7 @@ import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { useWallet } from "@/lib/wallet";
 import type { Agent } from "@/lib/types";
-import { BindingStateBadge } from "./binding-notice";
+import { BindingStateBadge, UnboundNotice } from "./binding-notice";
 import { ManagePanel } from "./manage-panel";
 import { useBindingStatus } from "./use-binding-status";
 
@@ -338,6 +338,35 @@ export default function AgentsPage() {
                         )}
                       </td>
                     </m.tr>
+                    {/* The warning sits directly under its own row, always
+                        open. An operator who closed the tab before binding has
+                        to see it without expanding anything (AC-3), and Manage
+                        is a panel they may never open. */}
+                    {bindingState === "unbound" && (
+                      <tr className="border-b border-border/50 bg-bg/20">
+                        <td colSpan={8} className="px-1 pb-4">
+                          <UnboundNotice agentId={a.id} agentName={a.name} />
+                        </td>
+                      </tr>
+                    )}
+                    {/* A lookup that failed says exactly that. Rendering it as
+                        unbound would accuse a live agent of being unroutable,
+                        and rendering nothing would hide that we never found
+                        out. */}
+                    {bindingState === "error" && (
+                      <tr className="border-b border-border/50 bg-bg/20">
+                        <td colSpan={8} className="px-1 pb-4">
+                          <ErrorNote
+                            className="clip-cyber-sm"
+                            onRetry={binding.recheck}
+                            retryLabel="recheck"
+                          >
+                            couldn&apos;t check whether {a.name} has an endpoint
+                            bound — its status is unknown.
+                          </ErrorNote>
+                        </td>
+                      </tr>
+                    )}
                     {open && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
