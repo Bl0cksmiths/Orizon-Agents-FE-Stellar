@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
+import { StaleBadge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { getSettlement } from "@/lib/api";
@@ -343,7 +344,7 @@ export function SettlementPanel({
   // the whole retention window plus a contract read per hit, so focus
   // revalidation would spend a lot of backend for a number that changes at
   // most once a ledger. `reload` stays available as the operator's own retry.
-  const { data, error, loading, retrying, reload } = useFetch(
+  const { data, error, loading, retrying, lastSuccessAt, reload } = useFetch(
     () => getSettlement(agentId),
     [agentId],
   );
@@ -387,6 +388,30 @@ export function SettlementPanel({
     );
   }
 
+  // A failed reload keeps the last good payload on screen, which is the right
+  // call — the figures are still true of the moment they were read. What is
+  // not acceptable is letting them present themselves as current: a settled
+  // money figure frozen under a silent outage is the exact failure StaleBadge
+  // was written for. Dated, announced, and given a way back.
+  const staleNotice =
+    error && data ? (
+      <div className="space-y-2">
+        <ErrorNote
+          className="clip-cyber-sm"
+          onRetry={reload}
+          retrying={retrying || loading}
+        >
+          Settlement could not be refreshed for {agentName}. What is shown below
+          is the last reading that succeeded, not a live one. {error}
+        </ErrorNote>
+        <StaleBadge
+          stale
+          lastSuccessAt={lastSuccessAt}
+          what="settlement figures"
+        />
+      </div>
+    ) : null;
+
   // `unavailable` is the backend telling us it never looked — the RPC was
   // unreachable, the escrow id was not configured, the window could not be
   // resolved. Every figure in the payload is therefore a default, and
@@ -397,6 +422,7 @@ export function SettlementPanel({
   if (data.unavailable !== null) {
     return (
       <PanelShell headingId={headingId} agentName={agentName}>
+        {staleNotice}
         <ErrorNote
           className="clip-cyber-sm"
           onRetry={reload}
@@ -417,6 +443,7 @@ export function SettlementPanel({
 
   return (
     <PanelShell headingId={headingId} agentName={agentName}>
+      {staleNotice}
       {/* Stated before the tiles, not under them: the operator's question is
           "have I been paid", and a row of zeroes answers it only if you
           already know what the zeroes mean. */}
