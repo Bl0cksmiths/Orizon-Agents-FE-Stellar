@@ -96,6 +96,11 @@ export default function AgentsPage() {
         bps={a.rep * 2000}
         lowerBoundBps={live?.lower_bound_bps}
         source="prior"
+        // Whether this prior is a cold start or a chain read that did not come
+        // back. The two are identical in the payload apart from this flag, and
+        // the badge's cold-start wording is a false claim about the history of
+        // an agent whose record we merely could not reach.
+        degraded={live?.degraded}
         floorBps={repBatch?.floor_bps}
       />
     );
