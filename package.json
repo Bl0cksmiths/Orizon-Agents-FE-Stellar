@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "bundle": "node scripts/check-bundle-size.mjs",
+    "check:addresses": "node scripts/check-contract-addresses.mjs",
     "lighthouse": "npx --yes @lhci/cli autorun",
     "smoke": "node scripts/smoke-deploy.mjs",
     "format": "prettier --write .",
