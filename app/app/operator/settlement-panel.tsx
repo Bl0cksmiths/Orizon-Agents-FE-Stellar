@@ -325,7 +325,10 @@ function ChargeList({ data }: { data: AgentSettlement }) {
 /** What the scan covered, so the figures above can be argued with. */
 function ScanFacts({ data }: { data: AgentSettlement }) {
   return (
-    <dl className="space-y-2 font-mono text-[11px]">
+    // Capped for the same reason the routing figures are: a KVRow pushes its
+    // value to the right edge, and these caveats are only useful read as
+    // label-and-value pairs rather than as two columns a card apart.
+    <dl className="max-w-2xl space-y-2 font-mono text-[11px]">
       <KVRow k="scan window">
         last {data.window_days} days · soroban rpc event retention
       </KVRow>
