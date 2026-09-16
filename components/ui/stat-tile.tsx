@@ -29,7 +29,9 @@ export function StatTile({
       </div>
       <div className="font-mono text-3xl neon-text truncate">
         {value}
-        {unit ? <span className="ml-1.5 text-base text-muted">{unit}</span> : null}
+        {unit ? (
+          <span className="ml-1.5 text-base text-muted">{unit}</span>
+        ) : null}
       </div>
       {hint ? <div className="mt-2 text-xs text-muted">{hint}</div> : null}
     </div>

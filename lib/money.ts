@@ -27,7 +27,10 @@ export function assetLabel(asset: string | null | undefined): string {
 }
 
 /** A settled amount with its real unit. Never invents a currency. */
-export function formatSettled(stroops: number, asset: string | null | undefined): string {
+export function formatSettled(
+  stroops: number,
+  asset: string | null | undefined,
+): string {
   const label = assetLabel(asset);
   return `${stroopsToUnits(stroops).toFixed(7).replace(/0+$/, "").replace(/\.$/, ".0")}${label ? ` ${label}` : ""}`;
 }
