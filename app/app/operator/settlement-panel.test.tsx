@@ -69,6 +69,7 @@ function entry(over: Partial<SettlementEntry> = {}): SettlementEntry {
     auth_id: "1a2b3c4d5e6f70819a2b3c4d5e6f7081",
     amount_stroops: 1_610_000,
     ledger: 1_284_551,
+    tx_hash: "9f2c41a8b7e04d5c8a1b2c3d4e5f60719f2c41a8b7e04d5c8a1b2c3d4e5f6071",
     at: "2026-09-12T04:18:33Z",
     payer: PLATFORM,
     self_payment: true,
@@ -340,9 +341,14 @@ describe("SettlementPanel — a charge paid by the platform to itself", () => {
     getSettlement.mockResolvedValue(selfPaid());
     renderPanel();
 
-    const link = await screen.findByRole("link");
+    // Scoped to the ACCOUNT link: a charge now carries two, the payer and the
+    // transaction, and a bare `findByRole("link")` would be ambiguous.
+    await screen.findByText("settled revenue");
+    const accountLink = screen
+      .getAllByRole("link")
+      .find((a) => a.getAttribute("href")?.includes("/account/"));
     // "trust us, it was us" is not evidence; the address has to be verifiable.
-    expect(link.getAttribute("href")).toBe(
+    expect(accountLink?.getAttribute("href")).toBe(
       `https://stellar.expert/explorer/testnet/account/${PLATFORM}`,
     );
     expect(visibleText()).toContain(PLATFORM);
@@ -403,6 +409,46 @@ describe("SettlementPanel — a charge a customer actually paid", () => {
  * paid itself when the backend merely could not read the settler asserts the
  * one thing we specifically failed to establish.
  */
+/**
+ * The transaction link is what turns a reported charge into evidence a buyer
+ * or operator can check independently — story 2.06's AC-2 asks for exactly
+ * that, and the hash used to be dropped between the Soroban event and the
+ * response. The null case matters just as much: a link built from a hash the
+ * node mangled resolves to nothing, and a dead evidence link is worse than no
+ * link because it looks like proof.
+ */
+describe("SettlementPanel — the transaction behind a charge", () => {
+  it("links the charge to its transaction on the explorer", async () => {
+    getSettlement.mockResolvedValue(selfPaid());
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    const links = screen.getAllByRole("link");
+    const tx = links.find((a) => a.getAttribute("href")?.includes("/tx/"));
+    expect(tx).toBeTruthy();
+    expect(tx?.getAttribute("href")).toContain(entry().tx_hash);
+  });
+
+  it("renders no transaction link when the hash was unusable", async () => {
+    getSettlement.mockResolvedValue(
+      settlement({
+        entries: [entry({ tx_hash: null })],
+        self_payment_stroops: 1_610_000,
+      }),
+    );
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    // Not a disabled link, not an empty href — absent. The payer link is still
+    // there, so this asserts the tx link specifically rather than "no links".
+    const links = screen.getAllByRole("link");
+    expect(links.some((a) => a.getAttribute("href")?.includes("/tx/"))).toBe(
+      false,
+    );
+    expect(visibleText()).not.toContain("transaction");
+  });
+});
+
 describe("SettlementPanel — why a charge was excluded", () => {
   const cases: { exclusion: string; payer: string; says: string }[] = [
     {
@@ -480,7 +526,13 @@ describe("SettlementPanel — why a charge was excluded", () => {
 
     await screen.findByText("settled revenue");
     expect(visibleText()).toContain("could not be read");
-    expect(screen.queryByRole("link")).toBeNull();
+    // No ACCOUNT link — the transaction link beside it is a different claim
+    // and is still legitimate, since the charge happened whoever paid for it.
+    expect(
+      screen
+        .queryAllByRole("link")
+        .some((a) => a.getAttribute("href")?.includes("/account/")),
+    ).toBe(false);
   });
 });
 
