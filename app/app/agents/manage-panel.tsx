@@ -204,10 +204,23 @@ export function ManagePanel({
           {listed ? (
             confirmingDelist ? (
               <div className="mt-1.5">
+                {/* The previous wording here — "delisting stops new work
+                    being routed to this agent" — was false. The planner builds
+                    its candidate list from `is_dispatchable` and the
+                    reputation floor and never reads the active flag, so a
+                    delisted agent is still offered work. An operator who
+                    delisted to take their service down and believed that
+                    sentence would have left a live endpoint answering jobs.
+                    Until the orchestrator honours the flag, this says what
+                    delisting actually does. */}
                 <p className="font-mono text-[11px] leading-relaxed text-text">
-                  Delisting stops new work being routed to this agent. In-flight
-                  authorized work is unaffected, and your reputation and history
-                  are retained. You can relist any time.
+                  Delisting marks the agent inactive on-chain and shows it as
+                  offline in the registry. It does not currently stop the
+                  orchestrator offering work to your endpoint — the planner does
+                  not read the listing flag yet — so take the endpoint itself
+                  down if you need work to stop. In-flight authorized work is
+                  unaffected, and your reputation and history are retained. You
+                  can relist any time.
                 </p>
                 <div className="mt-2 flex gap-2">
                   <Button
