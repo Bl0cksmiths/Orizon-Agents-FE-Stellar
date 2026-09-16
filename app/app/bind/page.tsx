@@ -16,7 +16,7 @@
  * there; what is left here is state and markup.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   bindAgent,
@@ -51,6 +51,7 @@ import { Card } from "@/components/ui/card";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
+import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import type { AgentBinding, BindChallenge } from "@/lib/types";
 
 const inputCls = `mt-1.5 w-full bg-bg/60 border border-input p-3 font-mono text-sm placeholder:text-muted focus:border-violet transition disabled:opacity-50 ${focusRing}`;
@@ -66,7 +67,7 @@ function shortG(g: string): string {
   return g.length <= 12 ? g : `${g.slice(0, 6)}…${g.slice(-6)}`;
 }
 
-export default function BindPage() {
+function BindPageInner() {
   const wallet = useWallet();
   const owner = wallet.address ?? "";
 
@@ -696,5 +697,77 @@ export default function BindPage() {
         </p>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Shell for the Suspense boundary. Reading the handed-off agent id with
+ * `useSearchParams` opts this whole page into client-side rendering, so this
+ * fallback — not the form — is what ships in the prerendered HTML. A one-line
+ * "loading…" would reserve none of the binding card's height and the real
+ * layout would slam in underneath it, moving the agent id field out from under
+ * a cursor already on its way there. This mirrors the live structure (header,
+ * the binding card with both fields and the current-binding panel between
+ * them, then the explainer) so the swap is a fill, not a jump.
+ */
+function BindSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true">
+      <LoadingStatus label="Loading the binding form…" />
+      <div className="flex items-end justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Bind an Endpoint
+          </h1>
+          <Skeleton className="mt-2 h-4 w-[32rem] max-w-full" />
+          <Skeleton className="mt-1.5 h-4 w-72 max-w-full" />
+        </div>
+        <Skeleton className="h-10 w-40" />
+      </div>
+
+      <Card>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <Skeleton className="h-3 w-36" />
+          <Skeleton className="h-3 w-48" />
+        </div>
+        <div className="mt-5 space-y-5">
+          {/* agent id */}
+          <div>
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-1.5 h-[46px] w-full" />
+            <Skeleton className="mt-1 h-3 w-80 max-w-full" />
+          </div>
+          {/* current binding */}
+          <div className="border border-border/60 bg-bg/40 p-4">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="mt-2 h-3 w-64 max-w-full" />
+          </div>
+          {/* endpoint url */}
+          <div>
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="mt-1.5 h-[46px] w-full" />
+            <Skeleton className="mt-1 h-3 w-80 max-w-full" />
+          </div>
+          <Skeleton className="h-10 w-44" />
+        </div>
+      </Card>
+
+      <Card>
+        <Skeleton className="h-3 w-36" />
+        <div className="mt-3 space-y-2.5">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-11/12" />
+          <Skeleton className="h-4 w-4/5" />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+export default function BindPage() {
+  return (
+    <Suspense fallback={<BindSkeleton />}>
+      <BindPageInner />
+    </Suspense>
   );
 }
