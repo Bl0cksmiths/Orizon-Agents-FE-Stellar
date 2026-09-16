@@ -418,7 +418,11 @@ test.describe("plan card — reputation, source and exclusions", () => {
       ).toBeGreaterThan(0);
     }
 
-    await expect(page.getByRole("alert")).toHaveCount(0);
+    // No error state anywhere in the console's own content. Scoped to `main`
+    // because `next dev` mounts its error-overlay portal as an empty
+    // `role="alert"` outside the app shell on every page — unscoped, this
+    // assertion measures the dev server rather than the card.
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
     expect(crashes, "a pre-3.02 payload must not throw in the card").toEqual(
       [],
     );
