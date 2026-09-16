@@ -419,14 +419,19 @@ describe("SettlementPanel — a charge a customer actually paid", () => {
  */
 describe("SettlementPanel — the transaction behind a charge", () => {
   it("links the charge to its transaction on the explorer", async () => {
-    getSettlement.mockResolvedValue(selfPaid());
+    const charge = entry();
+    getSettlement.mockResolvedValue(
+      settlement({ entries: [charge], self_payment_stroops: 1_610_000 }),
+    );
     renderPanel();
 
     await screen.findByText("settled revenue");
-    const links = screen.getAllByRole("link");
-    const tx = links.find((a) => a.getAttribute("href")?.includes("/tx/"));
-    expect(tx).toBeTruthy();
-    expect(tx?.getAttribute("href")).toContain(entry().tx_hash);
+    const tx = screen
+      .getAllByRole("link")
+      .find((a) => a.getAttribute("href")?.includes("/tx/"));
+    expect(tx?.getAttribute("href")).toBe(
+      `https://stellar.expert/explorer/testnet/tx/${charge.tx_hash}`,
+    );
   });
 
   it("renders no transaction link when the hash was unusable", async () => {
@@ -441,11 +446,14 @@ describe("SettlementPanel — the transaction behind a charge", () => {
     await screen.findByText("settled revenue");
     // Not a disabled link, not an empty href — absent. The payer link is still
     // there, so this asserts the tx link specifically rather than "no links".
-    const links = screen.getAllByRole("link");
-    expect(links.some((a) => a.getAttribute("href")?.includes("/tx/"))).toBe(
-      false,
-    );
-    expect(visibleText()).not.toContain("transaction");
+    // Absent, not a disabled link and not an empty href. The payer link is
+    // still rendered, so this asserts the transaction link specifically rather
+    // than the weaker "no links at all".
+    expect(
+      screen
+        .queryAllByRole("link")
+        .some((a) => a.getAttribute("href")?.includes("/tx/")),
+    ).toBe(false);
   });
 });
 
