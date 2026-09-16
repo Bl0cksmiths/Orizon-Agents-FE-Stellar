@@ -403,10 +403,16 @@ export const mockReputationParams = {
  *   - `weather_bot` scored on-chain but with a lower bound only just clear of
  *     it — the interesting case, since routing uses the bound and not the
  *     headline score;
- *   - `unbound_bot` never rated, so it carries the Bayesian prior and its
- *     lower bound sits *below* the floor. That is the honest cold-start
- *     position of a brand-new agent and the reason an operator sees
- *     "not eligible" on something they just registered.
+ *   - `unbound_bot` never rated, so it carries the Bayesian prior — and its
+ *     lower bound of 5677 CLEARS the 5500 floor. That is the honest cold-start
+ *     position of a brand-new agent: reputation is not what holds it back.
+ *     What an operator sees as "not eligible" on something they just
+ *     registered is the endpoint gate, and the two must not be conflated.
+ *
+ * That bound used to read 5100, which no cold-start agent can have:
+ * `lowerBoundBps(7000, 0)` is 5677 (lib/reputation-math.test.ts pins it), and
+ * an agent may only fall below the floor by being rated down. The wrong number
+ * quietly inverted the guarantee the reputation work exists to make.
  *
  * Without this, `GET /api/stellar/reputation` fell through to the catch-all
  * `{}`, `isReputationBatch` rejected it, and every score silently became a
@@ -443,7 +449,7 @@ export const mockReputationBatch = {
     unbound_bot: {
       agent_id: "unbound_bot",
       smoothed_bps: 7000,
-      lower_bound_bps: 5100,
+      lower_bound_bps: 5677,
       avg_bps: 7000,
       count: 0,
       weight: 0,
