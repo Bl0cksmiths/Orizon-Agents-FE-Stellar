@@ -393,3 +393,60 @@ describe("SettlementPanel — a charge a customer actually paid", () => {
     expect(visibleText()).not.toContain("has settled to");
   });
 });
+
+describe("SettlementPanel — a scan that stopped early", () => {
+  it("calls a truncated scan a floor rather than a total", async () => {
+    getSettlement.mockResolvedValue(settlement({ truncated: true }));
+    renderPanel();
+
+    await screen.findByText("settled revenue");
+    const text = visibleText();
+    expect(text).toContain(
+      "The scan stopped at its page limit before it reached the end of the 7-day window",
+    );
+    expect(text).toContain("Every figure below is a floor rather than a total");
+    expect(text).toContain("stopped at the page cap");
+  });
+
+  it("puts the caveat above the figures it weakens", async () => {
+    getSettlement.mockResolvedValue(settlement({ truncated: true }));
+    renderPanel();
+
+    const label = await screen.findByText("settled revenue");
+    const caveat = screen.getByText(/Every figure below is a floor/);
+    // An operator who meets the caveat after the numbers has already drawn
+    // the conclusion, so DOM order is part of the claim.
+    expect(
+      caveat.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
+describe("SettlementPanel — structure", () => {
+  it("names the panel with a heading its section points at", async () => {
+    getSettlement.mockResolvedValue(settlement());
+    const { container } = renderPanel();
+
+    const heading = await screen.findByRole("heading", { name: "Settlement" });
+    // h2 under the page's h1: the panel owns its level so several of these can
+    // sit on one dashboard without skipping a heading level.
+    expect(heading.tagName).toBe("H2");
+    expect(
+      container.querySelector("section")?.getAttribute("aria-labelledby"),
+    ).toBe(heading.id);
+  });
+
+  it("re-reads the chain on demand through a keyboard-reachable control", async () => {
+    getSettlement.mockResolvedValue(settlement());
+    renderPanel();
+
+    const button = await screen.findByRole("button", { name: /re-scan/i });
+    // The shared inset ring — the cyber clip-paths eat an offset one, so a
+    // hand-rolled focus style here would leave the control invisible to a
+    // keyboard user.
+    expect(button.className).toContain("focus-visible:ring-inset");
+
+    fireEvent.click(button);
+    await waitFor(() => expect(getSettlement).toHaveBeenCalledTimes(2));
+  });
+});
