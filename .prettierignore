@@ -9,3 +9,8 @@ playwright-report/
 package-lock.json
 docs/
 whitepaper/
+# Weekly submission bundles. Same reasoning as docs/: these are written for a
+# grant reviewer, laid out by hand, and a formatter reflowing their tables and
+# evidence blocks makes them worse. They are also frozen once submitted — a
+# format sweep would rewrite a record of what was sent.
+Week-1-Tranche-Submission/
