@@ -18,14 +18,16 @@
 
 import { useId } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StatTile } from "@/components/ui/stat-tile";
+import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { getSettlement } from "@/lib/api";
 import { assetLabel, formatSettled } from "@/lib/money";
-import type { AgentSettlement } from "@/lib/types";
+import type { AgentSettlement, SettlementEntry } from "@/lib/types";
 import { useFetch } from "@/lib/use-fetch";
 
 /**
@@ -126,15 +128,15 @@ function NothingSettledNotice({
           ? `No payment has settled to ${agentName}.`
           : `No customer payment has settled to ${agentName}.`}
       </p>
-      {data.entries.length === 0 ? (
-        <p className="max-w-2xl text-xs leading-relaxed text-muted">
-          The escrow recorded no charge against this agent in the last{" "}
-          {data.window_days} days. That window is the whole of the log we can
-          read — Soroban RPC keeps {data.window_days} days of contract events
-          and drops everything older — so this is a statement about the last{" "}
-          {data.window_days} days, not about the agent's whole history.
-        </p>
-      ) : null}
+      <p className="max-w-2xl text-xs leading-relaxed text-muted">
+        {data.entries.length === 0
+          ? `The escrow recorded no charge against this agent in the last ${data.window_days} days.`
+          : `The charges below are the only ones in the last ${data.window_days} days, and none of them is a customer paying for work.`}{" "}
+        That window is the whole of the log we can read — Soroban RPC keeps{" "}
+        {data.window_days} days of contract events and drops everything older —
+        so this is a statement about the last {data.window_days} days, not about
+        the agent's whole history.
+      </p>
     </div>
   );
 }
@@ -186,6 +188,103 @@ function ChargeDefectNote() {
         contract, on the platform's side of the line. It is not a measure of
         your agent, and not a signal about demand for it.
       </p>
+    </div>
+  );
+}
+
+/**
+ * A ledger close time, as UTC rather than as the reader's locale.
+ *
+ * Same call as `formatBoundAt` in lib/bind-ui: this stamp is evidence, and an
+ * operator pastes it into a report where it has to mean the same thing to
+ * everyone. It also renders identically on the server and in the browser,
+ * which a locale format does not. A time the RPC never reported is named as
+ * missing instead of printing "Invalid Date".
+ */
+function formatLedgerTime(at: string | null): string {
+  if (at === null) return "not reported by the rpc";
+  const ms = Date.parse(at);
+  if (!Number.isFinite(ms)) return at;
+  return `${new Date(ms).toISOString().slice(0, 19).replace("T", " ")} UTC`;
+}
+
+/**
+ * One `charged` event, with the payer's identity treated as the headline fact.
+ *
+ * A self-payment is shown, not hidden. Dropping it would leave an operator
+ * with an unexplained gap between "8 receipts exist" and "you earned nothing",
+ * and the explanation is the whole point: the payer resolved to the platform's
+ * own account, so the money went from the platform to the platform. The label
+ * carries that in a glyph and in words — never in the magenta alone — and the
+ * payer address is printed in full with an explorer link, because "trust us,
+ * it was us" is not evidence and this claim is the one an operator has the
+ * most right to check.
+ */
+function ChargeEntry({
+  entry,
+  asset,
+}: {
+  entry: SettlementEntry;
+  asset: string;
+}) {
+  return (
+    <div className="clip-cyber-sm space-y-3 border border-border/60 bg-bg/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-mono text-sm text-text">
+          {formatSettled(entry.amount_stroops, asset)}
+        </span>
+        {entry.self_payment ? (
+          <Badge tone="magenta">
+            <span aria-hidden="true">⚑</span> self-payment · excluded
+          </Badge>
+        ) : (
+          <Badge tone="success">
+            <span aria-hidden="true">✓</span> customer payment
+          </Badge>
+        )}
+      </div>
+      {entry.self_payment ? (
+        <p className="max-w-2xl text-xs leading-relaxed text-muted">
+          The payer on this charge resolves to the platform's own account — the
+          same account that signs settlements — so it moved platform funds to
+          the platform. It is listed because it happened on-chain, and left out
+          of revenue because no customer paid it.
+        </p>
+      ) : null}
+      <dl className="space-y-2 font-mono text-[11px]">
+        <KVRow k="payer">
+          <span className="block break-all">{entry.payer}</span>
+          <StellarExpertLink
+            kind="account"
+            id={entry.payer}
+            className="mt-1 inline-block"
+          />
+        </KVRow>
+        <KVRow k="job" value={entry.job_id} />
+        <KVRow k="ledger" value={entry.ledger.toLocaleString()} />
+        <KVRow k="closed" value={formatLedgerTime(entry.at)} />
+      </dl>
+    </div>
+  );
+}
+
+/** Every charge the scan found, in the order the chain recorded them. */
+function ChargeList({ data }: { data: AgentSettlement }) {
+  if (data.entries.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
+        Charged events
+      </h3>
+      <ul className="space-y-3">
+        {data.entries.map((entry) => (
+          // auth_id identifies the authorization; pairing it with the ledger
+          // keeps the key stable even if one authorization is charged twice.
+          <li key={`${entry.auth_id}:${entry.ledger}`}>
+            <ChargeEntry entry={entry} asset={data.asset} />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -307,6 +406,7 @@ export function SettlementPanel({
           real customer revenue is not living under this defect, and a standing
           contract-bug essay over a working figure would be noise. */}
       {data.total_stroops === 0 ? <ChargeDefectNote /> : null}
+      <ChargeList data={data} />
       <ScanFacts data={data} />
     </PanelShell>
   );
