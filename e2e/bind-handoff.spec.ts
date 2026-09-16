@@ -11,7 +11,7 @@
  * request the page makes off the back of it, never on "the page rendered".
  */
 import { test, expect } from "@playwright/test";
-import { bindHref } from "../lib/binding-status";
+import { bindHref, TRUST_BOUNDARY } from "../lib/binding-status";
 import { mockApi, mockBindAgentId, mockWallet } from "./mocks";
 
 /** Pathname of the current-binding read for a given agent. */
@@ -97,5 +97,19 @@ test.describe("bind hand-off", () => {
     // not yet passed.
     await page.waitForTimeout(800);
     expect(bindingReads).toBe(0);
+  });
+
+  test("says which half of this is on-chain, inside the form", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page);
+    await page.goto("/app/bind");
+
+    // Scoped to the form on purpose. The same sentence sitting in the
+    // explainer card at the foot of the page would pass a looser assertion
+    // and fail the actual requirement, which is that an operator reads it as
+    // part of binding rather than after deciding to.
+    await expect(page.locator("form").getByText(TRUST_BOUNDARY)).toBeVisible();
   });
 });
