@@ -146,6 +146,25 @@ describe("FloorSummary — what it counts", () => {
     expect(shown).toContain("the floor acted on 1 agent");
   });
 
+  // Per reason code, because the notices array carries more than the floor's
+  // actions: an unbound agent was never a candidate, so it is no part of what
+  // the floor did. A legacy notice without a code predates unbound reporting
+  // and was always a floor action.
+  it.each([
+    ["a below_floor notice", "below_floor", 1],
+    ["a floor_relaxed notice", "floor_relaxed", 1],
+    ["an unbound_endpoint notice", "unbound_endpoint", 0],
+    ["a legacy notice with no reason_code", undefined, 1],
+  ] as const)("counts %s as %i floor action(s)", (_name, code, acted) => {
+    const n = notice({ reason_code: code });
+    if (code === undefined) delete n.reason_code;
+    expect(text({ notices: [n] })).toContain(
+      acted === 0
+        ? "the floor acted on no agents"
+        : "the floor acted on 1 agent",
+    );
+  });
+
   it("singularises a one-step plan", () => {
     expect(text({ steps: [step()] })).toContain("1 step planned");
   });
