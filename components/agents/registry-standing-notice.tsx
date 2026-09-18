@@ -39,6 +39,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ErrorNote } from "@/components/ui/error-note";
 import { scoreOutOfFive } from "@/lib/reputation-math";
 import type { ReputationBatch } from "@/lib/types";
 
@@ -47,13 +48,45 @@ const body = "font-mono text-[11px] leading-relaxed text-muted";
 
 export function RegistryStandingNotice({
   batch,
+  readError = null,
+  onRetry,
+  retrying = false,
 }: {
   batch: ReputationBatch | null;
+  /**
+   * Why the latest reputation request failed, or null when it did not. The
+   * request is best-effort — the registry renders without it — which is
+   * exactly why its failure has to be said somewhere: nothing else on the
+   * page changes shape when it fails, so without this the page looks the
+   * same with and without a single score behind it.
+   */
+  readError?: string | null;
+  /** Re-runs the reputation request; offered alongside the failure. */
+  onRetry?: () => void;
+  /** A retry is in flight or scheduled, so the control says so. */
+  retrying?: boolean;
 }): JSX.Element | null {
-  // The reputation read has not landed. The page owns its own loading and
-  // error frames for that fetch; a second verdict on the same request here
-  // would only contradict them, and printing a floor nobody sent would be
-  // inventing the one number the rest of the page defers to.
+  // The reputation read never landed and failed. Said here, at the top of the
+  // page, and as an alert: every score, the floor and every standing verdict
+  // below are missing for one reason, and a reader meeting a column of blank
+  // scores first would otherwise take them for a registry of unrated agents.
+  if (batch === null && readError !== null) {
+    return (
+      <ErrorNote
+        className="clip-cyber-sm"
+        onRetry={onRetry}
+        retrying={retrying}
+      >
+        reputation unavailable — it could not be loaded, so this page shows no
+        score, selection floor or standing verdict rather than guessed ones.{" "}
+        {readError}
+      </ErrorNote>
+    );
+  }
+
+  // The reputation read has not landed yet. Printing a floor nobody sent
+  // would be inventing the one number the rest of the page defers to, and the
+  // rows already hold a placeholder for the scores that are on their way.
   if (batch === null) return null;
 
   const floorBps = batch.floor_bps;
