@@ -19,14 +19,16 @@ const STROOPS_PER_USDC = 10_000_000;
 type SortCol = "score" | "lower" | "evidence" | "ratings" | "disputes";
 type SortDir = "asc" | "desc";
 
-type Row = { agent: Agent; rep: ReputationInfo };
+// `rep` is null until a reputation batch has landed: there is no reading to
+// show, and the catalog's seeded rating is not one (see RepLeaderboard).
+type Row = { agent: Agent; rep: ReputationInfo | null };
 
-const sortValue: Record<SortCol, (r: Row) => number> = {
-  score: (r) => r.rep.smoothed_bps,
-  lower: (r) => r.rep.lower_bound_bps,
-  evidence: (r) => r.rep.weight,
-  ratings: (r) => r.rep.count,
-  disputes: (r) => r.rep.disputed,
+const sortValue: Record<SortCol, (rep: ReputationInfo) => number> = {
+  score: (rep) => rep.smoothed_bps,
+  lower: (rep) => rep.lower_bound_bps,
+  evidence: (rep) => rep.weight,
+  ratings: (rep) => rep.count,
+  disputes: (rep) => rep.disputed,
 };
 
 function ScoreMeter({
