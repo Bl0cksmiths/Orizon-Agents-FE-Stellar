@@ -69,6 +69,14 @@ function chipFor(container: HTMLElement, id: string): string {
   return chip?.getAttribute("aria-label") ?? "";
 }
 
+/** Everything a reader gets from one agent's row, screen-reader text included. */
+function rowFor(container: HTMLElement, id: string): string {
+  const row = Array.from(container.querySelectorAll("tr")).find((tr) =>
+    tr.textContent?.includes(id),
+  );
+  return row?.textContent ?? "";
+}
+
 function renderBoard(
   props: Partial<Parameters<typeof RepLeaderboard>[0]> = {},
 ) {
