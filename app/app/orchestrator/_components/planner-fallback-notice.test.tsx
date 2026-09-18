@@ -10,8 +10,8 @@
  * Assertions are plain DOM checks — this repo does not install jest-dom.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import type { DecomposeResponse } from "@/lib/types";
 import {
@@ -210,5 +210,65 @@ describe("PlannerFallbackNotice — how it is announced and structured", () => {
     const glyph = status.querySelector('[aria-hidden="true"]');
     expect(glyph?.textContent).toBe("↳");
     expect(status.textContent).toContain("fallback plan");
+  });
+});
+
+describe("PlannerFallbackNotice — asking the planner again", () => {
+  const retryButton = () =>
+    screen.getByRole("button", { name: /ask the planner again/i });
+
+  it("asks the page to decompose again when the buyer chooses to", () => {
+    const onReplan = vi.fn();
+    render(
+      <PlannerFallbackNotice
+        plan={planFixture({ planner_fallback: true })}
+        onReplan={onReplan}
+      />,
+    );
+    fireEvent.click(retryButton());
+    expect(onReplan).toHaveBeenCalledTimes(1);
+  });
+
+  // No handler, no button: a control that does nothing is worse than the
+  // sentence that already says the intent can be run again.
+  it("offers no button when there is nothing to call", () => {
+    render(
+      <PlannerFallbackNotice plan={planFixture({ planner_fallback: true })} />,
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain(
+      "run the same intent through the planner again",
+    );
+  });
+
+  // Asking for a new plan drops this card. With a signature or a run in
+  // flight for it, that would leave a payment going on out of sight.
+  it("holds the retry while a run for this plan is in flight", () => {
+    const onReplan = vi.fn();
+    render(
+      <PlannerFallbackNotice
+        plan={planFixture({ planner_fallback: true })}
+        onReplan={onReplan}
+        busy
+      />,
+    );
+    expect(retryButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(retryButton());
+    expect(onReplan).not.toHaveBeenCalled();
+  });
+
+  // The button sits beside the status region, not in it, so neither the
+  // announcement nor Authorize's description reads out a button label as if
+  // it were part of the fact.
+  it("keeps the button out of what is announced and described", () => {
+    render(
+      <PlannerFallbackNotice
+        plan={planFixture({ planner_fallback: true })}
+        onReplan={() => {}}
+      />,
+    );
+    const status = screen.getByRole("status");
+    expect(status.contains(retryButton())).toBe(false);
+    expect(status.textContent).not.toMatch(/ask the planner again/i);
   });
 });
