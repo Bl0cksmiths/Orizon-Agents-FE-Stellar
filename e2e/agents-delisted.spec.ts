@@ -129,3 +129,40 @@ test.describe("a delisted agent in the marketplace", () => {
     await expect(page.getByRole("link", { name: /^bind /i })).toHaveCount(1);
   });
 });
+
+test.describe("a delisted agent on its operator's dashboard", () => {
+  test("gets its own verdict, and is not counted as eligible", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page, { agents: AGENTS, reputation: BATCH });
+    // Both bound, both clear of the floor. The only difference between them
+    // is that one is listed.
+    await bindingIsBound(page, "weather_bot");
+    await bindingIsBound(page, DELISTED_ID);
+    await page.goto("/app/operator");
+
+    await expect(
+      page.getByRole("heading", { name: mockDelistedAgent.name, exact: true }),
+    ).toBeVisible();
+
+    // The verdict names the operator's own decision rather than a gate, and
+    // never calls the agent eligible.
+    await expect(
+      page.getByText(/^Delisted — you withdrew this agent/),
+    ).toHaveCount(1);
+    await expect(
+      page.getByText("This is your own setting, not a fault.", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText(/^Eligible — /)).toHaveCount(1);
+
+    // Three owned, one eligible: `weather_bot`. Before the listing rule the
+    // tile read 2 of 3, counting an agent no plan can pick.
+    const tile = page
+      .locator("div", { hasText: /^eligible$/ })
+      .locator("xpath=..");
+    await expect(tile).toContainText("1of 3");
+  });
+});
