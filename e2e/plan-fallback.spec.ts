@@ -17,6 +17,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockApi, mockPlanExcluded, mockWallet } from "./mocks";
 import {
+  mockDecomposeSequence,
   mockPlanPlannerAnswered,
   mockPlanPlannerFallback,
   mockPlanPlannerFallbackUnread,
@@ -54,6 +55,9 @@ function expectWithinWidth(box: Box, frame: Viewport, what: string) {
  */
 const fallbackNotice = (page: Page) =>
   page.locator('[role="status"]').filter({ hasText: /fallback/i });
+
+/** The plan's step rows — the first ordered list in the card. */
+const steps = (page: Page) => page.locator("ol").first().getByRole("listitem");
 
 /** The unverified-reputation banner, located as e2e/plan-floor.spec.ts does. */
 const estimateBanner = (page: Page) =>
@@ -296,4 +300,38 @@ test.describe("plan card — a plan built without the planner", () => {
       );
     });
   }
+
+  test("asking the planner again re-runs the same intent and replaces the fallback", async ({
+    page,
+  }) => {
+    await page.setViewportSize(LAPTOP);
+    await mockApi(page);
+    // After `mockApi`, so it answers decompose ahead of the catch-all: the
+    // fallback first, then the planner's own plan once it answers.
+    const asked = await mockDecomposeSequence(page, [
+      mockPlanPlannerFallback,
+      mockPlanPlannerAnswered,
+    ]);
+    await page.goto("/app/orchestrator");
+
+    const intentBox = page.getByRole("textbox", { name: /intent/i });
+    await intentBox.fill(mockPlanPlannerFallback.intent);
+    await page.getByRole("button", { name: /decompos/i }).click();
+    await expect(fallbackNotice(page)).toHaveCount(1);
+    await expect(steps(page)).toHaveCount(mockPlanPlannerFallback.steps.length);
+
+    // The buyer starts typing something else before retrying. The retry is
+    // about the plan on the card, so it must ask the planner what that plan
+    // answered — not whatever the box says now.
+    await intentBox.fill("a different intent, not yet submitted");
+    await page.getByRole("button", { name: /ask the planner again/i }).click();
+
+    await expect(page.getByText(mockPlanPlannerAnswered.plan_id)).toBeVisible();
+    await expect(fallbackNotice(page)).toHaveCount(0);
+    await expect(steps(page)).toHaveCount(mockPlanPlannerAnswered.steps.length);
+    expect(asked).toEqual([
+      mockPlanPlannerFallback.intent,
+      mockPlanPlannerFallback.intent,
+    ]);
+  });
 });
