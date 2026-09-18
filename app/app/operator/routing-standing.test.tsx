@@ -329,6 +329,28 @@ describe("RoutingStanding — a delisted agent", () => {
     renderStanding({ status: "idle" });
     expect(verdict()).toContain("Eligible — the planner selects per request.");
   });
+
+  // The operator withdrew it; nothing failed. The panel keeps magenta for a
+  // blocked gate, and a delisting is not one.
+  it("says it is the operator's choice, calmly", () => {
+    renderStanding({ status: "offline" });
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("This is your own setting, not a fault.");
+    expect(text).toContain("the starvation backstop never re-admits");
+    expect(screen.getByRole("status").className).not.toContain("magenta");
+  });
+
+  // Delisting outranks a failed gate too: the operator's own decision is the
+  // reason, and naming a gate instead would send them to fix the wrong thing.
+  it("outranks a failed gate", () => {
+    renderStanding({
+      status: "offline",
+      bindingState: "unbound",
+      reputation: rep({ lower_bound_bps: 1000 }),
+    });
+    expect(verdict()).toContain("Delisted");
+    expect(verdict()).not.toContain("Not eligible");
+  });
 });
 
 describe("RoutingStanding — the claims it must never make", () => {
