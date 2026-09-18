@@ -336,6 +336,26 @@ describe("ExclusionsPanel · the deciding numbers", () => {
     expect(text()).toContain("registered on-chain but has no endpoint bound");
   });
 
+  // It arrives as kind "excluded", but a magenta "✕ excluded" would file it
+  // with the floor's verdicts. The row wears its own words instead.
+  it("marks an unbound row in its own words, not as a floor exclusion", () => {
+    const { container } = opened(
+      plan({
+        notices: [
+          notice({
+            reason_code: "unbound_endpoint",
+            reason: "no endpoint bound",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    const row = container.querySelector("li");
+    expect(row?.textContent).toContain("no endpoint");
+    expect(row?.textContent).not.toMatch(/excluded/i);
+    expect(row?.innerHTML).not.toContain("magenta");
+  });
+
   // Nothing was decided on numbers, so none are printed — not "none on
   // record", and not the floor, which would imply a comparison that never ran.
   it("prints no deciding numbers on an unbound row", () => {
