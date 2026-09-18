@@ -351,6 +351,19 @@ describe("RoutingStanding — a delisted agent", () => {
     expect(verdict()).toContain("Delisted");
     expect(verdict()).not.toContain("Not eligible");
   });
+
+  // The shared unbound warning says the agent "is listed". On a delisted
+  // agent the gate still reports the missing endpoint — it matters for coming
+  // back — but in words that are true of it.
+  it("keeps the unbound gate honest about the listing", () => {
+    renderStanding({ status: "offline", bindingState: "unbound" });
+    const text = document.body.textContent ?? "";
+    expect(text).not.toContain(UNBOUND_WARNING);
+    expect(text).toContain("Bind one before you relist this agent");
+    expect(
+      screen.getByRole("link", { name: "bind agt_11c0" }).getAttribute("href"),
+    ).toBe("/app/bind?agent=agt_11c0");
+  });
 });
 
 describe("RoutingStanding — the claims it must never make", () => {
