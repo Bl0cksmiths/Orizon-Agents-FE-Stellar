@@ -40,6 +40,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { ExecutionPlan } from "./execution-plan";
 import { UNVERIFIED_BANNER_ID } from "./degraded-banner";
+import { PLANNER_FALLBACK_NOTICE_ID } from "./planner-fallback-notice";
 
 /** What GET /api/stellar/network answers on testnet: the escrow's SAC wraps
  *  the native asset. */
@@ -113,6 +114,48 @@ describe("ExecutionPlan · Authorize and the unverified-reputation banner", () =
     render(<ExecutionPlan plan={plan(over)} />);
     expect(authorizeButton().hasAttribute("aria-describedby")).toBe(false);
     expect(document.getElementById(UNVERIFIED_BANNER_ID)).toBeNull();
+  });
+});
+
+describe("ExecutionPlan · the planner-fallback notice", () => {
+  const notice = () => document.getElementById(PLANNER_FALLBACK_NOTICE_ID);
+
+  it("shows the notice on a fallback plan, ahead of Authorize", () => {
+    render(<ExecutionPlan plan={plan({ planner_fallback: true })} />);
+    const shown = notice();
+    expect(shown?.getAttribute("role")).toBe("status");
+    // Document order is reading order: the notice has to be met before the
+    // button it is about, never after it.
+    expect(
+      shown!.compareDocumentPosition(authorizeButton()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  // Absent is an older backend; false is the planner's own plan. Neither is
+  // a fallback, and the card must not say otherwise.
+  it.each([
+    ["the planner built the plan", { planner_fallback: false }],
+    ["the backend predates the flag", { planner_fallback: undefined }],
+  ])("shows no notice when %s", (_name, over) => {
+    render(<ExecutionPlan plan={plan(over)} />);
+    expect(notice()).toBeNull();
+    expect(screen.queryByText(/built without the planner/i)).toBeNull();
+  });
+
+  // The reputation banner keeps its place immediately over the Authorize
+  // panel; this notice sits above it.
+  it("sits above the reputation banner when both are shown", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({ planner_fallback: true, reputation_degraded: true })}
+      />,
+    );
+    const banner = document.getElementById(UNVERIFIED_BANNER_ID);
+    expect(
+      notice()!.compareDocumentPosition(banner!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
 
