@@ -240,7 +240,9 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
         isNum(s.est_eta_seconds) &&
         // The reputation badge compares the bound against the floor and
         // prints the count and dispute rate, so each is a finite number or
-        // absent — a string "5283" would compare lexically against 5500.
+        // absent. Anything else coerces to NaN, every comparison against it
+        // is false — a below-floor agent reads as clearing the floor — and
+        // the label prints "NaN% disputed".
         isOptionalNum(s.rep_lower_bound_bps) &&
         isOptionalNum(s.rep_count) &&
         isOptionalNum(s.rep_dispute_rate_bps) &&
