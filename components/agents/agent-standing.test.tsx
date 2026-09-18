@@ -390,6 +390,22 @@ describe("AgentStanding — endpoint binding", () => {
   });
 });
 
+describe("AgentStanding — a delisted agent", () => {
+  // `set_active(id, false)` syncs as "offline", and the backend routes an
+  // offline agent on no path at all. The row has to say so — the "routable"
+  // filter already drops it — and say it as the operator's choice.
+  it("marks an agent its operator delisted", () => {
+    const { container } = renderCell({ agent: onchain({ status: "offline" }) });
+    expect(labels(container)).toEqual(["⬡ external", "⏸ delisted by operator"]);
+  });
+
+  // "idle" is "nothing in flight", not "withdrawn": the rule is negative.
+  it("leaves an idle agent unmarked", () => {
+    const { container } = renderCell({ agent: seeded({ status: "idle" }) });
+    expect(container.innerHTML).toBe("");
+  });
+});
+
 describe("AgentStanding — the row it lives in", () => {
   it("nests inside a table cell without a DOM-nesting warning", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
