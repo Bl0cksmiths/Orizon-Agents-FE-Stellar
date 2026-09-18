@@ -160,41 +160,45 @@ export function RepLeaderboard({
     if (!agents) return [];
     const joined = agents.map((agent) => {
       const live = batch?.reputations[agent.id];
-      // Mirrors the backend's prior fallback (`_prior_info`): the smoothed
-      // score IS the live prior, there is no evidence mean, and the lower
-      // bound is taken on the prior with zero weight under the live params.
-      // Only without a batch (so no live params either) does the row degrade
-      // to the seeded prior.
-      const rep: ReputationInfo =
-        live && live.source === "onchain"
-          ? live
-          : batch != null
-            ? {
-                agent_id: agent.id,
-                smoothed_bps: batch.prior_bps,
-                lower_bound_bps: lowerBoundBps(batch.prior_bps, 0, {
-                  ...DEFAULT_REP_PARAMS,
-                  prior_bps: batch.prior_bps,
-                  floor_bps: batch.floor_bps,
-                }),
-                avg_bps: 0,
-                count: 0,
-                weight: 0,
-                disputed: 0,
-                dispute_rate_bps: 0,
-                source: "prior",
-              }
-            : {
-                agent_id: agent.id,
-                smoothed_bps: agent.rep * 2000,
-                lower_bound_bps: lowerBoundBps(agent.rep * 2000, 0),
-                avg_bps: agent.rep * 2000,
-                count: 0,
-                weight: 0,
-                disputed: 0,
-                dispute_rate_bps: 0,
-                source: "prior",
-              };
+      // A live entry is used as sent, prior or on-chain. A prior entry is the
+      // backend's own `_prior_info`, lower bound included, and it carries the
+      // one fact a rebuilt copy would drop: `degraded`, whether that prior is
+      // a cold start or stands in for a chain read that failed.
+      //
+      // Only an agent the batch carried no entry for is rebuilt here, and it
+      // mirrors that same fallback: the smoothed score IS the live prior,
+      // there is no evidence mean, and the lower bound is taken on the prior
+      // with zero weight under the live params. Only without a batch (so no
+      // live params either) does the row degrade to the seeded prior.
+      const rep: ReputationInfo = live
+        ? live
+        : batch != null
+          ? {
+              agent_id: agent.id,
+              smoothed_bps: batch.prior_bps,
+              lower_bound_bps: lowerBoundBps(batch.prior_bps, 0, {
+                ...DEFAULT_REP_PARAMS,
+                prior_bps: batch.prior_bps,
+                floor_bps: batch.floor_bps,
+              }),
+              avg_bps: 0,
+              count: 0,
+              weight: 0,
+              disputed: 0,
+              dispute_rate_bps: 0,
+              source: "prior",
+            }
+          : {
+              agent_id: agent.id,
+              smoothed_bps: agent.rep * 2000,
+              lower_bound_bps: lowerBoundBps(agent.rep * 2000, 0),
+              avg_bps: agent.rep * 2000,
+              count: 0,
+              weight: 0,
+              disputed: 0,
+              dispute_rate_bps: 0,
+              source: "prior",
+            };
       return { agent, rep };
     });
     const dir = sort.dir === "desc" ? -1 : 1;
