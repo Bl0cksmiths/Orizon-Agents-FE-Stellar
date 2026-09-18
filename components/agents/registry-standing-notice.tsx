@@ -40,6 +40,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
+import { StaleBadge } from "@/components/ui/stale-badge";
 import { scoreOutOfFive } from "@/lib/reputation-math";
 import type { ReputationBatch } from "@/lib/types";
 
@@ -49,6 +50,7 @@ const body = "font-mono text-[11px] leading-relaxed text-muted";
 export function RegistryStandingNotice({
   batch,
   readError = null,
+  lastReadAt = null,
   onRetry,
   retrying = false,
 }: {
@@ -61,6 +63,9 @@ export function RegistryStandingNotice({
    * same with and without a single score behind it.
    */
   readError?: string | null;
+  /** When the batch on screen was read (`useFetch.lastSuccessAt`), so a batch
+   *  kept through a failed refresh can be dated rather than passed off as live. */
+  lastReadAt?: number | null;
   /** Re-runs the reputation request; offered alongside the failure. */
   onRetry?: () => void;
   /** A retry is in flight or scheduled, so the control says so. */
@@ -171,6 +176,13 @@ export function RegistryStandingNotice({
             <Badge tone="violet">
               <span aria-hidden="true">★</span> floor {scoreOutOfFive(floorBps)}
             </Badge>
+            {/* Beside the number it dates: after a failed refresh this floor
+                is the last one read, and a deployment can have moved it. */}
+            <StaleBadge
+              stale={refreshFailed}
+              lastSuccessAt={lastReadAt}
+              what="reputation scores and selection floor"
+            />
           </div>
           <p className={`mt-2 max-w-[72ch] ${body}`}>
             The floor decides which agents the orchestrator will consider when
