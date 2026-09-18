@@ -360,6 +360,20 @@ describe("AgentStanding — endpoint binding", () => {
       "⚑ below floor · not eligible",
     ]);
   });
+
+  // The regression that turned CI red: on an operator's own row the page's
+  // per-agent lookup already says "checking endpoint…", "unbound" or
+  // "endpoint unknown", and renders the warning itself. A second, list-derived
+  // marker put two answers to one question in the same row, and repeated the
+  // warning where only one copy belongs.
+  it("stays silent on binding when the page's lookup covers the row", () => {
+    const { container } = renderCell({
+      agent: onchain({ bound: false }),
+      bindingLookup: true,
+    });
+    expect(labels(container)).toEqual(["⬡ external"]);
+    expect(detail(container)).not.toContain(UNBOUND_WARNING);
+  });
 });
 
 describe("AgentStanding — the row it lives in", () => {
