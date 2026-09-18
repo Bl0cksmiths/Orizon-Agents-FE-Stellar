@@ -187,3 +187,46 @@ export const mockPlanUnbound = {
     })),
   ],
 } satisfies DecomposeResponse;
+
+/**
+ * A plan the backend served WITHOUT the planner. The LLM planner failed or
+ * answered with nothing usable, so the free-form path fell back to one step
+ * from its shortlist: the preferred copywriter (`agt_01h8`, `copywrite.v3`),
+ * carrying the rationale the backend stamps on it (`_fallback_agent` and the
+ * empty-plan branch of `decompose` in the backend's
+ * app/services/orchestrator_svc.py).
+ *
+ * The fallback is still a routing decision, so the agent cleared the floor
+ * like any planned step; its figures follow the table in e2e/mocks.ts (9400
+ * over 30 USDC → 8714, bound 8197). Nothing was excluded from the shortlist,
+ * so the exclusions panel stays off the card and the fallback notice is the
+ * only thing between the step and the pay panel.
+ *
+ * The intent matches no demo kit on purpose: kit plans never set the flag.
+ */
+export const mockPlanPlannerFallback = {
+  plan_id: "plan_e2e_fallback",
+  intent: "write a launch announcement for a budgeting app",
+  steps: [
+    {
+      agent_id: "agt_01h8",
+      agent_name: "copywrite.v3",
+      rationale: "fallback: generate copy for the intent",
+      est_price_usdc: 0.012,
+      est_eta_seconds: 0.8,
+      rep_bps: 8714,
+      rep_source: "onchain",
+      rep_lower_bound_bps: 8197,
+      rep_count: 31,
+      rep_dispute_rate_bps: 0,
+      rep_degraded: false,
+      degraded: false,
+    },
+  ],
+  total_usdc: 0.012,
+  total_eta: 0.8,
+  notices: [],
+  floor_bps: 5500,
+  reputation_degraded: false,
+  planner_fallback: true,
+} satisfies DecomposeResponse;
