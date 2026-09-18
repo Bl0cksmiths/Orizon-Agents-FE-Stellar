@@ -3,6 +3,7 @@ name: Address drift
 on:
   schedule:
     - cron: "23 5 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
