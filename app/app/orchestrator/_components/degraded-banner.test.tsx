@@ -26,7 +26,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import type { DecomposeResponse } from "@/lib/types";
-import { DegradedBanner, UNVERIFIED_BANNER_ID } from "./degraded-banner";
+import {
+  DegradedBanner,
+  hasUnverifiedReputation,
+  UNVERIFIED_BANNER_ID,
+} from "./degraded-banner";
 
 afterEach(cleanup);
 
@@ -78,6 +82,18 @@ describe("DegradedBanner — when it renders at all", () => {
   it("renders nothing when the flag is absent", () => {
     const { container } = render(<DegradedBanner plan={planFixture()} />);
     expect(container.innerHTML).toBe("");
+  });
+
+  // The same test Authorize uses to decide whether to point at the banner, so
+  // the button can never name an id that is not on the page.
+  it("reports the banner as shown only for an explicit true", () => {
+    expect(
+      hasUnverifiedReputation(planFixture({ reputation_degraded: true })),
+    ).toBe(true);
+    expect(
+      hasUnverifiedReputation(planFixture({ reputation_degraded: false })),
+    ).toBe(false);
+    expect(hasUnverifiedReputation(planFixture())).toBe(false);
   });
 
   it("renders nothing when the flag is explicitly undefined", () => {
