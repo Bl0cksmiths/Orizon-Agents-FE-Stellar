@@ -693,4 +693,77 @@ test.describe("plan card — what each claim rests on", () => {
     await expect(authorize).not.toHaveAttribute("aria-describedby");
     await expect(authorize).toHaveAccessibleDescription("");
   });
+
+  /** The two new card states, each as crowded as the fixtures make it. */
+  const phoneCases: {
+    name: string;
+    plan: DecomposeResponse;
+    options: { wallet?: boolean; network?: boolean };
+  }[] = [
+    {
+      name: "per-step evidence, a relaxed floor and the estimate warning",
+      plan: mockPlanStepEvidence,
+      options: { wallet: true, network: true },
+    },
+    {
+      name: "unbound agents beside a floor exclusion",
+      plan: mockPlanUnbound,
+      options: { network: true },
+    },
+  ];
+
+  for (const { name, plan, options } of phoneCases) {
+    test(`at 390px, ${name} fit without sideways scroll`, async ({ page }) => {
+      await page.setViewportSize(PHONE);
+      await decomposeWith(page, plan, options);
+      await exclusions(page).locator("summary").click();
+      await expect(exclusions(page)).toHaveJSProperty("open", true);
+
+      // Box by box, because the console hides sideways overflow: a row past
+      // the right edge is not scrolled to, it is cut off — and a cut-off chip
+      // or cap still looks like an answer.
+      expectWithinWidth(
+        await stableBox(floorSummary(page)),
+        PHONE,
+        "the floor summary",
+      );
+      for (const [index, step] of plan.steps.entries()) {
+        expectWithinWidth(
+          await stableBox(steps(page).nth(index)),
+          PHONE,
+          `the ${step.agent_id} step`,
+        );
+      }
+      for (const [index, notice] of (plan.notices ?? []).entries()) {
+        expectWithinWidth(
+          await stableBox(exclusionRows(page).nth(index)),
+          PHONE,
+          `the ${notice.agent_id} row`,
+        );
+      }
+      if (options.wallet) {
+        expectWithinWidth(
+          await stableBox(page.getByText(/authorizing up to/i)),
+          PHONE,
+          "the authorize line",
+        );
+      }
+      if (plan.reputation_degraded) {
+        expectWithinWidth(
+          await stableBox(estimateBanner(page)),
+          PHONE,
+          "the estimate warning",
+        );
+      }
+
+      const overflow = await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      );
+      expect(overflow, "the page must not scroll sideways").toBeLessThanOrEqual(
+        1,
+      );
+    });
+  }
 });
