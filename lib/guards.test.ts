@@ -525,10 +525,12 @@ describe("isDecomposeResponse", () => {
 
   it("accepts a null lower bound and leaves it distinguishable from 0", () => {
     // null is not a missing number, and it is emphatically not zero. It means
-    // the agent has no reputation entry at ALL, and a never-rated agent CLEARS
-    // the floor: its Wilson lower bound comes off the Bayesian prior at 5677
-    // bps against a floor of 5500. Zero would be the opposite fact — an agent
-    // rated into the ground.
+    // there is no deciding bound: on an `unbound_endpoint` notice, like this
+    // one, because standing was never consulted; on a floor notice, because
+    // the agent has no reputation entry at all — and a never-rated agent
+    // CLEARS the floor, its Wilson lower bound coming off the Bayesian prior
+    // at 5677 bps against a floor of 5500. Zero would be the opposite fact —
+    // an agent rated into the ground.
     const noEntry = {
       kind: "excluded",
       agent_id: "agt_new",
