@@ -157,6 +157,35 @@ describe("ExecutionPlan · the planner-fallback notice", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+
+  // Composed, never overwritten: each notice on the page is named once, in
+  // reading order, and nothing absent from the page is named at all — a
+  // dangling id describes nothing and fails the accessibility audit.
+  it.each([
+    [
+      "the plan is a fallback",
+      { planner_fallback: true },
+      [PLANNER_FALLBACK_NOTICE_ID],
+    ],
+    [
+      "a fallback plan also had a failed read",
+      { planner_fallback: true, reputation_degraded: true },
+      [PLANNER_FALLBACK_NOTICE_ID, UNVERIFIED_BANNER_ID],
+    ],
+    [
+      "only a reputation read failed",
+      { planner_fallback: false, reputation_degraded: true },
+      [UNVERIFIED_BANNER_ID],
+    ],
+  ])(
+    "describes Authorize by every notice shown when %s",
+    (_name, over, ids) => {
+      render(<ExecutionPlan plan={plan(over)} />);
+      const describedBy = authorizeButton().getAttribute("aria-describedby");
+      expect(describedBy?.split(" ")).toEqual(ids);
+      for (const id of ids) expect(document.getElementById(id)).not.toBeNull();
+    },
+  );
 });
 
 describe("ExecutionPlan · the unit on the amounts", () => {
