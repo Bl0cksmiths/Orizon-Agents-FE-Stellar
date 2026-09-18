@@ -12,7 +12,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import type {
   DecomposeResponse,
@@ -186,6 +193,44 @@ describe("ExecutionPlan · the planner-fallback notice", () => {
       for (const id of ids) expect(document.getElementById(id)).not.toBeNull();
     },
   );
+
+  const retryButton = () =>
+    screen.getByRole("button", { name: /ask the planner again/i });
+
+  // Decompose is the page's flow, not the card's, so the card hands the
+  // request up rather than calling the API itself.
+  it("hands the planner retry to the page", () => {
+    const onReplan = vi.fn();
+    render(
+      <ExecutionPlan
+        plan={plan({ planner_fallback: true })}
+        onReplan={onReplan}
+      />,
+    );
+    fireEvent.click(retryButton());
+    expect(onReplan).toHaveBeenCalledTimes(1);
+    expect(api.execute).not.toHaveBeenCalled();
+  });
+
+  // A new plan drops this card. With a run for it in flight, that would leave
+  // the run going on out of sight, so the retry waits like the card's other
+  // actions do.
+  it("holds the planner retry while a run for the plan is in flight", async () => {
+    api.execute.mockReturnValue(new Promise(() => {}));
+    const onReplan = vi.fn();
+    render(
+      <ExecutionPlan
+        plan={plan({ planner_fallback: true })}
+        onReplan={onReplan}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /simulate/i }));
+    await waitFor(() =>
+      expect(retryButton().hasAttribute("disabled")).toBe(true),
+    );
+    fireEvent.click(retryButton());
+    expect(onReplan).not.toHaveBeenCalled();
+  });
 });
 
 describe("ExecutionPlan · the unit on the amounts", () => {
