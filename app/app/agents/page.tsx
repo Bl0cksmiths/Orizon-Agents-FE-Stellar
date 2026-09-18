@@ -74,23 +74,33 @@ export default function AgentsPage() {
    *    "routable" agent the planner passes over every time.
    * 2. If it is an on-chain agent, it has an endpoint bound. A seeded agent
    *    has no endpoint and needs none, so `bound` being null is not a failure.
+   *    On the rows the per-agent lookup covers, the lookup's answer is the one
+   *    used — the same deferral the row's own markers make — so the filter
+   *    can never keep a row the row itself calls unbound, or drop one it
+   *    calls bound.
    *
    * An agent with no reputation entry, or a page whose batch has not landed,
    * is NOT filtered out: absence of a score is not evidence of a bad one, and
    * hiding a row because we have not read it yet would quietly shrink the
-   * marketplace during an outage.
+   * marketplace during an outage. A binding lookup still in flight, or one
+   * that failed, is kept for the same reason.
    */
-  // Memoised on the batch it reads, so the row filter below can depend on it
+  // Memoised on what it reads, so the row filter below can depend on it
   // without rebuilding the whole table on every keystroke in the search box.
+  // `stateOf` is stable between lookups; the object around it is not.
+  const bindingStateOf = binding.stateOf;
   const isRoutable = useCallback(
     (a: Agent): boolean => {
-      if (a.source === "onchain" && a.bound === false) return false;
+      const lookup = bindingStateOf(a.id);
+      if (lookup === "unbound") return false;
+      if (lookup === null && a.source === "onchain" && a.bound === false)
+        return false;
       const floor = repBatch?.floor_bps;
       const bound = repBatch?.reputations[a.id]?.lower_bound_bps;
       if (floor == null || bound == null) return true;
       return bound >= floor;
     },
-    [repBatch],
+    [repBatch, bindingStateOf],
   );
 
   const [filter, setFilter] = useState<
