@@ -276,8 +276,8 @@ export function RepLeaderboard({
   // failure to report. useFetch retries transient failures on its own and
   // flips `loading` true for every attempt, so keying the placeholders off
   // `loading` alone would swap the failure row out for skeletons and back
-  // once per attempt. A batch failure never reaches here — those rows fall
-  // back to seeded priors and render normally under their own error note.
+  // once per attempt. A batch failure never reaches here — those rows render
+  // unranked and unscored (UnreadRow) under their own error note.
   const showSkeletons = loading && !agents && agentsError === null;
 
   // `useFetch` keeps the last good payload when a reload fails, so a failure
