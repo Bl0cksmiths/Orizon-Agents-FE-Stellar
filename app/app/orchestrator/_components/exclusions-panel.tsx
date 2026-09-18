@@ -308,8 +308,10 @@ export function ExclusionsPanel({
           <span className="hidden group-open:inline">▾</span>
         </span>
         <h3 className="font-mono text-[10px] uppercase tracking-[0.25em] text-violet-readable">
-          Reputation floor · {notices.length} change
-          {notices.length === 1 ? "" : "s"}
+          Reputation floor ·{" "}
+          {changes.length === 0
+            ? "no changes"
+            : `${changes.length} change${changes.length === 1 ? "" : "s"}`}
         </h3>
         {/* w-full puts the breakdown on its own flex line. It is inside the
             summary on purpose: the count is the part a buyer who never opens
