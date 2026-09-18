@@ -173,13 +173,13 @@ function UnreadRow({
 /**
  * Sortable reputation leaderboard joining the agent registry with live
  * on-chain scores. Agents without on-chain evidence mirror the backend's
- * prior fallback under the live params, so only a failed *batch* fetch
- * genuinely degrades the table to seeded priors.
+ * prior fallback under the live params. Without a batch there are no scores
+ * at all: every agent is listed, unranked, with no figure in its row.
  *
  * The two failures are reported separately because they mean opposite things:
- * a batch failure leaves every row rendered against its seeded prior, while an
- * agents failure leaves nothing to render at all — reporting that as
- * "degraded to seeded prior" over an empty table would be a lie.
+ * a batch failure leaves the roster on screen with its scores missing, while
+ * an agents failure leaves nothing to render at all — reporting that as
+ * "reputation unavailable" over an empty table would be a lie.
  */
 export function RepLeaderboard({
   agents,
