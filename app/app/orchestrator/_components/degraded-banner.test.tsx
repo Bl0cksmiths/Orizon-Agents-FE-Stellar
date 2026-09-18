@@ -26,7 +26,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import type { DecomposeResponse } from "@/lib/types";
-import { DegradedBanner } from "./degraded-banner";
+import { DegradedBanner, UNVERIFIED_BANNER_ID } from "./degraded-banner";
 
 afterEach(cleanup);
 
@@ -202,6 +202,20 @@ describe("DegradedBanner — how it is announced and structured", () => {
     );
     const heading = screen.getByRole("heading", { level: 3 });
     expect(heading.textContent).toBe("Reputation could not be read");
+  });
+
+  // Authorize names this id in `aria-describedby`, so a keyboard buyer who tabs
+  // past the banner still hears it at the button. The id has to be on the
+  // live region itself, or the description would be a fragment of it.
+  it("carries the id the Authorize control is described by", () => {
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
+    const status = screen.getByRole("status");
+    expect(status.id).toBe(UNVERIFIED_BANNER_ID);
+    expect(document.querySelectorAll(`#${UNVERIFIED_BANNER_ID}`)).toHaveLength(
+      1,
+    );
   });
 
   // Meaning is never carried by the magenta alone: the glyph is decorative and
