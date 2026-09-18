@@ -357,6 +357,9 @@ export function RepLeaderboard({
                         bps={rep.smoothed_bps}
                         lowerBoundBps={rep.lower_bound_bps}
                         source={rep.source}
+                        // A prior served for a failed read is not a cold
+                        // start; without the flag the chip says it is.
+                        degraded={rep.degraded}
                         count={rep.count}
                         disputeRateBps={rep.dispute_rate_bps}
                         floorBps={batch?.floor_bps}
