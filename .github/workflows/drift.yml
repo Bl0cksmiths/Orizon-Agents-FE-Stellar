@@ -9,6 +9,9 @@ name: Address drift
 
 on:
   schedule:
+    # Daily, off the hour: GitHub delays and sheds scheduled runs queued at :00.
+    # GitHub also disables schedules in a public repo after 60 days without
+    # activity; if this stops appearing in the Actions tab, re-enable it there.
     - cron: "23 5 * * *"
   workflow_dispatch:
 
