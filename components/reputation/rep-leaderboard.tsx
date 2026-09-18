@@ -113,6 +113,63 @@ function SortableTh({
   );
 }
 
+/** A measured column with no measurement: a dash to see, words to hear. */
+function NotRead() {
+  return (
+    <td className="py-3 text-right font-mono text-xs text-muted">
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">not read</span>
+    </td>
+  );
+}
+
+/**
+ * A registered agent whose reputation has not been read — the batch that would
+ * score it is still on its way, or failed. It is listed but unranked, with no
+ * figure in any measured column, and its reputation cell says which of the two
+ * absences it is, in the same words the marketplace uses for it.
+ */
+function UnreadRow({
+  agent,
+  read,
+  index,
+}: {
+  agent: Agent;
+  read: Exclude<ReputationRead, "loaded">;
+  index: number;
+}) {
+  return (
+    <m.tr
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: index * 0.03 }}
+      className="border-b border-border/50 last:border-0"
+    >
+      <td className="py-3 pr-2 font-mono text-xs text-muted">
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">unranked</span>
+      </td>
+      <td className="py-3 pr-4">
+        <div className="font-mono">{agent.name}</div>
+        <div className="font-mono text-xs text-muted">{agent.id}</div>
+      </td>
+      <td className="py-3 pr-4">
+        <ReputationCell
+          agentName={agent.name}
+          rep={null}
+          floorBps={null}
+          read={read}
+        />
+      </td>
+      <td className="py-3 pr-4" />
+      <NotRead />
+      <NotRead />
+      <NotRead />
+      <NotRead />
+    </m.tr>
+  );
+}
+
 /**
  * Sortable reputation leaderboard joining the agent registry with live
  * on-chain scores. Agents without on-chain evidence mirror the backend's
