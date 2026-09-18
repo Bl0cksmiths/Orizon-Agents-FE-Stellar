@@ -51,11 +51,16 @@ export const isPlannerFallback = (plan: DecomposeResponse): boolean =>
 export function PlannerFallbackNotice({
   plan,
   onReplan,
+  busy = false,
 }: {
   plan: DecomposeResponse;
   /** Runs decompose again for the intent this plan answers. Absent, the
    *  notice still says the intent can be run again — from the form above. */
   onReplan?: () => void;
+  /** A signature or run for THIS plan is in flight. Asking for a new plan
+   *  then would drop the card while its payment carried on underneath it, so
+   *  the retry waits, as the card's other actions do. */
+  busy?: boolean;
 }): JSX.Element | null {
   if (!isPlannerFallback(plan)) return null;
 
@@ -106,7 +111,13 @@ export function PlannerFallbackNotice({
           action. */}
       {onReplan && (
         <div className="mt-3">
-          <Button type="button" variant="outline" size="sm" onClick={onReplan}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onReplan}
+            disabled={busy}
+          >
             Ask the planner again ▸
           </Button>
         </div>
