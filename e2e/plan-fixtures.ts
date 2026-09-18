@@ -230,3 +230,27 @@ export const mockPlanPlannerFallback = {
   reputation_degraded: false,
   planner_fallback: true,
 } satisfies DecomposeResponse;
+
+/**
+ * The same fallback, built while the copywriter's reputation read failed —
+ * so both notices sit above Authorize at once, which is the case its
+ * description has to compose rather than choose between. The step carries
+ * the prior (7000, bound 5677) in place of its record, and a failed read
+ * yields no evidence, so no count and no dispute rate.
+ */
+export const mockPlanPlannerFallbackUnread = {
+  ...mockPlanPlannerFallback,
+  plan_id: "plan_e2e_fallback_unread",
+  steps: [
+    {
+      ...mockPlanPlannerFallback.steps[0],
+      rep_bps: 7000,
+      rep_source: "prior",
+      rep_lower_bound_bps: 5677,
+      rep_count: 0,
+      rep_dispute_rate_bps: 0,
+      rep_degraded: true,
+    },
+  ],
+  reputation_degraded: true,
+} satisfies DecomposeResponse;
