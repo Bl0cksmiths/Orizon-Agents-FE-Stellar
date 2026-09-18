@@ -16,6 +16,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { DecomposeResponse } from "@/lib/types";
 import {
   isPlannerFallback,
+  PLANNER_FALLBACK_NOTICE_ID,
   PlannerFallbackNotice,
 } from "./planner-fallback-notice";
 
@@ -164,5 +165,50 @@ describe("PlannerFallbackNotice — claims it must not make", () => {
       <PlannerFallbackNotice plan={planFixture({ planner_fallback: true })} />,
     );
     expect(screen.getByRole("status").outerHTML).not.toMatch(/degraded/i);
+  });
+});
+
+describe("PlannerFallbackNotice — how it is announced and structured", () => {
+  const renderShown = () =>
+    render(
+      <PlannerFallbackNotice
+        plan={planFixture({ planner_fallback: true })}
+        onReplan={() => {}}
+      />,
+    );
+
+  // Informational, so polite. An assertive alert would cut a screen reader
+  // off mid-plan to say something that is not urgent.
+  it("announces politely and never as an alert", () => {
+    renderShown();
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // The card's own "Execution plan" is the h2 this sits under.
+  it("heads the notice at h3, under the card heading", () => {
+    renderShown();
+    const heading = screen.getByRole("heading", { level: 3 });
+    expect(heading.textContent).toBe("Built without the planner");
+  });
+
+  // Authorize names this id in `aria-describedby`. It has to sit on the
+  // status region itself, or the description would be a fragment of it.
+  it("carries the id the Authorize control is described by", () => {
+    renderShown();
+    expect(screen.getByRole("status").id).toBe(PLANNER_FALLBACK_NOTICE_ID);
+    expect(
+      document.querySelectorAll(`#${PLANNER_FALLBACK_NOTICE_ID}`),
+    ).toHaveLength(1);
+  });
+
+  // Meaning is never carried by the violet alone: the glyph is decorative
+  // and the word beside it does the work.
+  it("pairs its glyph with a word, and hides the glyph from readers", () => {
+    renderShown();
+    const status = screen.getByRole("status");
+    const glyph = status.querySelector('[aria-hidden="true"]');
+    expect(glyph?.textContent).toBe("↳");
+    expect(status.textContent).toContain("fallback plan");
   });
 });
