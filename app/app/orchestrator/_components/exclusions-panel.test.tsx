@@ -297,13 +297,14 @@ describe("ExclusionsPanel · the deciding numbers", () => {
     expect(text()).toContain("2.75");
   });
 
-  // The assertion this panel exists to protect. No entry is an absence of
-  // ratings, not a score of zero, and an agent with no entry PASSES the floor.
-  it("renders a null lower bound as an absence, never as 0.00", () => {
+  // The assertion this panel exists to protect. On a floor notice, no entry is
+  // an absence of ratings, not a score of zero, and an agent with no entry
+  // PASSES the floor.
+  it("renders a floor notice's null lower bound as an absence, never as 0.00", () => {
     const { text } = opened(
       plan({
         notices: [
-          notice({ reason_code: "unbound_endpoint", lower_bound_bps: null }),
+          notice({ reason_code: "below_floor", lower_bound_bps: null }),
         ],
       }),
     );
@@ -312,6 +313,27 @@ describe("ExclusionsPanel · the deciding numbers", () => {
     expect(text()).toContain("not a score of zero");
     expect(text()).toContain("does not put an agent under the floor");
     expect(text()).not.toContain("0.00");
+  });
+
+  // An unbound agent's null is deliberate: its standing was never consulted,
+  // so "no reputation entry" would be a claim about ratings nobody looked at —
+  // false for any unbound agent with a rating history.
+  it("never calls an unbound agent unrated", () => {
+    const { text } = opened(
+      plan({
+        notices: [
+          notice({
+            reason_code: "unbound_endpoint",
+            reason: "no endpoint bound",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(text()).not.toContain("No reputation entry exists");
+    expect(text()).not.toMatch(/absence of ratings/i);
+    expect(text()).not.toContain("0.00");
+    expect(text()).toContain("registered on-chain but has no endpoint bound");
   });
 
   // Absent is not null: a backend predating the field told us nothing, and
