@@ -223,7 +223,10 @@ export function isTraceLineList(v: unknown): v is TraceLine[] {
  * `notices` and the floor fields on steps (story 3.02) are additive: absent
  * is fine (a backend predating them), but a present value is type-checked —
  * `degraded` because a truthy non-boolean would badge a healthy step as
- * below-floor, `kind` because it indexes the notice tone map. */
+ * below-floor, `kind` because it indexes the notice tone map. The per-step
+ * reputation evidence (`rep_lower_bound_bps`, `rep_count`,
+ * `rep_dispute_rate_bps`, `rep_degraded`) follows the same contract: optional,
+ * nullable, never the wrong type. */
 export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
   return (
     isRecord(v) &&
