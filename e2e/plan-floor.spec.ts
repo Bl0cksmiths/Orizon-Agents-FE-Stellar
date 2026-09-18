@@ -25,9 +25,11 @@ import {
 } from "./mocks";
 import {
   mockNetwork,
+  mockTestnetNetwork,
   mockPlanStepEvidence,
   mockPlanUnbound,
 } from "./plan-fixtures";
+import { assetLabel } from "../lib/money";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -633,5 +635,27 @@ test.describe("plan card — what each claim rests on", () => {
     const unread = await labelOf("code.next");
     expect(unread).toMatch(/read/i);
     expect(unread).not.toMatch(/no on-chain ratings/i);
+  });
+
+  test("the authorize line names the cap in the network's asset", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence, {
+      wallet: true,
+      network: true,
+    });
+
+    // The unit comes from the network payload rather than from this spec, so
+    // the assertion follows the deployment: "native" is XLM on testnet.
+    const unit = assetLabel(mockTestnetNetwork.asset);
+    expect(unit).toBe("XLM");
+    const cap = `${mockPlanStepEvidence.total_usdc.toFixed(3)} ${unit}`;
+
+    // The line a buyer reads immediately before signing, and the total above.
+    await expect(page.getByText(/authorizing up to/i)).toContainText(cap);
+    await expect(page.getByText(cap, { exact: true })).toHaveCount(2);
+    // `total_usdc` is a field name; nothing on the card may read it aloud.
+    await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
   });
 });
