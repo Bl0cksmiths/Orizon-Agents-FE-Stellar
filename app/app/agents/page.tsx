@@ -50,6 +50,19 @@ export default function AgentsPage() {
     reloadReputation();
   }, [reloadAgents, reloadReputation]);
   const [q, setQ] = useState("");
+  // Operator management (story 1.08): the connected wallet reveals Manage on
+  // the agents it owns on-chain; one row expands at a time.
+  const wallet = useWallet();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Endpoint-binding status (story 2.05), asked about this operator's own
+  // on-chain agents and nothing else. A disconnected wallet owns nothing, so
+  // passing null here is what stops the page from asking about anything at all.
+  const binding = useBindingStatus(
+    agents,
+    wallet.connected ? wallet.address : null,
+  );
+
   /**
    * Whether an agent can be selected for work right now — both gates the
    * orchestrator applies, and nothing else.
@@ -83,19 +96,6 @@ export default function AgentsPage() {
   const [filter, setFilter] = useState<
     "all" | "routable" | "online" | "idle" | "offline"
   >("all");
-  // Operator management (story 1.08): the connected wallet reveals Manage on
-  // the agents it owns on-chain; one row expands at a time.
-  const wallet = useWallet();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // Endpoint-binding status (story 2.05), asked about this operator's own
-  // on-chain agents and nothing else. A disconnected wallet owns nothing, so
-  // passing null here is what stops the page from asking about anything at all.
-  const binding = useBindingStatus(
-    agents,
-    wallet.connected ? wallet.address : null,
-  );
-
   const rows = useMemo(() => {
     if (!agents) return [];
     return agents.filter((a) => {
