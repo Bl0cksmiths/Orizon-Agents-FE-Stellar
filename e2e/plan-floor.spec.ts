@@ -767,4 +767,28 @@ test.describe("plan card — what each claim rests on", () => {
       );
     });
   }
+
+  // The new marks — a muted "no endpoint" badge, a chip carrying a dispute
+  // rate, a button described by a live region — each carry meaning in colour
+  // or in ARIA, which is exactly what axe exists to check.
+  for (const { name, plan, options } of crowdedStates) {
+    test(`with ${name}, the expanded card has no WCAG A/AA violations`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(EVIDENCE_FRAME);
+      await decomposeWith(page, plan, options);
+      await exclusions(page).locator("summary").click();
+      await expect(exclusions(page)).toHaveJSProperty("open", true);
+
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+        .analyze();
+
+      expect(
+        violations.map(
+          (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+        ),
+      ).toEqual([]);
+    });
+  }
 });
