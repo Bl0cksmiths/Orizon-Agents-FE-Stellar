@@ -2,9 +2,10 @@
 /**
  * Unit tests for ExecutionPlan — the card a buyer authorizes payment from.
  *
- * The composed pieces (floor summary, exclusions, banner) have their own
- * suites. These pin what only the card itself decides: which element the
- * Authorize control is described by, which unit its amounts carry, and what
+ * The composed pieces (floor summary, exclusions, banner, fallback notice)
+ * have their own suites. These pin what only the card itself decides: which
+ * elements the Authorize control is described by, where the notices sit, who
+ * owns the planner retry, which unit its amounts carry, and what
  * each step's reputation badge is handed — the lower bound the floor is
  * judged on, the evidence behind the score, and whether the read failed.
  *
