@@ -10,6 +10,7 @@ import {
 import { signAndSubmit } from "@/lib/sign-submit";
 import { usdcToStroops, validatePriceUsdc } from "@/lib/register-validation";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
+import { isListed } from "@/lib/routability";
 import { useWallet } from "@/lib/wallet";
 import { type FriendlyError } from "@/lib/wallet-errors";
 import { focusRing } from "@/lib/ui";
@@ -55,8 +56,9 @@ export function ManagePanel({
     txState === "pending";
 
   // A delisted agent syncs back as status "offline" (registry_sync maps
-  // active → online/offline); anything else is currently listed.
-  const listed = agent.status !== "offline";
+  // active → online/offline); anything else is currently listed. The shared
+  // predicate, so this control and every routing surface agree on the rule.
+  const listed = isListed(agent);
 
   const priceError = validatePriceUsdc(priceStr);
   const priceNum = Number(priceStr);
