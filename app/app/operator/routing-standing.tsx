@@ -89,7 +89,8 @@ const GLYPH: Record<Verdict, string> = {
   pass: "✓",
   fail: "✕",
   unknown: "⋯",
-  withdrawn: "⏸",
+  // Not the ⏸ pause sign, which the console's mono stack cannot draw.
+  withdrawn: "‖",
 };
 
 /** `withdrawn` is calm on purpose. It is not a failure, and the magenta this

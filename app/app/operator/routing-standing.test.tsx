@@ -339,7 +339,7 @@ describe("RoutingStanding — a delisted agent", () => {
   it("never calls a delisted agent eligible, however good its gates", () => {
     renderStanding({ status: "offline" });
     expect(verdict()).toBe(
-      "⏸Delisted — you withdrew this agent, so the orchestrator will not select it until you relist it.",
+      "‖Delisted — you withdrew this agent, so the orchestrator will not select it until you relist it.",
     );
     expect(verdict()).not.toContain("Eligible");
   });
