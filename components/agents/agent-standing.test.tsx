@@ -404,6 +404,20 @@ describe("AgentStanding — a delisted agent", () => {
     const { container } = renderCell({ agent: seeded({ status: "idle" }) });
     expect(container.innerHTML).toBe("");
   });
+
+  // Every other mark describes a gate applied to a candidate, and assumes a
+  // listing in its wording. On a withdrawn agent they would be false as well
+  // as beside the point, so the row gives its one real reason.
+  it("gives no gate verdicts on a delisted row", () => {
+    const { container } = renderCell({
+      agent: onchain({ status: "offline", bound: false }),
+      rep: thinEvidence({ degraded: true }),
+    });
+    expect(labels(container)).toEqual(["⬡ external", "⏸ delisted by operator"]);
+    const text = detail(container);
+    expect(text).not.toContain(UNBOUND_WARNING);
+    expect(text).not.toContain("keeps its listing");
+  });
 });
 
 describe("AgentStanding — the row it lives in", () => {
