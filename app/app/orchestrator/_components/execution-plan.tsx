@@ -330,7 +330,10 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                   <b className="text-text">{priced(plan.total_usdc)}</b>.
                 </div>
               </div>
-              <div className="flex gap-2">
+              {/* flex-wrap: three buttons are wider than a 390px card, and the
+                  card's clip-path cuts off whatever overflows it — at phone
+                  width that was the Authorize button itself. */}
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   onClick={onSimulate}
@@ -373,7 +376,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                   or run a simulated pass.
                 </div>
               </div>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-wrap gap-2 items-center">
                 <ConnectWallet size="md" />
                 {fiatToggle}
                 <Button
