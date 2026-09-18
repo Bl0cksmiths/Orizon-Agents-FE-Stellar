@@ -13,6 +13,9 @@
  * `GET /api/stellar/network` — and compare them with the address book for the
  * network it says it is on. The post-deploy smoke (`smoke-deploy.mjs`) does.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * The contract repo's address book for each network. The two files differ
@@ -195,4 +198,74 @@ export function compareLiveContracts(live, book) {
           `${row.name}: live ${show(row.live)} != canonical ${show(row.canonical)}`,
       ),
   };
+}
+
+/** Where the workflows check the contract repo out to (ci.yml, smoke.yml). */
+export const CHECKOUT_DIR = ".canonical-contracts";
+
+const repoRoot = fileURLToPath(new URL("..", import.meta.url));
+
+/**
+ * Locate the contract repo checkout the way check-contract-addresses.mjs does:
+ * $ORIZON_CONTRACTS_DIR, else .canonical-contracts/ in the repo root.
+ *
+ * Throws when neither exists, on every machine. smoke.yml checks the repo out
+ * before the smoke runs, so a missing address book there means the workflow
+ * broke, not that there is nothing to compare — and a parity check that
+ * quietly skips is the defect it exists to close. Throwing instead of exiting
+ * lets the smoke still report its proxy checks beside this failure.
+ *
+ * @param {Record<string, string | undefined>} [env]
+ * @param {string} [root]  the repository root that holds .canonical-contracts/
+ * @returns {string}
+ */
+export function resolveContractsDir(env = process.env, root = repoRoot) {
+  const override = env.ORIZON_CONTRACTS_DIR;
+  if (override) {
+    if (!existsSync(override)) {
+      throw new Error(
+        `ORIZON_CONTRACTS_DIR is set to ${override}, which does not exist.\n` +
+          "Point it at a checkout of Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar.",
+      );
+    }
+    return override;
+  }
+
+  const checkout = join(root, CHECKOUT_DIR);
+  if (existsSync(checkout)) return checkout;
+
+  throw new Error(
+    "Canonical address book not found — cannot verify the live contract ids.\n" +
+      `Looked for $ORIZON_CONTRACTS_DIR (unset) and ${CHECKOUT_DIR}/ in the repo root.\n\n` +
+      "In CI this means the 'Checkout contract address book' step did not run or\n" +
+      "wrote to a different path; restore it in .github/workflows/smoke.yml.\n\n" +
+      "Locally, point at a clone of the contract repo:\n" +
+      "  ORIZON_CONTRACTS_DIR=/path/to/Orizon-Agents-Smart-Contract-Stellar npm run smoke\n" +
+      `or clone it into ${CHECKOUT_DIR}/, which is git-ignored for this purpose.`,
+  );
+}
+
+/**
+ * Read one network's address book out of a contract repo checkout.
+ *
+ * @param {"testnet" | "mainnet"} network  from canonicalNetwork()
+ * @param {string} dir  from resolveContractsDir()
+ * @returns {{ path: string, book: unknown }}
+ */
+export function loadAddressBook(network, dir) {
+  if (!Object.hasOwn(ADDRESS_BOOKS, network)) {
+    throw new Error(`No address book is kept for network ${network}.`);
+  }
+  const path = join(dir, ADDRESS_BOOKS[network]);
+  if (!existsSync(path)) {
+    throw new Error(`The canonical ${network} address book is not at ${path}.`);
+  }
+  const text = readFileSync(path, "utf8");
+  try {
+    return { path, book: JSON.parse(text) };
+  } catch (err) {
+    throw new Error(
+      `${path} is not valid JSON: ${err instanceof Error ? err.message : err}`,
+    );
+  }
 }
