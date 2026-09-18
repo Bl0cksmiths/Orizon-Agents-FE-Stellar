@@ -15,6 +15,7 @@ import {
 import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
 import { isOwnedBy } from "@/lib/binding-status";
+import { isListed } from "@/lib/routability";
 import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { useWallet } from "@/lib/wallet";
@@ -79,9 +80,12 @@ export default function AgentsPage() {
   );
 
   /**
-   * Whether an agent can be selected for work right now — both gates the
+   * Whether an agent can be selected for work right now — every gate the
    * orchestrator applies, and nothing else.
    *
+   * 0. Its operator has not delisted it (`isListed`, a copy of the backend's
+   *    own rule). A delisted agent is withdrawn from every routing path, and
+   *    it is the one exclusion no fallback undoes, so it is checked first.
    * 1. Its reputation LOWER BOUND clears the floor (`>=`, the backend's
    *    comparison). Never the smoothed headline score: the two disagree
    *    exactly for an agent with a good average and too little settled work
@@ -106,6 +110,7 @@ export default function AgentsPage() {
   const bindingStateOf = binding.stateOf;
   const isRoutable = useCallback(
     (a: Agent): boolean => {
+      if (!isListed(a)) return false;
       const lookup = bindingStateOf(a.id);
       if (lookup === "unbound") return false;
       if (lookup === null && a.source === "onchain" && a.bound === false)
