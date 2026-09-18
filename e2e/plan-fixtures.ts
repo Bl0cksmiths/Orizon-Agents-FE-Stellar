@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import type { DecomposeResponse, StellarNetworkInfo } from "../lib/types";
+import { mockPlanExcluded } from "./mocks";
 
 /**
  * Plan-card fixtures for the Epic 3 hardening pass, kept apart from
@@ -150,5 +151,39 @@ export const mockPlanStepEvidence = {
       lower_bound_bps: 5283,
       floor_bps: 5500,
     },
+  ],
+} satisfies DecomposeResponse;
+
+/** The sentence the backend attaches to every unbound notice
+ *  (`_UNBOUND_REASON` in the backend's app/services/plan_notices.py). */
+const UNBOUND_REASON =
+  "registered on-chain but no endpoint bound (nothing to dispatch a step to, so the planner passed it over)";
+
+/**
+ * A plan built while registered agents sat unbound — which, with
+ * permissionless registration, is most plans: the backend names up to eight
+ * unbound on-chain agents on every one. Here there are three, beside a single
+ * genuine floor exclusion.
+ *
+ * Unbound notices arrive as `kind: "excluded"` with `lower_bound_bps: null`,
+ * and neither fact is a floor verdict. The agent was never a candidate, so its
+ * standing was never consulted — which is why its bound is null, not because
+ * it has no ratings. The card has to count one floor action here, not four,
+ * and describe the other three without a verdict.
+ */
+export const mockPlanUnbound = {
+  ...mockPlanExcluded,
+  plan_id: "plan_e2e_unbound",
+  notices: [
+    mockPlanExcluded.notices[0],
+    ...["unbound_bot", "ledger.watch", "summarize.pro"].map((agentId) => ({
+      kind: "excluded" as const,
+      agent_id: agentId,
+      agent_name: agentId,
+      reason: UNBOUND_REASON,
+      reason_code: "unbound_endpoint" as const,
+      lower_bound_bps: null,
+      floor_bps: 5500,
+    })),
   ],
 } satisfies DecomposeResponse;
