@@ -24,6 +24,7 @@ import {
 } from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
+import { PlannerFallbackNotice } from "./planner-fallback-notice";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
@@ -304,6 +305,13 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
         <div className="mt-4">
           <ExclusionsPanel plan={plan} />
         </div>
+
+        {/* Above the Authorize panel, because it changes what the buyer is
+            about to pay for — and above the reputation banner rather than
+            below it, which keeps that banner immediately over the button as
+            its own comment requires. This one is about how the plan was made;
+            that one is about the evidence the buyer pays against. */}
+        <PlannerFallbackNotice plan={plan} busy={executing} />
 
         {/* Immediately above the Authorize panel, and that position is the
             requirement rather than a layout preference. The banner says the
