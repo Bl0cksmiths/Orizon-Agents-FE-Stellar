@@ -289,6 +289,27 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     expect(text).not.toContain("Never rated on-chain");
   });
 
+  // The chip and the paragraph under it have to agree. The chip used to be
+  // rendered without the flag, so it announced "no on-chain ratings yet" —
+  // a cold start — right above a paragraph saying the read had failed.
+  it("words the chip for a failed read, not a cold start", () => {
+    const { container } = renderStanding({
+      reputation: priorRep({ degraded: true }),
+    });
+    const chip = container.querySelector("[aria-label^='prior estimate']");
+    const label = chip?.getAttribute("aria-label") ?? "";
+    expect(label).toContain("the on-chain read did not come back");
+    expect(label).not.toContain("no on-chain ratings yet");
+  });
+
+  it("keeps the cold-start wording on the chip for a genuine newcomer", () => {
+    const { container } = renderStanding({ reputation: priorRep() });
+    const chip = container.querySelector("[aria-label^='prior estimate']");
+    expect(chip?.getAttribute("aria-label")).toContain(
+      "no on-chain ratings yet",
+    );
+  });
+
   it("leaves a rated agent with neither notice", () => {
     renderStanding();
     const text = document.body.textContent ?? "";
