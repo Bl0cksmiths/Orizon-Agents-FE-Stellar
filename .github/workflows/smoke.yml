@@ -2,6 +2,11 @@
 # through the Next.js rewrite proxy. A green unit suite and a green build cannot
 # catch a bad proxy target — only this can. Scheduled so a config regression
 # surfaces in hours instead of days.
+#
+# It is also the only check on what production is wired to: the backend's
+# network and contract ids are set in the Render dashboard, not in any repo,
+# so the smoke compares the ids it serves with the contract repo's address
+# book for the network it reports.
 name: smoke
 
 on:
@@ -14,18 +19,38 @@ on:
         required: false
         default: "https://orizons.xyz"
 
+# Read-only: the job only checks out two public repositories and issues GETs.
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      # The smoke compares the live contract ids with this address book. Same
+      # checkout as ci.yml's `addresses` job and for the same reason — checked
+      # out, never fetched mid-check, so a network blip cannot read as drift.
+      # Without it the parity check fails rather than skips.
+      - name: Checkout contract address book
+        uses: actions/checkout@v4
+        with:
+          repository: Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar
+          path: .canonical-contracts
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
       # No install step: the script uses only Node built-ins so a broken
       # lockfile can never mask a production outage.
+      # The parity verdict below is only as good as the comparison behind it,
+      # so its rules are pinned first. node:test, so still no install.
+      - name: Test contract parity rules
+        run: npm run test:parity
+      # !cancelled() so a failing rule test is reported beside the smoke, never
+      # instead of it — an outage must not hide behind a unit failure.
       - name: Smoke test deployed origin
+        if: ${{ !cancelled() }}
         env:
           SMOKE_ORIGIN: ${{ github.event.inputs.origin || 'https://orizons.xyz' }}
           SMOKE_EXPECT_NETWORK: testnet
