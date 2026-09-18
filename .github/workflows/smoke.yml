@@ -14,6 +14,10 @@ on:
         required: false
         default: "https://orizons.xyz"
 
+# Read-only: the job only checks out two public repositories and issues GETs.
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
