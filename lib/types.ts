@@ -65,6 +65,11 @@ export type PlanStep = {
   /** Share of this agent's rated jobs that were disputed, in bps. Null or
    * absent when unknown. */
   rep_dispute_rate_bps?: number | null;
+  /** This step's own on-chain reputation read FAILED and the Bayesian prior
+   * was served in its place. Not `degraded` below, which means re-admitted
+   * under the floor by the starvation backstop; the per-step form of the
+   * plan's `reputation_degraded`. Absent from backends predating it. */
+  rep_degraded?: boolean;
   /** The designated kit agent this step replaced when the reputation floor
    * forced a substitution; absent/null on the normal path (story 3.02). */
   substituted_for?: string | null;
