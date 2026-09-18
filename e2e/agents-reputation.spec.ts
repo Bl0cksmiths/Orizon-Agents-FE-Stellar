@@ -15,6 +15,7 @@
  * per-agent notice rows are injected, so a row count means what it says.
  */
 import { test, expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import {
   mockAgents,
   mockApi,
@@ -119,5 +120,44 @@ test.describe("the marketplace reputation column", () => {
     await expect(
       page.locator('[aria-label*="no on-chain ratings yet"]'),
     ).toHaveCount(0);
+  });
+
+  test("the failed-read marketplace is accessible and fits 390px", async ({
+    page,
+  }) => {
+    const WIDTH = 390;
+    await mockApi(page, { agents: AGENTS });
+    await mockReputationUnavailable(page);
+    await page.setViewportSize({ width: WIDTH, height: 844 });
+    await page.goto("/app/agents");
+    await registryLoaded(page, AGENTS.length);
+    const notice = page
+      .getByRole("alert")
+      .filter({ hasText: "reputation unavailable" });
+    await expect(notice).toBeVisible();
+
+    // The notice explains the whole column, so it must not depend on the
+    // table's sideways scroll to be read.
+    const box = await notice.boundingBox();
+    if (box === null) throw new Error("expected a laid-out notice");
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(WIDTH);
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+
+    // A state no other sweep reaches: an alert above the registry, and a
+    // column of "unavailable" cells whose meaning must not rest on colour.
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(
+      violations.map(
+        (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+      ),
+    ).toEqual([]);
   });
 });
