@@ -391,6 +391,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
             <FiatFund
               usdcAmount={plan.total_usdc}
               stellarAddress={wallet.address ?? undefined}
+              asset={network?.asset}
             />
           </div>
         )}
