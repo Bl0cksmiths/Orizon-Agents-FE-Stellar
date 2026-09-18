@@ -38,8 +38,9 @@ import { ButtonLink } from "@/components/ui/button";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { KVRow } from "@/components/ui/kv-row";
 import { bindHref, UNBOUND_WARNING } from "@/lib/binding-status";
+import { isListed } from "@/lib/routability";
 import type { BindingState } from "@/app/app/agents/use-binding-status";
-import type { ReputationInfo } from "@/lib/types";
+import type { AgentStatus, ReputationInfo } from "@/lib/types";
 
 /**
  * bps 0..10000 over a 0–100 rating scale → the familiar 0–5 score.
@@ -58,6 +59,14 @@ const score = (bps: number) => (bps / 2000).toFixed(2);
  */
 type Gate = "pass" | "fail" | "unknown";
 
+/**
+ * The panel's answer: a gate outcome, or `withdrawn` — which is not a gate
+ * result at all. It is the operator's own setting, read before either gate,
+ * and it outranks both: a delisted agent is routed on no path whatever its
+ * gates say.
+ */
+type Verdict = Gate | "withdrawn";
+
 /** "a", "a and b", "a, b and c" — the verdict names every blocker it has, not
  *  just the first one, so fixing the named problem cannot leave a second one
  *  waiting unannounced. */
@@ -69,12 +78,21 @@ function joinClauses(parts: string[]): string {
 /** Glyph per outcome. Paired with words everywhere it appears — the tint is
  *  decoration, and a panel that says "not eligible" only in magenta says
  *  nothing at all to a third of the people reading it. */
-const GLYPH: Record<Gate, string> = { pass: "✓", fail: "✕", unknown: "⋯" };
+const GLYPH: Record<Verdict, string> = {
+  pass: "✓",
+  fail: "✕",
+  unknown: "⋯",
+  withdrawn: "⏸",
+};
 
-const TONE: Record<Gate, string> = {
+/** `withdrawn` is calm on purpose. It is not a failure, and the magenta this
+ *  panel keeps for a blocked gate would tell the operator something broke
+ *  when all that happened is the thing they asked for. */
+const TONE: Record<Verdict, string> = {
   pass: "border-cyan/40 bg-cyan/5 text-cyan",
   fail: "border-magenta/40 bg-magenta/5 text-magenta",
   unknown: "border-border bg-white/5 text-muted",
+  withdrawn: "border-violet/30 bg-violet/5 text-text",
 };
 
 const gateHeading =
@@ -83,12 +101,16 @@ const body = "font-mono text-[11px] leading-relaxed text-muted";
 
 export function RoutingStanding({
   agentId,
+  status,
   bindingState,
   reputation,
   floorBps,
   priorBps,
 }: {
   agentId: string;
+  /** The agent's registry status. "offline" is how an operator's delisting
+   *  syncs back, and the orchestrator routes a delisted agent on no path. */
+  status?: AgentStatus;
   bindingState: BindingState | null;
   reputation: ReputationInfo | null;
   /** Null when the reputation batch has not loaded. The floor and the score
@@ -129,10 +151,16 @@ export function RoutingStanding({
           ? "pass"
           : "fail";
 
+  // The backend's `_is_listed`, through the shared copy of it. Read first
+  // because it settles everything: the orchestrator drops a delisted agent
+  // before either gate is consulted, and no fallback re-admits it.
+  const listed = status === undefined || isListed({ status });
+
   // A failure outranks an unknown. Both gates must hold, so one confirmed
   // failure settles the verdict no matter what the other gate is doing.
-  const verdict: Gate =
-    bindingGate === "fail" || floorGate === "fail"
+  const verdict: Verdict = !listed
+    ? "withdrawn"
+    : bindingGate === "fail" || floorGate === "fail"
       ? "fail"
       : bindingGate === "unknown" || floorGate === "unknown"
         ? "unknown"
@@ -163,18 +191,22 @@ export function RoutingStanding({
     holds.push("the reputation lower bound clears the network floor");
 
   const headline =
-    verdict === "pass"
-      ? "Eligible — the planner selects per request."
-      : verdict === "fail"
-        ? `Not eligible — ${joinClauses(blockers)}.`
-        : `Standing not confirmed — ${joinClauses(unread)}.`;
+    verdict === "withdrawn"
+      ? "Delisted — you withdrew this agent, so the orchestrator will not select it until you relist it."
+      : verdict === "pass"
+        ? "Eligible — the planner selects per request."
+        : verdict === "fail"
+          ? `Not eligible — ${joinClauses(blockers)}.`
+          : `Standing not confirmed — ${joinClauses(unread)}.`;
 
   const rationale =
-    verdict === "pass"
-      ? `Nothing is blocking selection: ${joinClauses(holds)}. Eligibility is not selection — it puts this agent in the candidate pool, and the planner chooses from that pool on every request.`
-      : verdict === "fail"
-        ? "An agent is selected only when both gates hold: an endpoint is bound, and the reputation lower bound clears the network floor."
-        : "This is not a verdict. Nothing here says the agent cannot be selected — one of the two gates has simply not been read.";
+    verdict === "withdrawn"
+      ? "This is your own setting, not a fault. Delisting takes an agent off every routing path, and it is the one exclusion nothing on our side overrides — the starvation backstop never re-admits a delisted agent. Its reputation, history and endpoint binding are all kept. Relist it from its settings and the two gates below decide from there."
+      : verdict === "pass"
+        ? `Nothing is blocking selection: ${joinClauses(holds)}. Eligibility is not selection — it puts this agent in the candidate pool, and the planner chooses from that pool on every request.`
+        : verdict === "fail"
+          ? "An agent is selected only when both gates hold: an endpoint is bound, and the reputation lower bound clears the network floor."
+          : "This is not a verdict. Nothing here says the agent cannot be selected — one of the two gates has simply not been read.";
 
   // Derived from the agent id rather than useId: this panel holds no state and
   // needs no client boundary, and an id is letters, digits and underscore only.
