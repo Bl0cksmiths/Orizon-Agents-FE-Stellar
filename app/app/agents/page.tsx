@@ -46,6 +46,8 @@ export default function AgentsPage() {
   const {
     data: repBatch,
     error: repError,
+    loading: repLoading,
+    retrying: repRetrying,
     reload: reloadReputation,
   } = useFetch(listReputation, [], { revalidateOnFocus: true });
   // A batch on screen is a reading even when a later refresh failed; only a
@@ -156,7 +158,12 @@ export default function AgentsPage() {
           the table refers to. A buyer who meets "below floor" on a row before
           they have been told what the floor is has to reverse-engineer the
           rule from the verdicts. */}
-      <RegistryStandingNotice batch={repBatch ?? null} />
+      <RegistryStandingNotice
+        batch={repBatch ?? null}
+        readError={repError}
+        onRetry={reloadReputation}
+        retrying={repLoading || repRetrying}
+      />
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 mb-5">
