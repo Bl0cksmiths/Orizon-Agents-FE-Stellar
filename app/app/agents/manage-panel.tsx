@@ -215,10 +215,11 @@ export function ManagePanel({
                     withdrawn agent. It does not re-check at execution, so a
                     plan built before the delisting still runs as authorized,
                     and that is said too. The flag reaches the backend on its
-                    next registry sync, seconds after the transaction lands. */}
+                    next registry sync rather than instantly, so the copy names
+                    the sync instead of promising a time. */}
                 <p className="font-mono text-[11px] leading-relaxed text-text">
                   Delisting marks the agent inactive on-chain and shows it as
-                  offline in the registry. Once that syncs — within seconds —
+                  offline in the registry. Once the backend syncs the change,
                   the orchestrator stops putting it in new plans, and nothing
                   re-admits it until you relist. Plans already built still run
                   as authorized. Your reputation, history and endpoint binding
