@@ -59,4 +59,19 @@ describe("FiatFund · what the ramp is said to pay for", () => {
       expect(shown).toContain("USDCXLM");
     },
   );
+
+  // The one deployment where the original promise is true: USDC arrives and
+  // the cap is signed in USDC, so no other crypto is needed.
+  it("keeps the whole promise where the escrow takes USDC", () => {
+    const shown = text("USDC");
+    expect(shown).toContain("Fund this workflow with pesos");
+    expect(shown).toContain("then you authorize as usual");
+    expect(shown).toContain("(no crypto needed)");
+    expect(shown).not.toContain("escrow takes");
+  });
+
+  it("drops the no-crypto promise wherever the escrow does not take USDC", () => {
+    expect(text("native")).not.toContain("no crypto needed");
+    expect(text(null)).not.toContain("no crypto needed");
+  });
 });
