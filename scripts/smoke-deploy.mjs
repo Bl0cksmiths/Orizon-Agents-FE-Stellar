@@ -245,7 +245,7 @@ async function main() {
     failures.push(
       `contract parity → ${parity.summary}:\n` +
         parity.problems
-          .map((problem) => problem.replace(/^/gm, "      "))
+          .map((problem) => problem.replace(/^(?=.)/gm, "      "))
           .join("\n"),
     );
   }
