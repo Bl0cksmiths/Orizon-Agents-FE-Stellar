@@ -41,6 +41,18 @@
 import { Badge } from "@/components/ui/badge";
 import type { DecomposeResponse } from "@/lib/types";
 
+/**
+ * The banner's id, for the Authorize control's `aria-describedby`. A polite
+ * status is announced once, when it renders, and a keyboard buyer tabbing from
+ * the exclusions panel straight to Authorize never passes through it — so the
+ * button names it as its description, and the warning is read at the moment
+ * of the decision it is about.
+ *
+ * One plan card renders at a time, so a fixed id cannot collide. It avoids the
+ * word "degraded" for the same reason the copy does.
+ */
+export const UNVERIFIED_BANNER_ID = "plan-reputation-unverified";
+
 export function DegradedBanner({
   plan,
 }: {
@@ -66,6 +78,7 @@ export function DegradedBanner({
     // `clip-cyber-sm` frame, same padding, same `mt-6` rhythm — so the two read
     // as one decision point in two tones rather than as unrelated furniture.
     <div
+      id={UNVERIFIED_BANNER_ID}
       role="status"
       className="mt-6 clip-cyber-sm border border-magenta/40 bg-magenta/5 p-4 text-magenta"
     >
