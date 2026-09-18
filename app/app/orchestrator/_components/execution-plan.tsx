@@ -71,8 +71,19 @@ function bytesToHex(v: unknown): string | null {
  * pattern — self-contained state and actions, fed by the plan and by its own
  * network read, which names the asset its amounts are denominated in.
  * The task read token from execute responses is stored by lib/api.ts.
+ *
+ * `onReplan` is the one flow the card does not own: asking for a new plan is
+ * the page's decompose, so the page hands it down for the planner-fallback
+ * notice rather than the card calling the API itself.
  */
-export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
+export function ExecutionPlan({
+  plan,
+  onReplan,
+}: {
+  plan: DecomposeResponse;
+  /** Decomposes this plan's intent again — offered on a fallback plan. */
+  onReplan?: () => void;
+}) {
   const router = useRouter();
   const wallet = useWallet();
   const [showFiat, setShowFiat] = useState(false);
@@ -329,7 +340,11 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
             below it, which keeps that banner immediately over the button as
             its own comment requires. This one is about how the plan was made;
             that one is about the evidence the buyer pays against. */}
-        <PlannerFallbackNotice plan={plan} busy={executing} />
+        <PlannerFallbackNotice
+          plan={plan}
+          onReplan={onReplan}
+          busy={executing}
+        />
 
         {/* Immediately above the Authorize panel, and that position is the
             requirement rather than a layout preference. The banner says the
