@@ -198,13 +198,18 @@ export function RepLeaderboard({
               disputed: 0,
               dispute_rate_bps: 0,
               source: "prior",
+              // The batch request failed, so this seeded stand-in says
+              // nothing about the agent's ratings — the chip must not claim
+              // it has none. Still loading is not a failure, and is not
+              // flagged as one.
+              degraded: batchError !== null,
             };
       return { agent, rep };
     });
     const dir = sort.dir === "desc" ? -1 : 1;
     const val = sortValue[sort.col];
     return joined.sort((a, b) => dir * (val(a) - val(b)));
-  }, [agents, batch, sort]);
+  }, [agents, batch, batchError, sort]);
 
   // Skeleton rows stand in for agent rows, so they are only right while the
   // registry is genuinely still on its way: nothing to render yet and no
