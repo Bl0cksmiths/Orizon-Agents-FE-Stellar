@@ -14,8 +14,11 @@
  * Run isolated, always:  E2E_PORT=3271 npx playwright test e2e/plan-fallback.spec.ts
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { mockApi, mockWallet } from "./mocks";
-import { mockPlanPlannerFallback } from "./plan-fixtures";
+import { mockApi, mockPlanExcluded, mockWallet } from "./mocks";
+import {
+  mockPlanPlannerAnswered,
+  mockPlanPlannerFallback,
+} from "./plan-fixtures";
 import type { DecomposeResponse } from "../lib/types";
 
 type Viewport = { width: number; height: number };
@@ -97,4 +100,25 @@ test.describe("plan card — a plan built without the planner", () => {
       ).toBeLessThanOrEqual(buttonBox.y);
     }
   });
+
+  // False is the planner's own plan; absent is a backend predating the flag.
+  // Neither is a fallback, and a notice on every plan is one buyers learn to
+  // scroll past.
+  const plannedPlans: { name: string; plan: DecomposeResponse }[] = [
+    { name: "the planner built the plan", plan: mockPlanPlannerAnswered },
+    { name: "the backend predates the flag", plan: mockPlanExcluded },
+  ];
+  for (const { name, plan } of plannedPlans) {
+    test(`no fallback notice when ${name}`, async ({ page }) => {
+      await page.setViewportSize(LAPTOP);
+      await decomposeWith(page, plan, { wallet: true });
+      await expect(
+        page.getByRole("button", { name: /authorize/i }),
+      ).toBeVisible();
+      await expect(fallbackNotice(page)).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: /ask the planner again/i }),
+      ).toHaveCount(0);
+    });
+  }
 });
