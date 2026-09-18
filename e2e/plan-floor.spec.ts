@@ -23,7 +23,11 @@ import {
   mockPlanLegacy,
   mockWallet,
 } from "./mocks";
-import { mockNetwork, mockPlanUnbound } from "./plan-fixtures";
+import {
+  mockNetwork,
+  mockPlanStepEvidence,
+  mockPlanUnbound,
+} from "./plan-fixtures";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -568,5 +572,66 @@ test.describe("plan card — what each claim rests on", () => {
       );
       await expect(row).not.toContainText(numberPattern(notice.floor_bps));
     }
+  });
+
+  test("each step's badge carries its evidence, its floor verdict and a failed read", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence);
+
+    /** The chip on one step, and what a screen reader hears from it. */
+    const chipOf = (agentId: string) =>
+      steps(page)
+        .filter({ hasText: agentId })
+        .getByLabel(/reputation|estimat/i);
+    const labelOf = async (agentId: string) =>
+      (await chipOf(agentId).getAttribute("aria-label")) ?? "";
+    const stepOf = (agentId: string) => {
+      const found = mockPlanStepEvidence.steps.find(
+        (s) => s.agent_id === agentId,
+      );
+      if (!found) throw new Error(`no ${agentId} step in the fixture`);
+      return found;
+    };
+
+    for (const step of mockPlanStepEvidence.steps) {
+      await expect(chipOf(step.agent_id)).toHaveCount(1);
+    }
+
+    // The evidence behind a score, as numbers a listener gets: the rated jobs
+    // and the share of them that were disputed.
+    const disputed = stepOf("design.figma");
+    const disputedLabel = await labelOf(disputed.agent_id);
+    expect(disputedLabel).toMatch(
+      new RegExp(`(?<![\\d.])${disputed.rep_count}(?![\\d.])`),
+    );
+    expect(disputedLabel).toContain(
+      `${(disputed.rep_dispute_rate_bps / 100).toFixed(1)}%`,
+    );
+
+    // The lower bound decides the verdict. `scrape.fast` shows a headline that
+    // clears the floor and is still called below it, because its bound is
+    // under — the number routing actually gates on.
+    const thin = stepOf("scrape.fast");
+    expect(thin.rep_bps).toBeGreaterThan(mockPlanStepEvidence.floor_bps);
+    expect(thin.rep_lower_bound_bps).toBeLessThan(
+      mockPlanStepEvidence.floor_bps,
+    );
+    await expect(chipOf(thin.agent_id)).toContainText(
+      scoreOutOfFive(thin.rep_bps),
+    );
+    const thinLabel = await labelOf(thin.agent_id);
+    expect(thinLabel).toMatch(/below/i);
+    expect(thinLabel).toMatch(numberPattern(mockPlanStepEvidence.floor_bps));
+    // …and a bound that clears draws no verdict at all.
+    expect(await labelOf("seo.brief")).not.toMatch(/below/i);
+
+    // A prior served because the read failed is not a cold start. Telling the
+    // buyer this agent has no ratings would misstate a record we could not
+    // reach, so the label has to say the read is what is missing.
+    const unread = await labelOf("code.next");
+    expect(unread).toMatch(/read/i);
+    expect(unread).not.toMatch(/no on-chain ratings/i);
   });
 });
