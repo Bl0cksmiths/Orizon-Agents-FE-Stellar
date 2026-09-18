@@ -464,4 +464,32 @@ describe("RegistryStandingNotice — a failed request for the batch", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(text()).not.toMatch(/stale/i);
   });
+
+  // The same three rules the sweep above holds the healthy states to: the
+  // failure is ours, it comes with no promise about when it ends, and the
+  // internal field name never reaches the page. "refresh" is the one word
+  // not policed here: the shared stale badge says "the most recent refresh
+  // failed", which reports what happened rather than promising what will.
+  it.each([
+    { name: "never landed", batch: null },
+    { name: "kept batch", batch: batchOf([rep("a"), rep("b")]) },
+  ])(
+    "keeps to the notice's rules when the request failed ($name)",
+    ({ batch }) => {
+      render(
+        <RegistryStandingNotice
+          batch={batch}
+          readError={ERROR}
+          lastReadAt={batch ? Date.now() : null}
+        />,
+      );
+      expect(text()).not.toMatch(
+        /agents? (failed|is down|are down|did not respond|is offline|are offline|is unreliable)/i,
+      );
+      expect(text()).not.toMatch(
+        /try again|check back|shortly|in a moment|soon|will (recover|be back|resolve|return)|please wait|reload|temporar/i,
+      );
+      expect(markup().toLowerCase()).not.toContain("degraded");
+    },
+  );
 });
