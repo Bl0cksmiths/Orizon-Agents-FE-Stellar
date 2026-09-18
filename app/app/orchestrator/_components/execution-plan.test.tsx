@@ -216,4 +216,37 @@ describe("ExecutionPlan · each step's reputation badge", () => {
     expect(label).toContain("from 24 rated jobs");
     expect(label).toContain("25.0% disputed");
   });
+
+  // A prior served because the read failed is not a cold start, and "no
+  // on-chain ratings yet" would misstate the agent's record. The step's own
+  // flag decides; the plan-wide one stands in only when the step omits it.
+  const FAILED_READ = /on-chain read did not come back/;
+  const COLD_START = /no on-chain ratings yet/;
+  const priorStep = (over: Partial<PlanStep> = {}) =>
+    step({ rep_bps: 7000, rep_source: "prior", ...over });
+
+  it.each([
+    ["the step's read failed", { rep_degraded: true }, false, FAILED_READ],
+    [
+      "the step's read held in a plan where another failed",
+      { rep_degraded: false },
+      true,
+      COLD_START,
+    ],
+    ["only the plan-wide flag is known", {}, true, FAILED_READ],
+    ["no read failed anywhere", {}, false, COLD_START],
+  ] as const)(
+    "words a prior-backed step correctly when %s",
+    (_name, stepOver, planDegraded, wording) => {
+      render(
+        <ExecutionPlan
+          plan={plan({
+            steps: [priorStep(stepOver)],
+            reputation_degraded: planDegraded,
+          })}
+        />,
+      );
+      expect(chip().getAttribute("aria-label")).toMatch(wording);
+    },
+  );
 });
