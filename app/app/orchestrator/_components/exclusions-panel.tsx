@@ -156,13 +156,20 @@ function NoticeRow({
   // printed without the line it had to clear beside it.
   const floorBps = notice.floor_bps ?? planFloorBps;
 
+  // Not a floor verdict at all: the agent has no endpoint to dispatch to, so
+  // its standing was never consulted and the backend leaves its bound null on
+  // purpose. That null says nothing about its ratings.
+  const unbound = notice.reason_code === "unbound_endpoint";
+
   const bound = notice.lower_bound_bps;
   // null and undefined are different facts and must not collapse into one
-  // branch. null means the agent had NO reputation entry — which is not a
-  // bound of zero, and on its own does not put an agent under the floor.
-  // undefined means a backend predating the field sent nothing at all, and
-  // there is nothing honest to say about a number we were never given.
-  const noEntry = bound === null;
+  // branch. On a floor notice, null means the agent had NO reputation entry —
+  // which is not a bound of zero, and on its own does not put an agent under
+  // the floor. undefined means a backend predating the field sent nothing at
+  // all, and there is nothing honest to say about a number we were never
+  // given. On an unbound notice null is deliberate, and reading it as "no
+  // entry" would state an absence of ratings nobody checked for.
+  const noEntry = bound === null && !unbound;
   const showNumbers = bound !== undefined || floorBps !== undefined;
 
   return (
