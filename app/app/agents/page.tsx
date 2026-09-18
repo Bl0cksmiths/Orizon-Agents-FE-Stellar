@@ -7,8 +7,11 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
-import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { AgentStanding } from "@/components/agents/agent-standing";
+import {
+  ReputationCell,
+  type ReputationRead,
+} from "@/components/agents/reputation-cell";
 import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
 import { isOwnedBy } from "@/lib/binding-status";
@@ -37,12 +40,21 @@ export default function AgentsPage() {
   } = useFetch(listAgents, [], {
     revalidateOnFocus: true,
   });
-  // On-chain reputation is best-effort: on error we silently keep seeded values.
-  const { data: repBatch, reload: reloadReputation } = useFetch(
-    listReputation,
-    [],
-    { revalidateOnFocus: true },
-  );
+  // On-chain reputation is best-effort — a failed read never blanks the
+  // registry — but it is never papered over either: a row with no live entry
+  // shows no score, rather than the seeded catalog rating dressed up as one.
+  const {
+    data: repBatch,
+    error: repError,
+    reload: reloadReputation,
+  } = useFetch(listReputation, [], { revalidateOnFocus: true });
+  // A batch on screen is a reading even when a later refresh failed; only a
+  // read that never landed leaves the column with nothing to show.
+  const repRead: ReputationRead = repBatch
+    ? "loaded"
+    : repError
+      ? "failed"
+      : "loading";
 
   // One outage takes down both reads, so a retry re-runs them together.
   const retry = useCallback(() => {
@@ -123,35 +135,6 @@ export default function AgentsPage() {
       return matchesQ && matchesStatus;
     });
   }, [agents, q, filter, isRoutable]);
-
-  const renderReputation = (a: Agent) => {
-    const live = repBatch?.reputations[a.id];
-    if (live && live.source === "onchain") {
-      return (
-        <ReputationBadge
-          bps={live.smoothed_bps}
-          lowerBoundBps={live.lower_bound_bps}
-          source="onchain"
-          count={live.count}
-          disputeRateBps={live.dispute_rate_bps}
-          floorBps={repBatch?.floor_bps}
-        />
-      );
-    }
-    return (
-      <ReputationBadge
-        bps={a.rep * 2000}
-        lowerBoundBps={live?.lower_bound_bps}
-        source="prior"
-        // Whether this prior is a cold start or a chain read that did not come
-        // back. The two are identical in the payload apart from this flag, and
-        // the badge's cold-start wording is a false claim about the history of
-        // an agent whose record we merely could not reach.
-        degraded={live?.degraded}
-        floorBps={repBatch?.floor_bps}
-      />
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -424,7 +407,14 @@ export default function AgentsPage() {
                       <td className="py-3 text-right font-mono text-cyan">
                         {a.price.toFixed(3)}
                       </td>
-                      <td className="py-3 text-right">{renderReputation(a)}</td>
+                      <td className="py-3 text-right">
+                        <ReputationCell
+                          agentName={a.name}
+                          rep={repBatch?.reputations[a.id] ?? null}
+                          floorBps={repBatch?.floor_bps ?? null}
+                          read={repRead}
+                        />
+                      </td>
                       <td className="py-3 text-right font-mono text-xs text-muted">
                         {a.runs.toLocaleString()}
                       </td>
