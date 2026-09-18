@@ -26,6 +26,7 @@
  */
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { DecomposeResponse } from "@/lib/types";
 
 /**
@@ -49,8 +50,12 @@ export const isPlannerFallback = (plan: DecomposeResponse): boolean =>
 
 export function PlannerFallbackNotice({
   plan,
+  onReplan,
 }: {
   plan: DecomposeResponse;
+  /** Runs decompose again for the intent this plan answers. Absent, the
+   *  notice still says the intent can be run again — from the form above. */
+  onReplan?: () => void;
 }): JSX.Element | null {
   if (!isPlannerFallback(plan)) return null;
 
@@ -93,6 +98,19 @@ export function PlannerFallbackNotice({
           </p>
         </div>
       </div>
+
+      {/* Outside the status region, so neither the announcement nor the
+          Authorize description reads a button label out as part of the fact.
+          Outline, not a filled variant: authorizing this plan is an equally
+          valid answer, and the filled cyan button below is the card's primary
+          action. */}
+      {onReplan && (
+        <div className="mt-3">
+          <Button type="button" variant="outline" size="sm" onClick={onReplan}>
+            Ask the planner again ▸
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
