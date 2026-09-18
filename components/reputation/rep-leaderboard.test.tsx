@@ -143,4 +143,27 @@ describe("RepLeaderboard — what a prior chip claims", () => {
       expect(row).not.toContain("4.87");
     }
   });
+
+  // With nothing read there is nothing to rank by — the seeded rating used to
+  // order the board here. Rows keep registry order and carry no rank number.
+  it("leaves unread agents unranked, in registry order", () => {
+    const { container } = renderBoard({
+      agents: [
+        agent("zeta_bot", { rep: 4.95 }),
+        agent("alpha_bot", { rep: 4.58 }),
+        agent("mid_bot", { rep: 4.7 }),
+      ],
+      batch: null,
+      batchError: "GET /stellar/reputation → 503",
+    });
+    const rows = Array.from(container.querySelectorAll("tbody tr"));
+    // The agent cell's second line is the id; the first cell is the rank.
+    const ids = rows.map(
+      (tr) => tr.querySelector("td:nth-child(2) .text-xs")?.textContent,
+    );
+    expect(ids).toEqual(["zeta_bot", "alpha_bot", "mid_bot"]);
+    for (const tr of rows) {
+      expect(tr.querySelector("td")?.textContent).toBe("—unranked");
+    }
+  });
 });
