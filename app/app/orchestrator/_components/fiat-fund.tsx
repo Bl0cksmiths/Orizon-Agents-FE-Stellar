@@ -166,7 +166,7 @@ export function FiatFund({
   return (
     <div className="clip-cyber-sm border border-violet/40 bg-violet/5 p-4">
       <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-violet mb-1">
-        ▸ pay with PHP (no crypto needed)
+        ▸ pay with PHP{fundsCap && " (no crypto needed)"}
       </div>
       <p className="text-sm mb-3">
         {fundsCap ? "Fund this workflow with pesos" : "Pay in pesos"} via bank /
