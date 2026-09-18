@@ -21,14 +21,17 @@ export default function OrchestratorPage() {
   // authorize / fiat) live in ExecutionPlan, which is fed `plan.data`.
   const plan = useAsyncAction(decompose);
 
-  const submitIntent = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const text = intent.trim();
+  const decomposeIntent = (text: string) => {
     if (!text || plan.pending) return;
     // reset() first so the previous plan drops while the new one is in
     // flight instead of lingering under the spinner.
     plan.reset();
     void plan.run(text);
+  };
+
+  const submitIntent = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    decomposeIntent(intent.trim());
   };
 
   // The intent box is a textarea, so Enter inserts a newline by default —
