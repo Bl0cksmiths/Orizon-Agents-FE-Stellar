@@ -147,6 +147,11 @@ const nameOf = (n: PlanFloorNotice) => n.agent_name ?? n.agent_id;
 const replacementOf = (n: PlanFloorNotice) =>
   n.replacement_name ?? n.replacement_id ?? null;
 
+/** An agent left out for having no endpoint bound. It rides in the same list
+ *  as the floor's actions and arrives as `kind: "excluded"`, but the floor
+ *  never saw it: it was not a candidate to begin with. */
+const isUnbound = (n: PlanFloorNotice) => n.reason_code === "unbound_endpoint";
+
 const numbersRow =
   "flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] text-muted";
 const footnote = "break-words font-mono text-[11px] leading-relaxed text-muted";
@@ -268,6 +273,12 @@ export function ExclusionsPanel({
   const notices = plan.notices ?? [];
   if (notices.length === 0) return null;
 
+  // Unbound agents are counted apart from what the floor did. The backend
+  // names up to eight on every plan while any registered agent is unbound, so
+  // folded into the kinds they would turn an untouched plan into "8 excluded".
+  const changes = notices.filter((n) => !isUnbound(n));
+  const unbound = notices.length - changes.length;
+
   // `kind` is safe to index with — unlike `reason_code`, the guard set-checks
   // it, precisely because it picks a tone and a label that have no fallback.
   const counts: Record<PlanFloorNoticeKind, number> = {
@@ -275,11 +286,14 @@ export function ExclusionsPanel({
     substituted: 0,
     degraded: 0,
   };
-  for (const n of notices) counts[n.kind] += 1;
+  for (const n of changes) counts[n.kind] += 1;
 
-  const breakdown = KIND_ORDER.filter((k) => counts[k] > 0)
-    .map((k) => `${counts[k]} ${KIND_COUNT_LABEL[k]}`)
-    .join(" · ");
+  const breakdown = [
+    ...KIND_ORDER.filter((k) => counts[k] > 0).map(
+      (k) => `${counts[k]} ${KIND_COUNT_LABEL[k]}`,
+    ),
+    ...(unbound > 0 ? [`${unbound} with no endpoint bound`] : []),
+  ].join(" · ");
 
   return (
     <details className="clip-cyber-sm group border border-violet/40 bg-violet/5">
