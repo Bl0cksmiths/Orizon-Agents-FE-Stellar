@@ -678,4 +678,19 @@ test.describe("plan card — what each claim rests on", () => {
     await expect(estimateBanner(page)).toHaveAttribute("id", describedBy ?? "");
     await expect(authorize).toHaveAccessibleDescription(/estimat/i);
   });
+
+  test("Authorize carries no description when every read held", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanExcluded, { wallet: true });
+
+    const authorize = page.getByRole("button", { name: /authorize/i });
+    await expect(authorize).toBeVisible();
+    await expect(estimateBanner(page)).toHaveCount(0);
+    // A reference to an element that is not there describes nothing, and a
+    // warning read on every plan is one buyers learn to ignore.
+    await expect(authorize).not.toHaveAttribute("aria-describedby");
+    await expect(authorize).toHaveAccessibleDescription("");
+  });
 });
