@@ -151,6 +151,46 @@ describe("ExclusionsPanel · the disclosure", () => {
     expect(summaryText()).toContain("1 kept below the floor");
   });
 
+  // The backend names up to eight unbound agents on every plan while any
+  // registered agent is unbound. Folded into the kinds, an untouched plan
+  // would read "8 excluded" under a heading about the floor.
+  it("counts unbound agents apart from the floor's changes", () => {
+    const unboundNotice = (id: string) =>
+      notice({
+        agent_id: id,
+        agent_name: id,
+        reason: "no endpoint bound",
+        reason_code: "unbound_endpoint",
+        lower_bound_bps: null,
+      });
+    const { summaryText } = renderPanel(
+      plan({
+        notices: [notice(), unboundNotice("a.one"), unboundNotice("a.two")],
+      }),
+    );
+    expect(summaryText()).toContain("1 change");
+    expect(summaryText()).not.toContain("3 changes");
+    expect(summaryText()).toContain("1 excluded");
+    expect(summaryText()).toContain("2 with no endpoint bound");
+  });
+
+  it("reads no changes when only unbound agents were left out", () => {
+    const { summaryText } = renderPanel(
+      plan({
+        notices: [
+          notice({
+            reason: "no endpoint bound",
+            reason_code: "unbound_endpoint",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(summaryText()).toContain("no changes");
+    expect(summaryText()).toContain("1 with no endpoint bound");
+    expect(summaryText()).not.toMatch(/\d+ excluded/);
+  });
+
   it("counts a single change in the singular", () => {
     const { summaryText } = renderPanel(plan({ notices: [notice()] }));
     expect(summaryText()).toContain("1 change");
