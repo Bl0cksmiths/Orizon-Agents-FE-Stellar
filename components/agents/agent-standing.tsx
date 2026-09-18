@@ -64,6 +64,7 @@ import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { UNBOUND_WARNING } from "@/lib/binding-status";
+import { isListed } from "@/lib/routability";
 import type { Agent, ReputationInfo } from "@/lib/types";
 
 /**
@@ -197,6 +198,30 @@ export function AgentStanding({
         tone="violet"
         glyph="⬡"
         label="external"
+        detail={detail}
+      />,
+    );
+  }
+
+  const listed = isListed(agent);
+  if (!listed) {
+    // Muted, not magenta, and worded as the operator's decision. A delisted
+    // agent was withdrawn by the person who runs it, so this is not a warning
+    // about the agent and nothing in it may read as a failure. The status
+    // column already says "offline"; this says what that means for a buyer:
+    // no plan will pick it, and nothing about its record has been lost.
+    const detail =
+      `${agent.name} has been delisted by its operator, who has withdrawn it ` +
+      `from service. The orchestrator does not select a delisted agent for any ` +
+      `plan until its operator lists it again. That is the operator's own ` +
+      `choice, not a fault: it keeps its place in this registry, its history ` +
+      `and its reputation.`;
+    marks.push(
+      <StandingMark
+        key="listing"
+        tone="muted"
+        glyph="⏸"
+        label="delisted by operator"
         detail={detail}
       />,
     );
