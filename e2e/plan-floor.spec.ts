@@ -19,6 +19,7 @@ import {
   mockPlan,
   mockPlanDegraded,
   mockPlanExcluded,
+  mockPlanFloorRelaxed,
   mockPlanLegacy,
   mockWallet,
 } from "./mocks";
@@ -486,5 +487,39 @@ test.describe("plan card — reputation, source and exclusions", () => {
         ).not.toMatch(/prior|estimat/i);
       }
     }
+  });
+});
+
+/** The routing-floor summary above the steps, by its accessible name. */
+const floorSummary = (page: Page) =>
+  page.getByRole("region", { name: /routing floor/i });
+
+test.describe("plan card — what each claim rests on", () => {
+  test("a floor-relaxed plan marks the re-admitted step and says the floor moved", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanFloorRelaxed);
+
+    // The compromise is marked on the step itself, where the buyer is looking,
+    // and on no other: a below-floor mark on a clean pick would be as false as
+    // a missing one on the re-admitted agent.
+    await expect(steps(page)).toHaveCount(mockPlanFloorRelaxed.steps.length);
+    for (const [index, step] of mockPlanFloorRelaxed.steps.entries()) {
+      await expect(
+        steps(page)
+          .nth(index)
+          .getByText(/below floor/i),
+        `${step.agent_id}'s below-floor mark`,
+      ).toHaveCount("degraded" in step && step.degraded ? 1 : 0);
+    }
+
+    // …and the plan-level frame says the floor it states was not, in the
+    // end, the floor enforced.
+    const summary = floorSummary(page);
+    await expect(summary).toContainText(
+      numberPattern(mockPlanFloorRelaxed.floor_bps),
+    );
+    await expect(summary).toContainText(/relaxed/i);
   });
 });
