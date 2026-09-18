@@ -21,6 +21,7 @@ import {
   mockReputationBatch,
   mockUnratedCatalogAgent,
   mockUnratedCatalogReputation,
+  mockUnscoredAgent,
 } from "./mocks";
 
 /** The registry these tests read: the shared rows plus an unrated catalog
@@ -67,5 +68,23 @@ test.describe("the marketplace reputation column", () => {
     await expect(
       unrated.locator('[aria-label*="no on-chain ratings yet"]'),
     ).toHaveCount(1);
+  });
+
+  test("invents no score for an agent the batch has no entry for", async ({
+    page,
+  }) => {
+    const agents = [...AGENTS, mockUnscoredAgent];
+    await mockApi(page, { agents, reputation: BATCH });
+    await page.goto("/app/agents");
+    await registryLoaded(page, agents.length);
+
+    // The batch was read and simply does not carry this agent. The honest
+    // cell says there is no score; the old one printed the catalog rating.
+    const unscored = row(page, mockUnscoredAgent.id);
+    await expect(unscored.getByText("no score", { exact: true })).toBeVisible();
+    await expect(unscored).not.toContainText(mockUnscoredAgent.rep.toFixed(2), {
+      useInnerText: true,
+    });
+    await expect(unscored).not.toContainText("★");
   });
 });
