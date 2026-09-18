@@ -364,6 +364,23 @@ describe("RoutingStanding — a delisted agent", () => {
       screen.getByRole("link", { name: "bind agt_11c0" }).getAttribute("href"),
     ).toBe("/app/bind?agent=agt_11c0");
   });
+
+  // The backstop re-admits below-floor candidates, never withdrawn ones, so
+  // the floor gate's sentence about it is scoped to a relisted agent here.
+  it("does not promise the backstop to a delisted agent", () => {
+    renderStanding({
+      status: "offline",
+      reputation: rep({ lower_bound_bps: 1000 }),
+    });
+    const text = document.body.textContent ?? "";
+    expect(text).toContain(
+      "Once it is relisted, below the floor is not eligible under the normal rule",
+    );
+    const paragraphs = Array.from(document.querySelectorAll("p")).map(
+      (p) => p.textContent ?? "",
+    );
+    expect(paragraphs.some((p) => p.startsWith("Below the floor"))).toBe(false);
+  });
 });
 
 describe("RoutingStanding — the claims it must never make", () => {
