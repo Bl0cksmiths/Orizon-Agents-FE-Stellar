@@ -10,11 +10,17 @@
  * Run: npm run test:parity
  */
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import {
+  CHECKOUT_DIR,
   canonicalNetwork,
   compareLiveContracts,
+  loadAddressBook,
+  resolveContractsDir,
 } from "./live-contract-parity.mjs";
 
 /** @param {string} char  one base32 character, repeated into a strkey shape */
@@ -195,4 +201,67 @@ test("fails when there is nothing to compare at all", () => {
   assert.deepEqual(rows, []);
   assert.equal(problems.length, 1);
   assert.match(problems[0], /nothing was compared/);
+});
+
+/** A throwaway directory, removed when the calling test ends. */
+function tempDir(t) {
+  const dir = mkdtempSync(join(tmpdir(), "live-parity-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+test("resolves $ORIZON_CONTRACTS_DIR ahead of the CI checkout", (t) => {
+  const clone = tempDir(t);
+  const root = tempDir(t);
+  mkdirSync(join(root, CHECKOUT_DIR));
+  assert.equal(
+    resolveContractsDir({ ORIZON_CONTRACTS_DIR: clone }, root),
+    clone,
+  );
+});
+
+test("falls back to the CI checkout in the repo root", (t) => {
+  const root = tempDir(t);
+  mkdirSync(join(root, CHECKOUT_DIR));
+  assert.equal(resolveContractsDir({}, root), join(root, CHECKOUT_DIR));
+});
+
+test("throws when $ORIZON_CONTRACTS_DIR points nowhere", (t) => {
+  const missing = join(tempDir(t), "absent");
+  assert.throws(
+    () => resolveContractsDir({ ORIZON_CONTRACTS_DIR: missing }, tempDir(t)),
+    /which does not exist/,
+  );
+});
+
+test("throws when no address book is checked out, rather than skipping", (t) => {
+  assert.throws(
+    () => resolveContractsDir({}, tempDir(t)),
+    /Canonical address book not found/,
+  );
+});
+
+test("reads the address book for the requested network", (t) => {
+  const dir = tempDir(t);
+  writeFileSync(join(dir, "addresses.json"), JSON.stringify(TESTNET_BOOK));
+  const { path, book } = loadAddressBook("testnet", dir);
+  assert.equal(path, join(dir, "addresses.json"));
+  assert.deepEqual(book, TESTNET_BOOK);
+  assert.throws(
+    () => loadAddressBook("mainnet", dir),
+    /mainnet address book is not at/,
+  );
+});
+
+test("throws on an address book that is not JSON", (t) => {
+  const dir = tempDir(t);
+  writeFileSync(join(dir, "addresses.json"), "{ not json");
+  assert.throws(() => loadAddressBook("testnet", dir), /is not valid JSON/);
+});
+
+test("throws on a network that keeps no address book", (t) => {
+  assert.throws(
+    () => loadAddressBook("constructor", tempDir(t)),
+    /No address book is kept for network constructor/,
+  );
 });
