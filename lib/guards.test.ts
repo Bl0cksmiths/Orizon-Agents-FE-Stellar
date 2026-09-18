@@ -382,6 +382,30 @@ describe("isDecomposeResponse", () => {
     expect(isDecomposeResponse(valid)).toBe(true);
   });
 
+  it("rejects wrong types on the per-step reputation evidence", () => {
+    // Each of these reaches the reputation badge: the bound is compared
+    // against the floor, the count and dispute rate are printed, and the flag
+    // picks between "no ratings yet" and "the read did not come back".
+    const wrong: Record<string, unknown>[] = [
+      { rep_lower_bound_bps: "5283" },
+      { rep_lower_bound_bps: Number.NaN },
+      { rep_count: "24" },
+      { rep_count: Number.POSITIVE_INFINITY },
+      { rep_dispute_rate_bps: "2500" },
+      { rep_dispute_rate_bps: {} },
+      // Truthy, and would report a healthy read as a failed one.
+      { rep_degraded: "false" },
+      { rep_degraded: 1 },
+    ];
+    for (const field of wrong) {
+      const step = { ...valid.steps[0], ...field };
+      expect(
+        isDecomposeResponse({ ...valid, steps: [step] }),
+        JSON.stringify(field),
+      ).toBe(false);
+    }
+  });
+
   // AC-5 — a build predating story 3.02 keeps rendering the plan. The whole
   // design rests on the four floor fields being ADDITIVE, and that claim has
   // two halves the guard is the only thing holding: a backend that predates
