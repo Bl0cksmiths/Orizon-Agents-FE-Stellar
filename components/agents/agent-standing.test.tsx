@@ -374,6 +374,20 @@ describe("AgentStanding — endpoint binding", () => {
     expect(labels(container)).toEqual(["⬡ external"]);
     expect(detail(container)).not.toContain(UNBOUND_WARNING);
   });
+
+  // Standing down on binding is not standing down on everything: the floor is
+  // not the lookup's question, so its verdict still belongs to this cell.
+  it("keeps every other mark when the lookup covers the row", () => {
+    const { container } = renderCell({
+      agent: onchain({ bound: false }),
+      rep: thinEvidence(),
+      bindingLookup: true,
+    });
+    expect(labels(container)).toEqual([
+      "⬡ external",
+      "⚑ below floor · not eligible",
+    ]);
+  });
 });
 
 describe("AgentStanding — the row it lives in", () => {
