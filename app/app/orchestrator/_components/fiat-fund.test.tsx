@@ -47,4 +47,16 @@ describe("FiatFund · what the ramp is said to pay for", () => {
     expect(shown).not.toMatch(FUNDS_WORKFLOW);
     expect(shown).toContain("This network's escrow takes XLM, not USDC");
   });
+
+  // Unknown is not XLM and not USDC. Either claim would be a guess.
+  it.each([null, undefined])(
+    "claims nothing either way while the asset is %s",
+    (asset) => {
+      const shown = text(asset);
+      expect(shown).not.toMatch(FUNDS_WORKFLOW);
+      expect(shown).not.toContain("escrow takes");
+      // What the ramp itself delivers is fixed, and still said.
+      expect(shown).toContain("USDCXLM");
+    },
+  );
 });
