@@ -23,6 +23,15 @@
  *     showing evidence altogether, and those two situations look identical
  *     row by row.
  *
+ *   - And the request for the batch can itself fail, which is a different
+ *     fault from AC-5's: there the backend answered with estimates, here it
+ *     did not answer with anything usable. The request is best-effort, so the
+ *     registry renders regardless and nothing else on the page changes shape
+ *     — which is how a failed batch used to go entirely unsaid while every
+ *     chip claimed its agent had no ratings yet. It is announced here as an
+ *     alert when no batch ever landed, and as a dated refresh failure when an
+ *     earlier batch is still on screen.
+ *
  * Two words are load-bearing in that second block and neither reaches the
  * screen. `degraded` is an internal field name, and elsewhere in this product
  * it already means "re-admitted below the floor by the starvation backstop",
