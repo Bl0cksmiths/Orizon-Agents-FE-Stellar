@@ -25,6 +25,7 @@
  *     back.
  */
 
+import { Badge } from "@/components/ui/badge";
 import type { DecomposeResponse } from "@/lib/types";
 
 /**
@@ -45,3 +46,53 @@ export const PLANNER_FALLBACK_NOTICE_ID = "plan-planner-fallback";
  *  planner did not build it". */
 export const isPlannerFallback = (plan: DecomposeResponse): boolean =>
   plan.planner_fallback === true;
+
+export function PlannerFallbackNotice({
+  plan,
+}: {
+  plan: DecomposeResponse;
+}): JSX.Element | null {
+  if (!isPlannerFallback(plan)) return null;
+
+  return (
+    // Violet, the card's own tone, and deliberately not the magenta of the
+    // reputation banner below: on this card magenta means "your protection is
+    // weaker than it looks", and nothing here is. Same `clip-cyber-sm` frame,
+    // padding and `mt-6` rhythm as that banner and the Authorize panel, so the
+    // three read as one decision point.
+    <div className="mt-6 clip-cyber-sm border border-violet/40 bg-violet/5 p-4">
+      {/* `role="status"` (polite), never `role="alert"`: this is a fact about
+          how the plan was built, arriving with the plan the buyer asked for,
+          and interrupting the reading of that plan to say it would be the
+          wrong trade. The id is on this region rather than the frame so the
+          Authorize description is these words alone. */}
+      <div id={PLANNER_FALLBACK_NOTICE_ID} role="status">
+        {/* Glyph and word together: the violet is decoration, and the badge
+            has to say what it marks to a reader who cannot see the tint.
+            `flex-wrap` + `min-w-0` so the heading folds at 390px. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="violet">
+            <span aria-hidden="true">↳</span>fallback plan
+          </Badge>
+          {/* h3: the card's own "Execution plan" is the h2 above it. */}
+          <h3 className="min-w-0 text-sm font-semibold tracking-tight">
+            Built without the planner
+          </h3>
+        </div>
+
+        <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
+          <p>
+            The planner was unavailable for this request, or returned nothing
+            usable, so these steps were not decomposed from your intent. This is
+            a minimal fallback plan, built only from agents that passed the
+            routing checks.
+          </p>
+          <p>
+            You can authorize it as it stands, or run the same intent through
+            the planner again.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
