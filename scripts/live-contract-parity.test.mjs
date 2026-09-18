@@ -12,7 +12,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { compareLiveContracts } from "./live-contract-parity.mjs";
+import {
+  canonicalNetwork,
+  compareLiveContracts,
+} from "./live-contract-parity.mjs";
 
 /** @param {string} char  one base32 character, repeated into a strkey shape */
 const id = (char) => `C${char.repeat(55)}`;
@@ -66,5 +69,58 @@ test("names the contract, the live id and the canonical id on a mismatch", () =>
   );
   assert.deepEqual(problems, [
     `payment_escrow: live ${id("X")} != canonical ${id("E")}`,
+  ]);
+});
+
+test("maps each reported network to the address book it means", () => {
+  assert.equal(canonicalNetwork("testnet"), "testnet");
+  assert.equal(canonicalNetwork("mainnet"), "mainnet");
+  // The backend's own alias for mainnet.
+  assert.equal(canonicalNetwork("public"), "mainnet");
+});
+
+test("recognises no other network value", () => {
+  for (const reported of [
+    "futurenet",
+    "Mainnet",
+    "",
+    "constructor",
+    undefined,
+    null,
+    1,
+  ]) {
+    assert.equal(canonicalNetwork(reported), null, JSON.stringify(reported));
+  }
+});
+
+test("fails on a network with no address book instead of skipping it", () => {
+  for (const network of ["futurenet", undefined]) {
+    const { rows, problems } = compareLiveContracts(
+      liveBody({ network }),
+      TESTNET_BOOK,
+    );
+    assert.deepEqual(rows, []);
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /has no canonical address book/);
+  }
+});
+
+test("compares a backend reporting `public` against the mainnet book", () => {
+  const { network, problems } = compareLiveContracts(
+    liveBody({ network: "public" }),
+    { ...TESTNET_BOOK, network: "mainnet" },
+  );
+  assert.equal(network, "mainnet");
+  assert.deepEqual(problems, []);
+});
+
+test("fails when the address book declares a different network", () => {
+  const { rows, problems } = compareLiveContracts(liveBody(), {
+    ...TESTNET_BOOK,
+    network: "mainnet",
+  });
+  assert.deepEqual(rows, []);
+  assert.deepEqual(problems, [
+    'addresses.json declares network "mainnet", expected "testnet"',
   ]);
 });
