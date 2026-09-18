@@ -9,9 +9,17 @@
  * happily when probed directly. The only way to see it is to call the API
  * *through the deployed frontend*, which is exactly what this does.
  *
+ * It also checks that production is on the contracts it should be: every
+ * contract id `/api/stellar/network` reports is compared with the contract
+ * repo's address book for the network it reports (see checkContractParity).
+ * That needs a checkout of Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar —
+ * smoke.yml makes one in .canonical-contracts/ — and a run without one FAILS,
+ * because a parity check that skips itself is a parity check nobody has.
+ *
  * Usage:
  *   node scripts/smoke-deploy.mjs [origin]
  *   SMOKE_ORIGIN=https://orizons.xyz npm run smoke
+ *   ORIZON_CONTRACTS_DIR=/path/to/contract-repo npm run smoke   # local clone
  *
  * The backend sleeps on Render's free tier, so the first request may take up to
  * a minute; the warmup below absorbs that before any assertion runs.
