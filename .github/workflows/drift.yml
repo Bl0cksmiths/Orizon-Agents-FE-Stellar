@@ -1,3 +1,10 @@
+# The `addresses` job in ci.yml runs the same check, but only when THIS repo
+# changes. The address book it compares against lives in the contract repo,
+# which has no CI of its own, so a redeploy there that rotates an id stayed
+# invisible until an unrelated frontend PR happened to go red — days later,
+# blamed on the wrong change. Running the check daily against the contract
+# repo's current default branch surfaces that drift within a day, in a run
+# whose only job is to report it.
 name: Address drift
 
 on:
