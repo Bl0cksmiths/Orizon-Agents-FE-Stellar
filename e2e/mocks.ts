@@ -721,6 +721,68 @@ export const mockDelistedReputation = {
 };
 
 /**
+ * A first-party catalog agent nobody has rated yet — the row the audit caught
+ * reading two different scores on two surfaces.
+ *
+ * Its catalog rating is 4.87, as `app/seed.py` ships it, and that rating is
+ * catalog copy: nothing routes on it. The live batch carries the agent at the
+ * network prior instead (below), and the prior is the number the plan card
+ * shows and the floor is measured against. The marketplace used to print the
+ * 4.87 as a "prior estimate", so the same agent read 4.87 in the registry and
+ * 3.50 on the plan card. The two numbers are deliberately far apart here, so
+ * a chip reading either one cannot pass for the other.
+ */
+export const mockUnratedCatalogAgent = {
+  id: "agt_02k2",
+  name: "design.figma",
+  skills: ["ui", "tokens", "figma"],
+  price: 0.018,
+  rep: 4.87,
+  status: "online",
+  runs: 7321,
+  real: true,
+  owner: null,
+  source: "seeded",
+  bound: null,
+};
+
+/** The live prior for `design.figma`: 7000 bps (3.50) with the 5677 lower
+ *  bound `lowerBoundBps(7000, 0)` returns. Honest cold start, not a failed
+ *  read. */
+export const mockUnratedCatalogReputation = {
+  agent_id: mockUnratedCatalogAgent.id,
+  smoothed_bps: 7000,
+  lower_bound_bps: 5677,
+  avg_bps: 7000,
+  count: 0,
+  weight: 0,
+  disputed: 0,
+  dispute_rate_bps: 0,
+  source: "prior" as const,
+  degraded: false,
+};
+
+/**
+ * An agent the registry lists but the reputation batch carries no entry for —
+ * registered between the two reads, say. There is no score to show for it,
+ * and the fixture exists to prove none is invented: its catalog rating is
+ * set to a figure no batch entry anywhere in this file uses.
+ */
+export const mockUnscoredAgent = {
+  id: "fresh_listing",
+  name: "Fresh Listing",
+  skills: ["summarize"],
+  price: 0.015,
+  rep: 4.42,
+  status: "online",
+  runs: 0,
+  real: false,
+  owner: mockOtherOwnerAddress,
+  source: "onchain",
+  bound: true,
+};
+
+/**
  * What the emulated wallet answers a signMessage request with. The spec
  * asserts this exact string reaches POST /bind as `signature`: the backend
  * accepts both raw-bytes and SEP-53 signatures on purpose, so any re-encoding
