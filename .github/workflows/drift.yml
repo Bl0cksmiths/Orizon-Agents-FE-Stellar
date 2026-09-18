@@ -28,6 +28,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Identical to the checkout in ci.yml's `addresses` job, for the same
+      # reason: compared against a checkout, never fetched mid-check, so a
+      # network blip cannot read as drift. With no `ref` it resolves the
+      # contract repo's default branch at run time — which is the point, since
+      # that is where a redeploy's new address book lands.
       - name: Checkout contract address book
         uses: actions/checkout@v4
         with:
