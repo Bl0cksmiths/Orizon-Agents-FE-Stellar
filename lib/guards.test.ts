@@ -625,6 +625,18 @@ describe("isDecomposeResponse", () => {
     expect("planner_fallback" in valid).toBe(false);
     expect(isDecomposeResponse(valid)).toBe(true);
   });
+
+  it("rejects a planner fallback flag that is not a boolean", () => {
+    // The string "false" is the dangerous one: truthy, so it would put the
+    // fallback notice on a plan the planner built itself.
+    const wrong: unknown[] = ["false", "true", 1, 0, {}, []];
+    for (const planner_fallback of wrong) {
+      expect(
+        isDecomposeResponse({ ...valid, planner_fallback }),
+        JSON.stringify(planner_fallback),
+      ).toBe(false);
+    }
+  });
 });
 
 describe("isReputationInfo", () => {
