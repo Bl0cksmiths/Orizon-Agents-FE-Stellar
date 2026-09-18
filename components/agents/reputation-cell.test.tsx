@@ -103,3 +103,43 @@ describe("ReputationCell — a live entry", () => {
     expect(said(container)).toContain("below the 2.75 network floor");
   });
 });
+
+describe("ReputationCell — no entry", () => {
+  const NO_NUMBER = /\d\.\d\d/;
+
+  it("says a failed read is unavailable, with no score and no cold start", () => {
+    const { container } = renderCell({ rep: null, read: "failed" });
+    const text = said(container);
+    expect(container.textContent).toContain("unavailable");
+    expect(text).toContain("the reputation read failed");
+    expect(text).toContain("design.figma");
+    expect(text).not.toMatch(NO_NUMBER);
+    expect(text).not.toMatch(/no on-chain ratings|prior estimate/i);
+  });
+
+  it("says a landed read with no entry has no score, and invents none", () => {
+    const { container } = renderCell({ rep: null, read: "loaded" });
+    const text = said(container);
+    expect(container.textContent).toContain("no score");
+    expect(text).toContain("carried no entry");
+    expect(text).not.toMatch(NO_NUMBER);
+    expect(text).not.toMatch(/no on-chain ratings|prior estimate/i);
+  });
+
+  it("holds a placeholder while the read is on its way", () => {
+    const { container } = renderCell({ rep: null, read: "loading" });
+    expect(container.querySelector("[aria-hidden]")).not.toBeNull();
+    expect(container.textContent).toContain(
+      "Loading the reputation score for design.figma.",
+    );
+    expect(container.textContent).not.toMatch(NO_NUMBER);
+  });
+
+  // An entry wins over the read state: a batch kept on screen through a
+  // failed refresh is still a reading, and the page passes it as such.
+  it("renders an entry it was given whatever the read state says", () => {
+    const { container } = renderCell({ rep: onchainRep(), read: "failed" });
+    expect(container.textContent).toContain("4.60");
+    expect(container.textContent).not.toContain("unavailable");
+  });
+});
