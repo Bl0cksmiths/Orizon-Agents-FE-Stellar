@@ -231,6 +231,8 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                     bps={s.rep_bps}
                     lowerBoundBps={s.rep_lower_bound_bps ?? undefined}
                     source={s.rep_source ?? "prior"}
+                    count={s.rep_count ?? undefined}
+                    disputeRateBps={s.rep_dispute_rate_bps ?? undefined}
                     floorBps={
                       s.rep_lower_bound_bps != null ? plan.floor_bps : undefined
                     }
