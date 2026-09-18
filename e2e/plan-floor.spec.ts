@@ -420,8 +420,12 @@ test.describe("plan card — reputation, source and exclusions", () => {
         1,
       );
     }
+    // Bare, because this mock serves no network metadata to name the escrow's
+    // asset with — the card prints no unit rather than guess one.
     await expect(
-      page.getByText(`${mockPlanLegacy.total_usdc.toFixed(3)} USDC`).first(),
+      page
+        .getByText(mockPlanLegacy.total_usdc.toFixed(3), { exact: true })
+        .first(),
     ).toBeVisible();
 
     // An old backend's prose is the only explanation it can give for the shape
