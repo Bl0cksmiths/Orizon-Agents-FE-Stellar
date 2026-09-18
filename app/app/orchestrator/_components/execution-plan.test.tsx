@@ -160,3 +160,25 @@ describe("ExecutionPlan · the unit on the amounts", () => {
     },
   );
 });
+
+describe("ExecutionPlan · each step's reputation badge", () => {
+  /** The step's chip, found by the label a screen reader hears. */
+  const chip = () =>
+    screen.getByLabelText(/on-chain reputation|prior estimate/);
+
+  // The case the lower bound exists for: a healthy-looking 2.88 headline with
+  // too little evidence behind it. The floor gates on the bound (2.64), so
+  // the chip must say below-floor even though the headline clears 2.75.
+  it("judges a step against the floor on its lower bound, not its headline", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({
+          steps: [step({ rep_bps: 5750, rep_lower_bound_bps: 5283 })],
+        })}
+      />,
+    );
+    expect(chip().getAttribute("aria-label")).toContain(
+      "below the 2.75 network floor",
+    );
+  });
+});
