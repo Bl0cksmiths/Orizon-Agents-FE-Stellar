@@ -47,6 +47,13 @@
  * lookup answers the same question with fresher data and its own marker, so
  * the cell stands down there (`bindingLookup`) rather than contradict it.
  *
+ * Listing comes before all of it. An operator can delist their own agent,
+ * which syncs as `status === "offline"`, and the backend then routes it on no
+ * path at all — the starvation backstop included. `isListed` is the shared
+ * copy of that rule. A delisted row gets one mark, worded as the operator's
+ * choice rather than a fault, and none of the gate marks: those describe a
+ * candidate, and this agent has been withdrawn from candidacy.
+ *
  * Degrees of not-knowing are kept apart rather than collapsed, because each
  * one is a different reason to say less. A null `rep` is "no score is known";
  * a null `floorBps` is "the batch has not loaded"; and `rep.degraded` is the
