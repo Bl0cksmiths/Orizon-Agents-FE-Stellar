@@ -565,6 +565,34 @@ export async function mockApiOutage(page: Page): Promise<void> {
   );
 }
 
+/**
+ * Fails ONLY the reputation batch, as a 503 carrying the backend's error
+ * envelope, while every other `/api/*` call keeps its fixture.
+ *
+ * That partial outage is the case worth a helper: the registry still renders
+ * because the batch is best-effort, so nothing on the page changes shape, and
+ * a failure the layout does not reflect is one only the copy can report.
+ *
+ * Register it AFTER `mockApi` — Playwright tries the most recently added
+ * matching route first, so this one wins for the batch alone.
+ */
+export async function mockReputationUnavailable(page: Page): Promise<void> {
+  await page.route("**/api/stellar/reputation", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: "Service Unavailable",
+        error: {
+          code: "reputation_unavailable",
+          message: "reputation service unavailable",
+          request_id: "e2e0000000000003",
+        },
+      }),
+    }),
+  );
+}
+
 // ── Agent endpoint binding (story 2.01) ─────────────────────
 
 /** The agent the bind spec drives, and the wallet that owns it. */
