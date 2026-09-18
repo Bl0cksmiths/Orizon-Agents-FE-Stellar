@@ -403,8 +403,10 @@ describe("RoutingStanding — the claims it must never make", () => {
     },
   ];
 
-  // "being routed" is the conflation of eligibility with selection, and the
-  // delisting claim is verified false — the orchestrator never reads the flag.
+  // "being routed" is the conflation of eligibility with selection. Every
+  // state here is a LISTED agent, so delisting has no place in its panel: the
+  // word belongs to the withdrawn verdict alone, which the orchestrator now
+  // enforces on every routing path.
   it.each(states)(
     "never promises routing or repeats the delisting claim ($name)",
     ({ props }) => {
