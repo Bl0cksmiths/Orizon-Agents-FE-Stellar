@@ -227,8 +227,8 @@ export function AgentStanding({
       <StandingMark
         key="listing"
         tone="muted"
-        // "‖", not the ⏸ pause sign: the console's mono stack has no ⏸ and
-        // falls back to a missing-glyph box on common systems.
+        // "‖", not the ⏸ pause sign: the console's mono stack has no ⏸, so
+        // it rendered as a missing-glyph box wherever no fallback font had it.
         glyph="‖"
         label="delisted by operator"
         detail={detail}
