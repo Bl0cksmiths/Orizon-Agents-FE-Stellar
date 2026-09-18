@@ -18,6 +18,7 @@ import { mockApi, mockPlanExcluded, mockWallet } from "./mocks";
 import {
   mockPlanPlannerAnswered,
   mockPlanPlannerFallback,
+  mockPlanPlannerFallbackUnread,
 } from "./plan-fixtures";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -34,6 +35,12 @@ const LAPTOP: Viewport = { width: 1440, height: 900 };
  */
 const fallbackNotice = (page: Page) =>
   page.locator('[role="status"]').filter({ hasText: /fallback/i });
+
+/** The unverified-reputation banner, located as e2e/plan-floor.spec.ts does. */
+const estimateBanner = (page: Page) =>
+  page
+    .locator('[role="status"], [role="alert"]')
+    .filter({ hasText: /estimat/i });
 
 /**
  * A bounding box read only once it has stopped moving. The card slides in
@@ -140,5 +147,27 @@ test.describe("plan card — a plan built without the planner", () => {
     // The retry sits beside the notice, not in it: a button label read out as
     // part of Authorize's description would be noise at the worst moment.
     await expect(authorize).not.toHaveAccessibleDescription(/ask the planner/i);
+  });
+
+  test("with a failed read as well, Authorize is described by both notices", async ({
+    page,
+  }) => {
+    await page.setViewportSize(LAPTOP);
+    await decomposeWith(page, mockPlanPlannerFallbackUnread, { wallet: true });
+
+    const authorize = page.getByRole("button", { name: /authorize/i });
+    await expect(authorize).toBeVisible();
+    await expect(fallbackNotice(page)).toHaveCount(1);
+    await expect(estimateBanner(page)).toHaveCount(1);
+
+    // Composed, never overwritten: one notice must not push the other out of
+    // the description, and both are named in the order they are read.
+    const noticeId = await fallbackNotice(page).getAttribute("id");
+    const bannerId = await estimateBanner(page).getAttribute("id");
+    const describedBy = await authorize.getAttribute("aria-describedby");
+    expect(describedBy?.split(/\s+/)).toEqual([noticeId, bannerId]);
+    await expect(authorize).toHaveAccessibleDescription(
+      /fallback[\s\S]*estimat/i,
+    );
   });
 });
