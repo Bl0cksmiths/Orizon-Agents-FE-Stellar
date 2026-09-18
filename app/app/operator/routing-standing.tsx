@@ -21,6 +21,13 @@
  *      back that score up. Every operator who has asked "why is my 4.8 agent
  *      getting nothing" has been looking at the wrong number.
  *
+ * Both gates apply only to a LISTED agent. An operator who delists their agent
+ * (`set_active(id, false)`, synced as `status === "offline"`) takes it off
+ * every routing path before either gate is read, and that exclusion is the one
+ * no fallback undoes — so a delisted agent gets its own verdict, ahead of the
+ * gates and in calm words, because it is the operator's decision rather than
+ * anything that went wrong. `isListed` is the shared copy of the backend rule.
+ *
  * Two words are load-bearing throughout. "Eligible" is never "being routed":
  * clearing both gates puts the agent in the candidate pool, and the planner
  * still chooses per request. Conflating the two is a real bug elsewhere in this
