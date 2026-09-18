@@ -7,6 +7,10 @@ import { Skeleton, LoadingStatus } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import {
+  ReputationCell,
+  type ReputationRead,
+} from "@/components/agents/reputation-cell";
+import {
   DEFAULT_REP_PARAMS,
   lowerBoundBps,
   scoreOutOfFive,
