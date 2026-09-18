@@ -200,8 +200,15 @@ export function RepLeaderboard({
     });
     const dir = sort.dir === "desc" ? -1 : 1;
     const val = sortValue[sort.col];
-    return joined.sort((a, b) => dir * (val(a) - val(b)));
-  }, [agents, batch, batchError, sort]);
+    // A row with no reading has nothing to rank by, so it sits below every
+    // ranked row whichever way the column points — and, the sort being
+    // stable, in registry order among its own kind.
+    return joined.sort((a, b) =>
+      a.rep === null || b.rep === null
+        ? Number(a.rep === null) - Number(b.rep === null)
+        : dir * (val(a.rep) - val(b.rep)),
+    );
+  }, [agents, batch, sort]);
 
   // Skeleton rows stand in for agent rows, so they are only right while the
   // registry is genuinely still on its way: nothing to render yet and no
