@@ -76,10 +76,12 @@ export function DegradedBanner({
     // mid-sentence on, which is the right trade only for something that arrives
     // unbidden after the user's attention has moved on — a signature that just
     // failed, say. This renders as part of the plan itself and sits in document
-    // order above the Authorize control, so a screen-reader user cannot reach
-    // the button without passing through it. Interrupting here would truncate
-    // the reading of the very plan the warning is about, and would do it on
-    // every plan render. Polite says the same words without that cost.
+    // order above the Authorize control, so reading the page reaches it before
+    // the button — and Tab, which jumps straight past it to the button, meets
+    // it there instead, as the button's `aria-describedby`. Interrupting here
+    // would truncate the reading of the very plan the warning is about, and
+    // would do it on every plan render. Polite says the same words without
+    // that cost.
     //
     // Tone mirrors the cyan Authorize panel it sits directly above — same
     // `clip-cyber-sm` frame, same padding, same `mt-6` rhythm — so the two read
