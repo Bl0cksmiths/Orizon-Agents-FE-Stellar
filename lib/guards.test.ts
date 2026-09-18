@@ -356,6 +356,32 @@ describe("isDecomposeResponse", () => {
     expect(isDecomposeResponse({ ...valid, steps: [step] })).toBe(false);
   });
 
+  // The per-step reputation evidence is additive in the same way the floor
+  // fields are: a backend predating it omits every key, and a null is how
+  // FastAPI serializes an unset Optional.
+  it("accepts the per-step reputation evidence present, null or absent", () => {
+    const evidenced = {
+      ...valid.steps[0],
+      rep_bps: 5750,
+      rep_source: "onchain",
+      rep_lower_bound_bps: 5283,
+      rep_count: 24,
+      rep_dispute_rate_bps: 2500,
+      rep_degraded: false,
+    };
+    expect(isDecomposeResponse({ ...valid, steps: [evidenced] })).toBe(true);
+    const nulled = {
+      ...valid.steps[0],
+      rep_lower_bound_bps: null,
+      rep_count: null,
+      rep_dispute_rate_bps: null,
+      rep_degraded: null,
+    };
+    expect(isDecomposeResponse({ ...valid, steps: [nulled] })).toBe(true);
+    // `valid` carries none of them, which is the pre-field backend.
+    expect(isDecomposeResponse(valid)).toBe(true);
+  });
+
   // AC-5 — a build predating story 3.02 keeps rendering the plan. The whole
   // design rests on the four floor fields being ADDITIVE, and that claim has
   // two halves the guard is the only thing holding: a backend that predates
