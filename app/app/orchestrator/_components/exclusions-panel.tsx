@@ -170,7 +170,11 @@ function NoticeRow({
   // given. On an unbound notice null is deliberate, and reading it as "no
   // entry" would state an absence of ratings nobody checked for.
   const noEntry = bound === null && !unbound;
-  const showNumbers = bound !== undefined || floorBps !== undefined;
+  // No deciding numbers on an unbound row, because nothing was decided on
+  // numbers: "lower bound none on record" would repeat the false no-ratings
+  // claim, and the floor beside it would imply a comparison that never ran.
+  const showNumbers =
+    !unbound && (bound !== undefined || floorBps !== undefined);
 
   return (
     <li className="clip-cyber-sm space-y-2 border border-border bg-bg/60 p-3">
