@@ -1,0 +1,93 @@
+// @vitest-environment jsdom
+/**
+ * Unit tests for PlannerFallbackNotice.
+ *
+ * The notice tells a buyer that the plan they are about to pay for was not
+ * written by the planner. Like the reputation banner's suite, these are
+ * written against what it says and when, not against its markup — a refactor
+ * should be free, a changed claim should not.
+ *
+ * Assertions are plain DOM checks — this repo does not install jest-dom.
+ */
+
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+
+import type { DecomposeResponse } from "@/lib/types";
+import {
+  isPlannerFallback,
+  PlannerFallbackNotice,
+} from "./planner-fallback-notice";
+
+afterEach(cleanup);
+
+/** The one-step plan the backend serves when the planner comes back empty:
+ *  its preferred fallback agent, carrying the rationale it is stamped with. */
+function planFixture(over: Partial<DecomposeResponse> = {}): DecomposeResponse {
+  return {
+    plan_id: "pln_fallback",
+    intent: "write a launch announcement for a budgeting app",
+    steps: [
+      {
+        agent_id: "agt_01h8",
+        agent_name: "copywrite.v3",
+        rationale: "fallback: generate copy for the intent",
+        est_price_usdc: 0.012,
+        est_eta_seconds: 0.8,
+        rep_bps: 8714,
+        rep_source: "onchain",
+      },
+    ],
+    total_usdc: 0.012,
+    total_eta: 0.8,
+    floor_bps: 5500,
+    reputation_degraded: false,
+    ...over,
+  };
+}
+
+describe("PlannerFallbackNotice — when it renders at all", () => {
+  it("renders when the plan is the backend's fallback", () => {
+    render(
+      <PlannerFallbackNotice plan={planFixture({ planner_fallback: true })} />,
+    );
+    expect(screen.getByRole("status").textContent).not.toBe("");
+  });
+
+  it("renders nothing on the planner's own plan", () => {
+    const { container } = render(
+      <PlannerFallbackNotice plan={planFixture({ planner_fallback: false })} />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
+  // Older backends omit the field. Not knowing how a plan was built is not
+  // grounds for telling the buyer the planner never saw it.
+  it("renders nothing when the flag is absent", () => {
+    const { container } = render(
+      <PlannerFallbackNotice plan={planFixture()} />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
+  // The same test Authorize uses to decide whether to name the notice, so the
+  // button can never point at an id that is not on the page.
+  it("reports the notice as shown only for an explicit true", () => {
+    expect(isPlannerFallback(planFixture({ planner_fallback: true }))).toBe(
+      true,
+    );
+    expect(isPlannerFallback(planFixture({ planner_fallback: false }))).toBe(
+      false,
+    );
+    expect(isPlannerFallback(planFixture())).toBe(false);
+  });
+
+  // A one-step plan is not evidence of a fallback: the planner may decide one
+  // step is enough. Only the flag says who built it.
+  it("does not infer a fallback from a one-step plan", () => {
+    const plan = planFixture({ planner_fallback: false });
+    expect(plan.steps).toHaveLength(1);
+    const { container } = render(<PlannerFallbackNotice plan={plan} />);
+    expect(container.innerHTML).toBe("");
+  });
+});
