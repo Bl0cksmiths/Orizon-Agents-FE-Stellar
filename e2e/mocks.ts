@@ -721,32 +721,35 @@ export const mockDelistedReputation = {
 };
 
 /**
- * A first-party catalog agent nobody has rated yet — the row the audit caught
- * reading two different scores on two surfaces.
+ * A first-party catalog agent nobody has rated yet — the kind of row the audit
+ * caught reading two different scores on two surfaces (live, `design.figma`
+ * read 4.87 in the registry and 3.50 on the plan card).
  *
- * Its catalog rating is 4.87, as `app/seed.py` ships it, and that rating is
+ * Its catalog rating is 4.83, as `app/seed.py` ships it, and that rating is
  * catalog copy: nothing routes on it. The live batch carries the agent at the
  * network prior instead (below), and the prior is the number the plan card
- * shows and the floor is measured against. The marketplace used to print the
- * 4.87 as a "prior estimate", so the same agent read 4.87 in the registry and
- * 3.50 on the plan card. The two numbers are deliberately far apart here, so
+ * shows and the floor is measured against. The two numbers are far apart, so
  * a chip reading either one cannot pass for the other.
+ *
+ * `research.pro` rather than `design.figma` itself because the plan fixtures
+ * above rate `design.figma` on-chain, and one file must not hold two
+ * contradictory histories for the same agent.
  */
 export const mockUnratedCatalogAgent = {
-  id: "agt_02k2",
-  name: "design.figma",
-  skills: ["ui", "tokens", "figma"],
-  price: 0.018,
-  rep: 4.87,
+  id: "agt_09l5",
+  name: "research.pro",
+  skills: ["research", "citations"],
+  price: 0.024,
+  rep: 4.83,
   status: "online",
-  runs: 7321,
+  runs: 9042,
   real: true,
   owner: null,
   source: "seeded",
   bound: null,
 };
 
-/** The live prior for `design.figma`: 7000 bps (3.50) with the 5677 lower
+/** The live prior for `research.pro`: 7000 bps (3.50) with the 5677 lower
  *  bound `lowerBoundBps(7000, 0)` returns. Honest cold start, not a failed
  *  read. */
 export const mockUnratedCatalogReputation = {
