@@ -170,9 +170,14 @@ export function RepLeaderboard({
       // Only an agent the batch carried no entry for is rebuilt here, and it
       // mirrors that same fallback: the smoothed score IS the live prior,
       // there is no evidence mean, and the lower bound is taken on the prior
-      // with zero weight under the live params. Only without a batch (so no
-      // live params either) does the row degrade to the seeded prior.
-      const rep: ReputationInfo = live
+      // with zero weight under the live params.
+      //
+      // Without a batch there is no reading at all, and the row says so rather
+      // than borrowing `agent.rep`: that is the catalog's seeded star rating
+      // (4.58–4.95 across the first-party agents), which nothing routes on, so
+      // showing it as a "prior" put a number on the board the orchestrator
+      // never reads — 4.87 here for an agent the plan card showed at 3.50.
+      const rep: ReputationInfo | null = live
         ? live
         : batch != null
           ? {
@@ -190,22 +195,7 @@ export function RepLeaderboard({
               dispute_rate_bps: 0,
               source: "prior",
             }
-          : {
-              agent_id: agent.id,
-              smoothed_bps: agent.rep * 2000,
-              lower_bound_bps: lowerBoundBps(agent.rep * 2000, 0),
-              avg_bps: agent.rep * 2000,
-              count: 0,
-              weight: 0,
-              disputed: 0,
-              dispute_rate_bps: 0,
-              source: "prior",
-              // The batch request failed, so this seeded stand-in says
-              // nothing about the agent's ratings — the chip must not claim
-              // it has none. Still loading is not a failure, and is not
-              // flagged as one.
-              degraded: batchError !== null,
-            };
+          : null;
       return { agent, rep };
     });
     const dir = sort.dir === "desc" ? -1 : 1;
