@@ -76,6 +76,17 @@ const KIND_LABEL: Record<PlanFloorNoticeKind, string> = {
   degraded: "kept below floor",
 };
 
+/** What an unbound row wears instead of its kind's mark. It arrives as
+ *  `kind: "excluded"`, but nothing judged it, and a magenta "✕ excluded" among
+ *  the floor's verdicts would file it with them. Muted, with its own glyph and
+ *  word: it is a setup step its operator has not finished, not a finding about
+ *  the quality of this plan. */
+const UNBOUND_MARK = {
+  tone: "muted",
+  glyph: "○",
+  label: "no endpoint",
+} as const;
+
 /** The same three kinds, phrased to be counted in the closed summary. */
 const KIND_COUNT_LABEL: Record<PlanFloorNoticeKind, string> = {
   excluded: "excluded",
@@ -160,6 +171,13 @@ function NoticeRow({
   // its standing was never consulted and the backend leaves its bound null on
   // purpose. That null says nothing about its ratings.
   const unbound = notice.reason_code === "unbound_endpoint";
+  const mark = unbound
+    ? UNBOUND_MARK
+    : {
+        tone: KIND_TONE[notice.kind],
+        glyph: KIND_GLYPH[notice.kind],
+        label: KIND_LABEL[notice.kind],
+      };
 
   const bound = notice.lower_bound_bps;
   // null and undefined are different facts and must not collapse into one
@@ -179,9 +197,9 @@ function NoticeRow({
   return (
     <li className="clip-cyber-sm space-y-2 border border-border bg-bg/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={KIND_TONE[notice.kind]}>
-          <span aria-hidden="true">{KIND_GLYPH[notice.kind]}</span>
-          {KIND_LABEL[notice.kind]}
+        <Badge tone={mark.tone}>
+          <span aria-hidden="true">{mark.glyph}</span>
+          {mark.label}
         </Badge>
         {/* break-all on the ids alone, not on the whole line: an agent id is
             one 32-character token with no break opportunity in it and this
