@@ -227,6 +227,14 @@ export function AgentStanding({
     );
   }
 
+  // Every mark below is about a gate the orchestrator applies to a CANDIDATE,
+  // and a delisted agent is not one: it was withdrawn before any gate is
+  // read, and no fallback puts it back. Their wording also assumes a listing
+  // — the unbound warning says "it is listed", the floor verdict says it
+  // "keeps its listing" — so on a delisted row they would be false as well as
+  // beside the point. The backend reports a delisted agent under no other
+  // reason either; the row says one thing, and it is the listing.
+  //
   // Only the explicit `false` is a claim, and only about an on-chain agent.
   // The provenance guard is the same rule as the tri-state, stated twice on
   // purpose: a seeded row must never reach this marker even if a payload
@@ -234,7 +242,7 @@ export function AgentStanding({
   // broken service to a buyer looking at a perfectly working catalog agent.
   // A row the binding lookup covers is skipped outright: the lookup's own
   // marker speaks for binding there, including while it is still in flight.
-  if (onchain && !bindingLookup && agent.bound === false) {
+  if (listed && onchain && !bindingLookup && agent.bound === false) {
     // The short visible label is for a buyer scanning the registry; the long
     // form is `UNBOUND_WARNING` verbatim, addressed to the operator who can
     // act on it. The lead-in adds the buyer's framing without contradicting
@@ -259,7 +267,12 @@ export function AgentStanding({
   // and a floor with no score has nothing to measure; either way the honest
   // output is silence rather than a guess. Clearing the floor is silent too —
   // good standing is the ordinary case and needs no badge.
-  if (rep !== null && floorBps !== null && rep.lower_bound_bps < floorBps) {
+  if (
+    listed &&
+    rep !== null &&
+    floorBps !== null &&
+    rep.lower_bound_bps < floorBps
+  ) {
     // Named so several of these on one page are told apart by a screen
     // reader, the same reason the bind surfaces repeat the agent in their
     // labels: "below the network floor" with no subject names no row.
@@ -293,7 +306,7 @@ export function AgentStanding({
   // provisional, and the score on its own is the reputation column's story
   // rather than this cell's. A passing comparison is qualified too — a silent
   // pass computed from the prior is just as provisional as a loud one.
-  if (rep !== null && floorBps !== null && rep.degraded === true) {
+  if (listed && rep !== null && floorBps !== null && rep.degraded === true) {
     const detail =
       `This standing is provisional. The on-chain reputation read did not ` +
       `come back, so the network's Bayesian prior was served in its place ` +
