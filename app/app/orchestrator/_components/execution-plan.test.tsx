@@ -10,7 +10,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import type {
   DecomposeResponse,
@@ -127,4 +127,36 @@ describe("ExecutionPlan · the unit on the amounts", () => {
     expect(cap?.textContent).toBe("0.123 XLM");
     expect(container.textContent).not.toMatch(/\bUSDC\b/);
   });
+
+  // Never a guessed unit. A rejection useFetch will not retry on its own (a
+  // transient one would schedule a background retry the assertions then race).
+  it.each([
+    [
+      "has failed",
+      () =>
+        api.getStellarNetwork.mockRejectedValue(
+          new Error("malformed response from /stellar/network"),
+        ),
+    ],
+    [
+      "is still in flight",
+      () => api.getStellarNetwork.mockReturnValue(new Promise(() => {})),
+    ],
+  ])(
+    "prints the amounts bare while the network read %s",
+    async (_name, arrange) => {
+      arrange();
+      const { container } = render(<ExecutionPlan plan={plan()} />);
+      await waitFor(() => expect(api.getStellarNetwork).toHaveBeenCalled());
+      // Let a rejection settle — its handlers run as microtasks, all drained
+      // before a zero-delay timer fires — so the card is read after it.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      const cap = Array.from(container.querySelectorAll("b")).find((b) =>
+        b.textContent?.includes("0.123"),
+      );
+      expect(cap?.textContent).toBe("0.123");
+      expect(screen.getAllByText("0.123", { exact: true }).length).toBe(2);
+      expect(container.textContent).not.toMatch(/\b(USDC|XLM)\b/);
+    },
+  );
 });
