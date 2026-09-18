@@ -757,6 +757,25 @@ test.describe("plan card — what each claim rests on", () => {
           PHONE,
           "the authorize line",
         );
+
+        // The pay controls, measured against the row that holds them rather
+        // than the viewport: the card's clip-path cuts overflow off silently,
+        // so a button past its row is gone even while the page has room.
+        const controls = page
+          .locator("div")
+          .filter({ has: page.getByText(/authorizing up to/i) })
+          .filter({ has: page.getByRole("button", { name: /authorize/i }) })
+          .last();
+        const row = await stableBox(controls);
+        for (const name of [/simulate/i, /fiat/i, /authorize/i]) {
+          const button = await stableBox(
+            controls.getByRole("button", { name }),
+          );
+          expect(
+            button.x + button.width,
+            `the ${name.source} button runs past its row`,
+          ).toBeLessThanOrEqual(row.x + row.width + 0.5);
+        }
       }
       if (plan.reputation_degraded) {
         expectWithinWidth(
