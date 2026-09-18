@@ -1,3 +1,25 @@
+/**
+ * One agent's score in the marketplace's reputation column — and nothing
+ * standing in for a score nobody read.
+ *
+ * The column used to fall back to `agent.rep`, the seeded catalog rating
+ * (4.58–4.95 across the first-party catalog), whenever an agent's live entry
+ * was not an on-chain one. That put two different numbers on one agent: the
+ * marketplace read 4.87 for an unrated agent while the plan card, which
+ * reads the live batch, read the 3.50 prior it is actually routed on. The
+ * seeded rating is catalog copy, not reputation, and nothing routes on it.
+ *
+ * So there are exactly two sources of a number here, both from the batch: an
+ * on-chain score, and the live prior for an agent with no ratings (or one
+ * whose read failed, which the badge words differently). With no entry there
+ * is no number, and the cell says which kind of absence it is — the read has
+ * not landed, it failed, or it carried nothing for this agent — because each
+ * sends a reader somewhere different, and none is a cold start.
+ *
+ * The cell fetches nothing. The page owns the batch and the read state, which
+ * is what keeps every branch testable without a network.
+ */
+
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ReputationInfo } from "@/lib/types";
