@@ -500,6 +500,15 @@ test.describe("plan card — reputation, source and exclusions", () => {
 const floorSummary = (page: Page) =>
   page.getByRole("region", { name: /routing floor/i });
 
+/**
+ * The claims the Epic 3 hardening pass corrected: which number the floor
+ * verdict rests on, what evidence a score carries, which agents the floor
+ * actually acted on, and which asset the buyer is signing for.
+ *
+ * In keeping with the header, these match numbers and the one anchor word a
+ * claim cannot be made without — "acted on", "below", "read", "authorizing up
+ * to" — rather than whole sentences, so the copy can still improve under them.
+ */
 test.describe("plan card — what each claim rests on", () => {
   test("a floor-relaxed plan marks the re-admitted step and says the floor moved", async ({
     page,
