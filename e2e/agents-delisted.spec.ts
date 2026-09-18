@@ -13,14 +13,17 @@
  * decision about their own service, so every surface says it as that: a
  * calm mark, never a failure.
  */
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Route } from "@playwright/test";
 import {
   mockAgents,
   mockApi,
   mockDelistedAgent,
   mockDelistedReputation,
   mockReputationBatch,
+  mockWallet,
+  mockWalletAddress,
 } from "./mocks";
+import { UNBOUND_WARNING } from "../lib/binding-status";
 
 const DELISTED_ID = mockDelistedAgent.id;
 const AGENTS = [...mockAgents, mockDelistedAgent];
@@ -31,6 +34,31 @@ const BATCH = {
     [DELISTED_ID]: mockDelistedReputation,
   },
 };
+
+/**
+ * `GET /agents/{id}/binding` for an agent with an endpoint bound. The shared
+ * mock answers "never bound" for every id, so per-id routes registered after
+ * it are how a spec says which of the wallet's agents are bound.
+ */
+function fulfillBound(route: Route, agentId: string) {
+  return route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      agent_id: agentId,
+      endpoint_url: "https://agent.example.com/run",
+      owner: mockWalletAddress,
+      bound_at: new Date().toISOString(),
+      replaced: false,
+    }),
+  });
+}
+
+async function bindingIsBound(page: Page, agentId: string) {
+  await page.route(`**/api/agents/${agentId}/binding`, (route) =>
+    fulfillBound(route, agentId),
+  );
+}
 
 /** The agent's own row, by the id in its row header (see agents-unbound). */
 function row(page: Page, agentId: string) {
@@ -75,5 +103,29 @@ test.describe("a delisted agent in the marketplace", () => {
     await page.getByRole("button", { name: /^offline$/i }).click();
     await expect(page.getByRole("rowheader")).toHaveCount(1);
     await expect(row(page, DELISTED_ID)).toBeVisible();
+  });
+
+  // On its owner's screen the binding lookup runs for it too, and the fixture
+  // answers "never bound". The shared warning would then say the agent "is
+  // listed, but the orchestrator passes over it" — false twice over for an
+  // agent its operator withdrew.
+  test("does not tell its owner it is listed but unbound", async ({ page }) => {
+    await mockWallet(page);
+    await mockApi(page, { agents: AGENTS, reputation: BATCH });
+    await bindingIsBound(page, "weather_bot");
+    await page.goto("/app/agents");
+
+    const delisted = row(page, DELISTED_ID);
+    // The missing endpoint is still recorded — it matters for relisting.
+    await expect(delisted.getByText("unbound", { exact: true })).toBeVisible();
+    await expect(delisted.getByText(/delisted by operator/i)).toBeVisible();
+
+    // …but the only warning and the only bind action on the page belong to
+    // the listed agent that is genuinely being passed over.
+    await expect(
+      page.getByRole("link", { name: /^bind unbound_bot$/i }),
+    ).toBeVisible();
+    await expect(page.getByText(UNBOUND_WARNING)).toHaveCount(1);
+    await expect(page.getByRole("link", { name: /^bind /i })).toHaveCount(1);
   });
 });
