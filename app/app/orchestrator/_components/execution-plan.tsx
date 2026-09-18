@@ -213,29 +213,27 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="violet">{s.agent_name ?? s.agent_id}</Badge>
-                {/* `floorBps` is deliberately NOT passed, and this is not an
-                    oversight waiting to be closed.
+                {/* The floor goes in ONLY beside the step's own lower bound.
 
                     ReputationBadge decides below-floor with
-                    `(lowerBoundBps ?? bps) < floorBps`. A PlanStep carries
-                    only `rep_bps` — the smoothed headline score — and no lower
-                    bound, so handing it the floor would compare the wrong
-                    number: the backend gates on the Wilson lower bound, and
-                    the two disagree exactly where it matters, for an agent
-                    with a healthy average and too few ratings to back it.
-                    The badge would then clear an agent the planner would have
-                    excluded.
-
-                    It costs nothing to omit. A routed step cleared the floor
-                    by definition — the planner only ever sees routable agents
-                    — so the only below-floor step is one the starvation
-                    backstop re-admitted, and that already carries its own
-                    `▾ below floor` badge below. Passing the floor could only
-                    add a wrong verdict, never a right one. */}
+                    `(lowerBoundBps ?? bps) < floorBps`, and the backend gates
+                    on the lower bound, never on `rep_bps` — the smoothed
+                    headline score. The two disagree exactly where it matters,
+                    for an agent with a healthy average and too few ratings to
+                    back it, so a floor handed over without the bound would
+                    judge the wrong number and clear an agent the planner
+                    refused. A backend predating `rep_lower_bound_bps` gets no
+                    floor verdict on the chip at all; a step the starvation
+                    backstop re-admitted still carries its own `▾ below floor`
+                    badge below either way. */}
                 {s.rep_bps != null && (
                   <ReputationBadge
                     bps={s.rep_bps}
+                    lowerBoundBps={s.rep_lower_bound_bps ?? undefined}
                     source={s.rep_source ?? "prior"}
+                    floorBps={
+                      s.rep_lower_bound_bps != null ? plan.floor_bps : undefined
+                    }
                   />
                 )}
                 {s.substituted_for && (
