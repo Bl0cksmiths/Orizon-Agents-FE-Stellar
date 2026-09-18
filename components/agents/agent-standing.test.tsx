@@ -396,7 +396,7 @@ describe("AgentStanding — a delisted agent", () => {
   // filter already drops it — and say it as the operator's choice.
   it("marks an agent its operator delisted", () => {
     const { container } = renderCell({ agent: onchain({ status: "offline" }) });
-    expect(labels(container)).toEqual(["⬡ external", "⏸ delisted by operator"]);
+    expect(labels(container)).toEqual(["⬡ external", "‖ delisted by operator"]);
   });
 
   // "idle" is "nothing in flight", not "withdrawn": the rule is negative.
@@ -413,7 +413,7 @@ describe("AgentStanding — a delisted agent", () => {
       agent: onchain({ status: "offline", bound: false }),
       rep: thinEvidence({ degraded: true }),
     });
-    expect(labels(container)).toEqual(["⬡ external", "⏸ delisted by operator"]);
+    expect(labels(container)).toEqual(["⬡ external", "‖ delisted by operator"]);
     const text = detail(container);
     expect(text).not.toContain(UNBOUND_WARNING);
     expect(text).not.toContain("keeps its listing");
