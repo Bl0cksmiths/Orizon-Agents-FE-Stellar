@@ -77,6 +77,7 @@ function renderStanding(
   return render(
     <RoutingStanding
       agentId="agt_11c0"
+      status="online"
       bindingState="bound"
       reputation={rep()}
       floorBps={FLOOR_BPS}
