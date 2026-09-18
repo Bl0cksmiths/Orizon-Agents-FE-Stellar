@@ -55,6 +55,32 @@ export async function mockNetwork(
 }
 
 /**
+ * Answers POST /api/orchestrator/decompose with each plan in turn — the last
+ * one repeating — and records the intent every request asked for. Call it
+ * AFTER `mockApi`, for the same reason as `mockNetwork`.
+ *
+ * The record is the point: it is how a spec proves a retry asked the planner
+ * the same thing again, rather than whatever the intent box says by then.
+ */
+export async function mockDecomposeSequence(
+  page: Page,
+  plans: readonly DecomposeResponse[],
+): Promise<string[]> {
+  const asked: string[] = [];
+  await page.route("**/api/orchestrator/decompose", (route) => {
+    const { intent } = route.request().postDataJSON() as { intent: string };
+    asked.push(intent);
+    const plan = plans[Math.min(asked.length, plans.length) - 1];
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(plan),
+    });
+  });
+  return asked;
+}
+
+/**
  * A plan whose steps carry the per-step reputation evidence the backend now
  * stamps (`rep_lower_bound_bps`, `rep_count`, `rep_dispute_rate_bps`,
  * `rep_degraded`), one step per thing the badge has to say. Figures follow
@@ -186,4 +212,108 @@ export const mockPlanUnbound = {
       floor_bps: 5500,
     })),
   ],
+} satisfies DecomposeResponse;
+
+/**
+ * A plan the backend served WITHOUT the planner. The LLM planner failed or
+ * answered with nothing usable, so the free-form path fell back to one step
+ * from its shortlist: the preferred copywriter (`agt_01h8`, `copywrite.v3`),
+ * carrying the rationale the backend stamps on it (`_fallback_agent` and the
+ * empty-plan branch of `decompose` in the backend's
+ * app/services/orchestrator_svc.py).
+ *
+ * The fallback is still a routing decision, so the agent cleared the floor
+ * like any planned step; its figures follow the table in e2e/mocks.ts (9400
+ * over 30 USDC → 8714, bound 8197). Nothing was excluded from the shortlist,
+ * so the exclusions panel stays off the card and the fallback notice is the
+ * only thing between the step and the pay panel.
+ *
+ * The intent matches no demo kit on purpose: kit plans never set the flag.
+ */
+export const mockPlanPlannerFallback = {
+  plan_id: "plan_e2e_fallback",
+  intent: "write a launch announcement for a budgeting app",
+  steps: [
+    {
+      agent_id: "agt_01h8",
+      agent_name: "copywrite.v3",
+      rationale: "fallback: generate copy for the intent",
+      est_price_usdc: 0.012,
+      est_eta_seconds: 0.8,
+      rep_bps: 8714,
+      rep_source: "onchain",
+      rep_lower_bound_bps: 8197,
+      rep_count: 31,
+      rep_dispute_rate_bps: 0,
+      rep_degraded: false,
+      degraded: false,
+    },
+  ],
+  total_usdc: 0.012,
+  total_eta: 0.8,
+  notices: [],
+  floor_bps: 5500,
+  reputation_degraded: false,
+  planner_fallback: true,
+} satisfies DecomposeResponse;
+
+/**
+ * The same fallback, built while the copywriter's reputation read failed —
+ * so both notices sit above Authorize at once, which is the case its
+ * description has to compose rather than choose between. The step carries
+ * the prior (7000, bound 5677) in place of its record, and a failed read
+ * yields no evidence, so no count and no dispute rate.
+ */
+export const mockPlanPlannerFallbackUnread = {
+  ...mockPlanPlannerFallback,
+  plan_id: "plan_e2e_fallback_unread",
+  steps: [
+    {
+      ...mockPlanPlannerFallback.steps[0],
+      rep_bps: 7000,
+      rep_source: "prior",
+      rep_lower_bound_bps: 5677,
+      rep_count: 0,
+      rep_dispute_rate_bps: 0,
+      rep_degraded: true,
+    },
+  ],
+  reputation_degraded: true,
+} satisfies DecomposeResponse;
+
+/**
+ * What asking the planner again returns once it answers: its own plan for the
+ * SAME intent, with the flag explicitly false. Two steps rather than one, so
+ * the swap is visible on the card as well as in the missing notice. Figures
+ * follow the table in e2e/mocks.ts.
+ */
+export const mockPlanPlannerAnswered = {
+  plan_id: "plan_e2e_planned",
+  intent: mockPlanPlannerFallback.intent,
+  steps: [
+    {
+      agent_id: "seo.brief",
+      agent_name: "seo.brief",
+      rationale: "outline the announcement's audience and key messages",
+      est_price_usdc: 0.009,
+      est_eta_seconds: 1.2,
+      rep_bps: 8714,
+      rep_source: "onchain",
+      rep_lower_bound_bps: 8197,
+      rep_count: 31,
+      rep_dispute_rate_bps: 0,
+      rep_degraded: false,
+    },
+    {
+      ...mockPlanPlannerFallback.steps[0],
+      rationale: "write the announcement from the outline",
+      est_eta_seconds: 2.6,
+    },
+  ],
+  total_usdc: 0.021,
+  total_eta: 3.8,
+  notices: [],
+  floor_bps: 5500,
+  reputation_degraded: false,
+  planner_fallback: false,
 } satisfies DecomposeResponse;
