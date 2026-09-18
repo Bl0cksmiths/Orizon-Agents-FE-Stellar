@@ -90,6 +90,13 @@ export function FloorSummary({
   // five of them would otherwise read as "the floor acted on 5 agents".
   const actedOn = new Set(notices.filter(isFloorAction).map((n) => n.agent_id))
     .size;
+  // Said separately and without the floor in the sentence: these agents were
+  // never candidates, and have not failed or been judged on anything.
+  const unbound = new Set(
+    notices
+      .filter((n) => n.reason_code === "unbound_endpoint")
+      .map((n) => n.agent_id),
+  ).size;
   const steps = plan.steps.length;
 
   return (
@@ -127,6 +134,10 @@ export function FloorSummary({
         {actedOn === 0
           ? "no agents"
           : `${actedOn} agent${actedOn === 1 ? "" : "s"}`}
+        {unbound > 0 &&
+          (unbound === 1
+            ? " · 1 agent with no endpoint bound was never a candidate"
+            : ` · ${unbound} agents with no endpoint bound were never candidates`)}
       </p>
 
       {/* Two paragraphs used to sit here: one explaining that the eligible set
