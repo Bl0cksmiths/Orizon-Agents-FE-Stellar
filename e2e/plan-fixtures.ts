@@ -254,3 +254,40 @@ export const mockPlanPlannerFallbackUnread = {
   ],
   reputation_degraded: true,
 } satisfies DecomposeResponse;
+
+/**
+ * What asking the planner again returns once it answers: its own plan for the
+ * SAME intent, with the flag explicitly false. Two steps rather than one, so
+ * the swap is visible on the card as well as in the missing notice. Figures
+ * follow the table in e2e/mocks.ts.
+ */
+export const mockPlanPlannerAnswered = {
+  plan_id: "plan_e2e_planned",
+  intent: mockPlanPlannerFallback.intent,
+  steps: [
+    {
+      agent_id: "seo.brief",
+      agent_name: "seo.brief",
+      rationale: "outline the announcement's audience and key messages",
+      est_price_usdc: 0.009,
+      est_eta_seconds: 1.2,
+      rep_bps: 8714,
+      rep_source: "onchain",
+      rep_lower_bound_bps: 8197,
+      rep_count: 31,
+      rep_dispute_rate_bps: 0,
+      rep_degraded: false,
+    },
+    {
+      ...mockPlanPlannerFallback.steps[0],
+      rationale: "write the announcement from the outline",
+      est_eta_seconds: 2.6,
+    },
+  ],
+  total_usdc: 0.021,
+  total_eta: 3.8,
+  notices: [],
+  floor_bps: 5500,
+  reputation_degraded: false,
+  planner_fallback: false,
+} satisfies DecomposeResponse;
