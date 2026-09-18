@@ -132,12 +132,28 @@ export function RegistryStandingNotice({
       " The failure is on our side, and it says nothing about the agents it landed on.";
   }
 
+  // A batch is on screen, but the latest attempt to refresh it failed. What is
+  // shown is still a real reading — `useFetch` keeps the last good payload —
+  // so nothing is blanked; it is dated instead, because a frozen floor and
+  // frozen scores present themselves as live.
+  const refreshFailed = readError !== null;
+
   // Nothing was sent worth stating. Better an absent notice than an empty
   // frame implying the page knows something it does not.
-  if (!hasFloor && readFailure === null) return null;
+  if (!hasFloor && readFailure === null && !refreshFailed) return null;
 
   return (
     <Card className="space-y-3 p-4 sm:p-6">
+      {refreshFailed && (
+        <ErrorNote
+          className="clip-cyber-sm"
+          onRetry={onRetry}
+          retrying={retrying}
+        >
+          reputation refresh failed — the scores and selection floor on this
+          page are from the last successful read. {readError}
+        </ErrorNote>
+      )}
       {hasFloor && (
         <div>
           {/* The page's only h1 is "Agent Registry", and nothing else on it
