@@ -113,3 +113,18 @@ describe("ExecutionPlan · Authorize and the unverified-reputation banner", () =
     expect(document.getElementById(UNVERIFIED_BANNER_ID)).toBeNull();
   });
 });
+
+describe("ExecutionPlan · the unit on the amounts", () => {
+  // `total_usdc` is a field name, not a currency. The cap the buyer signs is
+  // that figure in stroops of whatever the escrow's SAC wraps — native XLM on
+  // testnet — so "USDC" beside it was a false statement about their money.
+  it("labels the total and the authorize cap with the network's asset", async () => {
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    expect((await screen.findAllByText("0.123 XLM")).length).toBe(2);
+    const cap = Array.from(container.querySelectorAll("b")).find((b) =>
+      b.textContent?.includes("0.123"),
+    );
+    expect(cap?.textContent).toBe("0.123 XLM");
+    expect(container.textContent).not.toMatch(/\bUSDC\b/);
+  });
+});
