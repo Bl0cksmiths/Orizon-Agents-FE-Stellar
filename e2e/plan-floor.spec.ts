@@ -23,7 +23,7 @@ import {
   mockPlanLegacy,
   mockWallet,
 } from "./mocks";
-import { mockNetwork } from "./plan-fixtures";
+import { mockNetwork, mockPlanUnbound } from "./plan-fixtures";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -521,5 +521,52 @@ test.describe("plan card — what each claim rests on", () => {
       numberPattern(mockPlanFloorRelaxed.floor_bps),
     );
     await expect(summary).toContainText(/relaxed/i);
+  });
+
+  test("unbound agents are listed apart and never counted as floor actions", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanUnbound);
+
+    const unbound = mockPlanUnbound.notices.filter(
+      (n) => n.reason_code === "unbound_endpoint",
+    );
+    const floorActions = mockPlanUnbound.notices.length - unbound.length;
+    const count = (n: number) => new RegExp(`(?<![\\d.])${n}(?![\\d.])`);
+
+    // The head count above the steps is the floor's, not the notice array's:
+    // an agent with no endpoint was never a candidate for the floor to act on.
+    const summary = floorSummary(page);
+    await expect(summary).toContainText(
+      new RegExp(`acted on ${floorActions} agent(?!s)`),
+    );
+    await expect(summary).not.toContainText(
+      new RegExp(`acted on ${mockPlanUnbound.notices.length}`),
+    );
+
+    // Shut, the disclosure counts the floor's changes and still says the
+    // unbound agents are there — collapsed is never hidden.
+    const shut = exclusions(page).locator("summary");
+    await expect(shut).toContainText(new RegExp(`${floorActions} change(?!s)`));
+    await expect(shut).toContainText(count(unbound.length));
+
+    await shut.click();
+    await expect(exclusions(page)).toHaveJSProperty("open", true);
+    await expect(exclusionRows(page)).toHaveCount(
+      mockPlanUnbound.notices.length,
+    );
+    for (const notice of unbound) {
+      const row = exclusionRows(page).filter({ hasText: notice.agent_id });
+      await expect(row).toHaveCount(1);
+      // Neutral: not filed with the floor's exclusions, not called unrated —
+      // its standing was never consulted — and no deciding numbers for a
+      // comparison that never ran.
+      await expect(row).not.toContainText(/excluded/i);
+      await expect(row).not.toContainText(
+        /no reputation entry|absence of ratings/i,
+      );
+      await expect(row).not.toContainText(numberPattern(notice.floor_bps));
+    }
   });
 });
