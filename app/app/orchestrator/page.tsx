@@ -1,5 +1,5 @@
 "use client";
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,16 @@ export default function OrchestratorPage() {
   // Decompose is the page's only async flow; the execute flows (simulate /
   // authorize / fiat) live in ExecutionPlan, which is fed `plan.data`.
   const plan = useAsyncAction(decompose);
+  // The intent behind the plan on screen, for the planner-fallback retry.
+  // Kept from the submit rather than read back off `plan.data.intent`: the
+  // backend does echo it, but no guard checks that it does, and a retry has
+  // to ask exactly what the buyer asked — not whatever the box says now. A
+  // ref, because it never changes what renders.
+  const asked = useRef("");
 
   const decomposeIntent = (text: string) => {
     if (!text || plan.pending) return;
+    asked.current = text;
     // reset() first so the previous plan drops while the new one is in
     // flight instead of lingering under the spinner.
     plan.reset();
@@ -100,7 +107,15 @@ export default function OrchestratorPage() {
       </Card>
 
       <AnimatePresence>
-        {plan.data && <ExecutionPlan plan={plan.data} />}
+        {plan.data && (
+          <ExecutionPlan
+            plan={plan.data}
+            // The form's own path, so a retry behaves exactly as a fresh
+            // submit of the same intent: the fallback card drops while the
+            // planner is asked again, and nothing runs twice at once.
+            onReplan={() => decomposeIntent(asked.current)}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
