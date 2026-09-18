@@ -17,7 +17,11 @@ import {
 } from "@/lib/api";
 import { assetLabel } from "@/lib/money";
 import { useFetch } from "@/lib/use-fetch";
-import { DegradedBanner } from "./degraded-banner";
+import {
+  DegradedBanner,
+  hasUnverifiedReputation,
+  UNVERIFIED_BANNER_ID,
+} from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
 import { useAsyncAction } from "@/lib/use-async-action";
@@ -341,6 +345,14 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                   onClick={onAuthorize}
                   disabled={executing}
                   size="md"
+                  // Tab goes from the exclusions panel straight here, past the
+                  // polite banner above, so the button carries the warning as
+                  // its description — and only while the banner exists.
+                  aria-describedby={
+                    hasUnverifiedReputation(plan)
+                      ? UNVERIFIED_BANNER_ID
+                      : undefined
+                  }
                 >
                   {executing
                     ? step
