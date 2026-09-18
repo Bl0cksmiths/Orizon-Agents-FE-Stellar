@@ -14,6 +14,7 @@
  * Run isolated, always:  E2E_PORT=3271 npx playwright test e2e/plan-fallback.spec.ts
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { mockApi, mockPlanExcluded, mockWallet } from "./mocks";
 import {
   mockPlanPlannerAnswered,
@@ -170,4 +171,40 @@ test.describe("plan card — a plan built without the planner", () => {
       /fallback[\s\S]*estimat/i,
     );
   });
+
+  /** The two card states the notice appears in: alone, and stacked with the
+   *  reputation banner — the most crowded the pay panel's approach gets. */
+  const fallbackStates: { name: string; plan: DecomposeResponse }[] = [
+    { name: "the fallback notice", plan: mockPlanPlannerFallback },
+    {
+      name: "the fallback notice and the reputation banner",
+      plan: mockPlanPlannerFallbackUnread,
+    },
+  ];
+
+  // A violet frame, a badge and a glyph carrying meaning, a live region, a
+  // button described by one or two of them, and a second button beside the
+  // notice — each exactly what axe exists to check.
+  for (const { name, plan } of fallbackStates) {
+    test(`with ${name}, the card has no WCAG A/AA violations`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(LAPTOP);
+      await decomposeWith(page, plan, { wallet: true });
+      await expect(fallbackNotice(page)).toHaveCount(1);
+      // Settled, so axe measures the painted colours rather than a frame of
+      // the entry fade.
+      await stableBox(fallbackNotice(page));
+
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+        .analyze();
+
+      expect(
+        violations.map(
+          (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+        ),
+      ).toEqual([]);
+    });
+  }
 });
