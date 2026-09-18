@@ -48,6 +48,7 @@ export default function AgentsPage() {
     error: repError,
     loading: repLoading,
     retrying: repRetrying,
+    lastSuccessAt: repLastReadAt,
     reload: reloadReputation,
   } = useFetch(listReputation, [], { revalidateOnFocus: true });
   // A batch on screen is a reading even when a later refresh failed; only a
@@ -161,6 +162,7 @@ export default function AgentsPage() {
       <RegistryStandingNotice
         batch={repBatch ?? null}
         readError={repError}
+        lastReadAt={repLastReadAt}
         onRetry={reloadReputation}
         retrying={repLoading || repRetrying}
       />
