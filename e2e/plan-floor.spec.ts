@@ -19,9 +19,17 @@ import {
   mockPlan,
   mockPlanDegraded,
   mockPlanExcluded,
+  mockPlanFloorRelaxed,
   mockPlanLegacy,
   mockWallet,
 } from "./mocks";
+import {
+  mockNetwork,
+  mockTestnetNetwork,
+  mockPlanStepEvidence,
+  mockPlanUnbound,
+} from "./plan-fixtures";
+import { assetLabel } from "../lib/money";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -141,10 +149,13 @@ function expectWithinWidth(box: Box, frame: Viewport, what: string) {
 async function decomposeWith(
   page: Page,
   plan: DecomposeResponse,
-  options: { wallet?: boolean } = {},
+  options: { wallet?: boolean; network?: boolean } = {},
 ): Promise<void> {
   if (options.wallet) await mockWallet(page);
   await mockApi(page, { plan });
+  // After `mockApi`, so it answers ahead of the catch-all. Without it the card
+  // has no asset to name its amounts in and prints them bare.
+  if (options.network) await mockNetwork(page);
   await page.goto("/app/orchestrator");
   await page.getByRole("textbox", { name: /intent/i }).fill(plan.intent);
   await page.getByRole("button", { name: /decompos/i }).click();
@@ -420,8 +431,12 @@ test.describe("plan card — reputation, source and exclusions", () => {
         1,
       );
     }
+    // Bare, because this mock serves no network metadata to name the escrow's
+    // asset with — the card prints no unit rather than guess one.
     await expect(
-      page.getByText(`${mockPlanLegacy.total_usdc.toFixed(3)} USDC`).first(),
+      page
+        .getByText(mockPlanLegacy.total_usdc.toFixed(3), { exact: true })
+        .first(),
     ).toBeVisible();
 
     // An old backend's prose is the only explanation it can give for the shape
@@ -479,4 +494,329 @@ test.describe("plan card — reputation, source and exclusions", () => {
       }
     }
   });
+});
+
+/** The routing-floor summary above the steps, by its accessible name. */
+const floorSummary = (page: Page) =>
+  page.getByRole("region", { name: /routing floor/i });
+
+/**
+ * The claims the Epic 3 hardening pass corrected: which number the floor
+ * verdict rests on, what evidence a score carries, which agents the floor
+ * actually acted on, and which asset the buyer is signing for.
+ *
+ * In keeping with the header, these match numbers and the one anchor word a
+ * claim cannot be made without — "acted on", "below", "read", "authorizing up
+ * to" — rather than whole sentences, so the copy can still improve under them.
+ */
+test.describe("plan card — what each claim rests on", () => {
+  test("a floor-relaxed plan marks the re-admitted step and says the floor moved", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanFloorRelaxed);
+
+    // The compromise is marked on the step itself, where the buyer is looking,
+    // and on no other: a below-floor mark on a clean pick would be as false as
+    // a missing one on the re-admitted agent.
+    await expect(steps(page)).toHaveCount(mockPlanFloorRelaxed.steps.length);
+    for (const [index, step] of mockPlanFloorRelaxed.steps.entries()) {
+      await expect(
+        steps(page)
+          .nth(index)
+          .getByText(/below floor/i),
+        `${step.agent_id}'s below-floor mark`,
+      ).toHaveCount("degraded" in step && step.degraded ? 1 : 0);
+    }
+
+    // …and the plan-level frame says the floor it states was not, in the
+    // end, the floor enforced.
+    const summary = floorSummary(page);
+    await expect(summary).toContainText(
+      numberPattern(mockPlanFloorRelaxed.floor_bps),
+    );
+    await expect(summary).toContainText(/relaxed/i);
+  });
+
+  test("unbound agents are listed apart and never counted as floor actions", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanUnbound);
+
+    const unbound = mockPlanUnbound.notices.filter(
+      (n) => n.reason_code === "unbound_endpoint",
+    );
+    const floorActions = mockPlanUnbound.notices.length - unbound.length;
+    const count = (n: number) => new RegExp(`(?<![\\d.])${n}(?![\\d.])`);
+
+    // The head count above the steps is the floor's, not the notice array's:
+    // an agent with no endpoint was never a candidate for the floor to act on.
+    const summary = floorSummary(page);
+    await expect(summary).toContainText(
+      new RegExp(`acted on ${floorActions} agent(?!s)`),
+    );
+    await expect(summary).not.toContainText(
+      new RegExp(`acted on ${mockPlanUnbound.notices.length}`),
+    );
+
+    // Shut, the disclosure counts the floor's changes and still says the
+    // unbound agents are there — collapsed is never hidden.
+    const shut = exclusions(page).locator("summary");
+    await expect(shut).toContainText(new RegExp(`${floorActions} change(?!s)`));
+    await expect(shut).toContainText(count(unbound.length));
+
+    await shut.click();
+    await expect(exclusions(page)).toHaveJSProperty("open", true);
+    await expect(exclusionRows(page)).toHaveCount(
+      mockPlanUnbound.notices.length,
+    );
+    for (const notice of unbound) {
+      const row = exclusionRows(page).filter({ hasText: notice.agent_id });
+      await expect(row).toHaveCount(1);
+      // Neutral: not filed with the floor's exclusions, not called unrated —
+      // its standing was never consulted — and no deciding numbers for a
+      // comparison that never ran.
+      await expect(row).not.toContainText(/excluded/i);
+      await expect(row).not.toContainText(
+        /no reputation entry|absence of ratings/i,
+      );
+      await expect(row).not.toContainText(numberPattern(notice.floor_bps));
+    }
+  });
+
+  test("each step's badge carries its evidence, its floor verdict and a failed read", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence);
+
+    /** The chip on one step, and what a screen reader hears from it. */
+    const chipOf = (agentId: string) =>
+      steps(page)
+        .filter({ hasText: agentId })
+        .getByLabel(/reputation|estimat/i);
+    const labelOf = async (agentId: string) =>
+      (await chipOf(agentId).getAttribute("aria-label")) ?? "";
+    const stepOf = (agentId: string) => {
+      const found = mockPlanStepEvidence.steps.find(
+        (s) => s.agent_id === agentId,
+      );
+      if (!found) throw new Error(`no ${agentId} step in the fixture`);
+      return found;
+    };
+
+    for (const step of mockPlanStepEvidence.steps) {
+      await expect(chipOf(step.agent_id)).toHaveCount(1);
+    }
+
+    // The evidence behind a score, as numbers a listener gets: the rated jobs
+    // and the share of them that were disputed.
+    const disputed = stepOf("design.figma");
+    const disputedLabel = await labelOf(disputed.agent_id);
+    expect(disputedLabel).toMatch(
+      new RegExp(`(?<![\\d.])${disputed.rep_count}(?![\\d.])`),
+    );
+    expect(disputedLabel).toContain(
+      `${(disputed.rep_dispute_rate_bps / 100).toFixed(1)}%`,
+    );
+
+    // The lower bound decides the verdict. `scrape.fast` shows a headline that
+    // clears the floor and is still called below it, because its bound is
+    // under — the number routing actually gates on.
+    const thin = stepOf("scrape.fast");
+    expect(thin.rep_bps).toBeGreaterThan(mockPlanStepEvidence.floor_bps);
+    expect(thin.rep_lower_bound_bps).toBeLessThan(
+      mockPlanStepEvidence.floor_bps,
+    );
+    await expect(chipOf(thin.agent_id)).toContainText(
+      scoreOutOfFive(thin.rep_bps),
+    );
+    const thinLabel = await labelOf(thin.agent_id);
+    expect(thinLabel).toMatch(/below/i);
+    expect(thinLabel).toMatch(numberPattern(mockPlanStepEvidence.floor_bps));
+    // …and a bound that clears draws no verdict at all.
+    expect(await labelOf("seo.brief")).not.toMatch(/below/i);
+
+    // A prior served because the read failed is not a cold start. Telling the
+    // buyer this agent has no ratings would misstate a record we could not
+    // reach, so the label has to say the read is what is missing.
+    const unread = await labelOf("code.next");
+    expect(unread).toMatch(/read/i);
+    expect(unread).not.toMatch(/no on-chain ratings/i);
+  });
+
+  test("the authorize line names the cap in the network's asset", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence, {
+      wallet: true,
+      network: true,
+    });
+
+    // The unit comes from the network payload rather than from this spec, so
+    // the assertion follows the deployment: "native" is XLM on testnet.
+    const unit = assetLabel(mockTestnetNetwork.asset);
+    expect(unit).toBe("XLM");
+    const cap = `${mockPlanStepEvidence.total_usdc.toFixed(3)} ${unit}`;
+
+    // The line a buyer reads immediately before signing, and the total above.
+    await expect(page.getByText(/authorizing up to/i)).toContainText(cap);
+    await expect(page.getByText(cap, { exact: true })).toHaveCount(2);
+    // `total_usdc` is a field name; nothing on the card may read it aloud.
+    await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
+  });
+
+  test("Authorize is described by the estimate warning when one is shown", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence, { wallet: true });
+
+    const authorize = page.getByRole("button", { name: /authorize/i });
+    await expect(authorize).toBeVisible();
+    await expect(estimateBanner(page)).toHaveCount(1);
+
+    // A polite status is announced once, when the plan renders, and Tab
+    // reaches this button without passing through it. The description is what
+    // puts the warning in front of a keyboard buyer at the moment of paying —
+    // so it has to resolve to the warning itself, not to any element.
+    const describedBy = await authorize.getAttribute("aria-describedby");
+    expect(describedBy, "Authorize names no description").toBeTruthy();
+    await expect(estimateBanner(page)).toHaveAttribute("id", describedBy ?? "");
+    await expect(authorize).toHaveAccessibleDescription(/estimat/i);
+  });
+
+  test("Authorize carries no description when every read held", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanExcluded, { wallet: true });
+
+    const authorize = page.getByRole("button", { name: /authorize/i });
+    await expect(authorize).toBeVisible();
+    await expect(estimateBanner(page)).toHaveCount(0);
+    // A reference to an element that is not there describes nothing, and a
+    // warning read on every plan is one buyers learn to ignore.
+    await expect(authorize).not.toHaveAttribute("aria-describedby");
+    await expect(authorize).toHaveAccessibleDescription("");
+  });
+
+  /** The new card states, each as crowded as its fixture makes it — measured
+   *  at phone width and swept by axe below. */
+  const crowdedStates: {
+    name: string;
+    plan: DecomposeResponse;
+    options: { wallet?: boolean; network?: boolean };
+  }[] = [
+    {
+      name: "per-step evidence, a relaxed floor and the estimate warning",
+      plan: mockPlanStepEvidence,
+      options: { wallet: true, network: true },
+    },
+    {
+      name: "unbound agents beside a floor exclusion",
+      plan: mockPlanUnbound,
+      options: { network: true },
+    },
+  ];
+
+  for (const { name, plan, options } of crowdedStates) {
+    test(`at 390px, ${name} fit without sideways scroll`, async ({ page }) => {
+      await page.setViewportSize(PHONE);
+      await decomposeWith(page, plan, options);
+      await exclusions(page).locator("summary").click();
+      await expect(exclusions(page)).toHaveJSProperty("open", true);
+
+      // Box by box, because the console hides sideways overflow: a row past
+      // the right edge is not scrolled to, it is cut off — and a cut-off chip
+      // or cap still looks like an answer.
+      expectWithinWidth(
+        await stableBox(floorSummary(page)),
+        PHONE,
+        "the floor summary",
+      );
+      for (const [index, step] of plan.steps.entries()) {
+        expectWithinWidth(
+          await stableBox(steps(page).nth(index)),
+          PHONE,
+          `the ${step.agent_id} step`,
+        );
+      }
+      for (const [index, notice] of (plan.notices ?? []).entries()) {
+        expectWithinWidth(
+          await stableBox(exclusionRows(page).nth(index)),
+          PHONE,
+          `the ${notice.agent_id} row`,
+        );
+      }
+      if (options.wallet) {
+        expectWithinWidth(
+          await stableBox(page.getByText(/authorizing up to/i)),
+          PHONE,
+          "the authorize line",
+        );
+
+        // The pay controls, measured against the row that holds them rather
+        // than the viewport: the card's clip-path cuts overflow off silently,
+        // so a button past its row is gone even while the page has room.
+        const controls = page
+          .locator("div")
+          .filter({ has: page.getByText(/authorizing up to/i) })
+          .filter({ has: page.getByRole("button", { name: /authorize/i }) })
+          .last();
+        const row = await stableBox(controls);
+        for (const name of [/simulate/i, /fiat/i, /authorize/i]) {
+          const button = await stableBox(
+            controls.getByRole("button", { name }),
+          );
+          expect(
+            button.x + button.width,
+            `the ${name.source} button runs past its row`,
+          ).toBeLessThanOrEqual(row.x + row.width + 0.5);
+        }
+      }
+      if (plan.reputation_degraded) {
+        expectWithinWidth(
+          await stableBox(estimateBanner(page)),
+          PHONE,
+          "the estimate warning",
+        );
+      }
+
+      const overflow = await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      );
+      expect(overflow, "the page must not scroll sideways").toBeLessThanOrEqual(
+        1,
+      );
+    });
+  }
+
+  // The new marks — a muted "no endpoint" badge, a chip carrying a dispute
+  // rate, a button described by a live region — each carry meaning in colour
+  // or in ARIA, which is exactly what axe exists to check.
+  for (const { name, plan, options } of crowdedStates) {
+    test(`with ${name}, the expanded card has no WCAG A/AA violations`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(EVIDENCE_FRAME);
+      await decomposeWith(page, plan, options);
+      await exclusions(page).locator("summary").click();
+      await expect(exclusions(page)).toHaveJSProperty("open", true);
+
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+        .analyze();
+
+      expect(
+        violations.map(
+          (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+        ),
+      ).toEqual([]);
+    });
+  }
 });

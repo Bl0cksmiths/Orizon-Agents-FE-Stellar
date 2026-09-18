@@ -96,6 +96,7 @@ export function AgentCard({
       <div className="border-t border-border pt-5">
         <RoutingStanding
           agentId={agent.id}
+          status={agent.status}
           bindingState={bindingState}
           reputation={reputation}
           floorBps={floorBps}

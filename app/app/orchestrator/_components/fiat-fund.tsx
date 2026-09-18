@@ -9,6 +9,7 @@ import {
   pdaxStartOnRamp,
 } from "@/lib/pdax";
 import type { PdaxFundingQuote, PdaxRampRecord } from "@/lib/pdax-types";
+import { assetLabel } from "@/lib/money";
 import { focusRing, inputCls } from "@/lib/ui";
 import { toMessage, useAsyncAction } from "@/lib/use-async-action";
 import { usePolling } from "@/lib/use-polling";
@@ -41,15 +42,28 @@ const METHODS = [
   ["ub_online_upay_cashin", "UnionBank online"],
 ];
 
-/** Pay for a workflow in PHP: price the USDC total in pesos, then on-ramp via
- * PDAX (bank/e-wallet) with USDCXLM delivered to the buyer's Stellar address. */
+/** Pay in PHP: price the plan total as a USDC target in pesos, then on-ramp via
+ * PDAX (bank/e-wallet) with USDCXLM delivered to the buyer's Stellar address.
+ * That funds the workflow itself only where the escrow takes USDC. */
 export function FiatFund({
   usdcAmount,
   stellarAddress,
+  asset,
 }: {
   usdcAmount: number;
   stellarAddress?: string;
+  /** What the escrow's SAC wraps, from GET /api/stellar/network — "native"
+   *  on testnet. Null or absent while that read is pending or has failed. */
+  asset?: string | null;
 }) {
+  // What the ramp credits is fixed: PDAX buys USDC and withdraws USDCXLM —
+  // USDC on Stellar — to the address below (backend app/pdax/ramp.py). What
+  // the authorization spends is not: the cap is signed in whatever the
+  // escrow's SAC wraps, which is native XLM on testnet. So the copy claims
+  // the pesos fund the workflow only when the escrow takes USDC, and while
+  // the asset is unknown it claims nothing either way.
+  const unit = assetLabel(asset);
+  const fundsCap = unit === "USDC";
   const [php, setPhp] = useState("");
   const [quote, setQuote] = useState<PdaxFundingQuote | null>(null);
   const [quoting, setQuoting] = useState(false);
@@ -152,12 +166,21 @@ export function FiatFund({
   return (
     <div className="clip-cyber-sm border border-violet/40 bg-violet/5 p-4">
       <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-violet mb-1">
-        ▸ pay with PHP (no crypto needed)
+        ▸ pay with PHP{fundsCap && " (no crypto needed)"}
       </div>
       <p className="text-sm mb-3">
-        Fund this workflow with pesos via bank / e-wallet. PDAX converts to{" "}
-        <b className="text-text">USDCXLM</b> and delivers it to your Stellar
-        address, then you authorize as usual.
+        {fundsCap ? "Fund this workflow with pesos" : "Pay in pesos"} via bank /
+        e-wallet. PDAX converts to <b className="text-text">USDCXLM</b> and
+        delivers it to your Stellar address
+        {fundsCap ? ", then you authorize as usual." : "."}
+        {unit && !fundsCap && (
+          <>
+            {" "}
+            This network&apos;s escrow takes {unit}, not USDC, so what arrives
+            does not fund the on-chain authorization — that still needs {unit}{" "}
+            in your wallet.
+          </>
+        )}
       </p>
 
       <div className="grid gap-2 sm:grid-cols-2">

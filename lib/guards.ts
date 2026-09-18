@@ -223,7 +223,10 @@ export function isTraceLineList(v: unknown): v is TraceLine[] {
  * `notices` and the floor fields on steps (story 3.02) are additive: absent
  * is fine (a backend predating them), but a present value is type-checked —
  * `degraded` because a truthy non-boolean would badge a healthy step as
- * below-floor, `kind` because it indexes the notice tone map. */
+ * below-floor, `kind` because it indexes the notice tone map. The per-step
+ * reputation evidence (`rep_lower_bound_bps`, `rep_count`,
+ * `rep_dispute_rate_bps`, `rep_degraded`) follows the same contract: optional,
+ * nullable, never the wrong type. */
 export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
   return (
     isRecord(v) &&
@@ -238,6 +241,17 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
         isStr(s.rationale) &&
         isNum(s.est_price_usdc) &&
         isNum(s.est_eta_seconds) &&
+        // The reputation badge compares the bound against the floor and
+        // prints the count and dispute rate, so each is a finite number or
+        // absent. Anything else coerces to NaN, every comparison against it
+        // is false — a below-floor agent reads as clearing the floor — and
+        // the label prints "NaN% disputed".
+        isOptionalNum(s.rep_lower_bound_bps) &&
+        isOptionalNum(s.rep_count) &&
+        isOptionalNum(s.rep_dispute_rate_bps) &&
+        // The string "false" is truthy, and would tell the buyer a healthy
+        // read had failed and the score beside it was only the prior.
+        isOptionalBool(s.rep_degraded) &&
         isOptionalStr(s.substituted_for) &&
         isOptionalBool(s.degraded),
     ) &&

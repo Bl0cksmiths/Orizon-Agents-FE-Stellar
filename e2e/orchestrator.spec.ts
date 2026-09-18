@@ -21,10 +21,14 @@ test.describe("orchestrator", () => {
       await expect(steps.filter({ hasText: step.agent_id })).toBeVisible();
     }
 
-    // The mocked total appears ("0.123 USDC").
+    // The mocked total appears, and never as "USDC". The cap a buyer signs is
+    // denominated in whatever the escrow's SAC wraps — native XLM on testnet
+    // — and this mock serves no network metadata, so the honest rendering is
+    // the bare figure rather than a guessed unit.
     await expect(
-      page.getByText(`${mockPlan.total_usdc.toFixed(3)} USDC`).first(),
+      page.getByText(mockPlan.total_usdc.toFixed(3), { exact: true }).first(),
     ).toBeVisible();
+    await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
 
     // story 3.02 — the reputation-floor block explains the plan's shape and
     // the affected steps carry inline marks, never a silent reshuffle.

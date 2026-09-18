@@ -7,6 +7,10 @@ import { Skeleton, LoadingStatus } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import {
+  ReputationCell,
+  type ReputationRead,
+} from "@/components/agents/reputation-cell";
+import {
   DEFAULT_REP_PARAMS,
   lowerBoundBps,
   scoreOutOfFive,
@@ -19,14 +23,16 @@ const STROOPS_PER_USDC = 10_000_000;
 type SortCol = "score" | "lower" | "evidence" | "ratings" | "disputes";
 type SortDir = "asc" | "desc";
 
-type Row = { agent: Agent; rep: ReputationInfo };
+// `rep` is null until a reputation batch has landed: there is no reading to
+// show, and the catalog's seeded rating is not one (see RepLeaderboard).
+type Row = { agent: Agent; rep: ReputationInfo | null };
 
-const sortValue: Record<SortCol, (r: Row) => number> = {
-  score: (r) => r.rep.smoothed_bps,
-  lower: (r) => r.rep.lower_bound_bps,
-  evidence: (r) => r.rep.weight,
-  ratings: (r) => r.rep.count,
-  disputes: (r) => r.rep.disputed,
+const sortValue: Record<SortCol, (rep: ReputationInfo) => number> = {
+  score: (rep) => rep.smoothed_bps,
+  lower: (rep) => rep.lower_bound_bps,
+  evidence: (rep) => rep.weight,
+  ratings: (rep) => rep.count,
+  disputes: (rep) => rep.disputed,
 };
 
 function ScoreMeter({
@@ -107,16 +113,73 @@ function SortableTh({
   );
 }
 
+/** A measured column with no measurement: a dash to see, words to hear. */
+function NotRead() {
+  return (
+    <td className="py-3 text-right font-mono text-xs text-muted">
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">not read</span>
+    </td>
+  );
+}
+
+/**
+ * A registered agent whose reputation has not been read — the batch that would
+ * score it is still on its way, or failed. It is listed but unranked, with no
+ * figure in any measured column, and its reputation cell says which of the two
+ * absences it is, in the same words the marketplace uses for it.
+ */
+function UnreadRow({
+  agent,
+  read,
+  index,
+}: {
+  agent: Agent;
+  read: Exclude<ReputationRead, "loaded">;
+  index: number;
+}) {
+  return (
+    <m.tr
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, delay: index * 0.03 }}
+      className="border-b border-border/50 last:border-0"
+    >
+      <td className="py-3 pr-2 font-mono text-xs text-muted">
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">unranked</span>
+      </td>
+      <td className="py-3 pr-4">
+        <div className="font-mono">{agent.name}</div>
+        <div className="font-mono text-xs text-muted">{agent.id}</div>
+      </td>
+      <td className="py-3 pr-4">
+        <ReputationCell
+          agentName={agent.name}
+          rep={null}
+          floorBps={null}
+          read={read}
+        />
+      </td>
+      <td className="py-3 pr-4" />
+      <NotRead />
+      <NotRead />
+      <NotRead />
+      <NotRead />
+    </m.tr>
+  );
+}
+
 /**
  * Sortable reputation leaderboard joining the agent registry with live
  * on-chain scores. Agents without on-chain evidence mirror the backend's
- * prior fallback under the live params, so only a failed *batch* fetch
- * genuinely degrades the table to seeded priors.
+ * prior fallback under the live params. Without a batch there are no scores
+ * at all: every agent is listed, unranked, with no figure in its row.
  *
  * The two failures are reported separately because they mean opposite things:
- * a batch failure leaves every row rendered against its seeded prior, while an
- * agents failure leaves nothing to render at all — reporting that as
- * "degraded to seeded prior" over an empty table would be a lie.
+ * a batch failure leaves the roster on screen with its scores missing, while
+ * an agents failure leaves nothing to render at all — reporting that as
+ * "reputation unavailable" over an empty table would be a lie.
  */
 export function RepLeaderboard({
   agents,
@@ -160,46 +223,52 @@ export function RepLeaderboard({
     if (!agents) return [];
     const joined = agents.map((agent) => {
       const live = batch?.reputations[agent.id];
-      // Mirrors the backend's prior fallback (`_prior_info`): the smoothed
-      // score IS the live prior, there is no evidence mean, and the lower
-      // bound is taken on the prior with zero weight under the live params.
-      // Only without a batch (so no live params either) does the row degrade
-      // to the seeded prior.
-      const rep: ReputationInfo =
-        live && live.source === "onchain"
-          ? live
-          : batch != null
-            ? {
-                agent_id: agent.id,
-                smoothed_bps: batch.prior_bps,
-                lower_bound_bps: lowerBoundBps(batch.prior_bps, 0, {
-                  ...DEFAULT_REP_PARAMS,
-                  prior_bps: batch.prior_bps,
-                  floor_bps: batch.floor_bps,
-                }),
-                avg_bps: 0,
-                count: 0,
-                weight: 0,
-                disputed: 0,
-                dispute_rate_bps: 0,
-                source: "prior",
-              }
-            : {
-                agent_id: agent.id,
-                smoothed_bps: agent.rep * 2000,
-                lower_bound_bps: lowerBoundBps(agent.rep * 2000, 0),
-                avg_bps: agent.rep * 2000,
-                count: 0,
-                weight: 0,
-                disputed: 0,
-                dispute_rate_bps: 0,
-                source: "prior",
-              };
+      // A live entry is used as sent, prior or on-chain. A prior entry is the
+      // backend's own `_prior_info`, lower bound included, and it carries the
+      // one fact a rebuilt copy would drop: `degraded`, whether that prior is
+      // a cold start or stands in for a chain read that failed.
+      //
+      // Only an agent the batch carried no entry for is rebuilt here, and it
+      // mirrors that same fallback: the smoothed score IS the live prior,
+      // there is no evidence mean, and the lower bound is taken on the prior
+      // with zero weight under the live params.
+      //
+      // Without a batch there is no reading at all, and the row says so rather
+      // than borrowing `agent.rep`: that is the catalog's seeded star rating
+      // (4.58–4.95 across the first-party agents), which nothing routes on, so
+      // showing it as a "prior" put a number on the board the orchestrator
+      // never reads — 4.87 here for an agent the plan card showed at 3.50.
+      const rep: ReputationInfo | null = live
+        ? live
+        : batch != null
+          ? {
+              agent_id: agent.id,
+              smoothed_bps: batch.prior_bps,
+              lower_bound_bps: lowerBoundBps(batch.prior_bps, 0, {
+                ...DEFAULT_REP_PARAMS,
+                prior_bps: batch.prior_bps,
+                floor_bps: batch.floor_bps,
+              }),
+              avg_bps: 0,
+              count: 0,
+              weight: 0,
+              disputed: 0,
+              dispute_rate_bps: 0,
+              source: "prior",
+            }
+          : null;
       return { agent, rep };
     });
     const dir = sort.dir === "desc" ? -1 : 1;
     const val = sortValue[sort.col];
-    return joined.sort((a, b) => dir * (val(a) - val(b)));
+    // A row with no reading has nothing to rank by, so it sits below every
+    // ranked row whichever way the column points — and, the sort being
+    // stable, in registry order among its own kind.
+    return joined.sort((a, b) =>
+      a.rep === null || b.rep === null
+        ? Number(a.rep === null) - Number(b.rep === null)
+        : dir * (val(a.rep) - val(b.rep)),
+    );
   }, [agents, batch, sort]);
 
   // Skeleton rows stand in for agent rows, so they are only right while the
@@ -207,8 +276,8 @@ export function RepLeaderboard({
   // failure to report. useFetch retries transient failures on its own and
   // flips `loading` true for every attempt, so keying the placeholders off
   // `loading` alone would swap the failure row out for skeletons and back
-  // once per attempt. A batch failure never reaches here — those rows fall
-  // back to seeded priors and render normally under their own error note.
+  // once per attempt. A batch failure never reaches here — those rows render
+  // unranked and unscored (UnreadRow) under their own error note.
   const showSkeletons = loading && !agents && agentsError === null;
 
   // `useFetch` keeps the last good payload when a reload fails, so a failure
@@ -241,8 +310,9 @@ export function RepLeaderboard({
           onRetry={onRetryBatch}
           retrying={retrying || loading}
         >
-          live reputation degraded to seeded prior — on-chain scores, settled
-          evidence and the routing floor are not live. {batchError}
+          live reputation unavailable — on-chain scores, settled evidence and
+          the routing floor could not be read, so no score is shown rather than
+          a guessed one. {batchError}
         </ErrorNote>
       )}
 
@@ -323,6 +393,16 @@ export function RepLeaderboard({
 
             {!showSkeletons &&
               rows.map(({ agent, rep }, i) => {
+                if (rep === null) {
+                  return (
+                    <UnreadRow
+                      key={agent.id}
+                      agent={agent}
+                      read={batchError !== null ? "failed" : "loading"}
+                      index={i}
+                    />
+                  );
+                }
                 const prior = rep.source === "prior";
                 // The backend's `passes_floor` gates routing on the Wilson
                 // lower bound, never the smoothed score.
@@ -353,6 +433,9 @@ export function RepLeaderboard({
                         bps={rep.smoothed_bps}
                         lowerBoundBps={rep.lower_bound_bps}
                         source={rep.source}
+                        // A prior served for a failed read is not a cold
+                        // start; without the flag the chip says it is.
+                        degraded={rep.degraded}
                         count={rep.count}
                         disputeRateBps={rep.dispute_rate_bps}
                         floorBps={batch?.floor_bps}

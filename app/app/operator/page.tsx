@@ -35,6 +35,7 @@ import { StaleBadge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { listAgents, listReputation } from "@/lib/api";
 import { ownedAgents } from "@/lib/binding-status";
+import { isListed } from "@/lib/routability";
 import { useFetch } from "@/lib/use-fetch";
 import { useWallet } from "@/lib/wallet";
 import { AgentCard } from "./agent-card";
@@ -86,11 +87,13 @@ export default function OperatorPage() {
   // Eligibility uses the Wilson LOWER BOUND against the floor, never the
   // headline score — that is the rule the backend actually applies, and the
   // gap between the two is the most common reason an operator believes their
-  // agent is eligible when it is not.
+  // agent is eligible when it is not. A delisted agent is never counted: the
+  // backend routes it on no path, however bound and well rated it is.
   const eligibleCount = repBatch
     ? owned.filter((a) => {
         const rep = repBatch.reputations[a.id];
         return (
+          isListed(a) &&
           binding.stateOf(a.id) === "bound" &&
           rep != null &&
           rep.lower_bound_bps >= repBatch.floor_bps
@@ -185,7 +188,7 @@ export default function OperatorPage() {
                 hint={
                   eligibleCount === null
                     ? "reputation unavailable"
-                    : "bound and above the routing floor"
+                    : "listed, bound and above the routing floor"
                 }
               />
               <StatTile

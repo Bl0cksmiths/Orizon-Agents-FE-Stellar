@@ -41,15 +41,34 @@
 import { Badge } from "@/components/ui/badge";
 import type { DecomposeResponse } from "@/lib/types";
 
+/**
+ * The banner's id, for the Authorize control's `aria-describedby`. A polite
+ * status is announced once, when it renders, and a keyboard buyer tabbing from
+ * the exclusions panel straight to Authorize never passes through it — so the
+ * button names it as its description, and the warning is read at the moment
+ * of the decision it is about.
+ *
+ * One plan card renders at a time, so a fixed id cannot collide. It avoids the
+ * word "degraded" for the same reason the copy does.
+ */
+export const UNVERIFIED_BANNER_ID = "plan-reputation-unverified";
+
+/** Whether the banner renders for this plan — exported so the Authorize
+ *  control points `aria-describedby` at it only when it exists; a reference to
+ *  an absent id describes nothing and is flagged by accessibility audits.
+ *
+ *  Strict `=== true` rather than a truthy check: the field is optional, so a
+ *  backend predating story 3.03 sends nothing at all, and "we have no idea
+ *  whether the reads succeeded" must never render as "they failed". */
+export const hasUnverifiedReputation = (plan: DecomposeResponse): boolean =>
+  plan.reputation_degraded === true;
+
 export function DegradedBanner({
   plan,
 }: {
   plan: DecomposeResponse;
 }): JSX.Element | null {
-  // Strict `!== true` rather than a falsy check: the field is optional, so a
-  // backend predating story 3.03 sends nothing at all, and "we have no idea
-  // whether the reads succeeded" must never render as "they failed".
-  if (plan.reputation_degraded !== true) return null;
+  if (!hasUnverifiedReputation(plan)) return null;
 
   return (
     // `role="status"` (polite), NOT `role="alert"` (assertive), and the choice
@@ -57,15 +76,18 @@ export function DegradedBanner({
     // mid-sentence on, which is the right trade only for something that arrives
     // unbidden after the user's attention has moved on — a signature that just
     // failed, say. This renders as part of the plan itself and sits in document
-    // order above the Authorize control, so a screen-reader user cannot reach
-    // the button without passing through it. Interrupting here would truncate
-    // the reading of the very plan the warning is about, and would do it on
-    // every plan render. Polite says the same words without that cost.
+    // order above the Authorize control, so reading the page reaches it before
+    // the button — and Tab, which jumps straight past it to the button, meets
+    // it there instead, as the button's `aria-describedby`. Interrupting here
+    // would truncate the reading of the very plan the warning is about, and
+    // would do it on every plan render. Polite says the same words without
+    // that cost.
     //
     // Tone mirrors the cyan Authorize panel it sits directly above — same
     // `clip-cyber-sm` frame, same padding, same `mt-6` rhythm — so the two read
     // as one decision point in two tones rather than as unrelated furniture.
     <div
+      id={UNVERIFIED_BANNER_ID}
       role="status"
       className="mt-6 clip-cyber-sm border border-magenta/40 bg-magenta/5 p-4 text-magenta"
     >

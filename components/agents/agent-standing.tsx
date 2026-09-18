@@ -43,7 +43,16 @@
  * bind, so "unbound" there would report a defect that does not exist. The
  * wording for it is imported from `lib/binding-status`, never retyped; that
  * sentence is the fourth surface to state the same claim and three copies of
- * a claim drift.
+ * a claim drift. On the connected operator's own rows the page's per-agent
+ * lookup answers the same question with fresher data and its own marker, so
+ * the cell stands down there (`bindingLookup`) rather than contradict it.
+ *
+ * Listing comes before all of it. An operator can delist their own agent,
+ * which syncs as `status === "offline"`, and the backend then routes it on no
+ * path at all — the starvation backstop included. `isListed` is the shared
+ * copy of that rule. A delisted row gets one mark, worded as the operator's
+ * choice rather than a fault, and none of the gate marks: those describe a
+ * candidate, and this agent has been withdrawn from candidacy.
  *
  * Degrees of not-knowing are kept apart rather than collapsed, because each
  * one is a different reason to say less. A null `rep` is "no score is known";
@@ -62,6 +71,7 @@ import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { UNBOUND_WARNING } from "@/lib/binding-status";
+import { isListed } from "@/lib/routability";
 import type { Agent, ReputationInfo } from "@/lib/types";
 
 /**
@@ -141,6 +151,7 @@ export function AgentStanding({
   agent,
   rep,
   floorBps,
+  bindingLookup = false,
 }: {
   agent: Agent;
   /**
@@ -158,6 +169,18 @@ export function AgentStanding({
    * backend never sent is a verdict nobody computed.
    */
   floorBps: number | null;
+  /**
+   * Whether the page's per-agent binding lookup (story 2.05) covers this row.
+   *
+   * When it does, that lookup is the authority on binding: it is fresher than
+   * the registry payload, and the page renders its own marker and warning for
+   * it beside this cell. A second, list-derived marker here would put two
+   * answers to one question in the same row — "not yet operational" beside
+   * "checking endpoint…", or the unbound warning twice over — so the cell
+   * leaves binding to the lookup and reads `bound` only on the rows it does
+   * not ask about.
+   */
+  bindingLookup?: boolean;
 }): JSX.Element | null {
   const onchain = isOnchain(agent);
 
@@ -187,12 +210,48 @@ export function AgentStanding({
     );
   }
 
+  const listed = isListed(agent);
+  if (!listed) {
+    // Muted, not magenta, and worded as the operator's decision. A delisted
+    // agent was withdrawn by the person who runs it, so this is not a warning
+    // about the agent and nothing in it may read as a failure. The status
+    // column already says "offline"; this says what that means for a buyer:
+    // no plan will pick it, and nothing about its record has been lost.
+    const detail =
+      `${agent.name} has been delisted by its operator, who has withdrawn it ` +
+      `from service. The orchestrator does not select a delisted agent for any ` +
+      `plan until its operator lists it again. That is the operator's own ` +
+      `choice, not a fault: it keeps its place in this registry, its history ` +
+      `and its reputation.`;
+    marks.push(
+      <StandingMark
+        key="listing"
+        tone="muted"
+        // "‖", not the ⏸ pause sign: the console's mono stack has no ⏸, so
+        // it rendered as a missing-glyph box wherever no fallback font had it.
+        glyph="‖"
+        label="delisted by operator"
+        detail={detail}
+      />,
+    );
+  }
+
+  // Every mark below is about a gate the orchestrator applies to a CANDIDATE,
+  // and a delisted agent is not one: it was withdrawn before any gate is
+  // read, and no fallback puts it back. Their wording also assumes a listing
+  // — the unbound warning says "it is listed", the floor verdict says it
+  // "keeps its listing" — so on a delisted row they would be false as well as
+  // beside the point. The backend reports a delisted agent under no other
+  // reason either; the row says one thing, and it is the listing.
+  //
   // Only the explicit `false` is a claim, and only about an on-chain agent.
   // The provenance guard is the same rule as the tri-state, stated twice on
   // purpose: a seeded row must never reach this marker even if a payload
   // someday carries `bound: false` on one, because that would read as a
   // broken service to a buyer looking at a perfectly working catalog agent.
-  if (onchain && agent.bound === false) {
+  // A row the binding lookup covers is skipped outright: the lookup's own
+  // marker speaks for binding there, including while it is still in flight.
+  if (listed && onchain && !bindingLookup && agent.bound === false) {
     // The short visible label is for a buyer scanning the registry; the long
     // form is `UNBOUND_WARNING` verbatim, addressed to the operator who can
     // act on it. The lead-in adds the buyer's framing without contradicting
@@ -217,7 +276,12 @@ export function AgentStanding({
   // and a floor with no score has nothing to measure; either way the honest
   // output is silence rather than a guess. Clearing the floor is silent too —
   // good standing is the ordinary case and needs no badge.
-  if (rep !== null && floorBps !== null && rep.lower_bound_bps < floorBps) {
+  if (
+    listed &&
+    rep !== null &&
+    floorBps !== null &&
+    rep.lower_bound_bps < floorBps
+  ) {
     // Named so several of these on one page are told apart by a screen
     // reader, the same reason the bind surfaces repeat the agent in their
     // labels: "below the network floor" with no subject names no row.
@@ -251,7 +315,7 @@ export function AgentStanding({
   // provisional, and the score on its own is the reputation column's story
   // rather than this cell's. A passing comparison is qualified too — a silent
   // pass computed from the prior is just as provisional as a loud one.
-  if (rep !== null && floorBps !== null && rep.degraded === true) {
+  if (listed && rep !== null && floorBps !== null && rep.degraded === true) {
     const detail =
       `This standing is provisional. The on-chain reputation read did not ` +
       `come back, so the network's Bayesian prior was served in its place ` +

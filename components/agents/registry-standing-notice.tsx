@@ -23,6 +23,15 @@
  *     showing evidence altogether, and those two situations look identical
  *     row by row.
  *
+ *   - And the request for the batch can itself fail, which is a different
+ *     fault from AC-5's: there the backend answered with estimates, here it
+ *     did not answer with anything usable. The request is best-effort, so the
+ *     registry renders regardless and nothing else on the page changes shape
+ *     — which is how a failed batch used to go entirely unsaid while every
+ *     chip claimed its agent had no ratings yet. It is announced here as an
+ *     alert when no batch ever landed, and as a dated refresh failure when an
+ *     earlier batch is still on screen.
+ *
  * Two words are load-bearing in that second block and neither reaches the
  * screen. `degraded` is an internal field name, and elsewhere in this product
  * it already means "re-admitted below the floor by the starvation backstop",
@@ -39,6 +48,8 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ErrorNote } from "@/components/ui/error-note";
+import { StaleBadge } from "@/components/ui/stale-badge";
 import { scoreOutOfFive } from "@/lib/reputation-math";
 import type { ReputationBatch } from "@/lib/types";
 
@@ -47,13 +58,49 @@ const body = "font-mono text-[11px] leading-relaxed text-muted";
 
 export function RegistryStandingNotice({
   batch,
+  readError = null,
+  lastReadAt = null,
+  onRetry,
+  retrying = false,
 }: {
   batch: ReputationBatch | null;
+  /**
+   * Why the latest reputation request failed, or null when it did not. The
+   * request is best-effort — the registry renders without it — which is
+   * exactly why its failure has to be said somewhere: nothing else on the
+   * page changes shape when it fails, so without this the page looks the
+   * same with and without a single score behind it.
+   */
+  readError?: string | null;
+  /** When the batch on screen was read (`useFetch.lastSuccessAt`), so a batch
+   *  kept through a failed refresh can be dated rather than passed off as live. */
+  lastReadAt?: number | null;
+  /** Re-runs the reputation request; offered alongside the failure. */
+  onRetry?: () => void;
+  /** A retry is in flight or scheduled, so the control says so. */
+  retrying?: boolean;
 }): JSX.Element | null {
-  // The reputation read has not landed. The page owns its own loading and
-  // error frames for that fetch; a second verdict on the same request here
-  // would only contradict them, and printing a floor nobody sent would be
-  // inventing the one number the rest of the page defers to.
+  // The reputation read never landed and failed. Said here, at the top of the
+  // page, and as an alert: every score, the floor and every standing verdict
+  // below are missing for one reason, and a reader meeting a column with no
+  // scores in it would otherwise have to work out why, row by row.
+  if (batch === null && readError !== null) {
+    return (
+      <ErrorNote
+        className="clip-cyber-sm"
+        onRetry={onRetry}
+        retrying={retrying}
+      >
+        reputation unavailable — it could not be loaded, so this page shows no
+        score, selection floor or standing verdict rather than guessed ones.{" "}
+        {readError}
+      </ErrorNote>
+    );
+  }
+
+  // The reputation read has not landed yet. Printing a floor nobody sent
+  // would be inventing the one number the rest of the page defers to, and the
+  // rows already hold a placeholder for the scores that are on their way.
   if (batch === null) return null;
 
   const floorBps = batch.floor_bps;
@@ -99,12 +146,28 @@ export function RegistryStandingNotice({
       " The failure is on our side, and it says nothing about the agents it landed on.";
   }
 
+  // A batch is on screen, but the latest attempt to refresh it failed. What is
+  // shown is still a real reading — `useFetch` keeps the last good payload —
+  // so nothing is blanked; it is dated instead, because a frozen floor and
+  // frozen scores present themselves as live.
+  const refreshFailed = readError !== null;
+
   // Nothing was sent worth stating. Better an absent notice than an empty
   // frame implying the page knows something it does not.
-  if (!hasFloor && readFailure === null) return null;
+  if (!hasFloor && readFailure === null && !refreshFailed) return null;
 
   return (
     <Card className="space-y-3 p-4 sm:p-6">
+      {refreshFailed && (
+        <ErrorNote
+          className="clip-cyber-sm"
+          onRetry={onRetry}
+          retrying={retrying}
+        >
+          the latest reputation read failed — the scores and selection floor on
+          this page are from the last one that succeeded. {readError}
+        </ErrorNote>
+      )}
       {hasFloor && (
         <div>
           {/* The page's only h1 is "Agent Registry", and nothing else on it
@@ -122,6 +185,13 @@ export function RegistryStandingNotice({
             <Badge tone="violet">
               <span aria-hidden="true">★</span> floor {scoreOutOfFive(floorBps)}
             </Badge>
+            {/* Beside the number it dates: after a failed refresh this floor
+                is the last one read, and a deployment can have moved it. */}
+            <StaleBadge
+              stale={refreshFailed}
+              lastSuccessAt={lastReadAt}
+              what="reputation scores and selection floor"
+            />
           </div>
           <p className={`mt-2 max-w-[72ch] ${body}`}>
             The floor decides which agents the orchestrator will consider when
@@ -141,8 +211,8 @@ export function RegistryStandingNotice({
           change in what every number on the page MEANS, with no visual event to
           catch, and it is precisely what a polite live region is for.
           `role="alert"` would be wrong — it interrupts, nothing here is an
-          error the buyer has to act on, and the page's own ErrorNote already
-          owns the failed-fetch case.
+          error the buyer has to act on, and a failed request for the batch
+          already has its own alert at the top of this card.
 
           The empty paragraph is deliberate. A live region inserted into the DOM
           together with its text is announced inconsistently, so the region

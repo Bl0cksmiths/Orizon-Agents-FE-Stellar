@@ -146,6 +146,50 @@ describe("FloorSummary — what it counts", () => {
     expect(shown).toContain("the floor acted on 1 agent");
   });
 
+  // Per reason code, because the notices array carries more than the floor's
+  // actions: an unbound agent was never a candidate, so it is no part of what
+  // the floor did. A legacy notice without a code predates unbound reporting
+  // and was always a floor action.
+  it.each([
+    ["a below_floor notice", 1, "below_floor"],
+    ["a floor_relaxed notice", 1, "floor_relaxed"],
+    ["an unbound_endpoint notice", 0, "unbound_endpoint"],
+    ["a legacy notice with no reason_code", 1, undefined],
+  ] as const)("counts %s as %i floor action(s)", (_name, acted, code) => {
+    const n = notice({ reason_code: code });
+    if (code === undefined) delete n.reason_code;
+    expect(text({ notices: [n] })).toContain(
+      acted === 0
+        ? "the floor acted on no agents"
+        : "the floor acted on 1 agent",
+    );
+  });
+
+  it("describes unbound agents apart from the floor, without a verdict", () => {
+    const unbound = (id: string) =>
+      notice({
+        agent_id: id,
+        reason: "no endpoint bound",
+        reason_code: "unbound_endpoint",
+        lower_bound_bps: null,
+      });
+    const five = text({ notices: ["a", "b", "c", "d", "e"].map(unbound) });
+    expect(five).toContain("the floor acted on no agents");
+    expect(five).toContain(
+      "5 agents with no endpoint bound were never candidates",
+    );
+    expect(five).not.toContain("acted on 5");
+
+    const mixed = text({ notices: [notice(), unbound("a")] });
+    expect(mixed).toContain("the floor acted on 1 agent");
+    expect(mixed).toContain(
+      "1 agent with no endpoint bound was never a candidate",
+    );
+
+    // Silent when there are none — it is not a line every plan carries.
+    expect(text({ notices: [notice()] })).not.toMatch(/no endpoint/);
+  });
+
   it("singularises a one-step plan", () => {
     expect(text({ steps: [step()] })).toContain("1 step planned");
   });
@@ -250,6 +294,18 @@ describe("FloorSummary — wording that has been wrong before", () => {
       },
     ],
     ["a single step", { steps: [step()] }],
+    [
+      "an unbound agent",
+      {
+        notices: [
+          notice({
+            reason: "no endpoint bound",
+            reason_code: "unbound_endpoint",
+            lower_bound_bps: null,
+          }),
+        ],
+      },
+    ],
   ];
 
   it.each(states)("never says an agent is being routed — %s", (_name, over) => {
