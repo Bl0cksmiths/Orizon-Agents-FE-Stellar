@@ -672,6 +672,54 @@ export const mockAgents = [
     bound: true,
   },
 ];
+
+/**
+ * An agent the connected wallet owns and has DELISTED — `set_active(id,
+ * false)`, which `registry_sync` reports as `status: "offline"`.
+ *
+ * Healthy on every other count on purpose: on-chain, endpoint bound, and
+ * rated comfortably clear of the floor (below). Delisting is then the only
+ * thing between it and selection, so a surface that forgets the listing rule
+ * shows it as routable — exactly the defect this fixture exists to catch.
+ *
+ * Kept out of `mockAgents` so nothing that counts "the wallet's own agents"
+ * changes under the specs that already rely on that list. A spec opts in with
+ * `mockApi(page, { agents: [...mockAgents, mockDelistedAgent] })`.
+ */
+export const mockDelistedAgent = {
+  id: "paused_bot",
+  name: "Paused Bot",
+  skills: ["translation"],
+  price: 1.25,
+  rep: 4.0,
+  status: "offline",
+  runs: 30,
+  real: false,
+  owner: mockWalletAddress,
+  source: "onchain",
+  bound: true,
+};
+
+/**
+ * `paused_bot`'s score, worked from the real math like every entry above:
+ * twelve rated jobs at its 1.25 USDC price is 15 USDC of weight at a mean of
+ * 8800 bps, which `smoothedBps` puts at 8000 (4.00) and `lowerBoundBps` at
+ * 7230 (3.62) — well clear of the 5500 floor. Its reputation is not why it is
+ * out of the candidate pool.
+ */
+export const mockDelistedReputation = {
+  agent_id: mockDelistedAgent.id,
+  smoothed_bps: 8000,
+  lower_bound_bps: 7230,
+  avg_bps: 8800,
+  count: 12,
+  weight: 15,
+  disputed: 0,
+  dispute_rate_bps: 0,
+  source: "onchain" as const,
+  degraded: false,
+};
+
 /**
  * What the emulated wallet answers a signMessage request with. The spec
  * asserts this exact string reaches POST /bind as `signature`: the backend
