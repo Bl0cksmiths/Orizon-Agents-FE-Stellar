@@ -206,4 +206,23 @@ test.describe("a delisted agent on its operator's dashboard", () => {
       .locator("xpath=..");
     await expect(tile).toContainText("1of 3");
   });
+
+  test("the dashboard with a delisted agent is accessible at 390px", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page, { agents: AGENTS, reputation: BATCH });
+    await bindingIsBound(page, "weather_bot");
+    await bindingIsBound(page, DELISTED_ID);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/operator");
+    await expect(
+      page.getByText(/^Delisted — you withdrew this agent/),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/endpoint lookup has not come back/),
+    ).toHaveCount(0);
+
+    await accessibleAt390(page);
+  });
 });
