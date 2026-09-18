@@ -39,7 +39,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { scoreOutOfFive } from "@/lib/reputation-math";
-import type { DecomposeResponse } from "@/lib/types";
+import type { DecomposeResponse, PlanFloorNotice } from "@/lib/types";
 
 /** One plan card renders at a time on the orchestrator page, so a fixed id
  *  cannot collide. A derived one would be worse: `plan_id` reaches us from
@@ -47,6 +47,15 @@ import type { DecomposeResponse } from "@/lib/types";
 const HEADING_ID = "floor-summary-heading";
 
 const body = "text-sm leading-relaxed text-muted";
+
+/** Whether a notice records the floor acting. A notice with no `reason_code`
+ *  comes from a backend predating the field, which only ever reported floor
+ *  actions, so it counts. `unbound_endpoint` never does: an unbound agent was
+ *  not a candidate, so the floor had nothing to decide about it. */
+const isFloorAction = (n: PlanFloorNotice) =>
+  n.reason_code == null ||
+  n.reason_code === "below_floor" ||
+  n.reason_code === "floor_relaxed";
 
 export function FloorSummary({
   plan,
@@ -76,8 +85,11 @@ export function FloorSummary({
   );
 
   // Distinct agents, not notice rows: two notices can name the same agent,
-  // and a buyer reads this number as a head count, not a row count.
-  const actedOn = new Set(notices.map((n) => n.agent_id)).size;
+  // and a buyer reads this number as a head count, not a row count. Floor
+  // actions only — the backend lists unbound agents in the same array, and
+  // five of them would otherwise read as "the floor acted on 5 agents".
+  const actedOn = new Set(notices.filter(isFloorAction).map((n) => n.agent_id))
+    .size;
   const steps = plan.steps.length;
 
   return (
