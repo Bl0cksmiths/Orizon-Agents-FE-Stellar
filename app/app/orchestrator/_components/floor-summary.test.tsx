@@ -151,11 +151,11 @@ describe("FloorSummary — what it counts", () => {
   // the floor did. A legacy notice without a code predates unbound reporting
   // and was always a floor action.
   it.each([
-    ["a below_floor notice", "below_floor", 1],
-    ["a floor_relaxed notice", "floor_relaxed", 1],
-    ["an unbound_endpoint notice", "unbound_endpoint", 0],
-    ["a legacy notice with no reason_code", undefined, 1],
-  ] as const)("counts %s as %i floor action(s)", (_name, code, acted) => {
+    ["a below_floor notice", 1, "below_floor"],
+    ["a floor_relaxed notice", 1, "floor_relaxed"],
+    ["an unbound_endpoint notice", 0, "unbound_endpoint"],
+    ["a legacy notice with no reason_code", 1, undefined],
+  ] as const)("counts %s as %i floor action(s)", (_name, acted, code) => {
     const n = notice({ reason_code: code });
     if (code === undefined) delete n.reason_code;
     expect(text({ notices: [n] })).toContain(
