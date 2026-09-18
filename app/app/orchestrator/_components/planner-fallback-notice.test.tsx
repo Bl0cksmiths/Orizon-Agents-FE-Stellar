@@ -91,3 +91,35 @@ describe("PlannerFallbackNotice — when it renders at all", () => {
     expect(container.innerHTML).toBe("");
   });
 });
+
+describe("PlannerFallbackNotice — what it says", () => {
+  /** Everything the notice announces, as a screen reader would hear it. */
+  function renderNotice() {
+    render(
+      <PlannerFallbackNotice plan={planFixture({ planner_fallback: true })} />,
+    );
+    return screen.getByRole("status").textContent ?? "";
+  }
+
+  it("says the planner was unavailable and the steps are a minimal fallback", () => {
+    const text = renderNotice();
+    expect(text).toContain("The planner was unavailable for this request");
+    expect(text).toContain("not decomposed from your intent");
+    expect(text).toContain("minimal fallback plan");
+  });
+
+  // The fallback is still a routing decision, and it is held to the same
+  // checks as a planned step. Saying so is what keeps "fallback" from reading
+  // as "unchecked".
+  it("says the fallback only uses agents that passed the routing checks", () => {
+    expect(renderNotice()).toContain(
+      "built only from agents that passed the routing checks",
+    );
+  });
+
+  it("hands the choice back: authorize it, or run the intent again", () => {
+    const text = renderNotice();
+    expect(text).toContain("You can authorize it as it stands");
+    expect(text).toContain("run the same intent through the planner again");
+  });
+});
