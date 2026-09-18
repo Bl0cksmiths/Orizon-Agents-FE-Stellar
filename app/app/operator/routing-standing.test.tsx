@@ -312,6 +312,25 @@ describe("RoutingStanding — no score at all", () => {
   });
 });
 
+describe("RoutingStanding — a delisted agent", () => {
+  // The audit's case: bound, well above the floor, delisted — and the panel
+  // called it eligible while the backend refused to route to it.
+  it("never calls a delisted agent eligible, however good its gates", () => {
+    renderStanding({ status: "offline" });
+    expect(verdict()).toBe(
+      "⏸Delisted — you withdrew this agent, so the orchestrator will not select it until you relist it.",
+    );
+    expect(verdict()).not.toContain("Eligible");
+  });
+
+  // The rule is negative: only "offline" is withdrawn. "idle" is an agent
+  // with nothing in flight, and it is as eligible as an online one.
+  it("treats an idle agent as listed", () => {
+    renderStanding({ status: "idle" });
+    expect(verdict()).toContain("Eligible — the planner selects per request.");
+  });
+});
+
 describe("RoutingStanding — the claims it must never make", () => {
   const states = [
     { name: "bound, clear", props: {} },
