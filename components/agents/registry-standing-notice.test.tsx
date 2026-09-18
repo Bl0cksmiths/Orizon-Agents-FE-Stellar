@@ -10,8 +10,8 @@
  * Assertions are plain DOM checks — this repo does not install jest-dom.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import type { ReputationBatch, ReputationInfo } from "@/lib/types";
 import { RegistryStandingNotice } from "./registry-standing-notice";
@@ -406,5 +406,29 @@ describe("RegistryStandingNotice — a failed request for the batch", () => {
     render(<RegistryStandingNotice batch={null} readError={ERROR} />);
     expect(text()).not.toMatch(/\d\.\d\d/);
     expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  it("offers a retry that re-runs the request, and says when one is running", () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(
+      <RegistryStandingNotice
+        batch={null}
+        readError={ERROR}
+        onRetry={onRetry}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <RegistryStandingNotice
+        batch={null}
+        readError={ERROR}
+        onRetry={onRetry}
+        retrying
+      />,
+    );
+    const busy = screen.getByRole("button", { name: "retrying…" });
+    expect((busy as HTMLButtonElement).disabled).toBe(true);
   });
 });
