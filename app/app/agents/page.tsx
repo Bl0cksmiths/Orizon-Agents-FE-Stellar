@@ -395,6 +395,10 @@ export default function AgentsPage() {
                             agent={a}
                             rep={repBatch?.reputations[a.id] ?? null}
                             floorBps={repBatch?.floor_bps ?? null}
+                            // The lookup above answers binding for this row
+                            // whenever it asked; the cell then stays silent on
+                            // it, so the row states one answer, not two.
+                            bindingLookup={bindingState !== null}
                           />
                         </div>
                       </td>
