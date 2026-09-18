@@ -165,6 +165,31 @@ describe("FloorSummary — what it counts", () => {
     );
   });
 
+  it("describes unbound agents apart from the floor, without a verdict", () => {
+    const unbound = (id: string) =>
+      notice({
+        agent_id: id,
+        reason: "no endpoint bound",
+        reason_code: "unbound_endpoint",
+        lower_bound_bps: null,
+      });
+    const five = text({ notices: ["a", "b", "c", "d", "e"].map(unbound) });
+    expect(five).toContain("the floor acted on no agents");
+    expect(five).toContain(
+      "5 agents with no endpoint bound were never candidates",
+    );
+    expect(five).not.toContain("acted on 5");
+
+    const mixed = text({ notices: [notice(), unbound("a")] });
+    expect(mixed).toContain("the floor acted on 1 agent");
+    expect(mixed).toContain(
+      "1 agent with no endpoint bound was never a candidate",
+    );
+
+    // Silent when there are none — it is not a line every plan carries.
+    expect(text({ notices: [notice()] })).not.toMatch(/no endpoint/);
+  });
+
   it("singularises a one-step plan", () => {
     expect(text({ steps: [step()] })).toContain("1 step planned");
   });
