@@ -336,6 +336,26 @@ describe("ExclusionsPanel · the deciding numbers", () => {
     expect(text()).toContain("registered on-chain but has no endpoint bound");
   });
 
+  // Nothing was decided on numbers, so none are printed — not "none on
+  // record", and not the floor, which would imply a comparison that never ran.
+  it("prints no deciding numbers on an unbound row", () => {
+    const { text } = opened(
+      plan({
+        notices: [
+          notice({
+            reason_code: "unbound_endpoint",
+            reason: "no endpoint bound",
+            lower_bound_bps: null,
+            floor_bps: FLOOR_BPS,
+          }),
+        ],
+      }),
+    );
+    expect(text()).not.toMatch(/lower bound (none on record|\d)/);
+    expect(text()).not.toContain("none on record");
+    expect(text()).not.toContain("floor 2.75");
+  });
+
   // Absent is not null: a backend predating the field told us nothing, and
   // there is nothing honest to say about a number we were never given.
   it("says nothing about a bound the backend never sent", () => {
