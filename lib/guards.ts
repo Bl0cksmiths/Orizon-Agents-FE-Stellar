@@ -246,6 +246,9 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
         isOptionalNum(s.rep_lower_bound_bps) &&
         isOptionalNum(s.rep_count) &&
         isOptionalNum(s.rep_dispute_rate_bps) &&
+        // The string "false" is truthy, and would tell the buyer a healthy
+        // read had failed and the score beside it was only the prior.
+        isOptionalBool(s.rep_degraded) &&
         isOptionalStr(s.substituted_for) &&
         isOptionalBool(s.degraded),
     ) &&
