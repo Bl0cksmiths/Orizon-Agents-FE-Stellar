@@ -34,7 +34,14 @@ jobs:
           node-version: "20"
       # No install step: the script uses only Node built-ins so a broken
       # lockfile can never mask a production outage.
+      # The parity verdict below is only as good as the comparison behind it,
+      # so its rules are pinned first. node:test, so still no install.
+      - name: Test contract parity rules
+        run: npm run test:parity
+      # !cancelled() so a failing rule test is reported beside the smoke, never
+      # instead of it — an outage must not hide behind a unit failure.
       - name: Smoke test deployed origin
+        if: ${{ !cancelled() }}
         env:
           SMOKE_ORIGIN: ${{ github.event.inputs.origin || 'https://orizons.xyz' }}
           SMOKE_EXPECT_NETWORK: testnet
