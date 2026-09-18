@@ -82,8 +82,8 @@ export function RegistryStandingNotice({
 }): JSX.Element | null {
   // The reputation read never landed and failed. Said here, at the top of the
   // page, and as an alert: every score, the floor and every standing verdict
-  // below are missing for one reason, and a reader meeting a column of blank
-  // scores first would otherwise take them for a registry of unrated agents.
+  // below are missing for one reason, and a reader meeting a column with no
+  // scores in it would otherwise have to work out why, row by row.
   if (batch === null && readError !== null) {
     return (
       <ErrorNote
