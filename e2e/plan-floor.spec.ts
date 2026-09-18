@@ -658,4 +658,24 @@ test.describe("plan card — what each claim rests on", () => {
     // `total_usdc` is a field name; nothing on the card may read it aloud.
     await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
   });
+
+  test("Authorize is described by the estimate warning when one is shown", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence, { wallet: true });
+
+    const authorize = page.getByRole("button", { name: /authorize/i });
+    await expect(authorize).toBeVisible();
+    await expect(estimateBanner(page)).toHaveCount(1);
+
+    // A polite status is announced once, when the plan renders, and Tab
+    // reaches this button without passing through it. The description is what
+    // puts the warning in front of a keyboard buyer at the moment of paying —
+    // so it has to resolve to the warning itself, not to any element.
+    const describedBy = await authorize.getAttribute("aria-describedby");
+    expect(describedBy, "Authorize names no description").toBeTruthy();
+    await expect(estimateBanner(page)).toHaveAttribute("id", describedBy ?? "");
+    await expect(authorize).toHaveAccessibleDescription(/estimat/i);
+  });
 });
