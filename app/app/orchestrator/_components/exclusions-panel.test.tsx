@@ -191,6 +191,50 @@ describe("ExclusionsPanel · the disclosure", () => {
     expect(summaryText()).not.toMatch(/\d+ excluded/);
   });
 
+  it("credits the floor only with what the floor did", () => {
+    const unboundOnly = opened(
+      plan({
+        notices: [
+          notice({
+            reason: "no endpoint bound",
+            reason_code: "unbound_endpoint",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(unboundOnly.text()).not.toContain("The reputation floor acted on");
+    expect(unboundOnly.text()).toContain("never candidates");
+    expect(unboundOnly.text()).toContain("the floor did not judge them");
+    cleanup();
+
+    const mixed = opened(
+      plan({
+        notices: [
+          notice(),
+          notice({
+            agent_id: "a.two",
+            agent_name: "a.two",
+            reason: "no endpoint bound",
+            reason_code: "unbound_endpoint",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(mixed.text()).toContain(
+      "The reputation floor acted on some of these agents",
+    );
+    expect(mixed.text()).toContain("Those marked “no endpoint”");
+    cleanup();
+
+    const floorOnly = opened(plan({ notices: [notice()] }));
+    expect(floorOnly.text()).toContain(
+      "The reputation floor acted on these agents",
+    );
+    expect(floorOnly.text()).not.toContain("never candidates");
+  });
+
   it("counts a single change in the singular", () => {
     const { summaryText } = renderPanel(plan({ notices: [notice()] }));
     expect(summaryText()).toContain("1 change");
