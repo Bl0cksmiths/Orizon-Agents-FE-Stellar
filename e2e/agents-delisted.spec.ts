@@ -14,6 +14,7 @@
  * calm mark, never a failure.
  */
 import { test, expect, type Page, type Route } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import {
   mockAgents,
   mockApi,
@@ -58,6 +59,30 @@ async function bindingIsBound(page: Page, agentId: string) {
   await page.route(`**/api/agents/${agentId}/binding`, (route) =>
     fulfillBound(route, agentId),
   );
+}
+
+/**
+ * Neither surface's delisted state is reached by the default a11y sweep, and
+ * both put new words and a new tone on screen. Checked at a phone width,
+ * because the marketplace row gains a mark and the operator verdict gains a
+ * sentence, and either could push something off the side.
+ */
+async function accessibleAt390(page: Page) {
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    violations.map(
+      (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+    ),
+  ).toEqual([]);
 }
 
 /** The agent's own row, by the id in its row header (see agents-unbound). */
@@ -127,6 +152,22 @@ test.describe("a delisted agent in the marketplace", () => {
     ).toBeVisible();
     await expect(page.getByText(UNBOUND_WARNING)).toHaveCount(1);
     await expect(page.getByRole("link", { name: /^bind /i })).toHaveCount(1);
+  });
+
+  test("the owner's marketplace with a delisted row is accessible at 390px", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page, { agents: AGENTS, reputation: BATCH });
+    await bindingIsBound(page, "weather_bot");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/agents");
+    await expect(
+      row(page, DELISTED_ID).getByText(/delisted by operator/i),
+    ).toBeVisible();
+    await expect(page.getByText("checking endpoint")).toHaveCount(0);
+
+    await accessibleAt390(page);
   });
 });
 
