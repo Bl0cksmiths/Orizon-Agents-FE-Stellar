@@ -181,4 +181,24 @@ describe("ExecutionPlan · each step's reputation badge", () => {
       "below the 2.75 network floor",
     );
   });
+
+  // Without the bound, the badge would fall back to comparing the headline —
+  // the wrong number, which can clear an agent the planner refused or, as
+  // here, condemn one on a score routing never used. A backend predating the
+  // field gets no verdict at all.
+  it("gives no floor verdict when the step carries no lower bound", () => {
+    render(<ExecutionPlan plan={plan({ steps: [step({ rep_bps: 5000 })] })} />);
+    expect(chip().getAttribute("aria-label")).not.toMatch(/floor/);
+  });
+
+  it("clears a step whose lower bound clears the floor", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({
+          steps: [step({ rep_bps: 6583, rep_lower_bound_bps: 6024 })],
+        })}
+      />,
+    );
+    expect(chip().getAttribute("aria-label")).not.toMatch(/floor/);
+  });
 });
