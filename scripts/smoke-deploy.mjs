@@ -134,12 +134,16 @@ async function fetchJson(path, timeoutMs) {
  * Throws when the address book cannot be read — the caller reports that as a
  * failure, never as a pass.
  *
+ * `compared` is false when no comparison ran, so a failure caused by a missing
+ * response or checkout is not dressed up as the two sides disagreeing.
+ *
  * @param {unknown} live  the NETWORK_PATH body; undefined if none arrived
- * @returns {{ summary: string, rows: import("./live-contract-parity.mjs").ParityRow[], problems: string[] }}
+ * @returns {{ compared: boolean, summary: string, rows: import("./live-contract-parity.mjs").ParityRow[], problems: string[] }}
  */
 function checkContractParity(live) {
   if (live === undefined) {
     return {
+      compared: false,
       summary: "nothing to compare",
       rows: [],
       problems: [`${NETWORK_PATH} returned no JSON body; see its check above`],
@@ -160,7 +164,7 @@ function checkContractParity(live) {
     problems.length === 0
       ? `${rows.length} live contract ids match ${against}`
       : `${problems.length} ${problems.length === 1 ? "problem" : "problems"} against ${against}`;
-  return { summary, rows, problems };
+  return { compared: true, summary, rows, problems };
 }
 
 async function main() {
@@ -223,6 +227,7 @@ async function main() {
     parity = checkContractParity(bodies.get(NETWORK_PATH));
   } catch (err) {
     parity = {
+      compared: false,
       summary: "address book unavailable",
       rows: [],
       problems: [err instanceof Error ? err.message : String(err)],
@@ -258,7 +263,7 @@ async function main() {
           "\nslash and no /api suffix (see lib/api-base.mjs).",
       );
     }
-    if (!parityOk) {
+    if (!parityOk && parity.compared) {
       console.error(
         "\nA contract parity failure means production and the deploy scripts" +
           "\ndisagree. The live ids come from the backend's environment in the" +
