@@ -271,7 +271,8 @@ export function ManagePanel({
                 Relist
               </Button>
               <p className="mt-2 font-mono text-[10px] leading-relaxed text-muted">
-                Relisting makes the agent routable in new plans again.
+                Relisting puts the agent back in contention for new plans —
+                still subject to a bound endpoint and the reputation floor.
               </p>
             </div>
           )}
