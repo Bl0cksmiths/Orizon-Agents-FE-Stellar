@@ -141,6 +141,7 @@ export function AgentStanding({
   agent,
   rep,
   floorBps,
+  bindingLookup = false,
 }: {
   agent: Agent;
   /**
@@ -158,6 +159,18 @@ export function AgentStanding({
    * backend never sent is a verdict nobody computed.
    */
   floorBps: number | null;
+  /**
+   * Whether the page's per-agent binding lookup (story 2.05) covers this row.
+   *
+   * When it does, that lookup is the authority on binding: it is fresher than
+   * the registry payload, and the page renders its own marker and warning for
+   * it beside this cell. A second, list-derived marker here would put two
+   * answers to one question in the same row — "not yet operational" beside
+   * "checking endpoint…", or the unbound warning twice over — so the cell
+   * leaves binding to the lookup and reads `bound` only on the rows it does
+   * not ask about.
+   */
+  bindingLookup?: boolean;
 }): JSX.Element | null {
   const onchain = isOnchain(agent);
 
@@ -192,7 +205,9 @@ export function AgentStanding({
   // purpose: a seeded row must never reach this marker even if a payload
   // someday carries `bound: false` on one, because that would read as a
   // broken service to a buyer looking at a perfectly working catalog agent.
-  if (onchain && agent.bound === false) {
+  // A row the binding lookup covers is skipped outright: the lookup's own
+  // marker speaks for binding there, including while it is still in flight.
+  if (onchain && !bindingLookup && agent.bound === false) {
     // The short visible label is for a buyer scanning the registry; the long
     // form is `UNBOUND_WARNING` verbatim, addressed to the operator who can
     // act on it. The lead-in adds the buyer's framing without contradicting
