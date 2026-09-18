@@ -24,7 +24,11 @@ import {
 } from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
-import { PlannerFallbackNotice } from "./planner-fallback-notice";
+import {
+  isPlannerFallback,
+  PLANNER_FALLBACK_NOTICE_ID,
+  PlannerFallbackNotice,
+} from "./planner-fallback-notice";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
@@ -152,6 +156,20 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
       // second time via useAsyncAction's captured error.
     }
   });
+
+  // Every notice above the Authorize panel that is on the page, in reading
+  // order. Composed, never chosen between: a fallback plan built during a
+  // failed reputation read owes the buyer both facts at the button. None at
+  // all is no attribute rather than an empty one, and an id is only named
+  // while its notice renders — a reference to an absent id describes nothing
+  // and is flagged by accessibility audits.
+  const authorizeDescribedBy =
+    [
+      isPlannerFallback(plan) && PLANNER_FALLBACK_NOTICE_ID,
+      hasUnverifiedReputation(plan) && UNVERIFIED_BANNER_ID,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   const executing = simulate.pending || authorize.pending;
   // Authorize failures render in the TxStatus FailedCard (via friendlyError);
@@ -357,13 +375,9 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                   disabled={executing}
                   size="md"
                   // Tab goes from the exclusions panel straight here, past the
-                  // polite banner above, so the button carries the warning as
-                  // its description — and only while the banner exists.
-                  aria-describedby={
-                    hasUnverifiedReputation(plan)
-                      ? UNVERIFIED_BANNER_ID
-                      : undefined
-                  }
+                  // polite notices above, so the button carries them as its
+                  // description — each one only while it exists.
+                  aria-describedby={authorizeDescribedBy}
                 >
                   {executing
                     ? step
