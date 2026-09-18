@@ -175,7 +175,7 @@ function NoticeRow({
   // Not a floor verdict at all: the agent has no endpoint to dispatch to, so
   // its standing was never consulted and the backend leaves its bound null on
   // purpose. That null says nothing about its ratings.
-  const unbound = notice.reason_code === "unbound_endpoint";
+  const unbound = isUnbound(notice);
   const mark = unbound
     ? UNBOUND_MARK
     : {
