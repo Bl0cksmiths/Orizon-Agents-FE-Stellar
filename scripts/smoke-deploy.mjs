@@ -210,6 +210,10 @@ async function main() {
     }
   }
 
+  // Counted before parity adds its own, so the proxy hint below is only
+  // printed when a proxied request actually failed.
+  const requestFailures = failures.length;
+
   // Runs after the loop rather than as one of CHECKS: it fetches nothing of
   // its own, and still runs when the network check failed on an unexpected
   // network, so a mismatch is reported against the book for the network the
@@ -247,11 +251,13 @@ async function main() {
       `\n${failures.length}/${total} checks failed against ${ORIGIN}:`,
     );
     for (const f of failures) console.error(`  - ${f}`);
-    console.error(
-      "\nIf every /api/* check failed with 404, the proxy target is wrong:" +
-        "\ncheck NEXT_PUBLIC_API_BASE — it must be a bare origin with no trailing" +
-        "\nslash and no /api suffix (see lib/api-base.mjs).",
-    );
+    if (requestFailures > 0) {
+      console.error(
+        "\nIf every /api/* check failed with 404, the proxy target is wrong:" +
+          "\ncheck NEXT_PUBLIC_API_BASE — it must be a bare origin with no trailing" +
+          "\nslash and no /api suffix (see lib/api-base.mjs).",
+      );
+    }
     if (!parityOk) {
       console.error(
         "\nA contract parity failure means production and the deploy scripts" +
