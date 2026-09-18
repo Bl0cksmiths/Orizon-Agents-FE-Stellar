@@ -206,23 +206,23 @@ export function ManagePanel({
           {listed ? (
             confirmingDelist ? (
               <div className="mt-1.5">
-                {/* The previous wording here — "delisting stops new work
-                    being routed to this agent" — was false. The planner builds
-                    its candidate list from `is_dispatchable` and the
-                    reputation floor and never reads the active flag, so a
-                    delisted agent is still offered work. An operator who
-                    delisted to take their service down and believed that
-                    sentence would have left a live endpoint answering jobs.
-                    Until the orchestrator honours the flag, this says what
-                    delisting actually does. */}
+                {/* This used to warn that delisting did NOT stop routing,
+                    because the planner never read the flag — true then, and
+                    the only honest thing to say. The backend now reads it on
+                    every planning path (`_is_listed`): the planner's
+                    candidates, the floor substitutes, the curated pipeline,
+                    and the starvation backstop, which never re-admits a
+                    withdrawn agent. It does not re-check at execution, so a
+                    plan built before the delisting still runs as authorized,
+                    and that is said too. The flag reaches the backend on its
+                    next registry sync, seconds after the transaction lands. */}
                 <p className="font-mono text-[11px] leading-relaxed text-text">
                   Delisting marks the agent inactive on-chain and shows it as
-                  offline in the registry. It does not currently stop the
-                  orchestrator offering work to your endpoint — the planner does
-                  not read the listing flag yet — so take the endpoint itself
-                  down if you need work to stop. In-flight authorized work is
-                  unaffected, and your reputation and history are retained. You
-                  can relist any time.
+                  offline in the registry. Once that syncs — within seconds —
+                  the orchestrator stops putting it in new plans, and nothing
+                  re-admits it until you relist. Plans already built still run
+                  as authorized. Your reputation, history and endpoint binding
+                  are all kept, and you can relist any time.
                 </p>
                 <div className="mt-2 flex gap-2">
                   <Button
