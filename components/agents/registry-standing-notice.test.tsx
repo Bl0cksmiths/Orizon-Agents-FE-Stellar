@@ -431,4 +431,37 @@ describe("RegistryStandingNotice — a failed request for the batch", () => {
     const busy = screen.getByRole("button", { name: "retrying…" });
     expect((busy as HTMLButtonElement).disabled).toBe(true);
   });
+
+  // A batch kept through a failed refresh is still a real reading, so it
+  // stays on screen — dated, and with the failure said above it.
+  it("keeps an earlier batch on screen and says it is the last good read", () => {
+    const lastReadAt = Date.UTC(2026, 8, 18, 9, 30);
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")])}
+        readError={ERROR}
+        lastReadAt={lastReadAt}
+      />,
+    );
+    expect(screen.getByRole("alert").textContent).toContain(
+      "the scores and selection floor on this page are from the last one that succeeded",
+    );
+    expect(text()).toContain("floor 2.75");
+    const stale = screen
+      .getAllByRole("status")
+      .map((el) => el.textContent ?? "")
+      .find((t) => t.includes("Stale reputation scores and selection floor"));
+    expect(stale).toContain(new Date(lastReadAt).toLocaleTimeString());
+  });
+
+  it("raises nothing about the request while it is healthy", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")])}
+        lastReadAt={Date.now()}
+      />,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(text()).not.toMatch(/stale/i);
+  });
 });
