@@ -19,6 +19,7 @@ import {
   mockAgents,
   mockApi,
   mockReputationBatch,
+  mockReputationUnavailable,
   mockUnratedCatalogAgent,
   mockUnratedCatalogReputation,
   mockUnscoredAgent,
@@ -86,5 +87,37 @@ test.describe("the marketplace reputation column", () => {
       useInnerText: true,
     });
     await expect(unscored).not.toContainText("★");
+  });
+
+  test("says so when the reputation batch fails, and scores nothing", async ({
+    page,
+  }) => {
+    await mockApi(page, { agents: AGENTS });
+    await mockReputationUnavailable(page);
+    await page.goto("/app/agents");
+    await registryLoaded(page, AGENTS.length);
+
+    // Announced, once, above the registry — the registry itself rendered
+    // fine, so nothing else on the page would have said a word.
+    const notice = page
+      .getByRole("alert")
+      .filter({ hasText: "reputation unavailable" });
+    await expect(notice).toHaveCount(1);
+    await expect(notice).toBeVisible();
+
+    // Every row says its score is unavailable, and none shows a score: the
+    // old fallback printed each agent's catalog rating under a star.
+    for (const agent of AGENTS) {
+      await expect(
+        row(page, agent.id).getByText("unavailable", { exact: true }),
+      ).toBeVisible();
+    }
+    await expect(page.locator("table")).not.toContainText("★");
+
+    // And nobody is told they have no ratings. That is a claim about an
+    // agent's history, and the read that could have supported it failed.
+    await expect(
+      page.locator('[aria-label*="no on-chain ratings yet"]'),
+    ).toHaveCount(0);
   });
 });
