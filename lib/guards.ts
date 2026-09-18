@@ -262,7 +262,11 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
     // defaulted here: a floor that arrives as a string would print "NaN" in
     // the threshold the buyer is being asked to trust.
     isOptionalNum(v.floor_bps) &&
-    isOptionalBool(v.reputation_degraded)
+    isOptionalBool(v.reputation_degraded) &&
+    // Optional for the same reason, and strict for the same reason as the
+    // flag above: the string "false" is truthy, and would tell the buyer the
+    // planner never saw a plan it built.
+    isOptionalBool(v.planner_fallback)
   );
 }
 
