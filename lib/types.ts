@@ -62,6 +62,9 @@ export type PlanStep = {
   /** How many rated jobs back the score. Null or absent when unknown — never
    * read as zero, which would claim the agent has no rating history. */
   rep_count?: number | null;
+  /** Share of this agent's rated jobs that were disputed, in bps. Null or
+   * absent when unknown. */
+  rep_dispute_rate_bps?: number | null;
   /** The designated kit agent this step replaced when the reputation floor
    * forced a substitution; absent/null on the normal path (story 3.02). */
   substituted_for?: string | null;
