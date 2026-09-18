@@ -164,8 +164,8 @@ export function RegistryStandingNotice({
           onRetry={onRetry}
           retrying={retrying}
         >
-          reputation refresh failed — the scores and selection floor on this
-          page are from the last successful read. {readError}
+          the latest reputation read failed — the scores and selection floor on
+          this page are from the last one that succeeded. {readError}
         </ErrorNote>
       )}
       {hasFloor && (
