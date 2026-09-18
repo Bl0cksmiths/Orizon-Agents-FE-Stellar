@@ -188,7 +188,7 @@ export default function OperatorPage() {
                 hint={
                   eligibleCount === null
                     ? "reputation unavailable"
-                    : "bound and above the routing floor"
+                    : "listed, bound and above the routing floor"
                 }
               />
               <StatTile
