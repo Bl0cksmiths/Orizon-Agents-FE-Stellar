@@ -54,4 +54,26 @@ test.describe("a delisted agent in the marketplace", () => {
     await expect(delisted.getByText(/not\s+yet\s+operational/i)).toHaveCount(0);
     await expect(delisted.getByText(/below floor/i)).toHaveCount(0);
   });
+
+  test("drops out of the routable filter, and stays under offline", async ({
+    page,
+  }) => {
+    await mockApi(page, { agents: AGENTS, reputation: BATCH });
+    await page.goto("/app/agents");
+    await expect(page.getByRole("rowheader")).toHaveCount(AGENTS.length);
+
+    // Bound and clear of the floor: before the listing rule this was the one
+    // row the filter kept that no plan could route to.
+    await page.getByRole("button", { name: /^routable$/i }).click();
+    await expect(row(page, DELISTED_ID)).toHaveCount(0);
+    // …while the agents that do clear every gate are still offered.
+    for (const id of ["agt_11c0", "weather_bot"]) {
+      await expect(row(page, id)).toBeVisible();
+    }
+
+    // Withdrawn is not deleted: the status filter still finds it.
+    await page.getByRole("button", { name: /^offline$/i }).click();
+    await expect(page.getByRole("rowheader")).toHaveCount(1);
+    await expect(row(page, DELISTED_ID)).toBeVisible();
+  });
 });
