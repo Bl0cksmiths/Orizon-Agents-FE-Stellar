@@ -130,4 +130,17 @@ describe("RepLeaderboard — what a prior chip claims", () => {
       expect(row).not.toContain(COLD_START);
     }
   });
+
+  // Still loading is not a failure: the row waits for a score rather than
+  // showing a seeded one first and swapping it out when the batch lands.
+  it("shows no score while the batch is on its way, and no failure either", () => {
+    const { container } = renderBoard({ batch: null, loading: true });
+    for (const id of ["fresh_bot", "unread_bot"]) {
+      const row = rowFor(container, id);
+      expect(chipFor(container, id)).toBe("");
+      expect(row).toContain("Loading the reputation score");
+      expect(row).not.toContain("unavailable");
+      expect(row).not.toContain("4.87");
+    }
+  });
 });
