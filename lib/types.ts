@@ -59,6 +59,9 @@ export type PlanStep = {
    * no reputation entry; absent from backends predating it, in which case the
    * step cannot be judged against the floor client-side. */
   rep_lower_bound_bps?: number | null;
+  /** How many rated jobs back the score. Null or absent when unknown — never
+   * read as zero, which would claim the agent has no rating history. */
+  rep_count?: number | null;
   /** The designated kit agent this step replaced when the reputation floor
    * forced a substitution; absent/null on the normal path (story 3.02). */
   substituted_for?: string | null;
