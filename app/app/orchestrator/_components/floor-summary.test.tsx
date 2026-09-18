@@ -294,6 +294,18 @@ describe("FloorSummary — wording that has been wrong before", () => {
       },
     ],
     ["a single step", { steps: [step()] }],
+    [
+      "an unbound agent",
+      {
+        notices: [
+          notice({
+            reason: "no endpoint bound",
+            reason_code: "unbound_endpoint",
+            lower_bound_bps: null,
+          }),
+        ],
+      },
+    ],
   ];
 
   it.each(states)("never says an agent is being routed — %s", (_name, over) => {
