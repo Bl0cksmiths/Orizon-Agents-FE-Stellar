@@ -253,7 +253,13 @@ export function RoutingStanding({
             <>
               <p className={body}>
                 <span aria-hidden="true">✕ </span>
-                {UNBOUND_WARNING}
+                {/* The shared warning says the agent "is listed" and is passed
+                    over for want of an endpoint; on a delisted agent neither
+                    half is true. What the operator needs then is the order of
+                    operations for coming back. */}
+                {listed
+                  ? UNBOUND_WARNING
+                  : "No endpoint is bound. Bind one before you relist this agent, or it will still be passed over once it is listed again."}
               </p>
               <p className="pt-1">
                 {/* ButtonLink carries the shared `focusRing` through the button
