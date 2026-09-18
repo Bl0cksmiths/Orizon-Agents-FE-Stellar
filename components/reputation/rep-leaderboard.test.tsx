@@ -104,4 +104,19 @@ describe("RepLeaderboard — what a prior chip claims", () => {
     expect(chip).toContain(FAILED_READ);
     expect(chip).not.toContain(COLD_START);
   });
+
+  // No batch at all: the rows stand on the seeded catalog rating, which the
+  // board's own error note says. The chips must not add "no ratings yet" to
+  // it — nobody read the ratings.
+  it("never calls a seeded stand-in a cold start when the batch failed", () => {
+    const { container } = renderBoard({
+      batch: null,
+      batchError: "GET /stellar/reputation → 503",
+    });
+    for (const id of ["fresh_bot", "unread_bot"]) {
+      const chip = chipFor(container, id);
+      expect(chip).toContain(FAILED_READ);
+      expect(chip).not.toContain(COLD_START);
+    }
+  });
 });
