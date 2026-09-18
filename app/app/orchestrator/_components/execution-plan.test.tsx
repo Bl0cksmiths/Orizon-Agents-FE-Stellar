@@ -201,4 +201,19 @@ describe("ExecutionPlan · each step's reputation badge", () => {
     );
     expect(chip().getAttribute("aria-label")).not.toMatch(/floor/);
   });
+
+  // The evidence behind the score, in words a listener gets: how many rated
+  // jobs, and how many of them were disputed.
+  it("states the rated jobs and the dispute rate behind the score", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({
+          steps: [step({ rep_count: 24, rep_dispute_rate_bps: 2500 })],
+        })}
+      />,
+    );
+    const label = chip().getAttribute("aria-label") ?? "";
+    expect(label).toContain("from 24 rated jobs");
+    expect(label).toContain("25.0% disputed");
+  });
 });
