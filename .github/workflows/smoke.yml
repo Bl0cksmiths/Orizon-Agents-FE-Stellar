@@ -2,6 +2,11 @@
 # through the Next.js rewrite proxy. A green unit suite and a green build cannot
 # catch a bad proxy target — only this can. Scheduled so a config regression
 # surfaces in hours instead of days.
+#
+# It is also the only check on what production is wired to: the backend's
+# network and contract ids are set in the Render dashboard, not in any repo,
+# so the smoke compares the ids it serves with the contract repo's address
+# book for the network it reports.
 name: smoke
 
 on:
