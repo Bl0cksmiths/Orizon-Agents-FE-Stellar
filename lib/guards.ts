@@ -238,6 +238,12 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
         isStr(s.rationale) &&
         isNum(s.est_price_usdc) &&
         isNum(s.est_eta_seconds) &&
+        // The reputation badge compares the bound against the floor and
+        // prints the count and dispute rate, so each is a finite number or
+        // absent — a string "5283" would compare lexically against 5500.
+        isOptionalNum(s.rep_lower_bound_bps) &&
+        isOptionalNum(s.rep_count) &&
+        isOptionalNum(s.rep_dispute_rate_bps) &&
         isOptionalStr(s.substituted_for) &&
         isOptionalBool(s.degraded),
     ) &&
