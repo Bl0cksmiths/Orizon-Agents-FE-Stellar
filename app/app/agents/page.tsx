@@ -464,8 +464,15 @@ export default function AgentsPage() {
                     {/* The warning sits directly under its own row, always
                         open. An operator who closed the tab before binding has
                         to see it without expanding anything (AC-3), and Manage
-                        is a panel they may never open. */}
-                    {bindingState === "unbound" && (
+                        is a panel they may never open.
+
+                        Not on a delisted row: the warning says the agent "is
+                        listed" and is passed over for want of an endpoint, and
+                        neither is true of an agent its operator withdrew. The
+                        row's own mark gives the real reason, and the "unbound"
+                        badge beside the name still records the missing
+                        endpoint for whenever it is relisted. */}
+                    {bindingState === "unbound" && isListed(a) && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
                           <UnboundNotice agentId={a.id} agentName={a.name} />
