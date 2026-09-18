@@ -392,6 +392,16 @@ export function RepLeaderboard({
 
             {!showSkeletons &&
               rows.map(({ agent, rep }, i) => {
+                if (rep === null) {
+                  return (
+                    <UnreadRow
+                      key={agent.id}
+                      agent={agent}
+                      read={batchError !== null ? "failed" : "loading"}
+                      index={i}
+                    />
+                  );
+                }
                 const prior = rep.source === "prior";
                 // The backend's `passes_floor` gates routing on the Wilson
                 // lower bound, never the smoothed score.
