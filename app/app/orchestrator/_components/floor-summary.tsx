@@ -14,9 +14,11 @@
  *   - `steps.length` is how many agents the planner SELECTED. That is not how
  *     many cleared the floor; the planner picks a handful out of the eligible
  *     set, and the size of that set is never sent.
- *   - `notices.length` is how many the floor acted on. That is not the
- *     complement of anything either — an agent that quietly cleared the floor
- *     and was then simply not chosen produces no notice at all.
+ *   - The floor-action notices say how many agents the floor acted on. That
+ *     is not the complement of anything either — an agent that quietly
+ *     cleared the floor and was then simply not chosen produces no notice at
+ *     all. Nor is `notices.length` that count: the same array carries
+ *     unbound agents, which were never candidates and are reported apart.
  *
  * Divide any of these by any other and the result is a fabrication with a
  * convincing denominator. So this component prints the two counts the
