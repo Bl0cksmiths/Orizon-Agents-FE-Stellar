@@ -20,6 +20,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      # The smoke compares the live contract ids with this address book. Same
+      # checkout as ci.yml's `addresses` job and for the same reason — checked
+      # out, never fetched mid-check, so a network blip cannot read as drift.
+      # Without it the parity check fails rather than skips.
+      - name: Checkout contract address book
+        uses: actions/checkout@v4
+        with:
+          repository: Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar
+          path: .canonical-contracts
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
