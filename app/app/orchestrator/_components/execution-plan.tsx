@@ -9,7 +9,14 @@ import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { TxStatus, type TxState } from "@/components/ui/tx-status";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
-import { buildAuthorize, execute, submitSigned } from "@/lib/api";
+import {
+  buildAuthorize,
+  execute,
+  getStellarNetwork,
+  submitSigned,
+} from "@/lib/api";
+import { assetLabel } from "@/lib/money";
+import { useFetch } from "@/lib/use-fetch";
 import { DegradedBanner } from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
@@ -65,6 +72,20 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
     null,
   );
   const [authorizeHash, setAuthorizeHash] = useState<string | null>(null);
+
+  // What every amount on this card is actually denominated in. `total_usdc`
+  // is a legacy field name, not a currency: the cap the buyer signs is that
+  // figure in stroops of whatever the escrow's SAC wraps, and on testnet that
+  // is native XLM. Until the network read lands — or if it fails — `unit` is
+  // empty and amounts print bare, because a guessed "USDC" is the false claim
+  // this replaces.
+  const { data: network } = useFetch(getStellarNetwork, [], {
+    revalidateOnFocus: true,
+  });
+  const unit = assetLabel(network?.asset);
+  /** An amount with its real unit, or bare while the unit is unknown. */
+  const priced = (value: number) =>
+    unit ? `${value.toFixed(3)} ${unit}` : value.toFixed(3);
 
   /** Simulated path — no wallet required. */
   const simulate = useAsyncAction(async () => {
@@ -178,9 +199,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
               <div className="text-muted uppercase tracking-widest text-[10px]">
                 total est.
               </div>
-              <div className="text-cyan text-lg">
-                {plan.total_usdc.toFixed(3)} USDC
-              </div>
+              <div className="text-cyan text-lg">{priced(plan.total_usdc)}</div>
             </div>
             <div>
               <div className="text-muted uppercase tracking-widest text-[10px]">
