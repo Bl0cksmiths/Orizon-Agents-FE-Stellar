@@ -59,7 +59,8 @@ function bytesToHex(v: unknown): string | null {
 /**
  * The decomposed-plan card: step list, totals, and the execute flows
  * (simulate / fiat funding / on-chain authorize). Mirrors the FiatFund
- * pattern — self-contained state and actions, fed only by the plan.
+ * pattern — self-contained state and actions, fed by the plan and by its own
+ * network read, which names the asset its amounts are denominated in.
  * The task read token from execute responses is stored by lib/api.ts.
  */
 export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
