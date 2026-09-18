@@ -606,6 +606,37 @@ describe("isDecomposeResponse", () => {
       false,
     );
   });
+
+  // `planner_fallback` is additive like the floor fields: true on a plan the
+  // backend built without the planner, false on the planner's own and on every
+  // demo-kit plan, and absent from a backend predating it.
+  it("accepts the planner fallback flag true, false, null or absent", () => {
+    expect(isDecomposeResponse({ ...valid, planner_fallback: true })).toBe(
+      true,
+    );
+    expect(isDecomposeResponse({ ...valid, planner_fallback: false })).toBe(
+      true,
+    );
+    // Null is FastAPI's serialization of an unset Optional.
+    expect(isDecomposeResponse({ ...valid, planner_fallback: null })).toBe(
+      true,
+    );
+    // `valid` carries no flag at all, which is the pre-field backend.
+    expect("planner_fallback" in valid).toBe(false);
+    expect(isDecomposeResponse(valid)).toBe(true);
+  });
+
+  it("rejects a planner fallback flag that is not a boolean", () => {
+    // The string "false" is the dangerous one: truthy, so it would put the
+    // fallback notice on a plan the planner built itself.
+    const wrong: unknown[] = ["false", "true", 1, 0, {}, []];
+    for (const planner_fallback of wrong) {
+      expect(
+        isDecomposeResponse({ ...valid, planner_fallback }),
+        JSON.stringify(planner_fallback),
+      ).toBe(false);
+    }
+  });
 });
 
 describe("isReputationInfo", () => {

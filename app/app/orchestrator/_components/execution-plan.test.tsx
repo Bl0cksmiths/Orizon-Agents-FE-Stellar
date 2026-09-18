@@ -2,9 +2,10 @@
 /**
  * Unit tests for ExecutionPlan — the card a buyer authorizes payment from.
  *
- * The composed pieces (floor summary, exclusions, banner) have their own
- * suites. These pin what only the card itself decides: which element the
- * Authorize control is described by, which unit its amounts carry, and what
+ * The composed pieces (floor summary, exclusions, banner, fallback notice)
+ * have their own suites. These pin what only the card itself decides: which
+ * elements the Authorize control is described by, where the notices sit, who
+ * owns the planner retry, which unit its amounts carry, and what
  * each step's reputation badge is handed — the lower bound the floor is
  * judged on, the evidence behind the score, and whether the read failed.
  *
@@ -12,7 +13,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import type {
   DecomposeResponse,
@@ -40,6 +48,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { ExecutionPlan } from "./execution-plan";
 import { UNVERIFIED_BANNER_ID } from "./degraded-banner";
+import { PLANNER_FALLBACK_NOTICE_ID } from "./planner-fallback-notice";
 
 /** What GET /api/stellar/network answers on testnet: the escrow's SAC wraps
  *  the native asset. */
@@ -113,6 +122,115 @@ describe("ExecutionPlan · Authorize and the unverified-reputation banner", () =
     render(<ExecutionPlan plan={plan(over)} />);
     expect(authorizeButton().hasAttribute("aria-describedby")).toBe(false);
     expect(document.getElementById(UNVERIFIED_BANNER_ID)).toBeNull();
+  });
+});
+
+describe("ExecutionPlan · the planner-fallback notice", () => {
+  const notice = () => document.getElementById(PLANNER_FALLBACK_NOTICE_ID);
+
+  it("shows the notice on a fallback plan, ahead of Authorize", () => {
+    render(<ExecutionPlan plan={plan({ planner_fallback: true })} />);
+    const shown = notice();
+    expect(shown?.getAttribute("role")).toBe("status");
+    // Document order is reading order: the notice has to be met before the
+    // button it is about, never after it.
+    expect(
+      shown!.compareDocumentPosition(authorizeButton()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  // Absent is an older backend; false is the planner's own plan. Neither is
+  // a fallback, and the card must not say otherwise.
+  it.each([
+    ["the planner built the plan", { planner_fallback: false }],
+    ["the backend predates the flag", { planner_fallback: undefined }],
+  ])("shows no notice when %s", (_name, over) => {
+    render(<ExecutionPlan plan={plan(over)} />);
+    expect(notice()).toBeNull();
+    expect(screen.queryByText(/built without the planner/i)).toBeNull();
+  });
+
+  // The reputation banner keeps its place immediately over the Authorize
+  // panel; this notice sits above it.
+  it("sits above the reputation banner when both are shown", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({ planner_fallback: true, reputation_degraded: true })}
+      />,
+    );
+    const banner = document.getElementById(UNVERIFIED_BANNER_ID);
+    expect(
+      notice()!.compareDocumentPosition(banner!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  // Composed, never overwritten: each notice on the page is named once, in
+  // reading order, and nothing absent from the page is named at all — a
+  // dangling id describes nothing and fails the accessibility audit.
+  it.each([
+    [
+      "the plan is a fallback",
+      { planner_fallback: true },
+      [PLANNER_FALLBACK_NOTICE_ID],
+    ],
+    [
+      "a fallback plan also had a failed read",
+      { planner_fallback: true, reputation_degraded: true },
+      [PLANNER_FALLBACK_NOTICE_ID, UNVERIFIED_BANNER_ID],
+    ],
+    [
+      "only a reputation read failed",
+      { planner_fallback: false, reputation_degraded: true },
+      [UNVERIFIED_BANNER_ID],
+    ],
+  ])(
+    "describes Authorize by every notice shown when %s",
+    (_name, over, ids) => {
+      render(<ExecutionPlan plan={plan(over)} />);
+      const describedBy = authorizeButton().getAttribute("aria-describedby");
+      expect(describedBy?.split(" ")).toEqual(ids);
+      for (const id of ids) expect(document.getElementById(id)).not.toBeNull();
+    },
+  );
+
+  const retryButton = () =>
+    screen.getByRole("button", { name: /ask the planner again/i });
+
+  // Decompose is the page's flow, not the card's, so the card hands the
+  // request up rather than calling the API itself.
+  it("hands the planner retry to the page", () => {
+    const onReplan = vi.fn();
+    render(
+      <ExecutionPlan
+        plan={plan({ planner_fallback: true })}
+        onReplan={onReplan}
+      />,
+    );
+    fireEvent.click(retryButton());
+    expect(onReplan).toHaveBeenCalledTimes(1);
+    expect(api.execute).not.toHaveBeenCalled();
+  });
+
+  // A new plan drops this card. With a run for it in flight, that would leave
+  // the run going on out of sight, so the retry waits like the card's other
+  // actions do.
+  it("holds the planner retry while a run for the plan is in flight", async () => {
+    api.execute.mockReturnValue(new Promise(() => {}));
+    const onReplan = vi.fn();
+    render(
+      <ExecutionPlan
+        plan={plan({ planner_fallback: true })}
+        onReplan={onReplan}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /simulate/i }));
+    await waitFor(() =>
+      expect(retryButton().hasAttribute("disabled")).toBe(true),
+    );
+    fireEvent.click(retryButton());
+    expect(onReplan).not.toHaveBeenCalled();
   });
 });
 
