@@ -211,8 +211,8 @@ export function RegistryStandingNotice({
           change in what every number on the page MEANS, with no visual event to
           catch, and it is precisely what a polite live region is for.
           `role="alert"` would be wrong — it interrupts, nothing here is an
-          error the buyer has to act on, and the page's own ErrorNote already
-          owns the failed-fetch case.
+          error the buyer has to act on, and a failed request for the batch
+          already has its own alert at the top of this card.
 
           The empty paragraph is deliberate. A live region inserted into the DOM
           together with its text is announced inconsistently, so the region
