@@ -53,15 +53,22 @@ import type { DecomposeResponse } from "@/lib/types";
  */
 export const UNVERIFIED_BANNER_ID = "plan-reputation-unverified";
 
+/** Whether the banner renders for this plan — exported so the Authorize
+ *  control points `aria-describedby` at it only when it exists; a reference to
+ *  an absent id describes nothing and is flagged by accessibility audits.
+ *
+ *  Strict `=== true` rather than a truthy check: the field is optional, so a
+ *  backend predating story 3.03 sends nothing at all, and "we have no idea
+ *  whether the reads succeeded" must never render as "they failed". */
+export const hasUnverifiedReputation = (plan: DecomposeResponse): boolean =>
+  plan.reputation_degraded === true;
+
 export function DegradedBanner({
   plan,
 }: {
   plan: DecomposeResponse;
 }): JSX.Element | null {
-  // Strict `!== true` rather than a falsy check: the field is optional, so a
-  // backend predating story 3.03 sends nothing at all, and "we have no idea
-  // whether the reads succeeded" must never render as "they failed".
-  if (plan.reputation_degraded !== true) return null;
+  if (!hasUnverifiedReputation(plan)) return null;
 
   return (
     // `role="status"` (polite), NOT `role="alert"` (assertive), and the choice
