@@ -1,0 +1,32 @@
+name: Address drift
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  addresses:
+    name: Contract address parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout contract address book
+        uses: actions/checkout@v4
+        with:
+          repository: Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar
+          path: .canonical-contracts
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check fallback contract ids
+        run: npm run check:addresses
