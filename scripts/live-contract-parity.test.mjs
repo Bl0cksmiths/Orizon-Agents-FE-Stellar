@@ -124,3 +124,75 @@ test("fails when the address book declares a different network", () => {
     'addresses.json declares network "mainnet", expected "testnet"',
   ]);
 });
+
+test("fails when the backend omits a contract the address book lists", () => {
+  const { problems } = compareLiveContracts(
+    liveBody({ contracts: { payment_escrow: id("E") } }),
+    TESTNET_BOOK,
+  );
+  assert.deepEqual(problems, [
+    `agent_registry: live (missing) != canonical ${id("R")}`,
+  ]);
+});
+
+test("fails when the backend omits the asset SAC", () => {
+  const live = liveBody();
+  delete live.asset_sac;
+  const { problems } = compareLiveContracts(live, TESTNET_BOOK);
+  assert.deepEqual(problems, [
+    `asset_sac: live (missing) != canonical ${id("S")}`,
+  ]);
+});
+
+test("fails on an empty id, the backend's unset default", () => {
+  const { problems } = compareLiveContracts(
+    liveBody({ contracts: { agent_registry: "", payment_escrow: id("E") } }),
+    TESTNET_BOOK,
+  );
+  assert.deepEqual(problems, [
+    `agent_registry: live (empty) != canonical ${id("R")}`,
+  ]);
+});
+
+test("fails when the backend reports a contract the address book lacks", () => {
+  const { problems } = compareLiveContracts(
+    liveBody({
+      contracts: {
+        agent_registry: id("R"),
+        payment_escrow: id("E"),
+        constructor: id("Z"),
+      },
+    }),
+    TESTNET_BOOK,
+  );
+  assert.deepEqual(problems, [
+    `constructor: live ${id("Z")} != canonical (missing)`,
+  ]);
+});
+
+test("fails when the live response has no contracts map", () => {
+  for (const contracts of [undefined, null, [], "none"]) {
+    const { problems } = compareLiveContracts(
+      liveBody({ contracts }),
+      TESTNET_BOOK,
+    );
+    assert.deepEqual(
+      problems,
+      ["the live response has no contracts map to compare"],
+      JSON.stringify(contracts),
+    );
+  }
+});
+
+test("fails when there is nothing to compare at all", () => {
+  const live = liveBody({ contracts: {} });
+  delete live.asset_sac;
+  const { rows, problems } = compareLiveContracts(live, {
+    network: "testnet",
+    admin: TESTNET_BOOK.admin,
+    asset: "native",
+  });
+  assert.deepEqual(rows, []);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /nothing was compared/);
+});
