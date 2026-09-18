@@ -322,8 +322,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                 <div className="text-sm">
                   Freighter will prompt for{" "}
                   <b className="text-text">one signature</b> authorizing up to{" "}
-                  <b className="text-text">{plan.total_usdc.toFixed(3)} USDC</b>
-                  .
+                  <b className="text-text">{priced(plan.total_usdc)}</b>.
                 </div>
               </div>
               <div className="flex gap-2">
