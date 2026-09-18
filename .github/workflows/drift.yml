@@ -44,5 +44,8 @@ jobs:
         with:
           node-version: "20"
 
+      # No `npm ci` — plain node over two JSON files. The script fails rather
+      # than skips when the checkout above is missing, so a broken schedule
+      # goes red instead of reporting a parity it never checked.
       - name: Check fallback contract ids
         run: npm run check:addresses
