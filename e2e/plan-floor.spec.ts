@@ -694,8 +694,9 @@ test.describe("plan card — what each claim rests on", () => {
     await expect(authorize).toHaveAccessibleDescription("");
   });
 
-  /** The two new card states, each as crowded as the fixtures make it. */
-  const phoneCases: {
+  /** The new card states, each as crowded as its fixture makes it — measured
+   *  at phone width and swept by axe below. */
+  const crowdedStates: {
     name: string;
     plan: DecomposeResponse;
     options: { wallet?: boolean; network?: boolean };
@@ -712,7 +713,7 @@ test.describe("plan card — what each claim rests on", () => {
     },
   ];
 
-  for (const { name, plan, options } of phoneCases) {
+  for (const { name, plan, options } of crowdedStates) {
     test(`at 390px, ${name} fit without sideways scroll`, async ({ page }) => {
       await page.setViewportSize(PHONE);
       await decomposeWith(page, plan, options);
