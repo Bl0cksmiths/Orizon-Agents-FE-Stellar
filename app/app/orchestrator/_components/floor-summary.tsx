@@ -14,9 +14,11 @@
  *   - `steps.length` is how many agents the planner SELECTED. That is not how
  *     many cleared the floor; the planner picks a handful out of the eligible
  *     set, and the size of that set is never sent.
- *   - `notices.length` is how many the floor acted on. That is not the
- *     complement of anything either — an agent that quietly cleared the floor
- *     and was then simply not chosen produces no notice at all.
+ *   - The floor-action notices say how many agents the floor acted on. That
+ *     is not the complement of anything either — an agent that quietly
+ *     cleared the floor and was then simply not chosen produces no notice at
+ *     all. Nor is `notices.length` that count: the same array carries
+ *     unbound agents, which were never candidates and are reported apart.
  *
  * Divide any of these by any other and the result is a fabrication with a
  * convincing denominator. So this component prints the two counts the
@@ -39,7 +41,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { scoreOutOfFive } from "@/lib/reputation-math";
-import type { DecomposeResponse } from "@/lib/types";
+import type { DecomposeResponse, PlanFloorNotice } from "@/lib/types";
 
 /** One plan card renders at a time on the orchestrator page, so a fixed id
  *  cannot collide. A derived one would be worse: `plan_id` reaches us from
@@ -47,6 +49,15 @@ import type { DecomposeResponse } from "@/lib/types";
 const HEADING_ID = "floor-summary-heading";
 
 const body = "text-sm leading-relaxed text-muted";
+
+/** Whether a notice records the floor acting. A notice with no `reason_code`
+ *  comes from a backend predating the field, which only ever reported floor
+ *  actions, so it counts. `unbound_endpoint` never does: an unbound agent was
+ *  not a candidate, so the floor had nothing to decide about it. */
+const isFloorAction = (n: PlanFloorNotice) =>
+  n.reason_code == null ||
+  n.reason_code === "below_floor" ||
+  n.reason_code === "floor_relaxed";
 
 export function FloorSummary({
   plan,
@@ -76,8 +87,18 @@ export function FloorSummary({
   );
 
   // Distinct agents, not notice rows: two notices can name the same agent,
-  // and a buyer reads this number as a head count, not a row count.
-  const actedOn = new Set(notices.map((n) => n.agent_id)).size;
+  // and a buyer reads this number as a head count, not a row count. Floor
+  // actions only — the backend lists unbound agents in the same array, and
+  // five of them would otherwise read as "the floor acted on 5 agents".
+  const actedOn = new Set(notices.filter(isFloorAction).map((n) => n.agent_id))
+    .size;
+  // Said separately and without the floor in the sentence: these agents were
+  // never candidates, and have not failed or been judged on anything.
+  const unbound = new Set(
+    notices
+      .filter((n) => n.reason_code === "unbound_endpoint")
+      .map((n) => n.agent_id),
+  ).size;
   const steps = plan.steps.length;
 
   return (
@@ -115,6 +136,10 @@ export function FloorSummary({
         {actedOn === 0
           ? "no agents"
           : `${actedOn} agent${actedOn === 1 ? "" : "s"}`}
+        {unbound > 0 &&
+          (unbound === 1
+            ? " · 1 agent with no endpoint bound was never a candidate"
+            : ` · ${unbound} agents with no endpoint bound were never candidates`)}
       </p>
 
       {/* Two paragraphs used to sit here: one explaining that the eligible set

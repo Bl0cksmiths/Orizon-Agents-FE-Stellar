@@ -151,6 +151,90 @@ describe("ExclusionsPanel · the disclosure", () => {
     expect(summaryText()).toContain("1 kept below the floor");
   });
 
+  // The backend names up to eight unbound agents on every plan while any
+  // registered agent is unbound. Folded into the kinds, an untouched plan
+  // would read "8 excluded" under a heading about the floor.
+  it("counts unbound agents apart from the floor's changes", () => {
+    const unboundNotice = (id: string) =>
+      notice({
+        agent_id: id,
+        agent_name: id,
+        reason: "no endpoint bound",
+        reason_code: "unbound_endpoint",
+        lower_bound_bps: null,
+      });
+    const { summaryText } = renderPanel(
+      plan({
+        notices: [notice(), unboundNotice("a.one"), unboundNotice("a.two")],
+      }),
+    );
+    expect(summaryText()).toContain("1 change");
+    expect(summaryText()).not.toContain("3 changes");
+    expect(summaryText()).toContain("1 excluded");
+    expect(summaryText()).toContain("2 with no endpoint bound");
+  });
+
+  it("reads no changes when only unbound agents were left out", () => {
+    const { summaryText } = renderPanel(
+      plan({
+        notices: [
+          notice({
+            reason: "no endpoint bound",
+            reason_code: "unbound_endpoint",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(summaryText()).toContain("no changes");
+    expect(summaryText()).toContain("1 with no endpoint bound");
+    expect(summaryText()).not.toMatch(/\d+ excluded/);
+  });
+
+  it("credits the floor only with what the floor did", () => {
+    const unboundOnly = opened(
+      plan({
+        notices: [
+          notice({
+            reason: "no endpoint bound",
+            reason_code: "unbound_endpoint",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(unboundOnly.text()).not.toContain("The reputation floor acted on");
+    expect(unboundOnly.text()).toContain("never candidates");
+    expect(unboundOnly.text()).toContain("the floor did not judge them");
+    cleanup();
+
+    const mixed = opened(
+      plan({
+        notices: [
+          notice(),
+          notice({
+            agent_id: "a.two",
+            agent_name: "a.two",
+            reason: "no endpoint bound",
+            reason_code: "unbound_endpoint",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(mixed.text()).toContain(
+      "The reputation floor acted on some of these agents",
+    );
+    expect(mixed.text()).toContain("Those marked “no endpoint”");
+    cleanup();
+
+    const floorOnly = opened(plan({ notices: [notice()] }));
+    expect(floorOnly.text()).toContain(
+      "The reputation floor acted on these agents",
+    );
+    expect(floorOnly.text()).not.toContain("never candidates");
+  });
+
   it("counts a single change in the singular", () => {
     const { summaryText } = renderPanel(plan({ notices: [notice()] }));
     expect(summaryText()).toContain("1 change");
@@ -297,13 +381,14 @@ describe("ExclusionsPanel · the deciding numbers", () => {
     expect(text()).toContain("2.75");
   });
 
-  // The assertion this panel exists to protect. No entry is an absence of
-  // ratings, not a score of zero, and an agent with no entry PASSES the floor.
-  it("renders a null lower bound as an absence, never as 0.00", () => {
+  // The assertion this panel exists to protect. On a floor notice, no entry is
+  // an absence of ratings, not a score of zero, and an agent with no entry
+  // PASSES the floor.
+  it("renders a floor notice's null lower bound as an absence, never as 0.00", () => {
     const { text } = opened(
       plan({
         notices: [
-          notice({ reason_code: "unbound_endpoint", lower_bound_bps: null }),
+          notice({ reason_code: "below_floor", lower_bound_bps: null }),
         ],
       }),
     );
@@ -312,6 +397,67 @@ describe("ExclusionsPanel · the deciding numbers", () => {
     expect(text()).toContain("not a score of zero");
     expect(text()).toContain("does not put an agent under the floor");
     expect(text()).not.toContain("0.00");
+  });
+
+  // An unbound agent's null is deliberate: its standing was never consulted,
+  // so "no reputation entry" would be a claim about ratings nobody looked at —
+  // false for any unbound agent with a rating history.
+  it("never calls an unbound agent unrated", () => {
+    const { text } = opened(
+      plan({
+        notices: [
+          notice({
+            reason_code: "unbound_endpoint",
+            reason: "no endpoint bound",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(text()).not.toContain("No reputation entry exists");
+    expect(text()).not.toMatch(/absence of ratings/i);
+    expect(text()).not.toContain("0.00");
+    expect(text()).toContain("registered on-chain but has no endpoint bound");
+  });
+
+  // It arrives as kind "excluded", but a magenta "✕ excluded" would file it
+  // with the floor's verdicts. The row wears its own words instead.
+  it("marks an unbound row in its own words, not as a floor exclusion", () => {
+    const { container } = opened(
+      plan({
+        notices: [
+          notice({
+            reason_code: "unbound_endpoint",
+            reason: "no endpoint bound",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    const row = container.querySelector("li");
+    expect(row?.textContent).toContain("no endpoint");
+    expect(row?.textContent).not.toMatch(/excluded/i);
+    expect(row?.innerHTML).not.toContain("magenta");
+  });
+
+  // Nothing was decided on numbers, so none are printed — not "none on
+  // record", and not the floor, which would imply a comparison that never ran.
+  it("prints no deciding numbers on an unbound row", () => {
+    const { text } = opened(
+      plan({
+        notices: [
+          notice({
+            reason_code: "unbound_endpoint",
+            reason: "no endpoint bound",
+            lower_bound_bps: null,
+            floor_bps: FLOOR_BPS,
+          }),
+        ],
+      }),
+    );
+    expect(text()).not.toMatch(/lower bound (none on record|\d)/);
+    expect(text()).not.toContain("none on record");
+    expect(text()).not.toContain("floor 2.75");
   });
 
   // Absent is not null: a backend predating the field told us nothing, and

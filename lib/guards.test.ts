@@ -356,6 +356,56 @@ describe("isDecomposeResponse", () => {
     expect(isDecomposeResponse({ ...valid, steps: [step] })).toBe(false);
   });
 
+  // The per-step reputation evidence is additive in the same way the floor
+  // fields are: a backend predating it omits every key, and a null is how
+  // FastAPI serializes an unset Optional.
+  it("accepts the per-step reputation evidence present, null or absent", () => {
+    const evidenced = {
+      ...valid.steps[0],
+      rep_bps: 5750,
+      rep_source: "onchain",
+      rep_lower_bound_bps: 5283,
+      rep_count: 24,
+      rep_dispute_rate_bps: 2500,
+      rep_degraded: false,
+    };
+    expect(isDecomposeResponse({ ...valid, steps: [evidenced] })).toBe(true);
+    const nulled = {
+      ...valid.steps[0],
+      rep_lower_bound_bps: null,
+      rep_count: null,
+      rep_dispute_rate_bps: null,
+      rep_degraded: null,
+    };
+    expect(isDecomposeResponse({ ...valid, steps: [nulled] })).toBe(true);
+    // `valid` carries none of them, which is the pre-field backend.
+    expect(isDecomposeResponse(valid)).toBe(true);
+  });
+
+  it("rejects wrong types on the per-step reputation evidence", () => {
+    // Each of these reaches the reputation badge: the bound is compared
+    // against the floor, the count and dispute rate are printed, and the flag
+    // picks between "no ratings yet" and "the read did not come back".
+    const wrong: Record<string, unknown>[] = [
+      { rep_lower_bound_bps: "5283" },
+      { rep_lower_bound_bps: Number.NaN },
+      { rep_count: "24" },
+      { rep_count: Number.POSITIVE_INFINITY },
+      { rep_dispute_rate_bps: "2500" },
+      { rep_dispute_rate_bps: {} },
+      // Truthy, and would report a healthy read as a failed one.
+      { rep_degraded: "false" },
+      { rep_degraded: 1 },
+    ];
+    for (const field of wrong) {
+      const step = { ...valid.steps[0], ...field };
+      expect(
+        isDecomposeResponse({ ...valid, steps: [step] }),
+        JSON.stringify(field),
+      ).toBe(false);
+    }
+  });
+
   // AC-5 — a build predating story 3.02 keeps rendering the plan. The whole
   // design rests on the four floor fields being ADDITIVE, and that claim has
   // two halves the guard is the only thing holding: a backend that predates
@@ -475,10 +525,12 @@ describe("isDecomposeResponse", () => {
 
   it("accepts a null lower bound and leaves it distinguishable from 0", () => {
     // null is not a missing number, and it is emphatically not zero. It means
-    // the agent has no reputation entry at ALL, and a never-rated agent CLEARS
-    // the floor: its Wilson lower bound comes off the Bayesian prior at 5677
-    // bps against a floor of 5500. Zero would be the opposite fact — an agent
-    // rated into the ground.
+    // there is no deciding bound: on an `unbound_endpoint` notice, like this
+    // one, because standing was never consulted; on a floor notice, because
+    // the agent has no reputation entry at all — and a never-rated agent
+    // CLEARS the floor, its Wilson lower bound coming off the Bayesian prior
+    // at 5677 bps against a floor of 5500. Zero would be the opposite fact —
+    // an agent rated into the ground.
     const noEntry = {
       kind: "excluded",
       agent_id: "agt_new",

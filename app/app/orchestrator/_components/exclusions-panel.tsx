@@ -76,6 +76,17 @@ const KIND_LABEL: Record<PlanFloorNoticeKind, string> = {
   degraded: "kept below floor",
 };
 
+/** What an unbound row wears instead of its kind's mark. It arrives as
+ *  `kind: "excluded"`, but nothing judged it, and a magenta "✕ excluded" among
+ *  the floor's verdicts would file it with them. Muted, with its own glyph and
+ *  word: it is a setup step its operator has not finished, not a finding about
+ *  the quality of this plan. */
+const UNBOUND_MARK = {
+  tone: "muted",
+  glyph: "○",
+  label: "no endpoint",
+} as const;
+
 /** The same three kinds, phrased to be counted in the closed summary. */
 const KIND_COUNT_LABEL: Record<PlanFloorNoticeKind, string> = {
   excluded: "excluded",
@@ -136,6 +147,11 @@ const nameOf = (n: PlanFloorNotice) => n.agent_name ?? n.agent_id;
 const replacementOf = (n: PlanFloorNotice) =>
   n.replacement_name ?? n.replacement_id ?? null;
 
+/** An agent left out for having no endpoint bound. It rides in the same list
+ *  as the floor's actions and arrives as `kind: "excluded"`, but the floor
+ *  never saw it: it was not a candidate to begin with. */
+const isUnbound = (n: PlanFloorNotice) => n.reason_code === "unbound_endpoint";
+
 const numbersRow =
   "flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] text-muted";
 const footnote = "break-words font-mono text-[11px] leading-relaxed text-muted";
@@ -156,21 +172,39 @@ function NoticeRow({
   // printed without the line it had to clear beside it.
   const floorBps = notice.floor_bps ?? planFloorBps;
 
+  // Not a floor verdict at all: the agent has no endpoint to dispatch to, so
+  // its standing was never consulted and the backend leaves its bound null on
+  // purpose. That null says nothing about its ratings.
+  const unbound = isUnbound(notice);
+  const mark = unbound
+    ? UNBOUND_MARK
+    : {
+        tone: KIND_TONE[notice.kind],
+        glyph: KIND_GLYPH[notice.kind],
+        label: KIND_LABEL[notice.kind],
+      };
+
   const bound = notice.lower_bound_bps;
   // null and undefined are different facts and must not collapse into one
-  // branch. null means the agent had NO reputation entry — which is not a
-  // bound of zero, and on its own does not put an agent under the floor.
-  // undefined means a backend predating the field sent nothing at all, and
-  // there is nothing honest to say about a number we were never given.
-  const noEntry = bound === null;
-  const showNumbers = bound !== undefined || floorBps !== undefined;
+  // branch. On a floor notice, null means the agent had NO reputation entry —
+  // which is not a bound of zero, and on its own does not put an agent under
+  // the floor. undefined means a backend predating the field sent nothing at
+  // all, and there is nothing honest to say about a number we were never
+  // given. On an unbound notice null is deliberate, and reading it as "no
+  // entry" would state an absence of ratings nobody checked for.
+  const noEntry = bound === null && !unbound;
+  // No deciding numbers on an unbound row, because nothing was decided on
+  // numbers: "lower bound none on record" would repeat the false no-ratings
+  // claim, and the floor beside it would imply a comparison that never ran.
+  const showNumbers =
+    !unbound && (bound !== undefined || floorBps !== undefined);
 
   return (
     <li className="clip-cyber-sm space-y-2 border border-border bg-bg/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={KIND_TONE[notice.kind]}>
-          <span aria-hidden="true">{KIND_GLYPH[notice.kind]}</span>
-          {KIND_LABEL[notice.kind]}
+        <Badge tone={mark.tone}>
+          <span aria-hidden="true">{mark.glyph}</span>
+          {mark.label}
         </Badge>
         {/* break-all on the ids alone, not on the whole line: an agent id is
             one 32-character token with no break opportunity in it and this
@@ -239,6 +273,12 @@ export function ExclusionsPanel({
   const notices = plan.notices ?? [];
   if (notices.length === 0) return null;
 
+  // Unbound agents are counted apart from what the floor did. The backend
+  // names up to eight on every plan while any registered agent is unbound, so
+  // folded into the kinds they would turn an untouched plan into "8 excluded".
+  const changes = notices.filter((n) => !isUnbound(n));
+  const unbound = notices.length - changes.length;
+
   // `kind` is safe to index with — unlike `reason_code`, the guard set-checks
   // it, precisely because it picks a tone and a label that have no fallback.
   const counts: Record<PlanFloorNoticeKind, number> = {
@@ -246,11 +286,14 @@ export function ExclusionsPanel({
     substituted: 0,
     degraded: 0,
   };
-  for (const n of notices) counts[n.kind] += 1;
+  for (const n of changes) counts[n.kind] += 1;
 
-  const breakdown = KIND_ORDER.filter((k) => counts[k] > 0)
-    .map((k) => `${counts[k]} ${KIND_COUNT_LABEL[k]}`)
-    .join(" · ");
+  const breakdown = [
+    ...KIND_ORDER.filter((k) => counts[k] > 0).map(
+      (k) => `${counts[k]} ${KIND_COUNT_LABEL[k]}`,
+    ),
+    ...(unbound > 0 ? [`${unbound} with no endpoint bound`] : []),
+  ].join(" · ");
 
   return (
     <details className="clip-cyber-sm group border border-violet/40 bg-violet/5">
@@ -265,8 +308,10 @@ export function ExclusionsPanel({
           <span className="hidden group-open:inline">▾</span>
         </span>
         <h3 className="font-mono text-[10px] uppercase tracking-[0.25em] text-violet-readable">
-          Reputation floor · {notices.length} change
-          {notices.length === 1 ? "" : "s"}
+          Reputation floor ·{" "}
+          {changes.length === 0
+            ? "no changes"
+            : `${changes.length} change${changes.length === 1 ? "" : "s"}`}
         </h3>
         {/* w-full puts the breakdown on its own flex line. It is inside the
             summary on purpose: the count is the part a buyer who never opens
@@ -277,12 +322,25 @@ export function ExclusionsPanel({
       </summary>
 
       <div className="space-y-3 px-4 pb-4">
-        <p className="text-sm leading-relaxed text-muted">
-          The reputation floor acted on these agents while this plan was built.
-          It decides who is eligible to be picked, before any step is
-          dispatched, so nothing below is a judgement on work an agent actually
-          did.
-        </p>
+        {/* Two claims, each made only when true. "The floor acted on these
+            agents" over a list of unbound agents would credit the floor with
+            decisions it never took. */}
+        {changes.length > 0 && (
+          <p className="text-sm leading-relaxed text-muted">
+            The reputation floor acted on {unbound > 0 ? "some of " : ""}these
+            agents while this plan was built. It decides who is eligible to be
+            picked, before any step is dispatched, so nothing below is a
+            judgement on work an agent actually did.
+          </p>
+        )}
+        {unbound > 0 && (
+          <p className="text-sm leading-relaxed text-muted">
+            {changes.length > 0 ? "Those marked “no endpoint”" : "These agents"}{" "}
+            were never candidates: they are registered on-chain but have no
+            endpoint bound to dispatch a step to, so the floor did not judge
+            them either way.
+          </p>
+        )}
         <ul className="space-y-3">
           {notices.map((n, i) => (
             <NoticeRow

@@ -54,6 +54,22 @@ export type PlanStep = {
   est_eta_seconds: number;
   rep_bps?: number | null;
   rep_source?: ReputationSource | null;
+  /** The reputation lower bound behind `rep_bps` — the number the routing
+   * floor gates on, never the smoothed headline score. Null when the agent has
+   * no reputation entry; absent from backends predating it, in which case the
+   * step cannot be judged against the floor client-side. */
+  rep_lower_bound_bps?: number | null;
+  /** How many rated jobs back the score. Null or absent when unknown — never
+   * read as zero, which would claim the agent has no rating history. */
+  rep_count?: number | null;
+  /** Share of this agent's rated jobs that were disputed, in bps. Null or
+   * absent when unknown. */
+  rep_dispute_rate_bps?: number | null;
+  /** This step's own on-chain reputation read FAILED and the Bayesian prior
+   * was served in its place. Not `degraded` below, which means re-admitted
+   * under the floor by the starvation backstop; the per-step form of the
+   * plan's `reputation_degraded`. Absent from backends predating it. */
+  rep_degraded?: boolean;
   /** The designated kit agent this step replaced when the reputation floor
    * forced a substitution; absent/null on the normal path (story 3.02). */
   substituted_for?: string | null;

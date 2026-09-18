@@ -9,8 +9,19 @@ import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { TxStatus, type TxState } from "@/components/ui/tx-status";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
-import { buildAuthorize, execute, submitSigned } from "@/lib/api";
-import { DegradedBanner } from "./degraded-banner";
+import {
+  buildAuthorize,
+  execute,
+  getStellarNetwork,
+  submitSigned,
+} from "@/lib/api";
+import { assetLabel } from "@/lib/money";
+import { useFetch } from "@/lib/use-fetch";
+import {
+  DegradedBanner,
+  hasUnverifiedReputation,
+  UNVERIFIED_BANNER_ID,
+} from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
 import { useAsyncAction } from "@/lib/use-async-action";
@@ -52,7 +63,8 @@ function bytesToHex(v: unknown): string | null {
 /**
  * The decomposed-plan card: step list, totals, and the execute flows
  * (simulate / fiat funding / on-chain authorize). Mirrors the FiatFund
- * pattern — self-contained state and actions, fed only by the plan.
+ * pattern — self-contained state and actions, fed by the plan and by its own
+ * network read, which names the asset its amounts are denominated in.
  * The task read token from execute responses is stored by lib/api.ts.
  */
 export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
@@ -65,6 +77,20 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
     null,
   );
   const [authorizeHash, setAuthorizeHash] = useState<string | null>(null);
+
+  // What every amount on this card is actually denominated in. `total_usdc`
+  // is a legacy field name, not a currency: the cap the buyer signs is that
+  // figure in stroops of whatever the escrow's SAC wraps, and on testnet that
+  // is native XLM. Until the network read lands — or if it fails — `unit` is
+  // empty and amounts print bare, because a guessed "USDC" is the false claim
+  // this replaces.
+  const { data: network } = useFetch(getStellarNetwork, [], {
+    revalidateOnFocus: true,
+  });
+  const unit = assetLabel(network?.asset);
+  /** An amount with its real unit, or bare while the unit is unknown. */
+  const priced = (value: number) =>
+    unit ? `${value.toFixed(3)} ${unit}` : value.toFixed(3);
 
   /** Simulated path — no wallet required. */
   const simulate = useAsyncAction(async () => {
@@ -178,9 +204,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
               <div className="text-muted uppercase tracking-widest text-[10px]">
                 total est.
               </div>
-              <div className="text-cyan text-lg">
-                {plan.total_usdc.toFixed(3)} USDC
-              </div>
+              <div className="text-cyan text-lg">{priced(plan.total_usdc)}</div>
             </div>
             <div>
               <div className="text-muted uppercase tracking-widest text-[10px]">
@@ -213,29 +237,40 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="violet">{s.agent_name ?? s.agent_id}</Badge>
-                {/* `floorBps` is deliberately NOT passed, and this is not an
-                    oversight waiting to be closed.
+                {/* The floor goes in ONLY beside the step's own lower bound.
 
                     ReputationBadge decides below-floor with
-                    `(lowerBoundBps ?? bps) < floorBps`. A PlanStep carries
-                    only `rep_bps` — the smoothed headline score — and no lower
-                    bound, so handing it the floor would compare the wrong
-                    number: the backend gates on the Wilson lower bound, and
-                    the two disagree exactly where it matters, for an agent
-                    with a healthy average and too few ratings to back it.
-                    The badge would then clear an agent the planner would have
-                    excluded.
+                    `(lowerBoundBps ?? bps) < floorBps`, and the backend gates
+                    on the lower bound, never on `rep_bps` — the smoothed
+                    headline score. The two disagree exactly where it matters,
+                    for an agent with a healthy average and too few ratings to
+                    back it, so a floor handed over without the bound would
+                    judge the wrong number and clear an agent the planner
+                    refused. A backend predating `rep_lower_bound_bps` gets no
+                    floor verdict on the chip at all; a step the starvation
+                    backstop re-admitted still carries its own `▾ below floor`
+                    badge below either way.
 
-                    It costs nothing to omit. A routed step cleared the floor
-                    by definition — the planner only ever sees routable agents
-                    — so the only below-floor step is one the starvation
-                    backstop re-admitted, and that already carries its own
-                    `▾ below floor` badge below. Passing the floor could only
-                    add a wrong verdict, never a right one. */}
+                    `rep_degraded` is this step's own failed read, and it is
+                    what stops a prior served in place of an unreachable
+                    history from being worded "no on-chain ratings yet". The
+                    plan-wide `reputation_degraded` stands in only when a
+                    backend predating the step field omits it. That flag says
+                    some read failed, not which, so in such a plan a genuine
+                    cold start may be worded as a failed read — the smaller
+                    error of the two, since the other misstates a real
+                    agent's record. */}
                 {s.rep_bps != null && (
                   <ReputationBadge
                     bps={s.rep_bps}
+                    lowerBoundBps={s.rep_lower_bound_bps ?? undefined}
                     source={s.rep_source ?? "prior"}
+                    degraded={s.rep_degraded ?? plan.reputation_degraded}
+                    count={s.rep_count ?? undefined}
+                    disputeRateBps={s.rep_dispute_rate_bps ?? undefined}
+                    floorBps={
+                      s.rep_lower_bound_bps != null ? plan.floor_bps : undefined
+                    }
                   />
                 )}
                 {s.substituted_for && (
@@ -292,11 +327,13 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                 <div className="text-sm">
                   Freighter will prompt for{" "}
                   <b className="text-text">one signature</b> authorizing up to{" "}
-                  <b className="text-text">{plan.total_usdc.toFixed(3)} USDC</b>
-                  .
+                  <b className="text-text">{priced(plan.total_usdc)}</b>.
                 </div>
               </div>
-              <div className="flex gap-2">
+              {/* flex-wrap: three buttons are wider than a 390px card, and the
+                  card's clip-path cuts off whatever overflows it — at phone
+                  width that was the Authorize button itself. */}
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   onClick={onSimulate}
@@ -311,6 +348,14 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                   onClick={onAuthorize}
                   disabled={executing}
                   size="md"
+                  // Tab goes from the exclusions panel straight here, past the
+                  // polite banner above, so the button carries the warning as
+                  // its description — and only while the banner exists.
+                  aria-describedby={
+                    hasUnverifiedReputation(plan)
+                      ? UNVERIFIED_BANNER_ID
+                      : undefined
+                  }
                 >
                   {executing
                     ? step
@@ -331,7 +376,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                   or run a simulated pass.
                 </div>
               </div>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-wrap gap-2 items-center">
                 <ConnectWallet size="md" />
                 {fiatToggle}
                 <Button
@@ -361,6 +406,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
             <FiatFund
               usdcAmount={plan.total_usdc}
               stellarAddress={wallet.address ?? undefined}
+              asset={network?.asset}
             />
           </div>
         )}
