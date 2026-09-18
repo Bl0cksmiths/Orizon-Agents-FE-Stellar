@@ -125,3 +125,9 @@ jobs:
       # a gate that quietly stops gating is the defect it was added to close.
       - name: Check fallback contract ids
         run: npm run check:addresses
+
+      # The live-parity rules the post-deploy smoke applies to production. Run
+      # here too so a change to them is judged on the PR that makes it, not
+      # six hours after merge by the scheduled smoke. Plain node:test, no install.
+      - name: Test live contract parity rules
+        run: npm run test:parity
