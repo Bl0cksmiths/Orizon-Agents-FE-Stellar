@@ -119,7 +119,8 @@ describe("RegistryStandingNotice — the floor", () => {
 });
 
 describe("RegistryStandingNotice — nothing to say", () => {
-  // The page has its own loading and error frames for the reputation read.
+  // The rows hold their own placeholders while the read is on its way; a read
+  // that failed is a different state, covered below.
   it("renders nothing before the reputation read lands", () => {
     const { container } = render(<RegistryStandingNotice batch={null} />);
     expect(container.innerHTML).toBe("");
@@ -381,5 +382,29 @@ describe("RegistryStandingNotice — the claims it must never make", () => {
   it.each(states)("never promises routing ($name)", ({ batch }) => {
     render(<RegistryStandingNotice batch={batch} />);
     expect(text()).not.toMatch(/being routed|will be routed|is routed to/i);
+  });
+});
+
+describe("RegistryStandingNotice — a failed request for the batch", () => {
+  const ERROR = "GET /stellar/reputation → 503 — service unavailable";
+
+  // The regression: a failed batch used to render nothing at all here, while
+  // every chip below claimed its agent had no ratings yet.
+  it("announces a read that never landed, as an alert", () => {
+    render(<RegistryStandingNotice batch={null} readError={ERROR} />);
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain("reputation unavailable");
+    expect(alert.textContent).toContain(
+      "shows no score, selection floor or standing verdict rather than guessed ones",
+    );
+    expect(alert.textContent).toContain(ERROR);
+  });
+
+  // No batch means no floor was sent, and a floor printed anyway would be the
+  // one number on the page nobody computed.
+  it("prints no floor when no batch ever landed", () => {
+    render(<RegistryStandingNotice batch={null} readError={ERROR} />);
+    expect(text()).not.toMatch(/\d\.\d\d/);
+    expect(screen.queryByRole("heading")).toBeNull();
   });
 });
