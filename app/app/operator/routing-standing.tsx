@@ -320,6 +320,10 @@ export function RoutingStanding({
                 bps={reputation.smoothed_bps}
                 lowerBoundBps={reputation.lower_bound_bps}
                 source={reputation.source}
+                // Without it the chip calls a failed read a cold start — "no
+                // on-chain ratings yet" — directly above the paragraph below
+                // that says the read failed.
+                degraded={reputation.degraded}
                 count={reputation.count}
                 disputeRateBps={reputation.dispute_rate_bps}
                 floorBps={floorBps}
