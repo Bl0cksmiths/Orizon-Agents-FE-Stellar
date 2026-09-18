@@ -310,8 +310,9 @@ export function RepLeaderboard({
           onRetry={onRetryBatch}
           retrying={retrying || loading}
         >
-          live reputation degraded to seeded prior — on-chain scores, settled
-          evidence and the routing floor are not live. {batchError}
+          live reputation unavailable — on-chain scores, settled evidence and
+          the routing floor could not be read, so no score is shown rather than
+          a guessed one. {batchError}
         </ErrorNote>
       )}
 
