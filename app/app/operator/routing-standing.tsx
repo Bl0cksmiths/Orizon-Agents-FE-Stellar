@@ -110,7 +110,7 @@ export function RoutingStanding({
   agentId: string;
   /** The agent's registry status. "offline" is how an operator's delisting
    *  syncs back, and the orchestrator routes a delisted agent on no path. */
-  status?: AgentStatus;
+  status: AgentStatus;
   bindingState: BindingState | null;
   reputation: ReputationInfo | null;
   /** Null when the reputation batch has not loaded. The floor and the score
@@ -154,7 +154,7 @@ export function RoutingStanding({
   // The backend's `_is_listed`, through the shared copy of it. Read first
   // because it settles everything: the orchestrator drops a delisted agent
   // before either gate is consulted, and no fallback re-admits it.
-  const listed = status === undefined || isListed({ status });
+  const listed = isListed({ status });
 
   // A failure outranks an unknown. Both gates must hold, so one confirmed
   // failure settles the verdict no matter what the other gate is doing.
