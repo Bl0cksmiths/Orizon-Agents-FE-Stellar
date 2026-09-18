@@ -322,12 +322,25 @@ export function ExclusionsPanel({
       </summary>
 
       <div className="space-y-3 px-4 pb-4">
-        <p className="text-sm leading-relaxed text-muted">
-          The reputation floor acted on these agents while this plan was built.
-          It decides who is eligible to be picked, before any step is
-          dispatched, so nothing below is a judgement on work an agent actually
-          did.
-        </p>
+        {/* Two claims, each made only when true. "The floor acted on these
+            agents" over a list of unbound agents would credit the floor with
+            decisions it never took. */}
+        {changes.length > 0 && (
+          <p className="text-sm leading-relaxed text-muted">
+            The reputation floor acted on {unbound > 0 ? "some of " : ""}these
+            agents while this plan was built. It decides who is eligible to be
+            picked, before any step is dispatched, so nothing below is a
+            judgement on work an agent actually did.
+          </p>
+        )}
+        {unbound > 0 && (
+          <p className="text-sm leading-relaxed text-muted">
+            {changes.length > 0 ? "Those marked “no endpoint”" : "These agents"}{" "}
+            were never candidates: they are registered on-chain but have no
+            endpoint bound to dispatch a step to, so the floor did not judge
+            them either way.
+          </p>
+        )}
         <ul className="space-y-3">
           {notices.map((n, i) => (
             <NoticeRow
