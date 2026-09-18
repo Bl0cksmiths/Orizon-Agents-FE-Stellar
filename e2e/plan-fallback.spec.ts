@@ -121,4 +121,24 @@ test.describe("plan card — a plan built without the planner", () => {
       ).toHaveCount(0);
     });
   }
+
+  test("Authorize is described by the fallback notice", async ({ page }) => {
+    await page.setViewportSize(LAPTOP);
+    await decomposeWith(page, mockPlanPlannerFallback, { wallet: true });
+
+    const authorize = page.getByRole("button", { name: /authorize/i });
+    await expect(authorize).toBeVisible();
+
+    // Tab reaches this button without passing through a polite status that
+    // was announced once, when the plan rendered. The description is what
+    // puts the fact in front of a keyboard buyer at the moment of paying, so
+    // it has to resolve to the notice itself.
+    const noticeId = await fallbackNotice(page).getAttribute("id");
+    expect(noticeId, "the notice carries no id to be named by").toBeTruthy();
+    await expect(authorize).toHaveAttribute("aria-describedby", noticeId ?? "");
+    await expect(authorize).toHaveAccessibleDescription(/fallback/i);
+    // The retry sits beside the notice, not in it: a button label read out as
+    // part of Authorize's description would be noise at the worst moment.
+    await expect(authorize).not.toHaveAccessibleDescription(/ask the planner/i);
+  });
 });
