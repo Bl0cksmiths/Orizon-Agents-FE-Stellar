@@ -29,6 +29,24 @@ type Box = { x: number; y: number; width: number; height: number };
 /** A laptop browser window's content box, as in e2e/plan-floor.spec.ts. */
 const LAPTOP: Viewport = { width: 1440, height: 900 };
 
+/** The narrow end of the phones that reach this console. */
+const PHONE: Viewport = { width: 390, height: 844 };
+
+/**
+ * Horizontal containment, the direction that cannot be recovered by
+ * scrolling: the console hides sideways overflow. Fails naming the element
+ * and the edge it crossed.
+ */
+function expectWithinWidth(box: Box, frame: Viewport, what: string) {
+  expect(box.x, `${what} is cut off at the left edge`).toBeGreaterThanOrEqual(
+    0,
+  );
+  expect(
+    box.x + box.width,
+    `${what} runs past the ${frame.width}px frame`,
+  ).toBeLessThanOrEqual(frame.width);
+}
+
 /**
  * The notice, by live-region role plus the one word it cannot mean anything
  * without. The role is part of the contract, not a wording constraint: a
@@ -205,6 +223,77 @@ test.describe("plan card — a plan built without the planner", () => {
           (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
         ),
       ).toEqual([]);
+    });
+  }
+
+  for (const { name, plan } of fallbackStates) {
+    test(`at 390px, ${name} fit without sideways scroll or clipping`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(PHONE);
+      await decomposeWith(page, plan, { wallet: true });
+
+      const notice = fallbackNotice(page);
+      await expect(notice).toHaveCount(1);
+      // The clipped frame the notice and its retry share.
+      const frame = notice.locator("..");
+      const frameBox = await stableBox(frame);
+      expectWithinWidth(frameBox, PHONE, "the fallback notice");
+
+      // Measured against the frame rather than the viewport: `clip-cyber-sm`
+      // cuts off whatever overflows it, so a button past the frame's edge is
+      // gone even while the page has room for it.
+      const retryBox = await stableBox(
+        frame.getByRole("button", { name: /ask the planner again/i }),
+      );
+      expect(
+        retryBox.x + retryBox.width,
+        "the retry runs past the notice frame",
+      ).toBeLessThanOrEqual(frameBox.x + frameBox.width + 0.5);
+      // Nothing inside overflows the frame either — a badge or heading that
+      // could not wrap would be clipped, not scrolled to.
+      expect(
+        await frame.evaluate((el) => el.scrollWidth - el.clientWidth),
+        "the notice's content overflows its frame",
+      ).toBeLessThanOrEqual(0);
+
+      if (plan.reputation_degraded) {
+        expectWithinWidth(
+          await stableBox(estimateBanner(page)),
+          PHONE,
+          "the reputation banner",
+        );
+      }
+
+      // Still above the pay controls once they wrap at phone width, and the
+      // controls still inside the row that holds them.
+      const controls = page
+        .locator("div")
+        .filter({ has: page.getByText(/authorizing up to/i) })
+        .filter({ has: page.getByRole("button", { name: /authorize/i }) })
+        .last();
+      const row = await stableBox(controls);
+      const noticeBox = await stableBox(notice);
+      for (const name of [/simulate/i, /fiat/i, /authorize/i]) {
+        const button = await stableBox(controls.getByRole("button", { name }));
+        expect(
+          button.x + button.width,
+          `the ${name.source} button runs past its row`,
+        ).toBeLessThanOrEqual(row.x + row.width + 0.5);
+        expect(
+          noticeBox.y + noticeBox.height,
+          `the notice must clear the ${name.source} button`,
+        ).toBeLessThanOrEqual(button.y);
+      }
+
+      const overflow = await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      );
+      expect(overflow, "the page must not scroll sideways").toBeLessThanOrEqual(
+        1,
+      );
     });
   }
 });
