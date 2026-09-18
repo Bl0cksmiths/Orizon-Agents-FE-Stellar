@@ -132,6 +132,12 @@ export type DecomposeResponse = {
    *  trust signal computed from an estimate. Named apart from `degraded`,
    *  which already means "re-admitted below the floor" on steps and notices. */
   reputation_degraded?: boolean;
+  /** These steps are the backend's deterministic fallback, not the planner's
+   *  own plan: the LLM planner failed or answered with nothing usable, so a
+   *  minimal plan was served from agents that cleared the routing checks.
+   *  Always false on curated demo-kit plans. Absent from older backends, which
+   *  reads as false. Carries no provider error text, by design. */
+  planner_fallback?: boolean;
 };
 
 /** Response of POST /api/orchestrator/execute. */
