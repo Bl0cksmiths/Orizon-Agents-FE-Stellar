@@ -225,12 +225,23 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                     refused. A backend predating `rep_lower_bound_bps` gets no
                     floor verdict on the chip at all; a step the starvation
                     backstop re-admitted still carries its own `▾ below floor`
-                    badge below either way. */}
+                    badge below either way.
+
+                    `rep_degraded` is this step's own failed read, and it is
+                    what stops a prior served in place of an unreachable
+                    history from being worded "no on-chain ratings yet". The
+                    plan-wide `reputation_degraded` stands in only when a
+                    backend predating the step field omits it. That flag says
+                    some read failed, not which, so in such a plan a genuine
+                    cold start may be worded as a failed read — the smaller
+                    error of the two, since the other misstates a real
+                    agent's record. */}
                 {s.rep_bps != null && (
                   <ReputationBadge
                     bps={s.rep_bps}
                     lowerBoundBps={s.rep_lower_bound_bps ?? undefined}
                     source={s.rep_source ?? "prior"}
+                    degraded={s.rep_degraded ?? plan.reputation_degraded}
                     count={s.rep_count ?? undefined}
                     disputeRateBps={s.rep_dispute_rate_bps ?? undefined}
                     floorBps={
