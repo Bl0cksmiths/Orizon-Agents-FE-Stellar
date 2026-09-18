@@ -22,7 +22,7 @@ export function ReputationCell({
   /** The network floor from the same batch, or null when it has not loaded. */
   floorBps: number | null;
   read: ReputationRead;
-}): JSX.Element | null {
+}): JSX.Element {
   if (rep !== null) {
     // The entry exactly as the batch sent it, whichever source it came from. A
     // prior entry carries the network's live prior, and that — never the
@@ -51,5 +51,22 @@ export function ReputationCell({
     );
   }
 
-  return null;
+  // No score, and none invented. Both cases below used to render the catalog's
+  // seeded rating as a "prior estimate … no on-chain ratings yet" chip: a
+  // number nothing routes on, captioned with a claim about the agent's history
+  // that nobody had read.
+  const failed = read === "failed";
+  const detail = failed
+    ? `Reputation unavailable for ${agentName}: the reputation read failed, so no score is shown rather than a guessed one. This says nothing about the agent's record.`
+    : `No reputation score is known for ${agentName}: the reputation read carried no entry for it, so no score is shown rather than a guessed one.`;
+
+  return (
+    <span
+      title={detail}
+      className="inline-flex max-w-full items-center whitespace-nowrap border border-border px-2 py-0.5 font-mono text-[10px] tracking-widest text-muted"
+    >
+      <span aria-hidden="true">{failed ? "unavailable" : "no score"}</span>
+      <span className="sr-only">{detail}</span>
+    </span>
+  );
 }
