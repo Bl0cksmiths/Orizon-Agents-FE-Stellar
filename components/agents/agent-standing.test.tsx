@@ -418,6 +418,21 @@ describe("AgentStanding — a delisted agent", () => {
     expect(text).not.toContain(UNBOUND_WARNING);
     expect(text).not.toContain("keeps its listing");
   });
+
+  // The operator withdrew it. Nothing broke, and a buyer reading this row
+  // must not come away thinking the agent failed or its record is gone.
+  it("words the delisting as the operator's choice, not a failure", () => {
+    const { container } = renderCell({
+      agent: onchain({ name: "Harrier", status: "offline" }),
+    });
+    const text = detail(container);
+    expect(text).toContain("Harrier has been delisted by its operator");
+    expect(text).toContain("the operator's own choice, not a fault");
+    expect(text).toContain("its history and its reputation");
+    expect(text).not.toMatch(/failed|broken|error|removed|deleted|banned/i);
+    // Muted, never the magenta the page keeps for verdicts.
+    expect(container.innerHTML).not.toContain("magenta");
+  });
 });
 
 describe("AgentStanding — the row it lives in", () => {
