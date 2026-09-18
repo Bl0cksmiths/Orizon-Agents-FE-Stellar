@@ -782,6 +782,9 @@ export const mockUnscoredAgent = {
   bound: true,
 };
 
+/** One registry row as these fixtures spell it. */
+export type AgentFixture = (typeof mockAgents)[number];
+
 /**
  * What the emulated wallet answers a signMessage request with. The spec
  * asserts this exact string reaches POST /bind as `signature`: the backend
@@ -904,6 +907,13 @@ export type MockApiOptions = {
    * assertion in a browser.
    */
   reputation?: ReputationBatch;
+  /**
+   * What `GET /api/agents` answers with. Defaults to `mockAgents`, so every
+   * existing caller is unaffected; a spec that needs an extra row — a delisted
+   * agent, one the batch has no score for — appends it here rather than
+   * editing the shared list other specs count against.
+   */
+  agents?: readonly AgentFixture[];
 };
 
 export async function mockApi(
@@ -977,7 +987,7 @@ export async function mockApi(
       return json(route, options.plan ?? mockPlan);
     }
     if (method === "GET" && pathname === "/api/agents") {
-      return json(route, mockAgents);
+      return json(route, options.agents ?? mockAgents);
     }
     if (method === "GET" && pathname === "/api/stellar/reputation") {
       return json(route, options.reputation ?? mockReputationBatch);
