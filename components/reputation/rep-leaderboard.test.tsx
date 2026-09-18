@@ -113,18 +113,21 @@ describe("RepLeaderboard — what a prior chip claims", () => {
     expect(chip).not.toContain(COLD_START);
   });
 
-  // No batch at all: the rows stand on the seeded catalog rating, which the
-  // board's own error note says. The chips must not add "no ratings yet" to
-  // it — nobody read the ratings.
-  it("never calls a seeded stand-in a cold start when the batch failed", () => {
+  // No batch at all: nobody read any score. The rows used to stand on the
+  // catalog's seeded rating (4.87 here) captioned as a prior — a number the
+  // orchestrator never routes on. Now there is no chip and no figure at all.
+  it("shows no score, seeded or otherwise, when the batch failed", () => {
     const { container } = renderBoard({
       batch: null,
       batchError: "GET /stellar/reputation → 503",
     });
     for (const id of ["fresh_bot", "unread_bot"]) {
-      const chip = chipFor(container, id);
-      expect(chip).toContain(FAILED_READ);
-      expect(chip).not.toContain(COLD_START);
+      const row = rowFor(container, id);
+      expect(chipFor(container, id)).toBe("");
+      expect(row).toContain("unavailable");
+      expect(row).toContain("the reputation read failed");
+      expect(row).not.toContain("4.87");
+      expect(row).not.toContain(COLD_START);
     }
   });
 });
