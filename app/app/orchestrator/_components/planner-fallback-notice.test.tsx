@@ -123,3 +123,46 @@ describe("PlannerFallbackNotice — what it says", () => {
     expect(text).toContain("run the same intent through the planner again");
   });
 });
+
+describe("PlannerFallbackNotice — claims it must not make", () => {
+  function renderNotice() {
+    render(
+      <PlannerFallbackNotice plan={planFixture({ planner_fallback: true })} />,
+    );
+    return screen.getByRole("status").textContent ?? "";
+  }
+
+  // The backend never sends the provider's error, so any cause named here
+  // would be a guess presented as a diagnosis.
+  it("names no cause for the outage", () => {
+    expect(renderNotice()).not.toMatch(
+      /rate.?limit|quota|timed? ?out|openai|anthropic|provider|model is|api key|\b[45]\d\d\b/i,
+    );
+  });
+
+  // Nobody here knows when the planner is back. Asking again is offered; a
+  // clock is not.
+  it("promises no recovery and sets no clock", () => {
+    expect(renderNotice()).not.toMatch(
+      /soon|shortly|in a (minute|moment)|momentarily|will (work|succeed|recover)|restored|back up/i,
+    );
+  });
+
+  // Minimal is not broken, and the routing checks ran. This is information,
+  // not a warning, and it must not steer the buyer off a valid plan.
+  it("does not alarm the buyer or steer them off the plan", () => {
+    expect(renderNotice()).not.toMatch(
+      /warning|unsafe|risky|do not (authorize|proceed)|don't (authorize|proceed)|we recommend|you should not|cancel/i,
+    );
+  });
+
+  // "Degraded" is already spent twice on this card: the starvation backstop's
+  // re-admission, and the failed-read flag behind the reputation banner. A
+  // third meaning within a few hundred pixels is one too many.
+  it("never uses a word the card already spends on something else", () => {
+    render(
+      <PlannerFallbackNotice plan={planFixture({ planner_fallback: true })} />,
+    );
+    expect(screen.getByRole("status").outerHTML).not.toMatch(/degraded/i);
+  });
+});
