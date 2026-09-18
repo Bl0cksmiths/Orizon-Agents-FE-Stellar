@@ -361,10 +361,13 @@ export function RoutingStanding({
                   bound subtracts from it. Nothing about the agent itself has to
                   change.
                 </p>
+                {/* Scoped to a listed agent when this one is not: the
+                    backstop re-admits below-floor candidates, never withdrawn
+                    ones, and the verdict above has already said so. */}
                 <p className={body}>
-                  Below the floor is not eligible under the normal rule, not
-                  permanently excluded — a starvation backstop can still
-                  re-admit a below-floor agent.
+                  {listed ? "Below" : "Once it is relisted, below"} the floor is
+                  not eligible under the normal rule, not permanently excluded —
+                  a starvation backstop can still re-admit a below-floor agent.
                 </p>
               </>
             )}
