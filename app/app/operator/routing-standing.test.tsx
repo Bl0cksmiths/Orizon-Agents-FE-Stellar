@@ -77,6 +77,7 @@ function renderStanding(
   return render(
     <RoutingStanding
       agentId="agt_11c0"
+      status="online"
       bindingState="bound"
       reputation={rep()}
       floorBps={FLOOR_BPS}
@@ -288,6 +289,27 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     expect(text).not.toContain("Never rated on-chain");
   });
 
+  // The chip and the paragraph under it have to agree. The chip used to be
+  // rendered without the flag, so it announced "no on-chain ratings yet" —
+  // a cold start — right above a paragraph saying the read had failed.
+  it("words the chip for a failed read, not a cold start", () => {
+    const { container } = renderStanding({
+      reputation: priorRep({ degraded: true }),
+    });
+    const chip = container.querySelector("[aria-label^='prior estimate']");
+    const label = chip?.getAttribute("aria-label") ?? "";
+    expect(label).toContain("the on-chain read did not come back");
+    expect(label).not.toContain("no on-chain ratings yet");
+  });
+
+  it("keeps the cold-start wording on the chip for a genuine newcomer", () => {
+    const { container } = renderStanding({ reputation: priorRep() });
+    const chip = container.querySelector("[aria-label^='prior estimate']");
+    expect(chip?.getAttribute("aria-label")).toContain(
+      "no on-chain ratings yet",
+    );
+  });
+
   it("leaves a rated agent with neither notice", () => {
     renderStanding();
     const text = document.body.textContent ?? "";
@@ -311,6 +333,77 @@ describe("RoutingStanding — no score at all", () => {
   });
 });
 
+describe("RoutingStanding — a delisted agent", () => {
+  // The audit's case: bound, well above the floor, delisted — and the panel
+  // called it eligible while the backend refused to route to it.
+  it("never calls a delisted agent eligible, however good its gates", () => {
+    renderStanding({ status: "offline" });
+    expect(verdict()).toBe(
+      "‖Delisted — you withdrew this agent, so the orchestrator will not select it until you relist it.",
+    );
+    expect(verdict()).not.toContain("Eligible");
+  });
+
+  // The rule is negative: only "offline" is withdrawn. "idle" is an agent
+  // with nothing in flight, and it is as eligible as an online one.
+  it("treats an idle agent as listed", () => {
+    renderStanding({ status: "idle" });
+    expect(verdict()).toContain("Eligible — the planner selects per request.");
+  });
+
+  // The operator withdrew it; nothing failed. The panel keeps magenta for a
+  // blocked gate, and a delisting is not one.
+  it("says it is the operator's choice, calmly", () => {
+    renderStanding({ status: "offline" });
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("This is your own setting, not a fault.");
+    expect(text).toContain("the starvation backstop never re-admits");
+    expect(screen.getByRole("status").className).not.toContain("magenta");
+  });
+
+  // Delisting outranks a failed gate too: the operator's own decision is the
+  // reason, and naming a gate instead would send them to fix the wrong thing.
+  it("outranks a failed gate", () => {
+    renderStanding({
+      status: "offline",
+      bindingState: "unbound",
+      reputation: rep({ lower_bound_bps: 1000 }),
+    });
+    expect(verdict()).toContain("Delisted");
+    expect(verdict()).not.toContain("Not eligible");
+  });
+
+  // The shared unbound warning says the agent "is listed". On a delisted
+  // agent the gate still reports the missing endpoint — it matters for coming
+  // back — but in words that are true of it.
+  it("keeps the unbound gate honest about the listing", () => {
+    renderStanding({ status: "offline", bindingState: "unbound" });
+    const text = document.body.textContent ?? "";
+    expect(text).not.toContain(UNBOUND_WARNING);
+    expect(text).toContain("Bind one before you relist this agent");
+    expect(
+      screen.getByRole("link", { name: "bind agt_11c0" }).getAttribute("href"),
+    ).toBe("/app/bind?agent=agt_11c0");
+  });
+
+  // The backstop re-admits below-floor candidates, never withdrawn ones, so
+  // the floor gate's sentence about it is scoped to a relisted agent here.
+  it("does not promise the backstop to a delisted agent", () => {
+    renderStanding({
+      status: "offline",
+      reputation: rep({ lower_bound_bps: 1000 }),
+    });
+    const text = document.body.textContent ?? "";
+    expect(text).toContain(
+      "Once it is relisted, below the floor is not eligible under the normal rule",
+    );
+    const paragraphs = Array.from(document.querySelectorAll("p")).map(
+      (p) => p.textContent ?? "",
+    );
+    expect(paragraphs.some((p) => p.startsWith("Below the floor"))).toBe(false);
+  });
+});
+
 describe("RoutingStanding — the claims it must never make", () => {
   const states = [
     { name: "bound, clear", props: {} },
@@ -331,8 +424,10 @@ describe("RoutingStanding — the claims it must never make", () => {
     },
   ];
 
-  // "being routed" is the conflation of eligibility with selection, and the
-  // delisting claim is verified false — the orchestrator never reads the flag.
+  // "being routed" is the conflation of eligibility with selection. Every
+  // state here is a LISTED agent, so delisting has no place in its panel: the
+  // word belongs to the withdrawn verdict alone, which the orchestrator now
+  // enforces on every routing path.
   it.each(states)(
     "never promises routing or repeats the delisting claim ($name)",
     ({ props }) => {

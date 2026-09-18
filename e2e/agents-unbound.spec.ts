@@ -227,6 +227,11 @@ test.describe("unbound agents in the marketplace", () => {
     // unroutable on no evidence at all.
     const pending = row(page, UNBOUND_ID);
     await expect(pending.getByText("checking endpoint")).toBeVisible();
+    // …and not given a verdict by the back door either. The registry payload
+    // says `bound: false` for this agent, and a standing mark derived from it
+    // would sit beside "checking endpoint" answering the same question twice,
+    // one of them before the answer is in.
+    await expect(pending.getByText(/not yet operational/i)).toHaveCount(0);
     await expect(page.getByText(UNBOUND_WARNING)).toHaveCount(0);
     await expect(page.getByRole("link", { name: /^bind /i })).toHaveCount(0);
 

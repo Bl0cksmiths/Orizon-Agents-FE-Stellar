@@ -10,8 +10,8 @@
  * Assertions are plain DOM checks — this repo does not install jest-dom.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import type { ReputationBatch, ReputationInfo } from "@/lib/types";
 import { RegistryStandingNotice } from "./registry-standing-notice";
@@ -119,7 +119,8 @@ describe("RegistryStandingNotice — the floor", () => {
 });
 
 describe("RegistryStandingNotice — nothing to say", () => {
-  // The page has its own loading and error frames for the reputation read.
+  // The rows hold their own placeholders while the read is on its way; a read
+  // that failed is a different state, covered below.
   it("renders nothing before the reputation read lands", () => {
     const { container } = render(<RegistryStandingNotice batch={null} />);
     expect(container.innerHTML).toBe("");
@@ -382,4 +383,113 @@ describe("RegistryStandingNotice — the claims it must never make", () => {
     render(<RegistryStandingNotice batch={batch} />);
     expect(text()).not.toMatch(/being routed|will be routed|is routed to/i);
   });
+});
+
+describe("RegistryStandingNotice — a failed request for the batch", () => {
+  const ERROR = "GET /stellar/reputation → 503 — service unavailable";
+
+  // The regression: a failed batch used to render nothing at all here, while
+  // every chip below claimed its agent had no ratings yet.
+  it("announces a read that never landed, as an alert", () => {
+    render(<RegistryStandingNotice batch={null} readError={ERROR} />);
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain("reputation unavailable");
+    expect(alert.textContent).toContain(
+      "shows no score, selection floor or standing verdict rather than guessed ones",
+    );
+    expect(alert.textContent).toContain(ERROR);
+  });
+
+  // No batch means no floor was sent, and a floor printed anyway would be the
+  // one number on the page nobody computed.
+  it("prints no floor when no batch ever landed", () => {
+    render(<RegistryStandingNotice batch={null} readError={ERROR} />);
+    expect(text()).not.toMatch(/\d\.\d\d/);
+    expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  it("offers a retry that re-runs the request, and says when one is running", () => {
+    const onRetry = vi.fn();
+    const { rerender } = render(
+      <RegistryStandingNotice
+        batch={null}
+        readError={ERROR}
+        onRetry={onRetry}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <RegistryStandingNotice
+        batch={null}
+        readError={ERROR}
+        onRetry={onRetry}
+        retrying
+      />,
+    );
+    const busy = screen.getByRole("button", { name: "retrying…" });
+    expect((busy as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // A batch kept through a failed refresh is still a real reading, so it
+  // stays on screen — dated, and with the failure said above it.
+  it("keeps an earlier batch on screen and says it is the last good read", () => {
+    const lastReadAt = Date.UTC(2026, 8, 18, 9, 30);
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")])}
+        readError={ERROR}
+        lastReadAt={lastReadAt}
+      />,
+    );
+    expect(screen.getByRole("alert").textContent).toContain(
+      "the scores and selection floor on this page are from the last one that succeeded",
+    );
+    expect(text()).toContain("floor 2.75");
+    const stale = screen
+      .getAllByRole("status")
+      .map((el) => el.textContent ?? "")
+      .find((t) => t.includes("Stale reputation scores and selection floor"));
+    expect(stale).toContain(new Date(lastReadAt).toLocaleTimeString());
+  });
+
+  it("raises nothing about the request while it is healthy", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")])}
+        lastReadAt={Date.now()}
+      />,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(text()).not.toMatch(/stale/i);
+  });
+
+  // The same three rules the sweep above holds the healthy states to: the
+  // failure is ours, it comes with no promise about when it ends, and the
+  // internal field name never reaches the page. "refresh" is the one word
+  // not policed here: the shared stale badge says "the most recent refresh
+  // failed", which reports what happened rather than promising what will.
+  it.each([
+    { name: "never landed", batch: null },
+    { name: "kept batch", batch: batchOf([rep("a"), rep("b")]) },
+  ])(
+    "keeps to the notice's rules when the request failed ($name)",
+    ({ batch }) => {
+      render(
+        <RegistryStandingNotice
+          batch={batch}
+          readError={ERROR}
+          lastReadAt={batch ? Date.now() : null}
+        />,
+      );
+      expect(text()).not.toMatch(
+        /agents? (failed|is down|are down|did not respond|is offline|are offline|is unreliable)/i,
+      );
+      expect(text()).not.toMatch(
+        /try again|check back|shortly|in a moment|soon|will (recover|be back|resolve|return)|please wait|reload|temporar/i,
+      );
+      expect(markup().toLowerCase()).not.toContain("degraded");
+    },
+  );
 });

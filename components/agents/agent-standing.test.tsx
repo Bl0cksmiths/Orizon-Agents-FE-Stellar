@@ -360,6 +360,79 @@ describe("AgentStanding — endpoint binding", () => {
       "⚑ below floor · not eligible",
     ]);
   });
+
+  // The regression that turned CI red: on an operator's own row the page's
+  // per-agent lookup already says "checking endpoint…", "unbound" or
+  // "endpoint unknown", and renders the warning itself. A second, list-derived
+  // marker put two answers to one question in the same row, and repeated the
+  // warning where only one copy belongs.
+  it("stays silent on binding when the page's lookup covers the row", () => {
+    const { container } = renderCell({
+      agent: onchain({ bound: false }),
+      bindingLookup: true,
+    });
+    expect(labels(container)).toEqual(["⬡ external"]);
+    expect(detail(container)).not.toContain(UNBOUND_WARNING);
+  });
+
+  // Standing down on binding is not standing down on everything: the floor is
+  // not the lookup's question, so its verdict still belongs to this cell.
+  it("keeps every other mark when the lookup covers the row", () => {
+    const { container } = renderCell({
+      agent: onchain({ bound: false }),
+      rep: thinEvidence(),
+      bindingLookup: true,
+    });
+    expect(labels(container)).toEqual([
+      "⬡ external",
+      "⚑ below floor · not eligible",
+    ]);
+  });
+});
+
+describe("AgentStanding — a delisted agent", () => {
+  // `set_active(id, false)` syncs as "offline", and the backend routes an
+  // offline agent on no path at all. The row has to say so — the "routable"
+  // filter already drops it — and say it as the operator's choice.
+  it("marks an agent its operator delisted", () => {
+    const { container } = renderCell({ agent: onchain({ status: "offline" }) });
+    expect(labels(container)).toEqual(["⬡ external", "‖ delisted by operator"]);
+  });
+
+  // "idle" is "nothing in flight", not "withdrawn": the rule is negative.
+  it("leaves an idle agent unmarked", () => {
+    const { container } = renderCell({ agent: seeded({ status: "idle" }) });
+    expect(container.innerHTML).toBe("");
+  });
+
+  // Every other mark describes a gate applied to a candidate, and assumes a
+  // listing in its wording. On a withdrawn agent they would be false as well
+  // as beside the point, so the row gives its one real reason.
+  it("gives no gate verdicts on a delisted row", () => {
+    const { container } = renderCell({
+      agent: onchain({ status: "offline", bound: false }),
+      rep: thinEvidence({ degraded: true }),
+    });
+    expect(labels(container)).toEqual(["⬡ external", "‖ delisted by operator"]);
+    const text = detail(container);
+    expect(text).not.toContain(UNBOUND_WARNING);
+    expect(text).not.toContain("keeps its listing");
+  });
+
+  // The operator withdrew it. Nothing broke, and a buyer reading this row
+  // must not come away thinking the agent failed or its record is gone.
+  it("words the delisting as the operator's choice, not a failure", () => {
+    const { container } = renderCell({
+      agent: onchain({ name: "Harrier", status: "offline" }),
+    });
+    const text = detail(container);
+    expect(text).toContain("Harrier has been delisted by its operator");
+    expect(text).toContain("the operator's own choice, not a fault");
+    expect(text).toContain("its history and its reputation");
+    expect(text).not.toMatch(/failed|broken|error|removed|deleted|banned/i);
+    // Muted, never the magenta the page keeps for verdicts.
+    expect(container.innerHTML).not.toContain("magenta");
+  });
 });
 
 describe("AgentStanding — the row it lives in", () => {

@@ -565,6 +565,34 @@ export async function mockApiOutage(page: Page): Promise<void> {
   );
 }
 
+/**
+ * Fails ONLY the reputation batch, as a 503 carrying the backend's error
+ * envelope, while every other `/api/*` call keeps its fixture.
+ *
+ * That partial outage is the case worth a helper: the registry still renders
+ * because the batch is best-effort, so nothing on the page changes shape, and
+ * a failure the layout does not reflect is one only the copy can report.
+ *
+ * Register it AFTER `mockApi` — Playwright tries the most recently added
+ * matching route first, so this one wins for the batch alone.
+ */
+export async function mockReputationUnavailable(page: Page): Promise<void> {
+  await page.route("**/api/stellar/reputation", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: "Service Unavailable",
+        error: {
+          code: "reputation_unavailable",
+          message: "reputation service unavailable",
+          request_id: "e2e0000000000003",
+        },
+      }),
+    }),
+  );
+}
+
 // ── Agent endpoint binding (story 2.01) ─────────────────────
 
 /** The agent the bind spec drives, and the wallet that owns it. */
@@ -672,6 +700,122 @@ export const mockAgents = [
     bound: true,
   },
 ];
+
+/**
+ * An agent the connected wallet owns and has DELISTED — `set_active(id,
+ * false)`, which `registry_sync` reports as `status: "offline"`.
+ *
+ * Healthy on every other count on purpose: on-chain, endpoint bound, and
+ * rated comfortably clear of the floor (below). Delisting is then the only
+ * thing between it and selection, so a surface that forgets the listing rule
+ * shows it as routable — exactly the defect this fixture exists to catch.
+ *
+ * Kept out of `mockAgents` so nothing that counts "the wallet's own agents"
+ * changes under the specs that already rely on that list. A spec opts in with
+ * `mockApi(page, { agents: [...mockAgents, mockDelistedAgent] })`.
+ */
+export const mockDelistedAgent = {
+  id: "paused_bot",
+  name: "Paused Bot",
+  skills: ["translation"],
+  price: 1.25,
+  rep: 4.0,
+  status: "offline",
+  runs: 30,
+  real: false,
+  owner: mockWalletAddress,
+  source: "onchain",
+  bound: true,
+};
+
+/**
+ * `paused_bot`'s score, worked from the real math like every entry above:
+ * twelve rated jobs at its 1.25 USDC price is 15 USDC of weight at a mean of
+ * 8800 bps, which `smoothedBps` puts at 8000 (4.00) and `lowerBoundBps` at
+ * 7230 (3.62) — well clear of the 5500 floor. Its reputation is not why it is
+ * out of the candidate pool.
+ */
+export const mockDelistedReputation = {
+  agent_id: mockDelistedAgent.id,
+  smoothed_bps: 8000,
+  lower_bound_bps: 7230,
+  avg_bps: 8800,
+  count: 12,
+  weight: 15,
+  disputed: 0,
+  dispute_rate_bps: 0,
+  source: "onchain" as const,
+  degraded: false,
+};
+
+/**
+ * A first-party catalog agent nobody has rated yet — the kind of row the audit
+ * caught reading two different scores on two surfaces (live, `design.figma`
+ * read 4.87 in the registry and 3.50 on the plan card).
+ *
+ * Its catalog rating is 4.83, as `app/seed.py` ships it, and that rating is
+ * catalog copy: nothing routes on it. The live batch carries the agent at the
+ * network prior instead (below), and the prior is the number the plan card
+ * shows and the floor is measured against. The two numbers are far apart, so
+ * a chip reading either one cannot pass for the other.
+ *
+ * `research.pro` rather than `design.figma` itself because the plan fixtures
+ * above rate `design.figma` on-chain, and one file must not hold two
+ * contradictory histories for the same agent.
+ */
+export const mockUnratedCatalogAgent = {
+  id: "agt_09l5",
+  name: "research.pro",
+  skills: ["research", "citations"],
+  price: 0.024,
+  rep: 4.83,
+  status: "online",
+  runs: 9042,
+  real: true,
+  owner: null,
+  source: "seeded",
+  bound: null,
+};
+
+/** The live prior for `research.pro`: 7000 bps (3.50) with the 5677 lower
+ *  bound `lowerBoundBps(7000, 0)` returns. Honest cold start, not a failed
+ *  read. */
+export const mockUnratedCatalogReputation = {
+  agent_id: mockUnratedCatalogAgent.id,
+  smoothed_bps: 7000,
+  lower_bound_bps: 5677,
+  avg_bps: 7000,
+  count: 0,
+  weight: 0,
+  disputed: 0,
+  dispute_rate_bps: 0,
+  source: "prior" as const,
+  degraded: false,
+};
+
+/**
+ * An agent the registry lists but the reputation batch carries no entry for —
+ * registered between the two reads, say. There is no score to show for it,
+ * and the fixture exists to prove none is invented: its catalog rating is
+ * set to a figure no batch entry anywhere in this file uses.
+ */
+export const mockUnscoredAgent = {
+  id: "fresh_listing",
+  name: "Fresh Listing",
+  skills: ["summarize"],
+  price: 0.015,
+  rep: 4.42,
+  status: "online",
+  runs: 0,
+  real: false,
+  owner: mockOtherOwnerAddress,
+  source: "onchain",
+  bound: true,
+};
+
+/** One registry row as these fixtures spell it. */
+export type AgentFixture = (typeof mockAgents)[number];
+
 /**
  * What the emulated wallet answers a signMessage request with. The spec
  * asserts this exact string reaches POST /bind as `signature`: the backend
@@ -794,6 +938,13 @@ export type MockApiOptions = {
    * assertion in a browser.
    */
   reputation?: ReputationBatch;
+  /**
+   * What `GET /api/agents` answers with. Defaults to `mockAgents`, so every
+   * existing caller is unaffected; a spec that needs an extra row — a delisted
+   * agent, one the batch has no score for — appends it here rather than
+   * editing the shared list other specs count against.
+   */
+  agents?: readonly AgentFixture[];
 };
 
 export async function mockApi(
@@ -867,7 +1018,7 @@ export async function mockApi(
       return json(route, options.plan ?? mockPlan);
     }
     if (method === "GET" && pathname === "/api/agents") {
-      return json(route, mockAgents);
+      return json(route, options.agents ?? mockAgents);
     }
     if (method === "GET" && pathname === "/api/stellar/reputation") {
       return json(route, options.reputation ?? mockReputationBatch);

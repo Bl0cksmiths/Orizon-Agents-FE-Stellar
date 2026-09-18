@@ -7,11 +7,15 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
-import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { AgentStanding } from "@/components/agents/agent-standing";
+import {
+  ReputationCell,
+  type ReputationRead,
+} from "@/components/agents/reputation-cell";
 import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
 import { isOwnedBy } from "@/lib/binding-status";
+import { isListed } from "@/lib/routability";
 import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { useWallet } from "@/lib/wallet";
@@ -37,12 +41,24 @@ export default function AgentsPage() {
   } = useFetch(listAgents, [], {
     revalidateOnFocus: true,
   });
-  // On-chain reputation is best-effort: on error we silently keep seeded values.
-  const { data: repBatch, reload: reloadReputation } = useFetch(
-    listReputation,
-    [],
-    { revalidateOnFocus: true },
-  );
+  // On-chain reputation is best-effort — a failed read never blanks the
+  // registry — but it is never papered over either: a row with no live entry
+  // shows no score, rather than the seeded catalog rating dressed up as one.
+  const {
+    data: repBatch,
+    error: repError,
+    loading: repLoading,
+    retrying: repRetrying,
+    lastSuccessAt: repLastReadAt,
+    reload: reloadReputation,
+  } = useFetch(listReputation, [], { revalidateOnFocus: true });
+  // A batch on screen is a reading even when a later refresh failed; only a
+  // read that never landed leaves the column with nothing to show.
+  const repRead: ReputationRead = repBatch
+    ? "loaded"
+    : repError
+      ? "failed"
+      : "loading";
 
   // One outage takes down both reads, so a retry re-runs them together.
   const retry = useCallback(() => {
@@ -50,39 +66,6 @@ export default function AgentsPage() {
     reloadReputation();
   }, [reloadAgents, reloadReputation]);
   const [q, setQ] = useState("");
-  /**
-   * Whether an agent can be selected for work right now — both gates the
-   * orchestrator applies, and nothing else.
-   *
-   * 1. Its reputation LOWER BOUND clears the floor (`>=`, the backend's
-   *    comparison). Never the smoothed headline score: the two disagree
-   *    exactly for an agent with a good average and too little settled work
-   *    behind it, and filtering on the headline would show a buyer a
-   *    "routable" agent the planner passes over every time.
-   * 2. If it is an on-chain agent, it has an endpoint bound. A seeded agent
-   *    has no endpoint and needs none, so `bound` being null is not a failure.
-   *
-   * An agent with no reputation entry, or a page whose batch has not landed,
-   * is NOT filtered out: absence of a score is not evidence of a bad one, and
-   * hiding a row because we have not read it yet would quietly shrink the
-   * marketplace during an outage.
-   */
-  // Memoised on the batch it reads, so the row filter below can depend on it
-  // without rebuilding the whole table on every keystroke in the search box.
-  const isRoutable = useCallback(
-    (a: Agent): boolean => {
-      if (a.source === "onchain" && a.bound === false) return false;
-      const floor = repBatch?.floor_bps;
-      const bound = repBatch?.reputations[a.id]?.lower_bound_bps;
-      if (floor == null || bound == null) return true;
-      return bound >= floor;
-    },
-    [repBatch],
-  );
-
-  const [filter, setFilter] = useState<
-    "all" | "routable" | "online" | "idle" | "offline"
-  >("all");
   // Operator management (story 1.08): the connected wallet reveals Manage on
   // the agents it owns on-chain; one row expands at a time.
   const wallet = useWallet();
@@ -96,6 +79,53 @@ export default function AgentsPage() {
     wallet.connected ? wallet.address : null,
   );
 
+  /**
+   * Whether an agent can be selected for work right now — every gate the
+   * orchestrator applies, and nothing else.
+   *
+   * 0. Its operator has not delisted it (`isListed`, a copy of the backend's
+   *    own rule). A delisted agent is withdrawn from every routing path, and
+   *    it is the one exclusion no fallback undoes, so it is checked first.
+   * 1. Its reputation LOWER BOUND clears the floor (`>=`, the backend's
+   *    comparison). Never the smoothed headline score: the two disagree
+   *    exactly for an agent with a good average and too little settled work
+   *    behind it, and filtering on the headline would show a buyer a
+   *    "routable" agent the planner passes over every time.
+   * 2. If it is an on-chain agent, it has an endpoint bound. A seeded agent
+   *    has no endpoint and needs none, so `bound` being null is not a failure.
+   *    On the rows the per-agent lookup covers, the lookup's answer is the one
+   *    used — the same deferral the row's own markers make — so the filter
+   *    can never keep a row the row itself calls unbound, or drop one it
+   *    calls bound.
+   *
+   * An agent with no reputation entry, or a page whose batch has not landed,
+   * is NOT filtered out: absence of a score is not evidence of a bad one, and
+   * hiding a row because we have not read it yet would quietly shrink the
+   * marketplace during an outage. A binding lookup still in flight, or one
+   * that failed, is kept for the same reason.
+   */
+  // Memoised on what it reads, so the row filter below can depend on it
+  // without rebuilding the whole table on every keystroke in the search box.
+  // `stateOf` is stable between lookups; the object around it is not.
+  const bindingStateOf = binding.stateOf;
+  const isRoutable = useCallback(
+    (a: Agent): boolean => {
+      if (!isListed(a)) return false;
+      const lookup = bindingStateOf(a.id);
+      if (lookup === "unbound") return false;
+      if (lookup === null && a.source === "onchain" && a.bound === false)
+        return false;
+      const floor = repBatch?.floor_bps;
+      const bound = repBatch?.reputations[a.id]?.lower_bound_bps;
+      if (floor == null || bound == null) return true;
+      return bound >= floor;
+    },
+    [repBatch, bindingStateOf],
+  );
+
+  const [filter, setFilter] = useState<
+    "all" | "routable" | "online" | "idle" | "offline"
+  >("all");
   const rows = useMemo(() => {
     if (!agents) return [];
     return agents.filter((a) => {
@@ -113,35 +143,6 @@ export default function AgentsPage() {
       return matchesQ && matchesStatus;
     });
   }, [agents, q, filter, isRoutable]);
-
-  const renderReputation = (a: Agent) => {
-    const live = repBatch?.reputations[a.id];
-    if (live && live.source === "onchain") {
-      return (
-        <ReputationBadge
-          bps={live.smoothed_bps}
-          lowerBoundBps={live.lower_bound_bps}
-          source="onchain"
-          count={live.count}
-          disputeRateBps={live.dispute_rate_bps}
-          floorBps={repBatch?.floor_bps}
-        />
-      );
-    }
-    return (
-      <ReputationBadge
-        bps={a.rep * 2000}
-        lowerBoundBps={live?.lower_bound_bps}
-        source="prior"
-        // Whether this prior is a cold start or a chain read that did not come
-        // back. The two are identical in the payload apart from this flag, and
-        // the badge's cold-start wording is a false claim about the history of
-        // an agent whose record we merely could not reach.
-        degraded={live?.degraded}
-        floorBps={repBatch?.floor_bps}
-      />
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -163,7 +164,13 @@ export default function AgentsPage() {
           the table refers to. A buyer who meets "below floor" on a row before
           they have been told what the floor is has to reverse-engineer the
           rule from the verdicts. */}
-      <RegistryStandingNotice batch={repBatch ?? null} />
+      <RegistryStandingNotice
+        batch={repBatch ?? null}
+        readError={repError}
+        lastReadAt={repLastReadAt}
+        onRetry={reloadReputation}
+        retrying={repLoading || repRetrying}
+      />
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -395,6 +402,10 @@ export default function AgentsPage() {
                             agent={a}
                             rep={repBatch?.reputations[a.id] ?? null}
                             floorBps={repBatch?.floor_bps ?? null}
+                            // The lookup above answers binding for this row
+                            // whenever it asked; the cell then stays silent on
+                            // it, so the row states one answer, not two.
+                            bindingLookup={bindingState !== null}
                           />
                         </div>
                       </td>
@@ -410,7 +421,14 @@ export default function AgentsPage() {
                       <td className="py-3 text-right font-mono text-cyan">
                         {a.price.toFixed(3)}
                       </td>
-                      <td className="py-3 text-right">{renderReputation(a)}</td>
+                      <td className="py-3 text-right">
+                        <ReputationCell
+                          agentName={a.name}
+                          rep={repBatch?.reputations[a.id] ?? null}
+                          floorBps={repBatch?.floor_bps ?? null}
+                          read={repRead}
+                        />
+                      </td>
                       <td className="py-3 text-right font-mono text-xs text-muted">
                         {a.runs.toLocaleString()}
                       </td>
@@ -446,8 +464,15 @@ export default function AgentsPage() {
                     {/* The warning sits directly under its own row, always
                         open. An operator who closed the tab before binding has
                         to see it without expanding anything (AC-3), and Manage
-                        is a panel they may never open. */}
-                    {bindingState === "unbound" && (
+                        is a panel they may never open.
+
+                        Not on a delisted row: the warning says the agent "is
+                        listed" and is passed over for want of an endpoint, and
+                        neither is true of an agent its operator withdrew. The
+                        row's own mark gives the real reason, and the "unbound"
+                        badge beside the name still records the missing
+                        endpoint for whenever it is relisted. */}
+                    {bindingState === "unbound" && isListed(a) && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
                           <UnboundNotice agentId={a.id} agentName={a.name} />
