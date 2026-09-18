@@ -22,6 +22,7 @@ import {
   mockPlanLegacy,
   mockWallet,
 } from "./mocks";
+import { mockNetwork } from "./plan-fixtures";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -141,10 +142,13 @@ function expectWithinWidth(box: Box, frame: Viewport, what: string) {
 async function decomposeWith(
   page: Page,
   plan: DecomposeResponse,
-  options: { wallet?: boolean } = {},
+  options: { wallet?: boolean; network?: boolean } = {},
 ): Promise<void> {
   if (options.wallet) await mockWallet(page);
   await mockApi(page, { plan });
+  // After `mockApi`, so it answers ahead of the catch-all. Without it the card
+  // has no asset to name its amounts in and prints them bare.
+  if (options.network) await mockNetwork(page);
   await page.goto("/app/orchestrator");
   await page.getByRole("textbox", { name: /intent/i }).fill(plan.intent);
   await page.getByRole("button", { name: /decompos/i }).click();
