@@ -55,6 +55,32 @@ export async function mockNetwork(
 }
 
 /**
+ * Answers POST /api/orchestrator/decompose with each plan in turn — the last
+ * one repeating — and records the intent every request asked for. Call it
+ * AFTER `mockApi`, for the same reason as `mockNetwork`.
+ *
+ * The record is the point: it is how a spec proves a retry asked the planner
+ * the same thing again, rather than whatever the intent box says by then.
+ */
+export async function mockDecomposeSequence(
+  page: Page,
+  plans: readonly DecomposeResponse[],
+): Promise<string[]> {
+  const asked: string[] = [];
+  await page.route("**/api/orchestrator/decompose", (route) => {
+    const { intent } = route.request().postDataJSON() as { intent: string };
+    asked.push(intent);
+    const plan = plans[Math.min(asked.length, plans.length) - 1];
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(plan),
+    });
+  });
+  return asked;
+}
+
+/**
  * A plan whose steps carry the per-step reputation evidence the backend now
  * stamps (`rep_lower_bound_bps`, `rep_count`, `rep_dispute_rate_bps`,
  * `rep_degraded`), one step per thing the badge has to say. Figures follow
