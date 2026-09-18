@@ -43,7 +43,9 @@
  * bind, so "unbound" there would report a defect that does not exist. The
  * wording for it is imported from `lib/binding-status`, never retyped; that
  * sentence is the fourth surface to state the same claim and three copies of
- * a claim drift.
+ * a claim drift. On the connected operator's own rows the page's per-agent
+ * lookup answers the same question with fresher data and its own marker, so
+ * the cell stands down there (`bindingLookup`) rather than contradict it.
  *
  * Degrees of not-knowing are kept apart rather than collapsed, because each
  * one is a different reason to say less. A null `rep` is "no score is known";
