@@ -100,4 +100,16 @@ describe("ExecutionPlan · Authorize and the unverified-reputation banner", () =
     const banner = document.getElementById(UNVERIFIED_BANNER_ID);
     expect(banner?.getAttribute("role")).toBe("status");
   });
+
+  // A reference to an id that is not on the page describes nothing and is an
+  // accessibility-audit failure; and an absent or false flag is not a failed
+  // read, so there is no warning to point at.
+  it.each([
+    ["every read succeeded", { reputation_degraded: false }],
+    ["the backend predates the flag", { reputation_degraded: undefined }],
+  ])("leaves Authorize undescribed when %s", (_name, over) => {
+    render(<ExecutionPlan plan={plan(over)} />);
+    expect(authorizeButton().hasAttribute("aria-describedby")).toBe(false);
+    expect(document.getElementById(UNVERIFIED_BANNER_ID)).toBeNull();
+  });
 });
