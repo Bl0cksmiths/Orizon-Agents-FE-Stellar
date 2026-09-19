@@ -46,6 +46,20 @@
   .toc .t { width: 44mm; padding-left: 3mm; font-size: 7.2pt; color: var(--muted); }
   .toc .p { width: 10mm; text-align: right; color: var(--muted); white-space: nowrap; }
   .note { margin-top: 3.5mm; font-size: 8pt; color: var(--muted); }
+  /* summary pages */
+  .summary { font-size: 8.9pt; line-height: 1.42; }
+  .summary .lead { font-size: 10pt; margin: 0 0 1.5mm; }
+  .summary h3 { font-size: 9.6pt; color: var(--accent); margin: 3.2mm 0 1mm; padding-bottom: 0.6mm; border-bottom: 1px solid var(--rule); }
+  .summary ul { margin: 0; padding-left: 4.5mm; }
+  .summary li { margin: 0 0 0.9mm; }
+  .summary .small { font-size: 7.6pt; color: var(--muted); margin: 1mm 0 0; }
+  .summary .tx th { text-align: left; font-size: 7.4pt; color: var(--muted); font-weight: 600; padding: 0.6mm 2mm 0.6mm 0; }
+  .summary .tx td { font-size: 7.6pt; padding: 0.7mm 2mm 0.7mm 0; border-top: 1px solid #e7ebf2; vertical-align: top; }
+  .summary .tx td.mono { font-size: 6.9pt; overflow-wrap: anywhere; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2mm; margin-top: 4mm; }
+  .stats div { background: var(--soft); border-radius: 3px; padding: 2mm; text-align: center; }
+  .stats b { display: block; font-size: 14pt; color: var(--accent); line-height: 1.1; }
+  .stats span { display: block; font-size: 7pt; color: var(--muted); margin-top: 0.6mm; }
 </style>
 </head>
 <body>
@@ -72,22 +86,107 @@
   </table>
   <h3>Evidence in this document</h3>
   <table class="toc">
-    <tr><td class="n">01</td><td>Plan card: each step’s reputation and the routing floor, before payment</td><td class="t">3.04 · D2</td><td class="p">p. 2</td></tr>
-    <tr><td class="n">02</td><td>Marketplace standing: floor stated once, provenance and standing marks</td><td class="t">3.05 · D2</td><td class="p">p. 3</td></tr>
-    <tr><td class="n">03</td><td>Operator dashboard (“My Agents”), no wallet connected</td><td class="t">2.06 · Epic 2</td><td class="p">p. 4</td></tr>
-    <tr><td class="n">04</td><td>Bind an endpoint to an on-chain agent, by wallet signature</td><td class="t">2.01 / 2.05 · Epic 2</td><td class="p">p. 5</td></tr>
-    <tr><td class="n">05</td><td>Backend /readiness: cold-start headroom and whether ratings can be written</td><td class="t">BE #58 / #59 · D2</td><td class="p">p. 6</td></tr>
-    <tr><td class="n">06</td><td>Backend PR #59 — planner-outage fallback, observable ratings, log redaction</td><td class="t">BLO-121 · backend</td><td class="p">p. 7</td></tr>
-    <tr><td class="n">07</td><td>Frontend PR #62 — the plan card says when a plan is the planner fallback</td><td class="t">BLO-121 · frontend</td><td class="p">p. 8</td></tr>
-    <tr><td class="n">08</td><td>UAT PR #3 — Rie’s Week-2 QA commits</td><td class="t">QA · rie-hash14</td><td class="p">p. 9</td></tr>
-    <tr><td class="n">09</td><td>Backend PRs merged 13–18 Sep 2026 (13)</td><td class="t">backend delivery</td><td class="p">p. 10</td></tr>
-    <tr><td class="n">10</td><td>Frontend PRs merged 13–18 Sep 2026 (10)</td><td class="t">frontend delivery</td><td class="p">p. 11</td></tr>
-    <tr><td class="n">11</td><td>Contracts PR #2 — the deployed address book is tracked in git</td><td class="t">3.07</td><td class="p">p. 12</td></tr>
-    <tr><td class="n">12</td><td>The public reference external agent</td><td class="t">2.04 · Epic 2</td><td class="p">p. 13</td></tr>
-    <tr><td class="n">13</td><td>set_scorer on the ReputationLedger — on-chain rating writes enabled for production</td><td class="t">on-chain ratings enabled</td><td class="p">p. 14</td></tr>
-    <tr><td class="n">14</td><td>Week-2 public build post on X</td><td class="t">7.02 · published 2026-09-19</td><td class="p">p. 15</td></tr>
+    <tr><td class="n">—</td><td>What we shipped in Week 2</td><td class="t">summary</td><td class="p">p. 2</td></tr>
+    <tr><td class="n">—</td><td>Stellar integration this week</td><td class="t">summary</td><td class="p">p. 3</td></tr>
+    <tr><td class="n">01</td><td>Plan card: each step’s reputation and the routing floor, before payment</td><td class="t">3.04 · D2</td><td class="p">p. 4</td></tr>
+    <tr><td class="n">02</td><td>Marketplace standing: floor stated once, provenance and standing marks</td><td class="t">3.05 · D2</td><td class="p">p. 5</td></tr>
+    <tr><td class="n">03</td><td>Operator dashboard (“My Agents”), no wallet connected</td><td class="t">2.06 · Epic 2</td><td class="p">p. 6</td></tr>
+    <tr><td class="n">04</td><td>Bind an endpoint to an on-chain agent, by wallet signature</td><td class="t">2.01 / 2.05 · Epic 2</td><td class="p">p. 7</td></tr>
+    <tr><td class="n">05</td><td>Backend /readiness: cold-start headroom and whether ratings can be written</td><td class="t">BE #58 / #59 · D2</td><td class="p">p. 8</td></tr>
+    <tr><td class="n">06</td><td>Backend PR #59 — planner-outage fallback, observable ratings, log redaction</td><td class="t">BLO-121 · backend</td><td class="p">p. 9</td></tr>
+    <tr><td class="n">07</td><td>Frontend PR #62 — the plan card says when a plan is the planner fallback</td><td class="t">BLO-121 · frontend</td><td class="p">p. 10</td></tr>
+    <tr><td class="n">08</td><td>UAT PR #3 — Rie’s Week-2 QA commits</td><td class="t">QA · rie-hash14</td><td class="p">p. 11</td></tr>
+    <tr><td class="n">09</td><td>Backend PRs merged 13–18 Sep 2026 (13)</td><td class="t">backend delivery</td><td class="p">p. 12</td></tr>
+    <tr><td class="n">10</td><td>Frontend PRs merged 13–18 Sep 2026 (10)</td><td class="t">frontend delivery</td><td class="p">p. 13</td></tr>
+    <tr><td class="n">11</td><td>Contracts PR #2 — the deployed address book is tracked in git</td><td class="t">3.07</td><td class="p">p. 14</td></tr>
+    <tr><td class="n">12</td><td>The public reference external agent</td><td class="t">2.04 · Epic 2</td><td class="p">p. 15</td></tr>
+    <tr><td class="n">13</td><td>set_scorer on the ReputationLedger — on-chain rating writes enabled for production</td><td class="t">on-chain ratings enabled</td><td class="p">p. 16</td></tr>
+    <tr><td class="n">14</td><td>Week-2 public build post on X</td><td class="t">7.02 · published 2026-09-19</td><td class="p">p. 17</td></tr>
   </table>
-  <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. On the plan-card and marketplace pages every agent reads the ≈3.50 prior estimate: no on-chain ratings existed during Week 2, so those frames show the floor being stated and applied, not any agent being excluded by it.</p>
+  <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. On the plan-card and marketplace pages every agent carries the ≈3.50 starting estimate and clears the 2.75 routing floor, which each page states and applies.</p>
+</section>
+
+<section class="page summary">
+  <div class="eyebrow"><span class="num">Summary</span><span>Summary · Week-2 delivery</span></div>
+  <h2>What we shipped in Week 2</h2>
+  
+  <p class="lead">This week we shipped the <b>external agent execution path</b> and <b>reputation-gated routing (Deliverable D2)</b>, both live on Stellar testnet at <a href="https://orizons.xyz">orizons.xyz</a>.</p>
+  <h3>External agent execution path — Epic 2</h3>
+  <ul>
+    <li><b>Endpoint binding by wallet signature</b> (2.01, 2.05) — an operator attaches their service URL to their on-chain agent by signing a one-time challenge with the wallet that owns it, on its own or inside registration.</li>
+    <li><b>Signed, bounded dispatch</b> (2.02) — every workflow step sent to an external agent is signed so the operator can verify it came from Orizon; unsafe URLs are refused and every step has a deadline and a size cap.</li>
+    <li><b>Fair failure rules</b> (2.03) — a step that times out or returns unusable output is not charged and counts against the agent's reputation.</li>
+    <li><b>Reference agent</b> (2.04) — a public, copyable example agent that runs from its README.</li>
+    <li><b>Operator dashboard</b> (2.06) — each operator's agents, earnings and reputation in one place, with transaction links.</li>
+  </ul>
+  <h3>Reputation-gated routing — Epic 3 · Deliverable D2</h3>
+  <ul>
+    <li><b>A reputation floor on every plan</b> (3.01, 3.02) — every planning path reads each agent's on-chain reputation and applies the floor on its conservative lower bound.</li>
+    <li><b>The trust signal before payment</b> (3.04) — the plan card shows each agent's reputation and its source, the floor applied, and any agent the floor acted on, with the reason.</li>
+    <li><b>Honest reads</b> (3.03) — if reputation cannot be read from chain, the plan and the card say so.</li>
+    <li><b>Marketplace standing</b> (3.05) — the floor stated once, on-chain agents marked, standing marks per agent.</li>
+    <li><b>New agents are hireable on day one</b> (3.06) — a brand-new agent clears the floor by 177 bps, guaranteed by a test and a startup check.</li>
+    <li><b>Contract addresses kept in agreement</b> (3.07) — checked daily and against the live deployment.</li>
+    <li><b>On-chain ratings from production</b> — every paid run is rated, and <code>/readiness</code> verifies production is the ledger's authorized scorer.</li>
+  </ul>
+  <h3>Fixes and hardening</h3>
+  <ul>
+    <li>A planning-service outage now returns a fallback plan instead of an error (BLO-121).</li>
+    <li>The floor holds after planning: a step survives only if its agent was offered to the planner.</li>
+    <li>Secrets are masked in every log line; prices show the network's real currency (XLM); accessibility and mobile fixes across the app.</li>
+  </ul>
+  <h3>QA — Rie</h3>
+  <ul>
+    <li>End-to-end QA on testnet of the external execution path (6.05) and the operator surfaces (6.06), a reputation-floor test suite, and 14 defects logged and handed to engineering.</li>
+  </ul>
+  <div class="stats">
+    <div><b>27</b><span>pull requests merged</span></div>
+    <div><b>5</b><span>public repositories</span></div>
+    <div><b>1,217</b><span>authored commits (Dan 1,080 · Rie 137)</span></div>
+    <div><b>1,534</b><span>backend tests passing</span></div>
+    <div><b>1,086</b><span>frontend tests passing</span></div>
+  </div>
+</section>
+
+<section class="page summary">
+  <div class="eyebrow"><span class="num">Summary</span><span>Summary · Stellar integration</span></div>
+  <h2>Stellar integration this week</h2>
+  
+  <p class="lead">All work runs on <b>Stellar testnet</b>.</p>
+  <h3>SDKs and libraries</h3>
+  <ul>
+    <li><b>Backend</b> — Python <code>stellar-sdk</code> 13.2.1: builds unsigned XDR for wallets to sign, simulates, prepares and submits Soroban transactions, reads contract storage, verifies SEP-53 message signatures.</li>
+    <li><b>Frontend</b> — <code>@stellar/stellar-sdk</code> 15.0.1 and <code>@creit.tech/stellar-wallets-kit</code> 2.1.0 for wallet connection and transaction / message signing.</li>
+    <li><b>Reference agent</b> — verifies Orizon's SEP-53 dispatch signatures with PyNaCl (ed25519) and hand-rolled StrKey decoding, so operators need no Stellar SDK.</li>
+  </ul>
+  <h3>Soroban contracts</h3>
+  <ul>
+    <li><b>AgentRegistry</b> — <code>owner_of</code> gates endpoint binding; <code>set_active</code> delisting is honoured by routing; <code>register</code> for new agents.</li>
+    <li><b>ReputationLedger</b> — batched, time-bounded <code>rep_state</code> reads feed the routing floor; <code>submit</code> records ratings; <code>/readiness</code> reads its storage via <code>getLedgerEntries</code> to confirm the authorized scorer.</li>
+    <li><b>PaymentEscrow</b> — the buyer authorizes a workflow cap from their own wallet; the operator dashboard reads the escrow's on-chain events.</li>
+    <li><b>AttestationRegistry</b> — sealer role assigned to the production key. <b>Native XLM SAC</b> — the escrow asset.</li>
+  </ul>
+  <h3>Wallet integration</h3>
+  <ul>
+    <li><b>Binding by signature</b> — the owner wallet signs a SEP-53 challenge naming the agent, endpoint and a nonce; a separately signed message revokes it.</li>
+    <li><b>Signed dispatch</b> — every step is signed over SEP-53 by a dedicated keypair published as <code>dispatch_signer</code> (<code>GB5MKHDF…KCMR</code>).</li>
+  </ul>
+  <h3>Transactions (testnet)</h3>
+  <table class="tx">
+    <tr><th>Date</th><th>Call</th><th>Transaction hash</th></tr>
+    <tr><td>09-17</td><td>AgentRegistry.set_active (delist)</td><td class="mono">a710b6776042d810fa1a41ec17cc0b299c606fc2a7f54bd28c129e20bbe6e8e4</td></tr>
+    <tr><td>09-17</td><td>AgentRegistry.register (calculatorai)</td><td class="mono">0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa</td></tr>
+    <tr><td>09-17</td><td>PaymentEscrow.authorize (0.168 XLM)</td><td class="mono">67701b46ef60bf488481464cf527aeadb01bb407cf294efc120c5f4ecc31e56d</td></tr>
+    <tr><td>09-17</td><td>AgentRegistry.register (algorex)</td><td class="mono">7e3b6c02731906ddb685b080f11c63e0c1c2665a7bad0f0836bfa7ee5d83c872</td></tr>
+    <tr><td>09-19</td><td>ReputationLedger.set_scorer</td><td class="mono">216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8</td></tr>
+    <tr><td>09-19</td><td>AttestationRegistry.set_sealer</td><td class="mono">c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c</td></tr>
+  </table>
+  <p class="small">Each hash opens at <span class="mono">stellar.expert/explorer/testnet/tx/&lt;hash&gt;</span>.</p>
+  <h3>APIs</h3>
+  <ul>
+    <li><b>Soroban RPC</b> (<code>soroban-testnet.stellar.org</code>) — <code>simulateTransaction</code>, <code>sendTransaction</code>, <code>getLedgerEntries</code>, <code>getEvents</code>. <b>Horizon</b> testnet for transaction verification.</li>
+    <li>The contract address book is tracked in git; a daily check and a 6-hourly production smoke test compare the live <code>/api/stellar/network</code> ids with it.</li>
+  </ul>
 </section>
 
 <section class="page">
@@ -99,7 +198,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://orizons.xyz/app/orchestrator">https://orizons.xyz/app/orchestrator</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 14:59 PHT · <span class="mono">screenshots/01-orizons-plan-card.png</span></dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/01-orizons-plan-card.png</span></dd>
   </dl>
   <div class="fig" data-max="100%"><img src="01-orizons-plan-card.png" width="1440" height="1325" alt="Plan card: each step’s reputation and the routing floor, before payment"></div>
 </section>
@@ -113,7 +212,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://orizons.xyz/app/agents">https://orizons.xyz/app/agents</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 14:59 PHT · <span class="mono">screenshots/02-orizons-agents-standing.png</span> · Shown in excerpts (slices of the full-page capture, 1440 × 2057 px); nothing inside a slice is altered.</dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/02-orizons-agents-standing.png</span> · Shown in excerpts (slices of the full-page capture, 1440 × 2057 px); nothing inside a slice is altered.</dd>
   </dl>
   <div class="fig sliced" data-max="100%"><div class="slice" style="aspect-ratio:1440 / 672"><img src="02-orizons-agents-standing.png" width="1440" height="2057" alt="" style="top:0%"></div><div class="gap">⋯ seeded catalog rows agt_03d9 → agt_12r0 omitted here (no marks) — all rows are in the full-page PNG ⋯</div><div class="slice" style="aspect-ratio:1440 / 719"><img src="02-orizons-agents-standing.png" width="1440" height="2057" alt="" style="top:-186.09179415855354%"></div></div>
 </section>
@@ -127,7 +226,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://orizons.xyz/app/operator">https://orizons.xyz/app/operator</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 14:59 PHT · <span class="mono">screenshots/03-orizons-operator-dashboard.png</span></dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/03-orizons-operator-dashboard.png</span></dd>
   </dl>
   <div class="fig" data-max="100%"><img src="03-orizons-operator-dashboard.png" width="1440" height="900" alt="Operator dashboard (“My Agents”), no wallet connected"></div>
 </section>
@@ -141,7 +240,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://orizons.xyz/app/bind">https://orizons.xyz/app/bind</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 14:59 PHT · <span class="mono">screenshots/04-orizons-bind.png</span></dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/04-orizons-bind.png</span></dd>
   </dl>
   <div class="fig" data-max="100%"><img src="04-orizons-bind.png" width="1440" height="1077" alt="Bind an endpoint to an on-chain agent, by wallet signature"></div>
 </section>
@@ -155,7 +254,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://orizon-agents-be-stellar.onrender.com/readiness">https://orizon-agents-be-stellar.onrender.com/readiness</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 14:59 PHT · <span class="mono">screenshots/05-be-readiness.png</span> · Shown: the top 520 px of the 1440 × 900 frame; the rest of it is blank.</dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/05-be-readiness.png</span> · Shown: the top 520 px of the 1440 × 900 frame; the rest of it is blank.</dd>
   </dl>
   <div class="fig sliced" data-max="100%"><div class="slice" style="aspect-ratio:1440 / 520"><img src="05-be-readiness.png" width="1440" height="900" alt="" style="top:0%"></div></div>
 </section>
@@ -168,7 +267,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/59">https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/59</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 14:59 PHT · <span class="mono">screenshots/06-be-pr-59.png</span> · Shown in excerpts (slices of the full-page capture, 1440 × 4818 px); nothing inside a slice is altered.</dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/06-be-pr-59.png</span> · Shown in excerpts (slices of the full-page capture, 1440 × 4818 px); nothing inside a slice is altered.</dd>
   </dl>
   <div class="fig sliced" data-max="100%"><div class="slice" style="aspect-ratio:1440 / 1618"><img src="06-be-pr-59.png" width="1440" height="4818" alt="" style="top:0%"></div><div class="gap">⋯ test-hygiene and verification notes and the 124-commit timeline omitted — all in the full-page PNG ⋯</div><div class="slice" style="aspect-ratio:1440 / 80"><img src="06-be-pr-59.png" width="1440" height="4818" alt="" style="top:-5562.5%"></div></div>
 </section>
@@ -181,7 +280,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/62">https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/62</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 14:59 PHT · <span class="mono">screenshots/07-fe-pr-62.png</span> · Shown in excerpts (slices of the full-page capture, 1440 × 3317 px); nothing inside a slice is altered.</dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/07-fe-pr-62.png</span> · Shown in excerpts (slices of the full-page capture, 1440 × 3317 px); nothing inside a slice is altered.</dd>
   </dl>
   <div class="fig sliced" data-max="100%"><div class="slice" style="aspect-ratio:1440 / 1268"><img src="07-fe-pr-62.png" width="1440" height="3317" alt="" style="top:0%"></div><div class="gap">⋯ the 34-commit timeline and the Vercel preview comment omitted — both in the full-page PNG ⋯</div><div class="slice" style="aspect-ratio:1440 / 85"><img src="07-fe-pr-62.png" width="1440" height="3317" alt="" style="top:-3464.7058823529414%"></div></div>
 </section>
@@ -194,7 +293,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/3/commits">https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/3/commits</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 15:00 PHT · <span class="mono">screenshots/08-uat-pr-3-rie-commits.png</span> · Shown in excerpts (slices of the full-page capture, 1440 × 9837 px); nothing inside a slice is altered.</dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/08-uat-pr-3-rie-commits.png</span> · Shown in excerpts (slices of the full-page capture, 1440 × 9837 px); nothing inside a slice is altered.</dd>
   </dl>
   <div class="fig sliced" data-max="100%"><div class="slice" style="aspect-ratio:1440 / 790"><img src="08-uat-pr-3-rie-commits.png" width="1440" height="9837" alt="" style="top:0%"></div><div class="gap">⋯ remaining 15 commits of 12 Sep omitted ⋯</div><div class="slice" style="aspect-ratio:1440 / 238"><img src="08-uat-pr-3-rie-commits.png" width="1440" height="9837" alt="" style="top:-739.4957983193277%"></div><div class="gap">⋯ remaining 47 commits of 16 Sep omitted ⋯</div><div class="slice" style="aspect-ratio:1440 / 242"><img src="08-uat-pr-3-rie-commits.png" width="1440" height="9837" alt="" style="top:-2089.256198347108%"></div><div class="gap">⋯ the 17 Sep commits in between omitted — every commit is in the full-page PNG ⋯</div><div class="slice" style="aspect-ratio:1440 / 138"><img src="08-uat-pr-3-rie-commits.png" width="1440" height="9837" alt="" style="top:-6947.101449275362%"></div></div>
 </section>
@@ -207,7 +306,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-13..2026-09-18">https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-13..2026-09-18</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 15:00 PHT · <span class="mono">screenshots/09-be-pull-requests.png</span></dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/09-be-pull-requests.png</span></dd>
   </dl>
   <div class="fig" data-max="100%"><img src="09-be-pull-requests.png" width="1440" height="1359" alt="Backend PRs merged 13–18 Sep 2026 (13)"></div>
 </section>
@@ -220,7 +319,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-13..2026-09-18">https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-13..2026-09-18</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 15:00 PHT · <span class="mono">screenshots/10-fe-pull-requests.png</span></dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/10-fe-pull-requests.png</span></dd>
   </dl>
   <div class="fig" data-max="100%"><img src="10-fe-pull-requests.png" width="1440" height="1164" alt="Frontend PRs merged 13–18 Sep 2026 (10)"></div>
 </section>
@@ -233,7 +332,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/2">https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/2</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 15:00 PHT · <span class="mono">screenshots/11-contracts-pr-2.png</span></dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/11-contracts-pr-2.png</span></dd>
   </dl>
   <div class="fig" data-max="100%"><img src="11-contracts-pr-2.png" width="1440" height="1807" alt="Contracts PR #2 — the deployed address book is tracked in git"></div>
 </section>
@@ -246,7 +345,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar">https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 15:00 PHT · <span class="mono">screenshots/12-reference-agent-repo.png</span> · Shown: the top of the repository page; the rest of the README is in the full-page PNG.</dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/12-reference-agent-repo.png</span> · Shown: the top of the repository page; the rest of the README is in the full-page PNG.</dd>
   </dl>
   <div class="fig sliced" data-max="100%"><div class="slice" style="aspect-ratio:1440 / 1460"><img src="12-reference-agent-repo.png" width="1440" height="9659" alt="" style="top:0%"></div></div>
 </section>
@@ -260,7 +359,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8">https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8</a></dd>
     
-    <dt>Captured</dt><dd>2026-09-19 15:00 PHT · <span class="mono">screenshots/13-set-scorer-tx-stellar-expert.png</span></dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/13-set-scorer-tx-stellar-expert.png</span></dd>
   </dl>
   <div class="fig" data-max="100%"><img src="13-set-scorer-tx-stellar-expert.png" width="1440" height="929" alt="set_scorer on the ReputationLedger — on-chain rating writes enabled for production"></div>
 </section>
@@ -274,7 +373,7 @@
   <dl class="meta">
     <dt>Source</dt><dd><a href="https://x.com/OrizonAgents402/status/2101103657043255772">https://x.com/OrizonAgents402/status/2101103657043255772</a></dd>
     <dt>Rendered via</dt><dd><a href="https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772">https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772</a></dd>
-    <dt>Captured</dt><dd>2026-09-19 15:13 PHT · <span class="mono">screenshots/14-week-2-x-post.png</span></dd>
+    <dt>Captured</dt><dd>2026-09-19 15:47 PHT · <span class="mono">screenshots/14-week-2-x-post.png</span></dd>
   </dl>
   <div class="fig bare" data-max="62%" style="max-width:62%"><img src="14-week-2-x-post.png" width="550" height="697" alt="Week-2 public build post on X"></div>
 </section>
