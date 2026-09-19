@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Orizon Agents — Week 2 · Technical Documentation &amp; Demo Evidence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 12mm 15mm 16mm 15mm; }
+  :root { --ink: #172033; --muted: #5b6475; --rule: #d5dbe6; --accent: #1d3f8f; --soft: #f3f6fb; --amber: #8a5300; --amber-bg: #fff4dc; --mark: #f76707; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { font-family: "Inter", "Ubuntu Sans", "DejaVu Sans", sans-serif; color: var(--ink); font-size: 9.6pt; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .mono, code, .lt td, .ids td { font-family: "JetBrains Mono", "Ubuntu Sans Mono", "DejaVu Sans Mono", monospace; }
+  code { font-size: 0.9em; background: var(--soft); border: 1px solid #e3e8f1; border-radius: 3px; padding: 0 0.25em; white-space: nowrap; }
+  a { color: var(--accent); text-decoration: none; }
+  .page { width: 180mm; height: 268mm; overflow: hidden; display: flex; flex-direction: column; break-after: page; }
+  .page:last-child { break-after: auto; }
+  .eyebrow { display: flex; gap: 3mm; align-items: baseline; font-size: 7.6pt; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 1.5mm; }
+  .eyebrow .num { color: #fff; background: var(--accent); padding: 0.4mm 1.8mm; border-radius: 2px; font-weight: 600; }
+  h2 { font-size: 15pt; line-height: 1.25; margin: 0 0 2mm; color: var(--accent); font-weight: 700; }
+  p { margin: 0 0 1.6mm; }
+  .lead { font-size: 9.8pt; margin: 0 0 1mm; }
+  /* steps */
+  .step { flex: none; margin-top: 3.2mm; }
+  .step-head { display: flex; align-items: baseline; gap: 2.5mm; margin-bottom: 1.2mm; padding-bottom: 0.8mm; border-bottom: 1px solid var(--rule); }
+  .step-head .sn { flex: none; font-weight: 700; font-size: 8.4pt; color: #fff; background: var(--accent); border-radius: 2px; padding: 0.3mm 1.6mm; }
+  .step-head h3 { margin: 0; font-size: 11pt; color: var(--ink); font-weight: 650; flex: 1; min-width: 0; }
+  .step-head .go { flex: 0 1 auto; max-width: 48%; text-align: right; font-size: 7.6pt; font-family: "JetBrains Mono", monospace; overflow-wrap: anywhere; }
+  .step p { font-size: 9.1pt; line-height: 1.42; }
+  .mref { display: inline-block; min-width: 3.9mm; height: 3.9mm; line-height: 3.9mm; border-radius: 2mm; background: var(--mark); color: #fff; font-size: 6.8pt; font-weight: 700; text-align: center; vertical-align: 0.2mm; padding: 0 0.6mm; }
+  /* screenshots */
+  .shot { flex: none; margin: 1.8mm auto 0; width: 100%; }
+  .fig { position: relative; display: block; width: 100%; border: 1px solid #0f0a1f; background: #0b0716; }
+  .fig.light { border-color: var(--rule); background: #fff; }
+  .fig > img { display: block; width: 100%; height: auto; }
+  .mk { position: absolute; outline: 2px solid var(--mark); outline-offset: 1.5px; border-radius: 3px; box-shadow: 0 0 0 1.5px rgba(255,255,255,0.6); }
+  .mk i { position: absolute; left: -3.4mm; top: -3.1mm; width: 4.2mm; height: 4.2mm; line-height: 4mm; border-radius: 50%; background: var(--mark); color: #fff; border: 1px solid #fff; font-style: normal; font-weight: 700; font-size: 7pt; text-align: center; }
+  .mk.in { outline-offset: -3.5px; box-shadow: none; }
+  .mk.in i { left: 1mm; top: 1mm; }
+  .src { font-size: 6.9pt; color: var(--muted); margin-top: 0.8mm; line-height: 1.35; overflow-wrap: anywhere; }
+  /* cover */
+  .cover .kicker { font-size: 8pt; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 2mm; }
+  .cover h1 { font-size: 21pt; line-height: 1.18; margin: 3mm 0 2mm; color: var(--accent); font-weight: 700; }
+  .cover .sub { font-size: 11.5pt; color: var(--ink); font-weight: 500; margin-bottom: 4mm; padding-bottom: 4mm; border-bottom: 2px solid var(--accent); }
+  .cover h3, .links h3 { font-size: 9.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin: 4.5mm 0 1.5mm; }
+  table { border-collapse: collapse; width: 100%; }
+  .facts th { text-align: left; vertical-align: top; font-weight: 600; white-space: nowrap; padding: 1mm 4mm 1mm 0; width: 34mm; }
+  .facts td { padding: 1mm 0; vertical-align: top; }
+  .facts tr + tr th, .facts tr + tr td { border-top: 1px solid #e7ebf2; }
+  .toc td { padding: 0.45mm 0; vertical-align: baseline; border-top: 1px solid #eef1f6; font-size: 8.1pt; line-height: 1.28; }
+  .toc tr.grp td { font-weight: 600; color: var(--accent); padding-top: 1.3mm; border-top: 1px solid var(--rule); }
+  .toc .n { width: 9mm; color: var(--muted); font-family: "JetBrains Mono", monospace; padding-left: 2mm; }
+  .toc .p { width: 14mm; text-align: right; color: var(--muted); white-space: nowrap; font-weight: 400; }
+  .note { margin-top: 3.5mm; font-size: 8pt; color: var(--muted); }
+  /* link tables */
+  .links .lead { color: var(--muted); font-size: 8.8pt; }
+  .gnote { font-size: 7.6pt; color: var(--muted); margin: -0.6mm 0 1mm; }
+  .lt th { text-align: left; vertical-align: top; font-weight: 600; font-size: 8.3pt; padding: 1mm 3mm 1mm 0; width: 64mm; }
+  .lt th span { font-weight: 400; color: var(--muted); font-size: 7.6pt; }
+  .lt td { vertical-align: top; font-size: 7.4pt; padding: 1.15mm 0 1mm; overflow-wrap: anywhere; }
+  .lt tr + tr th, .lt tr + tr td { border-top: 1px solid #e7ebf2; }
+  .txs th { text-align: left; font-size: 7.4pt; color: var(--muted); font-weight: 600; padding: 0.6mm 3mm 0.6mm 0; }
+  .txs td { font-size: 8pt; padding: 1mm 3mm 1mm 0; border-top: 1px solid #e7ebf2; vertical-align: top; }
+  .txs td.h { font-family: "JetBrains Mono", monospace; font-size: 7.1pt; overflow-wrap: anywhere; padding-right: 0; }
+  .txs td.d { white-space: nowrap; width: 20mm; }
+  .txs td span { display: block; color: var(--muted); font-size: 7.3pt; }
+  /* boxes */
+  .callout { flex: none; margin-top: 3.2mm; padding: 2.4mm 3mm; background: var(--soft); border-left: 3px solid var(--accent); border-radius: 2px; font-size: 8.6pt; }
+  .callout h4 { margin: 0 0 1.2mm; font-size: 9pt; color: var(--accent); }
+  .callout pre { margin: 1mm 0; font-family: "JetBrains Mono", monospace; font-size: 7.6pt; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .flow td, .flow th { font-size: 8.3pt; padding: 1mm 2.5mm 1mm 0; vertical-align: top; text-align: left; border-top: 1px solid #e7ebf2; }
+  .flow th { font-size: 7.4pt; color: var(--muted); font-weight: 600; border-top: 0; }
+  .flow td.k { font-weight: 600; white-space: nowrap; }
+  .flow td.r { white-space: nowrap; color: var(--muted); font-family: "JetBrains Mono", monospace; font-size: 7.6pt; }
+  .small { font-size: 7.6pt; color: var(--muted); margin: 1.2mm 0 0; }
+</style>
+</head>
+<body>
+
+<section class="page cover">
+  <div class="kicker">Stellar Instawards (Cohort 2026)</div>
+  <h1>Orizon Agents — Week 2 · Technical Documentation &amp; Demo Evidence</h1>
+  <div class="sub">A step-by-step guide to what shipped in Week 2 on Stellar testnet, with every link needed to check it live.</div>
+  <table class="facts">
+    <tr><th>Programme</th><td>Stellar Instawards (Cohort 2026)</td></tr>
+    <tr><th>Milestone</th><td>M2 · Week 2 — Reputation-Gated Routing (Deliverable D2) + External Agent Execution Path (Epic 2)</td></tr>
+    <tr><th>Sprint week</th><td>Mon 2026-09-14 → Fri 2026-09-18</td></tr>
+    <tr><th>Network</th><td><b>Stellar testnet only</b></td></tr>
+    <tr><th>Team</th><td>Danielle Bagaforo Meer — lead engineer (GitHub <span class="mono">ALGOREX-PH</span>)<br>Rieselle Saure (“Rie”) — PM + QA (GitHub <span class="mono">rie-hash14</span>)</td></tr>
+    <tr><th>Live application</th><td><a href="https://orizons.xyz">https://orizons.xyz</a> · API <a href="https://orizon-agents-be-stellar.onrender.com/docs">https://orizon-agents-be-stellar.onrender.com/docs</a></td></tr>
+  </table>
+  <h3>Contents</h3>
+  <table class="toc">
+    <tr class="grp"><td colspan="2">Links at a glance — the live app, API, documentation, video, contracts and transactions</td><td class="p">p. 2–3</td></tr>
+    <tr class="grp"><td colspan="2">Walkthrough A — Reputation-gated routing: from an intent to a plan card</td><td class="p">p. 4</td></tr>
+    <tr><td class="n">A1</td><td>Open the orchestrator</td><td class="p">p. 4</td></tr>
+    <tr><td class="n">A2</td><td>Choose the preset “tetris game in html” and click Decompose</td><td class="p">p. 4</td></tr>
+    <tr><td class="n">A3</td><td>Read the plan card: the floor and each step’s reputation</td><td class="p">p. 5</td></tr>
+    <tr><td class="n">A4</td><td>Open the “Reputation floor” panel</td><td class="p">p. 6</td></tr>
+    <tr><td class="n">A5</td><td>The payment actions</td><td class="p">p. 6</td></tr>
+    <tr class="grp"><td colspan="2">Walkthrough B — External agent execution: register, bind, verify</td><td class="p">p. 7</td></tr>
+    <tr><td class="n">B1</td><td>Register an agent</td><td class="p">p. 7</td></tr>
+    <tr><td class="n">B2</td><td>Bind an endpoint by wallet signature</td><td class="p">p. 8</td></tr>
+    <tr><td class="n">B3</td><td>Start from the reference agent</td><td class="p">p. 9</td></tr>
+    <tr><td class="n">B4</td><td>Verify a signed dispatch</td><td class="p">p. 10</td></tr>
+    <tr><td class="n">B5</td><td>The operator dashboard</td><td class="p">p. 11</td></tr>
+    <tr class="grp"><td colspan="2">Walkthrough C — Marketplace standing: the floor stated once, every agent marked</td><td class="p">p. 12</td></tr>
+    <tr><td class="n">C1</td><td>The selection floor, stated once</td><td class="p">p. 12</td></tr>
+    <tr><td class="n">C2</td><td>Provenance and standing marks</td><td class="p">p. 12</td></tr>
+    <tr class="grp"><td colspan="2">Walkthrough D — Verify it on-chain and on the live API</td><td class="p">p. 13</td></tr>
+    <tr><td class="n">D1</td><td>GET /api/stellar/network</td><td class="p">p. 13</td></tr>
+    <tr><td class="n">D2</td><td>GET /api/stellar/reputation/params</td><td class="p">p. 13</td></tr>
+    <tr><td class="n">D3</td><td>GET /readiness</td><td class="p">p. 14</td></tr>
+    <tr><td class="n">D4</td><td>The ReputationLedger contract on Stellar Expert</td><td class="p">p. 14</td></tr>
+    <tr><td class="n">D5</td><td>A registration transaction: calculatorai</td><td class="p">p. 15</td></tr>
+    <tr><td class="n">D6</td><td>set_scorer: production writes ratings on-chain</td><td class="p">p. 15</td></tr>
+    <tr><td class="n">D7</td><td>The interactive API docs</td><td class="p">p. 16</td></tr>
+    <tr class="grp"><td colspan="2">Demo video — the Week-2 build video on X</td><td class="p">p. 17</td></tr>
+  </table>
+  <p class="note">How to read the walkthroughs: each step names the page to open (top right of the step) and what to look for. Numbered orange outlines on a screenshot <span class="mref">1</span> match the numbers in the text; they are drawn by this document over the unaltered screenshot. Every URL in this document is a live link. Screenshots were captured on 2026-09-19 from the live testnet deployment and public GitHub, Stellar Expert and X pages; no wallet was connected and nothing was signed, paid or submitted for them.</p>
+</section>
+
+<section class="page links">
+  <div class="eyebrow"><span class="num">Links</span><span>At a glance · 1 of 2</span></div>
+  <h2>The live application, the API and the documentation</h2>
+  <p class="lead">Everything below is public. The application and the API run on Stellar testnet; the documentation lives in the public GitHub repositories.</p>
+  
+  <h3>Deployed application</h3>
+  
+  <table class="lt">
+      <tr><th>Orizon Agents <span>· the live dApp</span></th><td><a href="https://orizons.xyz">https://orizons.xyz</a></td></tr>
+      <tr><th>Plan card <span>· the orchestrator · A</span></th><td><a href="https://orizons.xyz/app/orchestrator">https://orizons.xyz/app/orchestrator</a></td></tr>
+      <tr><th>Marketplace <span>· the agent registry · C</span></th><td><a href="https://orizons.xyz/app/agents">https://orizons.xyz/app/agents</a></td></tr>
+      <tr><th>Register an agent <span>· B1</span></th><td><a href="https://orizons.xyz/app/register">https://orizons.xyz/app/register</a></td></tr>
+      <tr><th>Bind an endpoint <span>· B2</span></th><td><a href="https://orizons.xyz/app/bind">https://orizons.xyz/app/bind</a></td></tr>
+      <tr><th>Operator dashboard <span>· “My Agents” · B5</span></th><td><a href="https://orizons.xyz/app/operator">https://orizons.xyz/app/operator</a></td></tr>
+      <tr><th>Reputation <span>· per-agent reputation</span></th><td><a href="https://orizons.xyz/app/reputation">https://orizons.xyz/app/reputation</a></td></tr>
+  </table>
+
+  <h3>Backend API (live)</h3>
+  
+  <table class="lt">
+      <tr><th>Interactive API docs <span>· D7</span></th><td><a href="https://orizon-agents-be-stellar.onrender.com/docs">https://orizon-agents-be-stellar.onrender.com/docs</a></td></tr>
+      <tr><th>Readiness <span>· cold start, ratings writer · D3</span></th><td><a href="https://orizon-agents-be-stellar.onrender.com/readiness">https://orizon-agents-be-stellar.onrender.com/readiness</a></td></tr>
+      <tr><th>Network and contracts <span>· dispatch signer · D1</span></th><td><a href="https://orizon-agents-be-stellar.onrender.com/api/stellar/network">https://orizon-agents-be-stellar.onrender.com/api/stellar/network</a></td></tr>
+      <tr><th>Reputation parameters <span>· floor and prior · D2</span></th><td><a href="https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params">https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params</a></td></tr>
+  </table>
+
+  <h3>Documentation (GitHub, public)</h3>
+  <p class="gnote">Backend documents are under <a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/">github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/</a>; each row links the full address.</p>
+  <table class="lt">
+      <tr><th>Backend README <span>· setup and architecture</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar#readme">https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar#readme</a></td></tr>
+      <tr><th>Reputation guide <span>· prior, floor, cold start</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/reputation.md">…/docs/reputation.md</a></td></tr>
+      <tr><th>Operator guide <span>· verifying a dispatch · B4</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/verifying-a-dispatch.md">…/docs/operators/verifying-a-dispatch.md</a></td></tr>
+      <tr><th>Design record 0003 <span>· endpoint binding</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0003-operator-endpoint-binding.md">…/docs/decisions/0003-operator-endpoint-binding.md</a></td></tr>
+      <tr><th>Design record 0004 <span>· dispatch signing</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0004-external-dispatch-hardening.md">…/docs/decisions/0004-external-dispatch-hardening.md</a></td></tr>
+      <tr><th>Design record 0005 <span>· failure semantics</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0005-external-failure-semantics.md">…/docs/decisions/0005-external-failure-semantics.md</a></td></tr>
+      <tr><th>Design record 0006 <span>· floor visibility</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0006-floor-visibility.md">…/docs/decisions/0006-floor-visibility.md</a></td></tr>
+      <tr><th>Reference agent README <span>· B3</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar#readme">https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar#readme</a></td></tr>
+      <tr><th>Frontend repository <span>· the dApp</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar">https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar</a></td></tr>
+      <tr><th>UAT suite <span>· end-to-end QA</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar">https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar</a></td></tr>
+      <tr><th>Smart contracts <span>· Soroban contracts</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar">https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar</a></td></tr>
+  </table>
+</section>
+
+<section class="page links">
+  <div class="eyebrow"><span class="num">Links</span><span>At a glance · 2 of 2</span></div>
+  <h2>Demo video, contracts, transactions and pull requests</h2>
+  <p class="lead">Contracts and transactions open on Stellar Expert (testnet). Each link shows the full id or hash, so the page also works printed.</p>
+  
+  <h3>Demo video</h3>
+  
+  <table class="lt">
+      <tr><th>Week-2 build video <span>· ≈40 s · 2026-09-19</span></th><td><a href="https://x.com/OrizonAgents402/status/2101103657043255772">https://x.com/OrizonAgents402/status/2101103657043255772</a></td></tr>
+  </table>
+
+  <h3>Stellar Expert — contracts (testnet)</h3>
+  
+  <table class="lt">
+      <tr><th>AgentRegistry <span>· agents, owners, delisting</span></th><td><a href="https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ">CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ</a></td></tr>
+      <tr><th>ReputationLedger <span>· on-chain ratings</span></th><td><a href="https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT">CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT</a></td></tr>
+      <tr><th>PaymentEscrow <span>· x402 workflow caps</span></th><td><a href="https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI">CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI</a></td></tr>
+      <tr><th>AttestationRegistry <span>· sealed run attestations</span></th><td><a href="https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK">CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK</a></td></tr>
+      <tr><th>Asset SAC (native XLM) <span>· the escrow asset</span></th><td><a href="https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC">CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC</a></td></tr>
+  </table>
+
+  <h3>Stellar Expert — transactions this week (testnet)</h3>
+  
+  <table class="txs">
+      <tr><th>Date</th><th>Call</th><th>Transaction (opens on Stellar Expert)</th></tr>
+      <tr><td class="d">2026-09-17</td><td><b>AgentRegistry.set_active</b><span>delists dan_w1_probe</span></td><td class="h"><a href="https://stellar.expert/explorer/testnet/tx/a710b6776042d810fa1a41ec17cc0b299c606fc2a7f54bd28c129e20bbe6e8e4">a710b6776042d810fa1a41ec17cc0b299c606fc2a7f54bd28c129e20bbe6e8e4</a></td></tr>
+      <tr><td class="d">2026-09-17</td><td><b>AgentRegistry.register</b><span>registers calculatorai</span></td><td class="h"><a href="https://stellar.expert/explorer/testnet/tx/0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa">0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa</a></td></tr>
+      <tr><td class="d">2026-09-17</td><td><b>PaymentEscrow.authorize</b><span>0.168 XLM workflow cap</span></td><td class="h"><a href="https://stellar.expert/explorer/testnet/tx/67701b46ef60bf488481464cf527aeadb01bb407cf294efc120c5f4ecc31e56d">67701b46ef60bf488481464cf527aeadb01bb407cf294efc120c5f4ecc31e56d</a></td></tr>
+      <tr><td class="d">2026-09-17</td><td><b>AgentRegistry.register</b><span>registers algorex</span></td><td class="h"><a href="https://stellar.expert/explorer/testnet/tx/7e3b6c02731906ddb685b080f11c63e0c1c2665a7bad0f0836bfa7ee5d83c872">7e3b6c02731906ddb685b080f11c63e0c1c2665a7bad0f0836bfa7ee5d83c872</a></td></tr>
+      <tr><td class="d">2026-09-19</td><td><b>ReputationLedger.set_scorer</b><span>production key writes ratings</span></td><td class="h"><a href="https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8">216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8</a></td></tr>
+      <tr><td class="d">2026-09-19</td><td><b>AttestationRegistry.set_sealer</b><span>production key seals attestations</span></td><td class="h"><a href="https://stellar.expert/explorer/testnet/tx/c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c">c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c</a></td></tr>
+  </table>
+
+  <h3>Weekly pull-request evidence</h3>
+  
+  <table class="lt">
+      <tr><th>Backend PR #59 <span>· Week-2 branch</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/59">https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/59</a></td></tr>
+      <tr><th>Frontend PR #62 <span>· Week-2 branch</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/62">https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/62</a></td></tr>
+      <tr><th>UAT PR #3 <span>· Rie’s Week-2 QA</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/3">https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/3</a></td></tr>
+      <tr><th>All 27 Week-2 PRs <span>· 05-pull-requests.md</span></th><td><a href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/Week-2-Tranche-Submission/05-pull-requests.md">https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/Week-2-Tranche-Submission/05-pull-requests.md</a></td></tr>
+  </table>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough A</span><span>Buyer · Deliverable D2 — Reputation-Gated Routing</span></div>
+  <h2>Reputation-gated routing: from an intent to a plan card</h2>
+  <p class="lead">A buyer describes a job; Orizon breaks it into steps and assigns an agent to each. Every agent considered must first clear a <b>reputation floor</b>, read from the ReputationLedger contract on Stellar testnet, and the plan card shows the result <b>before</b> the buyer pays anything. Steps A1–A4 need no wallet.</p>
+  
+<div class="step">
+  <div class="step-head"><span class="sn">A1</span><h3>Open the orchestrator</h3><a class="go" href="https://orizons.xyz/app/orchestrator">orizons.xyz/app/orchestrator ↗</a></div>
+  <p>The orchestrator page has an intent box <span class="mref">1</span> where the buyer describes the job in plain words, and four presets <span class="mref">2</span> — <i>tetris game in html</i>, <i>calculator web app</i>, <i>snake game in html</i> and <i>pomodoro timer with sound</i> — that fill it in one click.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/orchestrator" style="aspect-ratio:1200 / 386"><img src="a1-orchestrator-intent.png" width="1200" height="386" alt="Open the orchestrator"><span class="mk" style="left:4.667%;top:44.560%;width:90.667%;height:24.870%"><i>1</i></span><span class="mk" style="left:4.667%;top:76.036%;width:62.175%;height:8.031%"><i>2</i></span></a>
+    <div class="src">main content panel · <a href="https://orizons.xyz/app/orchestrator">https://orizons.xyz/app/orchestrator</a> · captured 2026-09-19 17:06 PHT</div>
+  </div>
+  
+</div>
+
+<div class="step">
+  <div class="step-head"><span class="sn">A2</span><h3>Choose the preset “tetris game in html” and click Decompose</h3><a class="go" href="https://orizons.xyz/app/orchestrator">orizons.xyz/app/orchestrator ↗</a></div>
+  <p>Click the preset <b>tetris game in html</b> <span class="mref">1</span>: the intent box fills with that text. Then click <b>Decompose</b> <span class="mref">2</span>. The orchestrator plans the job and returns the plan card, shown next, within a few seconds.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/orchestrator" style="aspect-ratio:1200 / 386"><img src="a2-preset-selected.png" width="1200" height="386" alt="Choose the preset “tetris game in html” and click Decompose"><span class="mk" style="left:4.667%;top:75.518%;width:14.583%;height:8.031%"><i>1</i></span><span class="mk" style="left:83.417%;top:74.093%;width:11.917%;height:10.881%"><i>2</i></span></a>
+    <div class="src">main content panel · <a href="https://orizons.xyz/app/orchestrator">https://orizons.xyz/app/orchestrator</a> · captured 2026-09-19 17:06 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough A</span><span>Buyer · Deliverable D2 — Reputation-Gated Routing</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">A3</span><h3>Read the plan card: the floor and each step’s reputation</h3><a class="go" href="https://orizons.xyz/app/orchestrator">orizons.xyz/app/orchestrator ↗</a></div>
+  <p>The card lists six steps, each with its agent, estimated price and time, for a total of <b>0.168 XLM</b>. Above the steps, the routing-floor summary reads <b>floor 2.75 · applied</b> <span class="mref">1</span>: every agent considered for this plan was checked against the 2.75 floor before the planner chose. The floor is judged on each agent’s <b>conservative lower bound</b> — its score discounted for how few rated jobs stand behind it — never on the headline score.</p>
+  <p>Each step carries its agent’s reputation chip <span class="mref">2</span> with the source of the number: <b>≈</b> marks the <b>starting estimate</b> (3.50) an agent carries until on-chain ratings accumulate; a chip without ≈ is read from on-chain ratings. Every agent on the live registry currently carries the ≈3.50 starting estimate, whose lower bound (2.84) clears the 2.75 floor, so the summary reads “the floor acted on no agents”.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/orchestrator" style="aspect-ratio:1136 / 851"><img src="a3-plan-card.png" width="1136" height="851" alt="Read the plan card: the floor and each step’s reputation"><span class="mk" style="left:15.537%;top:12.808%;width:15.229%;height:2.703%"><i>1</i></span><span class="mk" style="left:17.518%;top:30.482%;width:5.819%;height:2.703%"><i>2</i></span></a>
+    <div class="src">the plan card · <a href="https://orizons.xyz/app/orchestrator">https://orizons.xyz/app/orchestrator</a> · captured 2026-09-19 17:06 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough A</span><span>Buyer · Deliverable D2 — Reputation-Gated Routing</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">A4</span><h3>Open the “Reputation floor” panel</h3><a class="go" href="https://orizons.xyz/app/orchestrator">orizons.xyz/app/orchestrator ↗</a></div>
+  <p>Below the steps, the collapsible <b>Reputation floor</b> panel records what the floor did while the plan was built — any agent it excluded or substituted, with the deciding score and the reason. Click its summary <span class="mref">1</span> to open it. For this plan it reads <b>no changes</b>, and lists the five agents registered on-chain that have no endpoint bound: they were never candidates, because there is nothing to dispatch a step to, and the panel says so rather than counting them as floor decisions.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/orchestrator" style="aspect-ratio:1086 / 833"><img src="a4-reputation-floor-panel.png" width="1086" height="833" alt="Open the “Reputation floor” panel"><span class="mk in" style="left:0.000%;top:0.048%;width:100.000%;height:9.424%"><i>1</i></span></a>
+    <div class="src">the Reputation floor panel, opened · <a href="https://orizons.xyz/app/orchestrator">https://orizons.xyz/app/orchestrator</a> · captured 2026-09-19 17:06 PHT</div>
+  </div>
+  
+</div>
+
+<div class="step">
+  <div class="step-head"><span class="sn">A5</span><h3>The payment actions</h3><a class="go" href="https://orizons.xyz/app/orchestrator">orizons.xyz/app/orchestrator ↗</a></div>
+  <p>The panel at the foot of the card is where the buyer commits. <b>Connect wallet</b> <span class="mref">1</span> links a Stellar testnet wallet (Freighter); paying then authorizes an <b>x402 workflow cap</b> — up to the plan’s 0.168 XLM total — with one signature from the <b>buyer’s own wallet</b>, on the PaymentEscrow contract. <b>Pay with fiat</b> <span class="mref">2</span> opens the PDAX on-ramp, and <b>Simulate</b> <span class="mref">3</span> runs the plan as a simulated pass with no wallet.</p>
+  <p>An authorization of this plan’s 0.168 XLM cap on testnet: <a href="https://stellar.expert/explorer/testnet/tx/67701b46ef60bf488481464cf527aeadb01bb407cf294efc120c5f4ecc31e56d">PaymentEscrow.authorize, 2026-09-17</a>. None of these buttons was pressed for this document.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/orchestrator" style="aspect-ratio:1106 / 95"><img src="a5-payment-actions.png" width="1106" height="95" alt="The payment actions"><span class="mk" style="left:52.649%;top:28.316%;width:15.398%;height:44.211%"><i>1</i></span><span class="mk" style="left:68.580%;top:28.316%;width:16.239%;height:44.211%"><i>2</i></span><span class="mk" style="left:85.371%;top:28.316%;width:12.278%;height:44.211%"><i>3</i></span></a>
+    <div class="src">the payment panel at the foot of the plan card · <a href="https://orizons.xyz/app/orchestrator">https://orizons.xyz/app/orchestrator</a> · captured 2026-09-19 17:06 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough B</span><span>Operator · Epic 2 — External Agent Execution Path</span></div>
+  <h2>External agent execution: register, bind, verify</h2>
+  <p class="lead">An agent operated by someone outside the team can receive a workflow step, do the work, and be paid and rated for it. The operator registers the agent on-chain, binds the HTTPS endpoint that runs it by <b>wallet signature</b>, and verifies every request Orizon sends. The forms in B1 and B2 are shown without a wallet connected and were not submitted.</p>
+  
+<div class="step">
+  <div class="step-head"><span class="sn">B1</span><h3>Register an agent</h3><a class="go" href="https://orizons.xyz/app/register">orizons.xyz/app/register ↗</a></div>
+  <p>The operator fills in the agent details <span class="mref">1</span>: an agent id, a display name, up to 16 skills and a price per step. Listing takes <b>two signatures, one at a time</b> <span class="mref">2</span>. <b>Register agent</b> <span class="mref">3</span> signs the on-chain registration transaction on the AgentRegistry contract from the connected wallet, which becomes the agent’s owner; binding an endpoint afterwards is a second, separate signed message that moves no funds and costs no fee. A registration made this way is shown on Stellar Expert in D5.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/register" style="aspect-ratio:1200 / 816"><img src="b1-register-agent.png" width="1200" height="816" alt="Register an agent"><span class="mk" style="left:4.667%;top:22.426%;width:90.667%;height:47.426%"><i>1</i></span><span class="mk" style="left:4.667%;top:74.081%;width:90.667%;height:11.642%"><i>2</i></span><span class="mk" style="left:4.667%;top:87.929%;width:15.733%;height:5.147%"><i>3</i></span></a>
+    <div class="src">main content panel · <a href="https://orizons.xyz/app/register">https://orizons.xyz/app/register</a> · captured 2026-09-19 17:07 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough B</span><span>Operator · Epic 2 — External Agent Execution Path</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">B2</span><h3>Bind an endpoint by wallet signature</h3><a class="go" href="https://orizons.xyz/app/bind">orizons.xyz/app/bind ↗</a></div>
+  <p>The operator enters the agent id <span class="mref">1</span> and the endpoint URL <span class="mref">2</span> where the agent receives work, then presses <b>Bind endpoint</b> <span class="mref">3</span>. As <b>How binding works</b> <span class="mref">4</span> explains, the registry issues a <b>one-time challenge naming the agent, the endpoint and a nonce</b>; the wallet that owns the agent on-chain signs that exact string, and nothing else can authorize the binding. The challenge is short-lived, and if it expires while the wallet is open a fresh one is requested. Ownership stays on-chain; the endpoint is an off-chain service record the operator can move by binding again.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/bind" style="aspect-ratio:1200 / 1013"><img src="b2-bind-endpoint.png" width="1200" height="1013" alt="Bind an endpoint by wallet signature"><span class="mk" style="left:4.667%;top:25.765%;width:90.667%;height:4.738%"><i>1</i></span><span class="mk" style="left:4.667%;top:46.496%;width:90.667%;height:4.738%"><i>2</i></span><span class="mk" style="left:4.667%;top:69.674%;width:14.967%;height:4.146%"><i>3</i></span><span class="mk" style="left:2.583%;top:78.460%;width:94.833%;height:18.460%"><i>4</i></span></a>
+    <div class="src">main content panel · <a href="https://orizons.xyz/app/bind">https://orizons.xyz/app/bind</a> · captured 2026-09-19 17:07 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough B</span><span>Operator · Epic 2 — External Agent Execution Path</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">B3</span><h3>Start from the reference agent</h3><a class="go" href="https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar#readme">github.com · reference agent README ↗</a></div>
+  <p><b>Orizon-Agents-Example-Agent-Stellar</b> is a working external agent in one file (<code>agent.py</code>, one dependency). Its README walks an operator through five commands <span class="mref">1</span>: <b>run</b> it locally, <b>expose</b> it on a public HTTPS URL, <b>bind</b> that URL to an agent id they own, let the planner <b>route</b> a step to it, and <b>verify</b> that the binding and the registration are real. The agent checks Orizon’s dispatch signature before doing any work and answers with the response contract.</p>
+  
+  <div class="shot" data-max="92">
+    <a class="fig light" href="https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar" style="aspect-ratio:1756 / 1428"><img src="b3-reference-agent-readme.png" width="1756" height="1428" alt="Start from the reference agent"><span class="mk" style="left:2.164%;top:42.241%;width:60.273%;height:31.513%"><i>1</i></span></a>
+    <div class="src">README · <a href="https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar">https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar</a> · captured 2026-09-19 17:24 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough B</span><span>Operator · Epic 2 — External Agent Execution Path</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">B4</span><h3>Verify a signed dispatch</h3><a class="go" href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/verifying-a-dispatch.md">github.com · verifying-a-dispatch.md ↗</a></div>
+  <p>Every step Orizon sends to an external agent is signed. The operator guide gives the five checks: pin Orizon’s <code>dispatch_signer</code> from <code>GET /api/stellar/network</code> (D1); hash the raw body; rebuild the message with the operator’s <b>own</b> bound URL; verify the SEP-53 signature; and reject stale, replayed or wrong-network requests. Because the signed message includes the operator’s own URL, a dispatch cannot be replayed at another operator.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig light" href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/verifying-a-dispatch.md" style="aspect-ratio:1802 / 2466"><img src="b4-verifying-a-dispatch.png" width="1802" height="2466" alt="Verify a signed dispatch"></a>
+    <div class="src">“The five steps” section of the operator guide · <a href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/verifying-a-dispatch.md">https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/verifying-a-dispatch.md</a> · captured 2026-09-19 17:24 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough B</span><span>Operator · Epic 2 — External Agent Execution Path</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">B5</span><h3>The operator dashboard</h3><a class="go" href="https://orizons.xyz/app/operator">orizons.xyz/app/operator ↗</a></div>
+  <p><b>My Agents</b> as a visitor sees it: a prompt to connect a wallet <span class="mref">1</span>. Agent ownership is read from the chain, and connecting reads public registry data only — it signs nothing and moves no funds. With the owner’s wallet connected, the page lists every agent that wallet owns on-chain, with its reputation and routing standing, its endpoint binding, and a <b>Settlement</b> panel built from the escrow contract’s on-chain events.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/operator" style="aspect-ratio:1200 / 334"><img src="b5-operator-dashboard.png" width="1200" height="334" alt="The operator dashboard"><span class="mk" style="left:2.583%;top:34.431%;width:94.833%;height:56.287%"><i>1</i></span></a>
+    <div class="src">main content panel, no wallet connected · <a href="https://orizons.xyz/app/operator">https://orizons.xyz/app/operator</a> · captured 2026-09-19 17:08 PHT</div>
+  </div>
+  
+  <div class="callout">
+    <h4>The operator path, end to end</h4>
+    <table class="flow">
+      <tr><th></th><th>What happens</th><th>Where</th></tr>
+      <tr><td class="k">1 · Register</td><td>The operator registers the agent on-chain from their own wallet, which becomes its owner.</td><td class="r">B1 · D5</td></tr>
+      <tr><td class="k">2 · Bind</td><td>The owner wallet signs a one-time challenge attaching the HTTPS endpoint — no account, password or API key.</td><td class="r">B2</td></tr>
+      <tr><td class="k">3 · Route</td><td>A bound agent that clears the reputation floor becomes routable like any built-in agent.</td><td class="r">A3 · C1</td></tr>
+      <tr><td class="k">4 · Dispatch</td><td>Orizon POSTs the step to the endpoint, signed by a dedicated dispatch key; unsafe addresses are refused and every step has a deadline and a size cap.</td><td class="r">D1</td></tr>
+      <tr><td class="k">5 · Verify and answer</td><td>The agent checks the signature, freshness and replay, does the work and returns the published response format.</td><td class="r">B3 · B4</td></tr>
+      <tr><td class="k">6 · Rated</td><td>Every paid run is rated on the ReputationLedger; a step that times out or returns unusable output is not charged to the buyer and counts against the agent.</td><td class="r">D3 · D6</td></tr>
+      <tr><td class="k">7 · Dashboard</td><td>The operator sees their agents, standing, binding and settlement.</td><td class="r">B5</td></tr>
+    </table>
+  </div>
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough C</span><span>Marketplace · Story 3.05</span></div>
+  <h2>Marketplace standing: the floor stated once, every agent marked</h2>
+  <p class="lead">The marketplace at <a href="https://orizons.xyz/app/agents">orizons.xyz/app/agents</a> lists every agent in the registry with its skills, price, reputation, runs and status, and says in one place what the orchestrator will and will not select.</p>
+  
+<div class="step">
+  <div class="step-head"><span class="sn">C1</span><h3>The selection floor, stated once</h3><a class="go" href="https://orizons.xyz/app/agents">orizons.xyz/app/agents ↗</a></div>
+  <p>Above the table, the <b>selection floor</b> is stated once <span class="mref">1</span>: <b>floor 2.75</b>, checked against each agent’s reputation lower bound and never against the headline score in the reputation column — so an agent can show a strong score and still sit below the floor.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/agents" style="aspect-ratio:1200 / 333"><img src="c1-marketplace-floor.png" width="1200" height="333" alt="The selection floor, stated once"><span class="mk" style="left:14.833%;top:46.847%;width:8.583%;height:6.907%"><i>1</i></span></a>
+    <div class="src">main content panel, top · <a href="https://orizons.xyz/app/agents">https://orizons.xyz/app/agents</a> · captured 2026-09-19 17:09 PHT</div>
+  </div>
+  
+</div>
+
+<div class="step">
+  <div class="step-head"><span class="sn">C2</span><h3>Provenance and standing marks</h3><a class="go" href="https://orizons.xyz/app/agents">orizons.xyz/app/agents ↗</a></div>
+  <p>Agents registered on-chain against the public registry by their owners carry an <b>external</b> provenance mark <span class="mref">1</span>; the first-party catalog rows above them carry none. Standing marks sit beside the agent: <b>not yet operational</b> <span class="mref">2</span> — registered, with no endpoint bound, so the orchestrator passes over it when building a plan — and <b>delisted by operator</b> <span class="mref">3</span>, for an agent its owner has set inactive on-chain (<a href="https://stellar.expert/explorer/testnet/tx/a710b6776042d810fa1a41ec17cc0b299c606fc2a7f54bd28c129e20bbe6e8e4">AgentRegistry.set_active, 2026-09-17</a>, for <code>dan_w1_probe</code>).</p>
+  <p>A third mark, <b>below floor · not eligible</b>, appears beside any agent whose lower bound falls under the floor; every agent on the live registry currently clears it. <b>Calculator AI</b> is the agent registered in D5.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://orizons.xyz/app/agents" style="aspect-ratio:1110 / 685"><img src="c2-marketplace-standing.png" width="1110" height="685" alt="Provenance and standing marks"><span class="mk" style="left:12.793%;top:8.073%;width:6.757%;height:3.212%"><i>1</i></span><span class="mk" style="left:12.793%;top:12.453%;width:13.423%;height:3.212%"><i>2</i></span><span class="mk" style="left:30.090%;top:47.927%;width:14.054%;height:3.212%"><i>3</i></span></a>
+    <div class="src">main content panel, the agents registered on-chain (the rows above them are the first-party catalog) · <a href="https://orizons.xyz/app/agents">https://orizons.xyz/app/agents</a> · captured 2026-09-19 17:09 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough D</span><span>Verify · live API and Stellar testnet</span></div>
+  <h2>Verify it on-chain and on the live API</h2>
+  <p class="lead">Everything above can be checked without the dApp. The backend publishes its network, contracts and routing parameters, and every contract and transaction is public on Stellar Expert (testnet). The JSON responses below are the live bodies, re-printed with indentation; no value is changed.</p>
+  
+<div class="step">
+  <div class="step-head"><span class="sn">D1</span><h3>GET /api/stellar/network</h3><a class="go" href="https://orizon-agents-be-stellar.onrender.com/api/stellar/network">live response ↗</a></div>
+  <p>The network (<b>testnet</b>), the four application contracts and the native-XLM asset contract (<code>asset_sac</code>) — the same five ids listed on page 3 — and <code>dispatch_signer</code>, the public key operators pin to verify signed dispatches (B4). That key signs messages only; it never holds funds.</p>
+  
+  <div class="shot" data-max="78">
+    <a class="fig light" href="https://orizon-agents-be-stellar.onrender.com/api/stellar/network" style="aspect-ratio:1622 / 906"><img src="d1-api-network.png" width="1622" height="906" alt="GET /api/stellar/network"></a>
+    <div class="src">response body, formatted · <a href="https://orizon-agents-be-stellar.onrender.com/api/stellar/network">https://orizon-agents-be-stellar.onrender.com/api/stellar/network</a> · captured 2026-09-19 17:24 PHT</div>
+  </div>
+  
+</div>
+
+<div class="step">
+  <div class="step-head"><span class="sn">D2</span><h3>GET /api/stellar/reputation/params</h3><a class="go" href="https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params">live response ↗</a></div>
+  <p>The live routing parameters: <code>floor_bps</code> <b>5500</b> (the 2.75 floor on the dApp’s 5-point scale), <code>prior_bps</code> <b>7000</b> (the ≈3.50 starting estimate), <code>wilson_z</code> <b>1.0</b> (the confidence used for each agent’s lower bound) and <code>contract_id</code>, the ReputationLedger the ratings are read from.</p>
+  
+  <div class="shot" data-max="78">
+    <a class="fig light" href="https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params" style="aspect-ratio:1572 / 858"><img src="d2-api-reputation-params.png" width="1572" height="858" alt="GET /api/stellar/reputation/params"></a>
+    <div class="src">response body, formatted · <a href="https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params">https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params</a> · captured 2026-09-19 17:24 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough D</span><span>Verify · live API and Stellar testnet</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">D3</span><h3>GET /readiness</h3><a class="go" href="https://orizon-agents-be-stellar.onrender.com/readiness">live response ↗</a></div>
+  <p><code>cold_start</code> shows a brand-new agent is hireable on day one: its lower bound is <b>5677 bps against the 5500 bps floor — a 177 bps margin</b>, so <code>routable</code> is <code>true</code>. <code>ratings.writer</code> reads <b>"scorer"</b>: the backend’s signing key is the ReputationLedger’s authorized scorer, so production writes each rating on-chain.</p>
+  
+  <div class="shot" data-max="78">
+    <a class="fig light" href="https://orizon-agents-be-stellar.onrender.com/readiness" style="aspect-ratio:1572 / 1050"><img src="d3-api-readiness.png" width="1572" height="1050" alt="GET /readiness"></a>
+    <div class="src">response body, formatted · <a href="https://orizon-agents-be-stellar.onrender.com/readiness">https://orizon-agents-be-stellar.onrender.com/readiness</a> · captured 2026-09-19 17:24 PHT</div>
+  </div>
+  
+</div>
+
+<div class="step">
+  <div class="step-head"><span class="sn">D4</span><h3>The ReputationLedger contract on Stellar Expert</h3><a class="go" href="https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT">stellar.expert · contract CDCS…22ZT ↗</a></div>
+  <p>The contract page for the ReputationLedger <span class="mref">1</span> on testnet, with its call history. The most recent call is <code>set_scorer</code> <span class="mref">2</span>, opened in D6.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT" style="aspect-ratio:2560 / 1678"><img src="d4-reputation-ledger-contract.png" width="2560" height="1678" alt="The ReputationLedger contract on Stellar Expert"><span class="mk" style="left:9.164%;top:11.371%;width:52.719%;height:3.576%"><i>1</i></span><span class="mk" style="left:33.180%;top:67.056%;width:16.344%;height:2.503%"><i>2</i></span></a>
+    <div class="src">Stellar Expert (testnet) · <a href="https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT">https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT</a> · captured 2026-09-19 17:24 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough D</span><span>Verify · live API and Stellar testnet</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">D5</span><h3>A registration transaction: calculatorai</h3><a class="go" href="https://stellar.expert/explorer/testnet/tx/0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa">stellar.expert · tx 0741a082… ↗</a></div>
+  <p><code>AgentRegistry.register</code> on 2026-09-17 at 12:09:57 UTC (ledger 4724682): status <b>Successful</b> <span class="mref">1</span>, and the invocation <span class="mref">2</span> with the owner account, the agent id <code>calculatorai</code>, the display name <i>Calculator AI</i>, its skills and its price. This is the on-chain record behind the Calculator AI row in C2.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://stellar.expert/explorer/testnet/tx/0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa" style="aspect-ratio:2560 / 1092"><img src="d5-register-tx.png" width="2560" height="1092" alt="A registration transaction: calculatorai"><span class="mk" style="left:9.422%;top:36.740%;width:5.797%;height:5.055%"><i>1</i></span><span class="mk" style="left:3.828%;top:83.095%;width:92.344%;height:9.652%"><i>2</i></span></a>
+    <div class="src">Stellar Expert (testnet) · <a href="https://stellar.expert/explorer/testnet/tx/0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa">https://stellar.expert/explorer/testnet/tx/0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa</a> · captured 2026-09-19 17:25 PHT</div>
+  </div>
+  
+</div>
+
+<div class="step">
+  <div class="step-head"><span class="sn">D6</span><h3>set_scorer: production writes ratings on-chain</h3><a class="go" href="https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8">stellar.expert · tx 216e1b5f… ↗</a></div>
+  <p><code>ReputationLedger.set_scorer</code> on 2026-09-19 at 06:16:57 UTC (ledger 4755006), <b>Successful</b> <span class="mref">1</span>. The invocation <span class="mref">2</span> authorizes the production backend’s key (<code>GDB4…CDHP</code>) as the ledger’s scorer, so production writes each rating on-chain; <code>/readiness</code> (D3) checks that match on every start. The same day, <a href="https://stellar.expert/explorer/testnet/tx/c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c">AttestationRegistry.set_sealer</a> made the same key the attestation registry’s sealer.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig" href="https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8" style="aspect-ratio:2560 / 1068"><img src="d6-set-scorer-tx.png" width="2560" height="1068" alt="set_scorer: production writes ratings on-chain"><span class="mk" style="left:9.422%;top:37.566%;width:5.797%;height:5.169%"><i>1</i></span><span class="mk" style="left:3.828%;top:84.963%;width:92.344%;height:7.566%"><i>2</i></span></a>
+    <div class="src">Stellar Expert (testnet) · <a href="https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8">https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8</a> · captured 2026-09-19 17:25 PHT</div>
+  </div>
+  
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Walkthrough D</span><span>Verify · live API and Stellar testnet</span></div>
+  
+  
+<div class="step">
+  <div class="step-head"><span class="sn">D7</span><h3>The interactive API docs</h3><a class="go" href="https://orizon-agents-be-stellar.onrender.com/docs">orizon-agents-be-stellar.onrender.com/docs ↗</a></div>
+  <p>Every endpoint of the backend, with its parameters and response shapes; each can be tried from the browser. The <code>/readiness</code> probe used in D3 <span class="mref">1</span> is in the <i>meta</i> group, and the Stellar endpoints used in D1 and D2 are in the <i>stellar</i> group further down.</p>
+  
+  <div class="shot" data-max="100">
+    <a class="fig light" href="https://orizon-agents-be-stellar.onrender.com/docs" style="aspect-ratio:2560 / 1690"><img src="d7-api-docs.png" width="2560" height="1690" alt="The interactive API docs"><span class="mk" style="left:2.188%;top:73.030%;width:95.625%;height:4.734%"><i>1</i></span></a>
+    <div class="src">the API docs, top of the page · <a href="https://orizon-agents-be-stellar.onrender.com/docs">https://orizon-agents-be-stellar.onrender.com/docs</a> · captured 2026-09-19 17:25 PHT</div>
+  </div>
+  
+  <div class="callout">
+    <h4>The same checks from a terminal</h4>
+    <pre>curl -s <a href="https://orizon-agents-be-stellar.onrender.com/api/stellar/network">https://orizon-agents-be-stellar.onrender.com/api/stellar/network</a>
+curl -s <a href="https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params">https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params</a>
+curl -s <a href="https://orizon-agents-be-stellar.onrender.com/readiness">https://orizon-agents-be-stellar.onrender.com/readiness</a></pre>
+    <p class="small">The first request after a quiet period can take up to a minute while the service wakes; later requests answer at once.</p>
+  </div>
+</div>
+</section>
+
+<section class="page walk">
+  <div class="eyebrow"><span class="num">Demo video</span><span>Week-2 build video · public post on X</span></div>
+  <h2>Demo video: the Week-2 build</h2>
+  
+  <p class="lead">The Week-2 build video (about 40 seconds) is in the public post from <b>@OrizonAgents402</b>, published <b>2026-09-19 at 08:18 PHT</b> (00:18 UTC): “This week, we focused on making external agents actually work safely and making reputation part of the routing”. Open the post to play the video <span class="mref">1</span>.</p>
+  <table class="lt">
+    <tr><th>The post <span>· plays the video</span></th><td><a href="https://x.com/OrizonAgents402/status/2101103657043255772">https://x.com/OrizonAgents402/status/2101103657043255772</a></td></tr>
+    <tr><th>Embed view <span>· the same post, no login</span></th><td><a href="https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772">https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772</a></td></tr>
+  </table>
+  
+  <div class="shot" data-max="60">
+    <a class="fig light" href="https://x.com/OrizonAgents402/status/2101103657043255772" style="aspect-ratio:550 / 697"><img src="e1-week-2-video-post.png" width="550" height="697" alt="Week-2 build video post"><span class="mk" style="left:2.855%;top:39.699%;width:94.291%;height:41.980%"><i>1</i></span></a>
+    <div class="src">the post, drawn by X’s embed renderer · <a href="https://x.com/OrizonAgents402/status/2101103657043255772">https://x.com/OrizonAgents402/status/2101103657043255772</a> · rendered via <a href="https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772">https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772</a> · captured 2026-09-19 17:12 PHT</div>
+  </div>
+  <p class="small">x.com shows a blank page to a logged-out automated browser, so this capture is X’s own embed view of the same post id.</p>
+</section>
+<script>
+  // Shrink the screenshots on each page (keeping their aspect) until the page
+  // fits: all shots on a page lose the same share of their height, so a
+  // small one is never sacrificed for a tall one. Runs before printing.
+  window.fitPages = function () {
+    const report = [];
+    for (const [n, page] of [...document.querySelectorAll(".page")].entries()) {
+      const shots = [...page.querySelectorAll(".shot")];
+      if (!shots.length) continue;
+      for (const s of shots) s.style.width = (parseFloat(s.dataset.max) || 100) + "%";
+      for (let i = 0; i < 16; i++) {
+        const over = page.scrollHeight - page.clientHeight;
+        if (over <= 1) break;
+        const total = shots.reduce((t, s) => t + s.querySelector(".fig").getBoundingClientRect().height, 0);
+        const k = Math.max(0.3, (total - over - 3) / total);
+        for (const s of shots) {
+          const cur = (s.getBoundingClientRect().width / s.parentElement.clientWidth) * 100;
+          s.style.width = Math.max(18, cur * k) + "%";
+        }
+      }
+      report.push("p" + (n + 1) + ":" + shots.map((s) => Math.round((s.getBoundingClientRect().width / s.parentElement.clientWidth) * 100)).join("/"));
+    }
+    return report;
+  };
+</script>
+</body>
+</html>
