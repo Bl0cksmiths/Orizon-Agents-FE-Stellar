@@ -447,6 +447,20 @@ const html = `<!doctype html>
   .toc .t { width: 44mm; padding-left: 3mm; font-size: 7.2pt; color: var(--muted); }
   .toc .p { width: 10mm; text-align: right; color: var(--muted); white-space: nowrap; }
   .note { margin-top: 3.5mm; font-size: 8pt; color: var(--muted); }
+  /* summary pages */
+  .summary { font-size: 8.9pt; line-height: 1.42; }
+  .summary .lead { font-size: 10pt; margin: 0 0 1.5mm; }
+  .summary h3 { font-size: 9.6pt; color: var(--accent); margin: 3.2mm 0 1mm; padding-bottom: 0.6mm; border-bottom: 1px solid var(--rule); }
+  .summary ul { margin: 0; padding-left: 4.5mm; }
+  .summary li { margin: 0 0 0.9mm; }
+  .summary .small { font-size: 7.6pt; color: var(--muted); margin: 1mm 0 0; }
+  .summary .tx th { text-align: left; font-size: 7.4pt; color: var(--muted); font-weight: 600; padding: 0.6mm 2mm 0.6mm 0; }
+  .summary .tx td { font-size: 7.6pt; padding: 0.7mm 2mm 0.7mm 0; border-top: 1px solid #e7ebf2; vertical-align: top; }
+  .summary .tx td.mono { font-size: 6.9pt; overflow-wrap: anywhere; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2mm; margin-top: 4mm; }
+  .stats div { background: var(--soft); border-radius: 3px; padding: 2mm; text-align: center; }
+  .stats b { display: block; font-size: 14pt; color: var(--accent); line-height: 1.1; }
+  .stats span { display: block; font-size: 7pt; color: var(--muted); margin-top: 0.6mm; }
 </style>
 </head>
 <body>
