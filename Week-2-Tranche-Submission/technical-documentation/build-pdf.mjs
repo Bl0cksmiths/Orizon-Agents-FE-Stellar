@@ -173,6 +173,73 @@ PAGES.push({
   ],
 });
 
+// ------------------------------------------------------- walkthrough A ---
+
+walkthrough(
+  {
+    id: "A",
+    eyebrow: "Buyer · Deliverable D2 — Reputation-Gated Routing",
+    title: "Reputation-gated routing: from an intent to a plan card",
+    intro:
+      "A buyer describes a job; Orizon breaks it into steps and assigns an agent to each. Every agent considered must first clear a <b>reputation floor</b>, read from the ReputationLedger contract on Stellar testnet, and the plan card shows the result <b>before</b> the buyer pays anything. Steps A1–A4 need no wallet.",
+    steps: [
+      {
+        id: "A1",
+        title: "Open the orchestrator",
+        open: `${APP}/orchestrator`,
+        shot: "a1-orchestrator-intent.png",
+        what: "main content panel",
+        text: [
+          `The orchestrator page has an intent box ${m(1)} where the buyer describes the job in plain words, and four presets ${m(2)} — <i>tetris game in html</i>, <i>calculator web app</i>, <i>snake game in html</i> and <i>pomodoro timer with sound</i> — that fill it in one click.`,
+        ],
+      },
+      {
+        id: "A2",
+        title: "Choose the preset “tetris game in html” and click Decompose",
+        open: `${APP}/orchestrator`,
+        shot: "a2-preset-selected.png",
+        what: "main content panel",
+        text: [
+          `Click the preset <b>tetris game in html</b> ${m(1)}: the intent box fills with that text. Then click <b>Decompose</b> ${m(2)}. The orchestrator plans the job and returns the plan card, shown next, within a few seconds.`,
+        ],
+      },
+      {
+        id: "A3",
+        title: "Read the plan card: the floor and each step’s reputation",
+        open: `${APP}/orchestrator`,
+        shot: "a3-plan-card.png",
+        what: "the plan card",
+        text: [
+          `The card lists six steps, each with its agent, estimated price and time, for a total of <b>0.168 XLM</b>. Above the steps, the routing-floor summary reads <b>floor 2.75 · applied</b> ${m(1)}: every agent considered for this plan was checked against the 2.75 floor before the planner chose. The floor is judged on each agent’s <b>conservative lower bound</b> — its score discounted for how few rated jobs stand behind it — never on the headline score.`,
+          `Each step carries its agent’s reputation chip ${m(2)} with the source of the number: <b>≈</b> marks the <b>starting estimate</b> (3.50) an agent carries until on-chain ratings accumulate; a chip without ≈ is read from on-chain ratings. Every agent on the live registry currently carries the ≈3.50 starting estimate, whose lower bound (2.84) clears the 2.75 floor, so the summary reads “the floor acted on no agents”.`,
+        ],
+      },
+      {
+        id: "A4",
+        title: "Open the “Reputation floor” panel",
+        open: `${APP}/orchestrator`,
+        shot: "a4-reputation-floor-panel.png",
+        what: "the Reputation floor panel, opened",
+        text: [
+          `Below the steps, the collapsible <b>Reputation floor</b> panel records what the floor did while the plan was built — any agent it excluded or substituted, with the deciding score and the reason. Click its summary ${m(1)} to open it. For this plan it reads <b>no changes</b>, and lists the five agents registered on-chain that have no endpoint bound: they were never candidates, because there is nothing to dispatch a step to, and the panel says so rather than counting them as floor decisions.`,
+        ],
+      },
+      {
+        id: "A5",
+        title: "The payment actions",
+        open: `${APP}/orchestrator`,
+        shot: "a5-payment-actions.png",
+        what: "the payment panel at the foot of the plan card",
+        text: [
+          `The panel at the foot of the card is where the buyer commits. <b>Connect wallet</b> ${m(1)} links a Stellar testnet wallet (Freighter); paying then authorizes an <b>x402 workflow cap</b> — up to the plan’s 0.168 XLM total — with one signature from the <b>buyer’s own wallet</b>, on the PaymentEscrow contract. <b>Pay with fiat</b> ${m(2)} opens the PDAX on-ramp, and <b>Simulate</b> ${m(3)} runs the plan as a simulated pass with no wallet.`,
+          `An authorization of this plan’s 0.168 XLM cap on testnet: ${tx("67701b46ef60bf488481464cf527aeadb01bb407cf294efc120c5f4ecc31e56d", "PaymentEscrow.authorize, 2026-09-17")}. None of these buttons was pressed for this document.`,
+        ],
+      },
+    ],
+  },
+  [["A1", "A2"], ["A3"], ["A4", "A5"]],
+);
+
 // ----------------------------------------------------- render: figures ---
 
 function shot(s) {
