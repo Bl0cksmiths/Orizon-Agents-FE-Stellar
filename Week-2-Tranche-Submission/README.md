@@ -1,6 +1,6 @@
 # Orizon Agents — Week 2 Tranche Submission
 
-**Programme:** Stellar Community Fund — Blue Belt Instawards (Cohort 2026)
+**Programme:** Stellar Instawards (Cohort 2026)
 **Project:** Orizon Agents — Blue Belt Instaward Sprint
 **Milestone:** M2 · Week 2 — Reputation-Gated Routing (Deliverable **D2**) + the External Agent Execution Path (Epic 2)
 **Sprint week:** Mon 2026-09-14 → Fri 2026-09-18 (evidence assembled 2026-09-19)
