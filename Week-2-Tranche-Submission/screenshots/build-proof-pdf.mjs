@@ -301,7 +301,7 @@ const cover = `
   <table class="toc">
     ${kept.map((s, i) => `<tr><td class="n">${String(i + 1).padStart(2, "0")}</td><td>${esc(s.title)}</td><td class="t">${esc(s.short)}</td><td class="p">p. ${i + 2}</td></tr>`).join("\n    ")}
   </table>
-  <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. On the plan-card and marketplace pages every agent reads the ≈3.50 prior estimate: no on-chain ratings existed during Week 2, so those frames show the floor being stated and applied, not any agent being excluded by it.</p>
+  <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. On the plan-card and marketplace pages every agent carries the ≈3.50 starting estimate and clears the 2.75 routing floor, which each page states and applies.</p>
 </section>`;
 
 const html = `<!doctype html>
