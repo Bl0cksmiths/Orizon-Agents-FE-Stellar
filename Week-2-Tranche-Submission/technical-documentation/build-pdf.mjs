@@ -363,6 +363,114 @@ walkthrough(
   [["C1", "C2"]],
 );
 
+// ------------------------------------------------------- walkthrough D ---
+
+const TERMINAL = `
+  <div class="callout">
+    <h4>The same checks from a terminal</h4>
+    <pre>curl -s ${a(`${BE}/api/stellar/network`)}
+curl -s ${a(`${BE}/api/stellar/reputation/params`)}
+curl -s ${a(`${BE}/readiness`)}</pre>
+    <p class="small">The first request after a quiet period can take up to a minute while the service wakes; later requests answer at once.</p>
+  </div>`;
+
+walkthrough(
+  {
+    id: "D",
+    eyebrow: "Verify · live API and Stellar testnet",
+    title: "Verify it on-chain and on the live API",
+    intro:
+      "Everything above can be checked without the dApp. The backend publishes its network, contracts and routing parameters, and every contract and transaction is public on Stellar Expert (testnet). The JSON responses below are the live bodies, re-printed with indentation; no value is changed.",
+    steps: [
+      {
+        id: "D1",
+        title: "GET /api/stellar/network",
+        open: `${BE}/api/stellar/network`,
+        go: "live response",
+        shot: "d1-api-network.png",
+        what: "response body, formatted",
+        light: true,
+        max: 78,
+        text: [
+          `The network (<b>testnet</b>), the four application contracts and the native-XLM asset contract (<code>asset_sac</code>) — the same five ids listed on page 3 — and <code>dispatch_signer</code>, the public key operators pin to verify signed dispatches (B4). That key signs messages only; it never holds funds.`,
+        ],
+      },
+      {
+        id: "D2",
+        title: "GET /api/stellar/reputation/params",
+        open: `${BE}/api/stellar/reputation/params`,
+        go: "live response",
+        shot: "d2-api-reputation-params.png",
+        what: "response body, formatted",
+        light: true,
+        max: 78,
+        text: [
+          `The live routing parameters: <code>floor_bps</code> <b>5500</b> (the 2.75 floor on the dApp’s 5-point scale), <code>prior_bps</code> <b>7000</b> (the ≈3.50 starting estimate), <code>wilson_z</code> <b>1.0</b> (the confidence used for each agent’s lower bound) and <code>contract_id</code>, the ReputationLedger the ratings are read from.`,
+        ],
+      },
+      {
+        id: "D3",
+        title: "GET /readiness",
+        open: `${BE}/readiness`,
+        go: "live response",
+        shot: "d3-api-readiness.png",
+        what: "response body, formatted",
+        light: true,
+        max: 78,
+        text: [
+          `<code>cold_start</code> shows a brand-new agent is hireable on day one: its lower bound is <b>5677 bps against the 5500 bps floor — a 177 bps margin</b>, so <code>routable</code> is <code>true</code>. <code>ratings.writer</code> reads <b>"scorer"</b>: the backend’s signing key is the ReputationLedger’s authorized scorer, so production writes each rating on-chain.`,
+        ],
+      },
+      {
+        id: "D4",
+        title: "The ReputationLedger contract on Stellar Expert",
+        open: contractUrl(CONTRACTS[1][1]),
+        go: "stellar.expert · contract CDCS…22ZT",
+        shot: "d4-reputation-ledger-contract.png",
+        what: "Stellar Expert (testnet)",
+        text: [
+          `The contract page for the ReputationLedger ${m(1)} on testnet, with its call history. The most recent call is <code>set_scorer</code> ${m(2)}, opened in D6.`,
+        ],
+      },
+      {
+        id: "D5",
+        title: "A registration transaction: calculatorai",
+        open: txUrl("0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa"),
+        go: "stellar.expert · tx 0741a082…",
+        shot: "d5-register-tx.png",
+        what: "Stellar Expert (testnet)",
+        text: [
+          `<code>AgentRegistry.register</code> on 2026-09-17 at 12:09:57 UTC (ledger 4724682): status <b>Successful</b> ${m(1)}, and the invocation ${m(2)} with the owner account, the agent id <code>calculatorai</code>, the display name <i>Calculator AI</i>, its skills and its price. This is the on-chain record behind the Calculator AI row in C2.`,
+        ],
+      },
+      {
+        id: "D6",
+        title: "set_scorer: production writes ratings on-chain",
+        open: txUrl("216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8"),
+        go: "stellar.expert · tx 216e1b5f…",
+        shot: "d6-set-scorer-tx.png",
+        what: "Stellar Expert (testnet)",
+        text: [
+          `<code>ReputationLedger.set_scorer</code> on 2026-09-19 at 06:16:57 UTC (ledger 4755006), <b>Successful</b> ${m(1)}. The invocation ${m(2)} authorizes the production backend’s key (<code>GDB4…CDHP</code>) as the ledger’s scorer, so production writes each rating on-chain; <code>/readiness</code> (D3) checks that match on every start. The same day, ${tx("c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c", "AttestationRegistry.set_sealer")} made the same key the attestation registry’s sealer.`,
+        ],
+      },
+      {
+        id: "D7",
+        title: "The interactive API docs",
+        open: `${BE}/docs`,
+        shot: "d7-api-docs.png",
+        what: "the API docs, top of the page",
+        light: true,
+        text: [
+          `Every endpoint of the backend, with its parameters and response shapes; each can be tried from the browser. The <code>/readiness</code> probe used in D3 ${m(1)} is in the <i>meta</i> group, and the Stellar endpoints used in D1 and D2 are in the <i>stellar</i> group further down.`,
+        ],
+        after: TERMINAL,
+      },
+    ],
+  },
+  [["D1", "D2"], ["D3", "D4"], ["D5", "D6"], ["D7"]],
+);
+
 // ----------------------------------------------------- render: figures ---
 
 function shot(s) {
