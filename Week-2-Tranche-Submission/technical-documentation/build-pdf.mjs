@@ -240,6 +240,94 @@ walkthrough(
   [["A1", "A2"], ["A3"], ["A4", "A5"]],
 );
 
+// ------------------------------------------------------- walkthrough B ---
+
+// The operator's path end to end, under B5: where each step of this
+// walkthrough sits in the whole.
+const OPERATOR_PATH = `
+  <div class="callout">
+    <h4>The operator path, end to end</h4>
+    <table class="flow">
+      <tr><th></th><th>What happens</th><th>Where</th></tr>
+      <tr><td class="k">1 · Register</td><td>The operator registers the agent on-chain from their own wallet, which becomes its owner.</td><td class="r">B1 · D5</td></tr>
+      <tr><td class="k">2 · Bind</td><td>The owner wallet signs a one-time challenge attaching the HTTPS endpoint — no account, password or API key.</td><td class="r">B2</td></tr>
+      <tr><td class="k">3 · Route</td><td>A bound agent that clears the reputation floor becomes routable like any built-in agent.</td><td class="r">A3 · C1</td></tr>
+      <tr><td class="k">4 · Dispatch</td><td>Orizon POSTs the step to the endpoint, signed by a dedicated dispatch key; unsafe addresses are refused and every step has a deadline and a size cap.</td><td class="r">D1</td></tr>
+      <tr><td class="k">5 · Verify and answer</td><td>The agent checks the signature, freshness and replay, does the work and returns the published response format.</td><td class="r">B3 · B4</td></tr>
+      <tr><td class="k">6 · Rated</td><td>Every paid run is rated on the ReputationLedger; a step that times out or returns unusable output is not charged to the buyer and counts against the agent.</td><td class="r">D3 · D6</td></tr>
+      <tr><td class="k">7 · Dashboard</td><td>The operator sees their agents, standing, binding and settlement.</td><td class="r">B5</td></tr>
+    </table>
+  </div>`;
+
+walkthrough(
+  {
+    id: "B",
+    eyebrow: "Operator · Epic 2 — External Agent Execution Path",
+    title: "External agent execution: register, bind, verify",
+    intro:
+      "An agent operated by someone outside the team can receive a workflow step, do the work, and be paid and rated for it. The operator registers the agent on-chain, binds the HTTPS endpoint that runs it by <b>wallet signature</b>, and verifies every request Orizon sends. The forms in B1 and B2 are shown without a wallet connected and were not submitted.",
+    steps: [
+      {
+        id: "B1",
+        title: "Register an agent",
+        open: `${APP}/register`,
+        shot: "b1-register-agent.png",
+        what: "main content panel",
+        text: [
+          `The operator fills in the agent details ${m(1)}: an agent id, a display name, up to 16 skills and a price per step. Listing takes <b>two signatures, one at a time</b> ${m(2)}. <b>Register agent</b> ${m(3)} signs the on-chain registration transaction on the AgentRegistry contract from the connected wallet, which becomes the agent’s owner; binding an endpoint afterwards is a second, separate signed message that moves no funds and costs no fee. A registration made this way is shown on Stellar Expert in D5.`,
+        ],
+      },
+      {
+        id: "B2",
+        title: "Bind an endpoint by wallet signature",
+        open: `${APP}/bind`,
+        shot: "b2-bind-endpoint.png",
+        what: "main content panel",
+        text: [
+          `The operator enters the agent id ${m(1)} and the endpoint URL ${m(2)} where the agent receives work, then presses <b>Bind endpoint</b> ${m(3)}. As <b>How binding works</b> ${m(4)} explains, the registry issues a <b>one-time challenge naming the agent, the endpoint and a nonce</b>; the wallet that owns the agent on-chain signs that exact string, and nothing else can authorize the binding. The challenge is short-lived, and if it expires while the wallet is open a fresh one is requested. Ownership stays on-chain; the endpoint is an off-chain service record the operator can move by binding again.`,
+        ],
+      },
+      {
+        id: "B3",
+        title: "Start from the reference agent",
+        open: `${GH}/Orizon-Agents-Example-Agent-Stellar#readme`,
+        go: "github.com · reference agent README",
+        shot: "b3-reference-agent-readme.png",
+        what: "README",
+        light: true,
+        max: 92,
+        text: [
+          `<b>Orizon-Agents-Example-Agent-Stellar</b> is a working external agent in one file (<code>agent.py</code>, one dependency). Its README walks an operator through five commands ${m(1)}: <b>run</b> it locally, <b>expose</b> it on a public HTTPS URL, <b>bind</b> that URL to an agent id they own, let the planner <b>route</b> a step to it, and <b>verify</b> that the binding and the registration are real. The agent checks Orizon’s dispatch signature before doing any work and answers with the response contract.`,
+        ],
+      },
+      {
+        id: "B4",
+        title: "Verify a signed dispatch",
+        open: BE_DOC("docs/operators/verifying-a-dispatch.md"),
+        go: "github.com · verifying-a-dispatch.md",
+        shot: "b4-verifying-a-dispatch.png",
+        what: "“The five steps” section of the operator guide",
+        light: true,
+        text: [
+          `Every step Orizon sends to an external agent is signed. The operator guide gives the five checks: pin Orizon’s <code>dispatch_signer</code> from <code>GET /api/stellar/network</code> (D1); hash the raw body; rebuild the message with the operator’s <b>own</b> bound URL; verify the SEP-53 signature; and reject stale, replayed or wrong-network requests. Because the signed message includes the operator’s own URL, a dispatch cannot be replayed at another operator.`,
+        ],
+      },
+      {
+        id: "B5",
+        title: "The operator dashboard",
+        open: `${APP}/operator`,
+        shot: "b5-operator-dashboard.png",
+        what: "main content panel, no wallet connected",
+        text: [
+          `<b>My Agents</b> as a visitor sees it: a prompt to connect a wallet ${m(1)}. Agent ownership is read from the chain, and connecting reads public registry data only — it signs nothing and moves no funds. With the owner’s wallet connected, the page lists every agent that wallet owns on-chain, with its reputation and routing standing, its endpoint binding, and a <b>Settlement</b> panel built from the escrow contract’s on-chain events.`,
+        ],
+        after: OPERATOR_PATH,
+      },
+    ],
+  },
+  [["B1"], ["B2"], ["B3"], ["B4"], ["B5"]],
+);
+
 // ----------------------------------------------------- render: figures ---
 
 function shot(s) {
