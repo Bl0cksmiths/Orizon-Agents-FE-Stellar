@@ -214,7 +214,7 @@ const SHOTS = [
 ];
 
 const COVER = {
-  programme: "Stellar Community Fund — Blue Belt Instawards (Cohort 2026)",
+  programme: "Stellar Instawards (Cohort 2026)",
   milestone: "M2 · Week 2 — Reputation-Gated Routing (Deliverable D2) + External Agent Execution Path (Epic 2)",
   week: "Mon 2026-09-14 → Fri 2026-09-18",
   network: "Stellar testnet only",
