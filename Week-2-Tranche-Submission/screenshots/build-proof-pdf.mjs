@@ -394,7 +394,8 @@ const cover = `
   </table>
   <h3>Evidence in this document</h3>
   <table class="toc">
-    ${kept.map((s, i) => `<tr><td class="n">${String(i + 1).padStart(2, "0")}</td><td>${esc(s.title)}</td><td class="t">${esc(s.short)}</td><td class="p">p. ${i + 2}</td></tr>`).join("\n    ")}
+    ${SUMMARY.map((s, i) => `<tr><td class="n">—</td><td>${esc(s.title)}</td><td class="t">summary</td><td class="p">p. ${i + 2}</td></tr>`).join("\n    ")}
+    ${kept.map((s, i) => `<tr><td class="n">${String(i + 1).padStart(2, "0")}</td><td>${esc(s.title)}</td><td class="t">${esc(s.short)}</td><td class="p">p. ${i + 2 + SUMMARY.length}</td></tr>`).join("\n    ")}
   </table>
   <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. On the plan-card and marketplace pages every agent carries the ≈3.50 starting estimate and clears the 2.75 routing floor, which each page states and applies.</p>
 </section>`;
