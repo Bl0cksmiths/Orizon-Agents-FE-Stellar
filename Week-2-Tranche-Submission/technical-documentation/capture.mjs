@@ -504,6 +504,27 @@ const SCENES = [
       },
     ],
   },
+
+  // The demo video. x.com renders a blank page to a logged-out headless
+  // browser, so the post is drawn by X's own embed renderer for the same post
+  // id; the shot is the embed's bordered card (the <article>'s parent).
+  {
+    url: "https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772&theme=light&lang=en",
+    viewport: { width: 560, height: 900 },
+    waitUntil: "networkidle",
+    settle: 6000,
+    ready: "OrizonAgents402",
+    shots: [
+      {
+        file: "e1-week-2-video-post.png",
+        url: "https://x.com/OrizonAgents402/status/2101103657043255772",
+        via: "https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772",
+        expect: ["Orizon Agents Instawards Week 2", "Sep 19, 2026"],
+        region: (page) => rectOf(page.locator("article").first().locator("xpath=.."), "embed card"),
+        marks: [(page) => rectOf(page.locator("article [data-testid='videoPlayer'], article video, article [aria-label*='Play']").first(), "video")],
+      },
+    ],
+  },
 ];
 
 // ----------------------------------------------------------------- runner ---
