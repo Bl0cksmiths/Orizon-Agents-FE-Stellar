@@ -7,7 +7,7 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { NETWORK_LABEL, StellarExpertLink } from "@/components/ui/stellar-link";
 import { getStellarNetwork } from "@/lib/api";
-import { focusRing } from "@/lib/ui";
+import { focusRing, inlineLink } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { useStellarEvents, type FeedEvent } from "@/lib/stellar-events";
 import { prettyName } from "@/lib/utils";
@@ -197,10 +197,7 @@ export default function EventsPage() {
           <div className="space-y-2">
             <div className="text-sm text-muted">
               No events yet. Run a workflow on{" "}
-              <Link
-                href="/app/orchestrator"
-                className={`text-cyan hover:underline ${focusRing}`}
-              >
+              <Link href="/app/orchestrator" className={inlineLink}>
                 /app/orchestrator
               </Link>{" "}
               — it'll publish <code className="text-cyan">charge</code> and{" "}

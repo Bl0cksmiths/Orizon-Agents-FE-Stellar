@@ -1,0 +1,51 @@
+# The `addresses` job in ci.yml runs the same check, but only when THIS repo
+# changes. The address book it compares against lives in the contract repo,
+# which has no CI of its own, so a redeploy there that rotates an id stayed
+# invisible until an unrelated frontend PR happened to go red — days later,
+# blamed on the wrong change. Running the check daily against the contract
+# repo's current default branch surfaces that drift within a day, in a run
+# whose only job is to report it.
+name: Address drift
+
+on:
+  schedule:
+    # Daily, off the hour: GitHub delays and sheds scheduled runs queued at :00.
+    # GitHub also disables schedules in a public repo after 60 days without
+    # activity; if this stops appearing in the Actions tab, re-enable it there.
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  addresses:
+    name: Contract address parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Identical to the checkout in ci.yml's `addresses` job, for the same
+      # reason: compared against a checkout, never fetched mid-check, so a
+      # network blip cannot read as drift. With no `ref` it resolves the
+      # contract repo's default branch at run time — which is the point, since
+      # that is where a redeploy's new address book lands.
+      - name: Checkout contract address book
+        uses: actions/checkout@v4
+        with:
+          repository: Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar
+          path: .canonical-contracts
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # No `npm ci` — plain node over two JSON files. The script fails rather
+      # than skips when the checkout above is missing, so a broken schedule
+      # goes red instead of reporting a parity it never checked.
+      - name: Check fallback contract ids
+        run: npm run check:addresses

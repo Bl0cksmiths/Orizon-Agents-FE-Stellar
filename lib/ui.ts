@@ -8,6 +8,14 @@
 export const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan";
 
+/**
+ * A link sitting inline within prose. Underlined at rest — never distinguished
+ * by colour alone (WCAG 1.4.1) — with the underline strengthening on hover.
+ * Nav items, footer link lists and button-styled CTAs are exempt and should
+ * NOT use this.
+ */
+export const inlineLink = `text-cyan underline decoration-cyan/40 underline-offset-2 hover:decoration-cyan ${focusRing}`;
+
 /** Shared form-input styling used across the PDAX panels. */
 export const inputCls = `w-full bg-bg/60 border border-input px-3 py-2 text-sm font-mono outline-none focus:border-violet ${focusRing}`;
 

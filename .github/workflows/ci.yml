@@ -53,6 +53,12 @@ jobs:
       - name: Bundle budget
         run: npm run bundle
 
+      # Core Web Vitals + accessibility/SEO budgets against the production
+      # build (lighthouserc.json). Runs after Build so it measures the same
+      # artifact the bundle gate just checked.
+      - name: Lighthouse budgets
+        run: npm run lighthouse
+
   e2e:
     name: E2E smoke
     runs-on: ubuntu-latest
@@ -84,3 +90,44 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # The display-only contract ids in lib/contract-addresses.json are a mirror
+  # of the deploy scripts' address book. Its own job rather than a step in
+  # `test` because it needs a second repository checked out, and dropping that
+  # checkout into the workspace of the lint/format/build job would put another
+  # repo's files under `prettier --check .`.
+  addresses:
+    name: Contract address parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Checked out, never fetched at check time: pulling the address book over
+      # HTTPS while the check runs would make a network blip look like drift,
+      # and a gate that cries wolf gets disabled. The contract repo is public,
+      # so the default GITHUB_TOKEN is enough to read it.
+      - name: Checkout contract address book
+        uses: actions/checkout@v4
+        with:
+          repository: Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar
+          path: .canonical-contracts
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # No `npm ci` — the check is plain node over two JSON files. If the
+      # checkout above ever stops happening, this fails rather than skipping:
+      # a gate that quietly stops gating is the defect it was added to close.
+      - name: Check fallback contract ids
+        run: npm run check:addresses
+
+      # The live-parity rules the post-deploy smoke applies to production. Run
+      # here too so a change to them is judged on the PR that makes it, not
+      # six hours after merge by the scheduled smoke. Plain node:test, no install.
+      - name: Test live contract parity rules
+        run: npm run test:parity

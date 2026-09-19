@@ -7,13 +7,22 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
-import { ReputationBadge } from "@/components/ui/reputation-badge";
+import { AgentStanding } from "@/components/agents/agent-standing";
+import {
+  ReputationCell,
+  type ReputationRead,
+} from "@/components/agents/reputation-cell";
+import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
+import { isOwnedBy } from "@/lib/binding-status";
+import { isListed } from "@/lib/routability";
 import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { useWallet } from "@/lib/wallet";
 import type { Agent } from "@/lib/types";
+import { BindingStateBadge, UnboundNotice } from "./binding-notice";
 import { ManagePanel } from "./manage-panel";
+import { useBindingStatus } from "./use-binding-status";
 
 const statusTone = {
   online: "cyan" as const,
@@ -32,12 +41,24 @@ export default function AgentsPage() {
   } = useFetch(listAgents, [], {
     revalidateOnFocus: true,
   });
-  // On-chain reputation is best-effort: on error we silently keep seeded values.
-  const { data: repBatch, reload: reloadReputation } = useFetch(
-    listReputation,
-    [],
-    { revalidateOnFocus: true },
-  );
+  // On-chain reputation is best-effort — a failed read never blanks the
+  // registry — but it is never papered over either: a row with no live entry
+  // shows no score, rather than the seeded catalog rating dressed up as one.
+  const {
+    data: repBatch,
+    error: repError,
+    loading: repLoading,
+    retrying: repRetrying,
+    lastSuccessAt: repLastReadAt,
+    reload: reloadReputation,
+  } = useFetch(listReputation, [], { revalidateOnFocus: true });
+  // A batch on screen is a reading even when a later refresh failed; only a
+  // read that never landed leaves the column with nothing to show.
+  const repRead: ReputationRead = repBatch
+    ? "loaded"
+    : repError
+      ? "failed"
+      : "loading";
 
   // One outage takes down both reads, so a retry re-runs them together.
   const retry = useCallback(() => {
@@ -45,14 +66,66 @@ export default function AgentsPage() {
     reloadReputation();
   }, [reloadAgents, reloadReputation]);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "online" | "idle" | "offline">(
-    "all",
-  );
   // Operator management (story 1.08): the connected wallet reveals Manage on
   // the agents it owns on-chain; one row expands at a time.
   const wallet = useWallet();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Endpoint-binding status (story 2.05), asked about this operator's own
+  // on-chain agents and nothing else. A disconnected wallet owns nothing, so
+  // passing null here is what stops the page from asking about anything at all.
+  const binding = useBindingStatus(
+    agents,
+    wallet.connected ? wallet.address : null,
+  );
+
+  /**
+   * Whether an agent can be selected for work right now — every gate the
+   * orchestrator applies, and nothing else.
+   *
+   * 0. Its operator has not delisted it (`isListed`, a copy of the backend's
+   *    own rule). A delisted agent is withdrawn from every routing path, and
+   *    it is the one exclusion no fallback undoes, so it is checked first.
+   * 1. Its reputation LOWER BOUND clears the floor (`>=`, the backend's
+   *    comparison). Never the smoothed headline score: the two disagree
+   *    exactly for an agent with a good average and too little settled work
+   *    behind it, and filtering on the headline would show a buyer a
+   *    "routable" agent the planner passes over every time.
+   * 2. If it is an on-chain agent, it has an endpoint bound. A seeded agent
+   *    has no endpoint and needs none, so `bound` being null is not a failure.
+   *    On the rows the per-agent lookup covers, the lookup's answer is the one
+   *    used — the same deferral the row's own markers make — so the filter
+   *    can never keep a row the row itself calls unbound, or drop one it
+   *    calls bound.
+   *
+   * An agent with no reputation entry, or a page whose batch has not landed,
+   * is NOT filtered out: absence of a score is not evidence of a bad one, and
+   * hiding a row because we have not read it yet would quietly shrink the
+   * marketplace during an outage. A binding lookup still in flight, or one
+   * that failed, is kept for the same reason.
+   */
+  // Memoised on what it reads, so the row filter below can depend on it
+  // without rebuilding the whole table on every keystroke in the search box.
+  // `stateOf` is stable between lookups; the object around it is not.
+  const bindingStateOf = binding.stateOf;
+  const isRoutable = useCallback(
+    (a: Agent): boolean => {
+      if (!isListed(a)) return false;
+      const lookup = bindingStateOf(a.id);
+      if (lookup === "unbound") return false;
+      if (lookup === null && a.source === "onchain" && a.bound === false)
+        return false;
+      const floor = repBatch?.floor_bps;
+      const bound = repBatch?.reputations[a.id]?.lower_bound_bps;
+      if (floor == null || bound == null) return true;
+      return bound >= floor;
+    },
+    [repBatch, bindingStateOf],
+  );
+
+  const [filter, setFilter] = useState<
+    "all" | "routable" | "online" | "idle" | "offline"
+  >("all");
   const rows = useMemo(() => {
     if (!agents) return [];
     return agents.filter((a) => {
@@ -61,34 +134,15 @@ export default function AgentsPage() {
         !ql ||
         a.name.toLowerCase().includes(ql) ||
         a.skills.some((s) => s.toLowerCase().includes(ql));
-      const matchesStatus = filter === "all" || a.status === filter;
+      // "routable" is a standing question, not a status one, so it is checked
+      // separately rather than squeezed into the status comparison — `status`
+      // means online/idle/offline and an agent can be online and ineligible.
+      const matchesStatus =
+        filter === "all" ||
+        (filter === "routable" ? isRoutable(a) : a.status === filter);
       return matchesQ && matchesStatus;
     });
-  }, [agents, q, filter]);
-
-  const renderReputation = (a: Agent) => {
-    const live = repBatch?.reputations[a.id];
-    if (live && live.source === "onchain") {
-      return (
-        <ReputationBadge
-          bps={live.smoothed_bps}
-          lowerBoundBps={live.lower_bound_bps}
-          source="onchain"
-          count={live.count}
-          disputeRateBps={live.dispute_rate_bps}
-          floorBps={repBatch?.floor_bps}
-        />
-      );
-    }
-    return (
-      <ReputationBadge
-        bps={a.rep * 2000}
-        lowerBoundBps={live?.lower_bound_bps}
-        source="prior"
-        floorBps={repBatch?.floor_bps}
-      />
-    );
-  };
+  }, [agents, q, filter, isRoutable]);
 
   return (
     <div className="space-y-6">
@@ -105,6 +159,18 @@ export default function AgentsPage() {
           + Register agent
         </ButtonLink>
       </div>
+
+      {/* Above the table, because it states the threshold every verdict inside
+          the table refers to. A buyer who meets "below floor" on a row before
+          they have been told what the floor is has to reverse-engineer the
+          rule from the verdicts. */}
+      <RegistryStandingNotice
+        batch={repBatch ?? null}
+        readError={repError}
+        lastReadAt={repLastReadAt}
+        onRetry={reloadReputation}
+        retrying={repLoading || repRetrying}
+      />
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -139,20 +205,27 @@ export default function AgentsPage() {
             />
           </div>
           <div className="flex gap-2">
-            {(["all", "online", "idle", "offline"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={
-                  `clip-cyber-sm border px-3 h-10 font-mono text-[10px] uppercase tracking-widest transition ${focusRing} ` +
-                  (filter === f
-                    ? "border-violet bg-violet/20 text-text"
-                    : "border-border text-muted hover:text-text")
-                }
-              >
-                {f}
-              </button>
-            ))}
+            {/* "routable" sits next to "all" rather than at the end: it is the
+                question a buyer actually arrives with — who can I hire — and
+                the three status values after it are a narrower, more technical
+                cut. Clicking "all" is the way back, which is why this joins
+                the existing group instead of becoming a second control. */}
+            {(["all", "routable", "online", "idle", "offline"] as const).map(
+              (f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={
+                    `clip-cyber-sm border px-3 h-10 font-mono text-[10px] uppercase tracking-widest transition ${focusRing} ` +
+                    (filter === f
+                      ? "border-violet bg-violet/20 text-text"
+                      : "border-border text-muted hover:text-text")
+                  }
+                >
+                  {f}
+                </button>
+              ),
+            )}
           </div>
           {/* Rendered only once a registry has actually been fetched — the
               hook drops `lastSuccessAt` with the data it dates, so a first
@@ -178,8 +251,31 @@ export default function AgentsPage() {
           </ErrorNote>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        {/* Focusable, and named, because it scrolls. The registry is wider
+            than a phone and often wider than a laptop once reputation loads,
+            so this div becomes a horizontal scroll container — and a scroll
+            container a keyboard cannot reach hides the columns beyond the
+            fold from anyone not using a mouse (WCAG 2.1.1). axe flags it
+            `scrollable-region-focusable`, at serious severity.
+
+            It failed intermittently rather than always for an instructive
+            reason: the region is only scrollable once its content overflows,
+            and the content only widens when the reputation batch lands. So
+            the violation raced the fetch, and looked like a flaky test. */}
+        <div
+          className={`overflow-x-auto ${focusRing}`}
+          tabIndex={0}
+          role="region"
+          aria-label="Agent registry table, scrolls horizontally"
+        >
+          {/* A floor is set as well as a fill. Story 3.05 put standing marks
+              in the agent cell, which widened it and left the numeric columns
+              to crush — the header ran together as "REPUTATIONRUNSSTATUS" and
+              the runs figures clipped. The container is already a keyboard-
+              reachable horizontal scroller, so below this width the right
+              answer is to scroll rather than to squeeze columns a buyer is
+              trying to compare. */}
+          <table className="w-full min-w-[60rem] text-sm">
             {/* The page heading names this table on screen; the caption
                 repeats it for assistive tech only. */}
             <caption className="sr-only">
@@ -245,9 +341,14 @@ export default function AgentsPage() {
               {rows.map((a, i) => {
                 // Ownership is resolved from the connected wallet against the
                 // on-chain owner — never a local record (story 1.08 rule).
-                const owned =
-                  wallet.connected && !!a.owner && a.owner === wallet.address;
+                // Shared with the bind surfaces via `isOwnedBy` so the rule has
+                // one definition rather than a copy per page.
+                const owned = wallet.connected && isOwnedBy(a, wallet.address);
                 const open = owned && expandedId === a.id;
+                // Null for every row we make no claim about: the seeded
+                // catalog, other operators' agents, and anything past the
+                // lookup cap. Those rows render no binding marker at all.
+                const bindingState = binding.stateOf(a.id);
                 return (
                   <Fragment key={a.id}>
                     <m.tr
@@ -266,9 +367,46 @@ export default function AgentsPage() {
                         {a.id}
                       </th>
                       <td className="py-3 font-mono">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           {a.name}
-                          {a.real && <Badge tone="cyan">LIVE</Badge>}
+                          {/* The `LIVE` badge that used to sit here has been
+                              removed rather than relabelled.
+
+                              It rendered on `a.real`, which means "backed by a
+                              real Agno worker rather than a MockWorker" — an
+                              internal fact about the first-party catalog, and
+                              very nearly the inverse of provenance:
+                              `registry_sync` sets it false for EVERY on-chain
+                              agent, and the seeded catalog is a mix. So the
+                              one population it could never mark is the
+                              externally registered agents this marketplace
+                              exists to make visible, while a buyer reading a
+                              cyan "LIVE" chip would reasonably take it for the
+                              opposite.
+
+                              Provenance is now `AgentStanding`'s job, from
+                              `source`. Leaving both would put two contradictory
+                              provenance signals in one row. */}
+                          {/* Marks the agent itself, not its liveness — the
+                              status column next door means online/idle/offline
+                              and must not be confused with this. */}
+                          {bindingState !== null && (
+                            <BindingStateBadge state={bindingState} />
+                          )}
+                          {/* Standing sits beside the name rather than in its
+                              own column: it is a set of conditional marks, and
+                              an empty column on every healthy row would cost
+                              horizontal space on a table that already scrolls
+                              sideways on a phone. */}
+                          <AgentStanding
+                            agent={a}
+                            rep={repBatch?.reputations[a.id] ?? null}
+                            floorBps={repBatch?.floor_bps ?? null}
+                            // The lookup above answers binding for this row
+                            // whenever it asked; the cell then stays silent on
+                            // it, so the row states one answer, not two.
+                            bindingLookup={bindingState !== null}
+                          />
                         </div>
                       </td>
                       <td className="py-3">
@@ -283,7 +421,14 @@ export default function AgentsPage() {
                       <td className="py-3 text-right font-mono text-cyan">
                         {a.price.toFixed(3)}
                       </td>
-                      <td className="py-3 text-right">{renderReputation(a)}</td>
+                      <td className="py-3 text-right">
+                        <ReputationCell
+                          agentName={a.name}
+                          rep={repBatch?.reputations[a.id] ?? null}
+                          floorBps={repBatch?.floor_bps ?? null}
+                          read={repRead}
+                        />
+                      </td>
                       <td className="py-3 text-right font-mono text-xs text-muted">
                         {a.runs.toLocaleString()}
                       </td>
@@ -316,6 +461,43 @@ export default function AgentsPage() {
                         )}
                       </td>
                     </m.tr>
+                    {/* The warning sits directly under its own row, always
+                        open. An operator who closed the tab before binding has
+                        to see it without expanding anything (AC-3), and Manage
+                        is a panel they may never open.
+
+                        Not on a delisted row: the warning says the agent "is
+                        listed" and is passed over for want of an endpoint, and
+                        neither is true of an agent its operator withdrew. The
+                        row's own mark gives the real reason, and the "unbound"
+                        badge beside the name still records the missing
+                        endpoint for whenever it is relisted. */}
+                    {bindingState === "unbound" && isListed(a) && (
+                      <tr className="border-b border-border/50 bg-bg/20">
+                        <td colSpan={8} className="px-1 pb-4">
+                          <UnboundNotice agentId={a.id} agentName={a.name} />
+                        </td>
+                      </tr>
+                    )}
+                    {/* A lookup that failed says exactly that. Rendering it as
+                        unbound would accuse a live agent of being unroutable,
+                        and rendering nothing would hide that we never found
+                        out. */}
+                    {bindingState === "error" && (
+                      <tr className="border-b border-border/50 bg-bg/20">
+                        <td colSpan={8} className="px-1 pb-4">
+                          <ErrorNote
+                            className="clip-cyber-sm"
+                            onRetry={binding.recheck}
+                            retryLabel="recheck"
+                            retrying={binding.rechecking}
+                          >
+                            couldn&apos;t check whether {a.name} has an endpoint
+                            bound — its status is unknown.
+                          </ErrorNote>
+                        </td>
+                      </tr>
+                    )}
                     {open && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">

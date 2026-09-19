@@ -8,7 +8,8 @@
  * actually support and test: Freighter, xBull, Albedo, LOBSTR, Hana,
  * and Rabet.
  *
- *   const { address, walletName, connect, disconnect, signXdr } = useWallet();
+ *   const { address, walletName, connect, disconnect, signXdr, signMessage } =
+ *     useWallet();
  *
  * The kit's API stays internal — call sites still use `useWallet()`,
  * which lets us swap implementations without touching pages.
@@ -29,6 +30,7 @@ import {
   wrongNetworkError,
   type FriendlyError,
 } from "@/lib/wallet-errors";
+import { installWalletPickerA11y } from "@/lib/wallet-picker-a11y";
 
 import { HORIZON_URL, NETWORK_NAME, NETWORK_PASSPHRASE } from "@/lib/env";
 
@@ -94,6 +96,13 @@ type WalletState = {
     xdr: string,
     opts?: { networkPassphrase?: string },
   ) => Promise<string>;
+  /**
+   * Sign an arbitrary message, resolving to the wallet's base64 signature
+   * exactly as the kit returned it. Used by the agent endpoint binding flow
+   * (story 2.01), where the signature authorizes the endpoint rather than a
+   * transaction.
+   */
+  signMessage: (message: string) => Promise<string>;
   refreshBalance: () => Promise<void>;
 };
 
@@ -214,6 +223,20 @@ function signTimeoutError(): FriendlyError {
       "The wallet didn't respond within 2 minutes. The signing popup may have been blocked or closed — check your wallet extension and try again.",
     raw: `wallet did not settle within ${SIGN_TIMEOUT_MS / 1000}s`,
   };
+}
+
+/**
+ * The wallet's own wording for a rejection the kit reports as a plain
+ * `{ code, message }` object rather than an Error (`parseError`,
+ * @creit.tech/stellar-wallets-kit). `String(e)` on one of those is the useless
+ * "[object Object]" — which erases the very phrase ("User declined access")
+ * that the rejection classifier matches on, turning a cancelled popup into an
+ * unexplained failure.
+ */
+function walletErrorMessage(e: unknown): string {
+  if (typeof e === "string") return e;
+  const message = (e as { message?: unknown } | null | undefined)?.message;
+  return typeof message === "string" && message ? message : String(e);
 }
 
 /** The promise's own outcome, or `onTimeout()` as a rejection if it doesn't settle in time. */
@@ -371,8 +394,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const connect = useCallback(async () => {
     setLoading(true);
     setError(null);
+    let disposeA11y: (() => void) | null = null;
     try {
       const kit = await loadKit();
+      // Patch the kit's picker before it opens: as shipped it has no Escape
+      // handler, no accessible name on its close control, and wallet rows that
+      // no keyboard can reach. Escape is routed to the kit's own closeEvent, so
+      // it rejects authModal exactly the way its X button does. A shim that
+      // cannot install must never block connecting.
+      try {
+        const { closeEvent } = await import("@creit.tech/stellar-wallets-kit");
+        // Only worth installing if the kit's own close path is reachable —
+        // otherwise Escape would appear to work and do nothing.
+        if (closeEvent) {
+          disposeA11y = installWalletPickerA11y(() => closeEvent.next());
+        }
+      } catch {
+        disposeA11y = null;
+      }
       // Open the multi-wallet picker. Resolves to the chosen wallet's address.
       const { address: addr } = await kit.authModal();
       // The kit sets the active module internally before resolving authModal.
@@ -389,6 +428,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const f = classifyError(e);
       setError(f);
     } finally {
+      disposeA11y?.();
       setLoading(false);
     }
   }, []);
@@ -456,6 +496,48 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     [address, walletNetwork, walletNetworkMismatch],
   );
 
+  /**
+   * Sign a plain message with the connected wallet (story 2.01's endpoint
+   * binding), resolving to the kit's `signedMessage` — already base64 —
+   * VERBATIM.
+   *
+   * That word is load-bearing: the bind verifier accepts both a raw-bytes and
+   * a SEP-53 signature on purpose, so it is the backend's job to work out
+   * which one arrived. Re-encoding, hashing or otherwise "normalizing" the
+   * string here turns a signature the backend would have accepted into one it
+   * rejects as malformed, with nothing on either side to explain why.
+   *
+   * Unlike `signXdr` there is no network pre-flight, and deliberately not: a
+   * message signature is a bare ed25519 signature over the bytes with no
+   * passphrase mixed in, so it verifies identically whichever network the
+   * extension happens to be on. Blocking a mismatch here would refuse a
+   * binding that was going to be accepted. Everything else — the lazy kit
+   * load, the popup deadline, and rethrowing raw for the call site to
+   * classify — follows `signXdr` exactly.
+   */
+  const signMessage = useCallback(
+    async (message: string) => {
+      if (!address) throw new Error("wallet not connected");
+      try {
+        const kit = await loadKit();
+        const res = await withDeadline(
+          kit.signMessage(message, { address }),
+          SIGN_TIMEOUT_MS,
+          signTimeoutError,
+        );
+        return res.signedMessage;
+      } catch (e) {
+        // Already classified (sign timeout) — pass through.
+        if (isFriendlyError(e)) throw e;
+        // Normalize to an Error and rethrow raw; the bind page runs it
+        // through classifyError itself so a declined popup reads as the
+        // ordinary action it is rather than a failure.
+        throw e instanceof Error ? e : new Error(walletErrorMessage(e));
+      }
+    },
+    [address],
+  );
+
   const value = useMemo<WalletState>(
     () => ({
       installed,
@@ -474,6 +556,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       connect,
       disconnect,
       signXdr,
+      signMessage,
       refreshBalance,
     }),
     [
@@ -492,6 +575,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       connect,
       disconnect,
       signXdr,
+      signMessage,
       refreshBalance,
     ],
   );

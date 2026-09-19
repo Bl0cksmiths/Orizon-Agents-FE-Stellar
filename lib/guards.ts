@@ -11,10 +11,16 @@
 
 import type {
   Agent,
+  AgentBinding,
+  AgentSettlement,
   AgentIdAvailability,
   ArtifactResponse,
   AuthorizeBuild,
+  BindChallenge,
+  BindErrorCode,
+  BindTimestamp,
   CodeArtifact,
+  EndpointCheck,
   DecomposeResponse,
   Flow,
   Overview,
@@ -47,6 +53,12 @@ const isOptionalStr = (v: unknown): v is string | undefined =>
 const isOptionalBool = (v: unknown): v is boolean | undefined =>
   v === undefined || v === null || typeof v === "boolean";
 
+/** A finite number, or absent. The numeric mate of `isOptionalStr`: a wrong
+ * type is still rejected, a missing one is not. Exists because a field the UI
+ * divides or compares must never arrive as a string that coerces. */
+const isOptionalNum = (v: unknown): v is number | undefined =>
+  v === undefined || v === null || isNum(v);
+
 const isNumArray = (v: unknown): v is number[] =>
   Array.isArray(v) && v.every(isNum);
 
@@ -78,6 +90,14 @@ export function isAgentList(v: unknown): v is Agent[] {
         isNum(a.rep) &&
         isNum(a.runs) &&
         isOptionalStr(a.owner) &&
+        // Optional and NOT set-checked, unlike `status` below. `status` picks
+        // a tone from a closed map, so an unlisted value renders untoned; a
+        // provenance value we do not recognise still renders as "not seeded",
+        // which is the safe reading, and rejecting the whole registry over one
+        // would empty the marketplace.
+        isOptionalStr(a.source) &&
+        // Tri-state: true, false, or absent/null meaning "does not apply".
+        isOptionalBool(a.bound) &&
         isStr(a.status) &&
         AGENT_STATUSES.has(a.status),
     )
@@ -203,7 +223,10 @@ export function isTraceLineList(v: unknown): v is TraceLine[] {
  * `notices` and the floor fields on steps (story 3.02) are additive: absent
  * is fine (a backend predating them), but a present value is type-checked —
  * `degraded` because a truthy non-boolean would badge a healthy step as
- * below-floor, `kind` because it indexes the notice tone map. */
+ * below-floor, `kind` because it indexes the notice tone map. The per-step
+ * reputation evidence (`rep_lower_bound_bps`, `rep_count`,
+ * `rep_dispute_rate_bps`, `rep_degraded`) follows the same contract: optional,
+ * nullable, never the wrong type. */
 export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
   return (
     isRecord(v) &&
@@ -218,11 +241,32 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
         isStr(s.rationale) &&
         isNum(s.est_price_usdc) &&
         isNum(s.est_eta_seconds) &&
+        // The reputation badge compares the bound against the floor and
+        // prints the count and dispute rate, so each is a finite number or
+        // absent. Anything else coerces to NaN, every comparison against it
+        // is false — a below-floor agent reads as clearing the floor — and
+        // the label prints "NaN% disputed".
+        isOptionalNum(s.rep_lower_bound_bps) &&
+        isOptionalNum(s.rep_count) &&
+        isOptionalNum(s.rep_dispute_rate_bps) &&
+        // The string "false" is truthy, and would tell the buyer a healthy
+        // read had failed and the score beside it was only the prior.
+        isOptionalBool(s.rep_degraded) &&
         isOptionalStr(s.substituted_for) &&
         isOptionalBool(s.degraded),
     ) &&
     (v.notices == null ||
-      (Array.isArray(v.notices) && v.notices.every(isPlanFloorNotice)))
+      (Array.isArray(v.notices) && v.notices.every(isPlanFloorNotice))) &&
+    // Both optional, because a plan card must keep rendering against a backend
+    // that predates them. `floor_bps` is checked as a number rather than
+    // defaulted here: a floor that arrives as a string would print "NaN" in
+    // the threshold the buyer is being asked to trust.
+    isOptionalNum(v.floor_bps) &&
+    isOptionalBool(v.reputation_degraded) &&
+    // Optional for the same reason, and strict for the same reason as the
+    // flag above: the string "false" is truthy, and would tell the buyer the
+    // planner never saw a plan it built.
+    isOptionalBool(v.planner_fallback)
   );
 }
 
@@ -240,7 +284,15 @@ function isPlanFloorNotice(v: unknown): boolean {
     isStr(v.reason) &&
     isOptionalStr(v.agent_name) &&
     isOptionalStr(v.replacement_id) &&
-    isOptionalStr(v.replacement_name)
+    isOptionalStr(v.replacement_name) &&
+    // Optional, and deliberately NOT set-checked the way `kind` is. `kind`
+    // picks the row's tone, so an unlisted value renders unstyled; an
+    // unrecognised `reason_code` still has the prose `reason` beside it, so
+    // rejecting the whole payload over one would trade a rendered plan for no
+    // plan at all.
+    isOptionalStr(v.reason_code) &&
+    isOptionalNum(v.lower_bound_bps) &&
+    isOptionalNum(v.floor_bps)
   );
 }
 
@@ -288,6 +340,46 @@ export function isReputationBatch(v: unknown): v is ReputationBatch {
     isNum(v.prior_bps) &&
     isRecord(v.reputations) &&
     Object.values(v.reputations).every(isReputationInfo)
+  );
+}
+
+/** One settlement row. `amount_stroops` is summed and divided, `self_payment`
+ * decides whether it counts as revenue at all, so a wrong type on either is
+ * worse than a missing payload. */
+const isSettlementEntry = (v: unknown): boolean =>
+  isRecord(v) &&
+  isStr(v.job_id) &&
+  isStr(v.auth_id) &&
+  isNum(v.amount_stroops) &&
+  isNum(v.ledger) &&
+  // Optional, so a response from a backend predating the field still renders
+  // its charges. A wrong TYPE is still rejected: the panel builds an explorer
+  // URL out of this, and a number coerced into a path is a link to nowhere.
+  isOptionalStr(v.tx_hash) &&
+  isOptionalStr(v.at) &&
+  isStr(v.payer) &&
+  typeof v.self_payment === "boolean" &&
+  // Optional rather than required: a backend that predates the field still
+  // serves correct figures, and rejecting the whole payload over a missing
+  // explanation would trade real evidence for none.
+  isOptionalStr(v.exclusion);
+
+/** Settlement panel: every numeric below is rendered as money or as a window
+ * boundary, and `unavailable` is what separates "nothing was paid" from "we
+ * could not look". */
+export function isAgentSettlement(v: unknown): v is AgentSettlement {
+  return (
+    isRecord(v) &&
+    isStr(v.agent_id) &&
+    isStr(v.asset) &&
+    isNum(v.window_days) &&
+    isNum(v.scanned_ledgers) &&
+    Array.isArray(v.entries) &&
+    v.entries.every(isSettlementEntry) &&
+    isNum(v.total_stroops) &&
+    isNum(v.self_payment_stroops) &&
+    typeof v.truncated === "boolean" &&
+    isOptionalStr(v.unavailable)
   );
 }
 
@@ -413,4 +505,78 @@ export function isAgentIdAvailability(v: unknown): v is AgentIdAvailability {
  * non-number would print `NaN`. */
 export function isSyncResponse(v: unknown): v is SyncResponse {
   return isRecord(v) && isNum(v.synced);
+}
+
+/** A bind timestamp in either serialization the contract permits — an ISO
+ * string or a Unix epoch (see `BindTimestamp`). Rejecting one of the two would
+ * fail a valid binding over a serializer detail; what is ruled out is the
+ * object/null that would render as "[object Object]" or "Invalid Date". */
+const isBindTimestamp = (v: unknown): v is BindTimestamp =>
+  isStr(v) || isNum(v);
+
+/** Bind challenge: `message` is handed straight to the wallet as the payload
+ * to sign, so a missing one reaches Freighter as the literal "undefined" and
+ * comes back as an opaque wallet error rather than the backend failure it is —
+ * the same contract as `isAuthorizeBuild`. `nonce` is additionally matched
+ * against the message's own tail before signing, and `ttl_seconds` drives the
+ * expiry countdown, where a non-number counts down as `NaN`. */
+export function isBindChallenge(v: unknown): v is BindChallenge {
+  return (
+    isRecord(v) &&
+    isStr(v.agent_id) &&
+    isStr(v.nonce) &&
+    isStr(v.message) &&
+    isNum(v.ttl_seconds) &&
+    isBindTimestamp(v.expires_at)
+  );
+}
+
+/** A bound endpoint, from the bind POST and the binding GET alike.
+ * `endpoint_url` and `owner` are rendered, and `replaced` is checked strictly
+ * as a boolean because it picks the confirmation copy — the string "false"
+ * would tell an owner their very first binding had overwritten a live route,
+ * and a missing flag would hide that a real one was. */
+export function isAgentBinding(v: unknown): v is AgentBinding {
+  return (
+    isRecord(v) &&
+    isStr(v.agent_id) &&
+    isStr(v.endpoint_url) &&
+    isStr(v.owner) &&
+    isBindTimestamp(v.bound_at) &&
+    typeof v.replaced === "boolean"
+  );
+}
+
+/** Endpoint preflight: the bind form gates its submit on `allowed` and renders
+ * `rule`/`message` as the inline hint. A non-boolean `allowed` (the string
+ * "false") would read as permitted and walk the owner into the 422 this check
+ * exists to prevent, so it is checked strictly while the optional strings only
+ * reject a wrong type — the same contract as `isAgentIdAvailability`. */
+export function isEndpointCheck(v: unknown): v is EndpointCheck {
+  return (
+    isRecord(v) &&
+    typeof v.allowed === "boolean" &&
+    isOptionalStr(v.rule) &&
+    isOptionalStr(v.message)
+  );
+}
+
+/** The codes the bind error envelope is documented to carry. */
+const BIND_ERROR_CODES = new Set<string>([
+  "agent_not_found",
+  "not_agent_owner",
+  "challenge_invalid",
+  "endpoint_not_allowed",
+  "signature_malformed",
+  "registry_unavailable",
+  "binding_not_found",
+  "rate_limited",
+]);
+
+/** Narrows an envelope's `error.code` to the bind contract. A guard rather
+ * than a cast so a code the backend adds after this build resolves to "not one
+ * of ours" and the caller takes its generic branch, instead of being handed a
+ * value its exhaustive switch has no arm for. */
+export function isBindErrorCode(v: unknown): v is BindErrorCode {
+  return isStr(v) && BIND_ERROR_CODES.has(v);
 }

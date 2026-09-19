@@ -19,10 +19,13 @@ import { isAgentAlreadyExists } from "@/lib/register-submit";
 import { signAndSubmit } from "@/lib/sign-submit";
 import { buildRegistrationEvidence } from "@/lib/registration-evidence";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
+import { TWO_SIGNATURES, bindHref } from "@/lib/binding-status";
+import { getStellarNetwork } from "@/lib/api";
+import { useFetch } from "@/lib/use-fetch";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { type FriendlyError } from "@/lib/wallet-errors";
-import { focusRing } from "@/lib/ui";
+import { focusRing, inlineLink } from "@/lib/ui";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
@@ -50,6 +53,15 @@ const labelCls = "font-mono text-[10px] uppercase tracking-[0.22em] text-muted";
 export default function RegisterPage() {
   const wallet = useWallet();
   const owner = wallet.address ?? "";
+
+  // The evidence block and explorer links must name the chain the transaction
+  // actually landed on — which is whatever the backend reports, not the
+  // passphrase this bundle was built against. The two diverge during a network
+  // flip, and this page is where the grant's evidence is captured. Falls back to
+  // the build-time value only until the fetch resolves.
+  const { data: networkInfo } = useFetch(getStellarNetwork, []);
+  const liveNetwork = networkInfo?.network ?? defaultExplorerNetwork;
+  const networkLabel = networkInfo?.network ?? NETWORK_LABEL;
 
   const [agentId, setAgentId] = useState("");
   const [name, setName] = useState("");
@@ -219,7 +231,7 @@ export default function RegisterPage() {
       agentId,
       owner,
       txHash,
-      network: defaultExplorerNetwork,
+      network: liveNetwork,
     });
     try {
       await navigator.clipboard.writeText(block);
@@ -240,7 +252,7 @@ export default function RegisterPage() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             List your agent on Orizon — permissionless, no signup, on Stellar{" "}
-            {NETWORK_LABEL}. Your connected wallet is the owner.
+            {networkLabel}. Your connected wallet is the owner.
           </p>
         </div>
         <ConnectWallet size="md" />
@@ -366,6 +378,7 @@ export default function RegisterPage() {
                 id="reg-skills"
                 value={skills}
                 onChange={setSkills}
+                onBlur={() => touch("skills")}
                 disabled={submitting}
                 aria-invalid={Boolean(touched.skills && skillsError)}
                 aria-describedby={
@@ -444,16 +457,27 @@ export default function RegisterPage() {
                 <StellarExpertLink
                   kind="account"
                   id={owner}
-                  network={defaultExplorerNetwork}
-                  className="font-mono text-cyan underline decoration-cyan/40 hover:decoration-cyan"
+                  network={liveNetwork}
+                  className={`font-mono ${inlineLink}`}
                 >
                   {owner.slice(0, 4)}…{owner.slice(-4)}
                 </StellarExpertLink>
-                . Bind an execution endpoint (story 2.05) so it can take work —
-                or see it in the marketplace now.
+                . Binding an execution endpoint takes one{" "}
+                <b className="text-text">message signature</b> — the id is
+                carried into that step, so there is no form to fill in again. Or
+                see it in the marketplace now.
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <ButtonLink variant="cyan" size="sm" href="/app/agents">
+                {/* Carries the id the operator just registered, so the bind
+                    page opens against this agent instead of asking them to
+                    retype an id they only ever saw on a confirmation screen.
+                    Deliberately a link and not a redirect: binding is optional
+                    and an operator who stops here still owns a valid on-chain
+                    agent, so the navigation stays theirs to make. */}
+                <ButtonLink variant="cyan" size="sm" href={bindHref(agentId)}>
+                  Bind an endpoint ▸
+                </ButtonLink>
+                <ButtonLink variant="outline" size="sm" href="/app/agents">
                   View in marketplace ▸
                 </ButtonLink>
                 <Button
@@ -474,21 +498,43 @@ export default function RegisterPage() {
           ) : null}
 
           {txState === "success" ? null : (
-            <div className="flex items-center gap-3 pt-1">
-              <Button
-                type="submit"
-                variant="cyan"
-                size="md"
-                disabled={!canSubmit}
-              >
-                {submitting ? "◉ Working…" : "Register agent ▸"}
-              </Button>
-              {!wallet.connected ? (
-                <span className="font-mono text-[11px] text-muted">
-                  connect a wallet to register
-                </span>
-              ) : null}
-            </div>
+            <>
+              {/* Both prompts, named before the first one fires. An operator
+                  who meets an unexplained second wallet popup is right to read
+                  it as an attack, so this cannot wait for the success card —
+                  by then the first signature has already been spent. It sits
+                  against the submit button rather than at the top of the form
+                  because that is what is on screen at the moment of the click.
+
+                  The sentence is rendered from TWO_SIGNATURES verbatim: the
+                  bind page and the marketplace state the same fact, and three
+                  hand-written copies of a security claim drift apart. That is
+                  also why the emphasis lives in the kicker instead of <b> tags
+                  woven through the copy — splitting the shared string to bold
+                  a noun would fork the wording it exists to keep identical. */}
+              <div className="clip-cyber-sm border border-cyan/40 bg-cyan/5 p-4">
+                <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan mb-1">
+                  ▸ two signatures, one at a time
+                </div>
+                <p className="text-sm text-text">{TWO_SIGNATURES}</p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  type="submit"
+                  variant="cyan"
+                  size="md"
+                  disabled={!canSubmit}
+                >
+                  {submitting ? "◉ Working…" : "Register agent ▸"}
+                </Button>
+                {!wallet.connected ? (
+                  <span className="font-mono text-[11px] text-muted">
+                    connect a wallet to register
+                  </span>
+                ) : null}
+              </div>
+            </>
           )}
         </form>
       </Card>

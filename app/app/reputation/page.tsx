@@ -13,8 +13,9 @@ import { useFetch } from "@/lib/use-fetch";
  * /app/reputation — the reputation system end to end: live scores for every
  * registered agent, the interactive math, and the on-chain ledger behind it.
  *
- * Reads degrade where a fallback is honest (seeded priors per agent, built-in
- * math defaults) but never silently: every failed read is announced next to
+ * Reads degrade where a fallback is honest (built-in math defaults — never a
+ * seeded score in place of an agent's reputation) but never silently: every
+ * failed read is announced next to
  * the thing it should have filled, and every announcement carries the
  * matching `reload` so a transient backend outage is one click from recovery.
  * This page drives who the orchestrator hires and what gets paid — a

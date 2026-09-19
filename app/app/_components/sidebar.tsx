@@ -105,6 +105,63 @@ const items = [
     ),
   },
   {
+    href: "/app/bind",
+    label: "Bind",
+    icon: (
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        className="h-4 w-4"
+        aria-hidden="true"
+      >
+        <path
+          d="M8.5 11.5a3.5 3.5 0 010-5l1.5-1.5a3.5 3.5 0 015 5l-1 1"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M11.5 8.5a3.5 3.5 0 010 5L10 15a3.5 3.5 0 01-5-5l1-1"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
+  {
+    // Deliberately "My Agents" and not "Operator": the label has to separate
+    // this from /app/agents, which is the whole public registry. This one is
+    // only what the connected wallet owns.
+    href: "/app/operator",
+    label: "My Agents",
+    icon: (
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        className="h-4 w-4"
+        aria-hidden="true"
+      >
+        <rect
+          x="2.5"
+          y="4"
+          width="15"
+          height="12"
+          rx="1.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M6 8.5h3M6 11.5h6"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <circle cx="14" cy="8.5" r="1.2" fill="currentColor" />
+      </svg>
+    ),
+  },
+  {
     href: "/app/reputation",
     label: "Reputation",
     icon: (
@@ -317,6 +374,25 @@ export function Sidebar() {
     revalidateOnFocus: true,
   });
 
+  // Below md the closed drawer is only translated off-screen, which leaves its
+  // links in the tab order and accessibility tree (WCAG 2.4.3). Mark the closed
+  // drawer `inert` there; on md+ it is a permanently visible landmark, so never
+  // inert. This effect runs before the focus effect below, so opening removes
+  // inert before focus moves in. (inert is set via attribute — @types/react 18
+  // does not type the prop yet.)
+  useEffect(() => {
+    const el = asideRef.current;
+    if (!el) return;
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const apply = () => {
+      if (!open && !desktop.matches) el.setAttribute("inert", "");
+      else el.removeAttribute("inert");
+    };
+    apply();
+    desktop.addEventListener("change", apply);
+    return () => desktop.removeEventListener("change", apply);
+  }, [open]);
+
   // Mobile drawer: Escape closes, body scroll locks, focus moves into the
   // drawer and returns to the opener (hamburger) on close.
   useEffect(() => {
@@ -334,7 +410,13 @@ export function Sidebar() {
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.classList.remove("overflow-hidden");
-      opener?.focus();
+      // The opener (the hamburger) lives inside ConsoleContent, which is still
+      // `inert` at this point — focusing an element inside an inert subtree is
+      // a no-op, so focus would silently fall to <body>. Restore on the next
+      // frame, once that component's effect has cleared inert.
+      requestAnimationFrame(() => {
+        if (opener?.isConnected) opener.focus();
+      });
     };
   }, [open, setOpen]);
 

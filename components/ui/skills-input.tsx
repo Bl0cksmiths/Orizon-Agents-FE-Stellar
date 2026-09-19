@@ -12,9 +12,16 @@ export type SkillsInputProps = {
   onChange: (skills: string[]) => void;
   /** Hard cap on chips; adds past it are rejected, not thrown. */
   max?: number;
+  /** Max characters per token; a longer token is refused at entry (matches the
+   * on-chain symbol length) rather than entering state and silently failing
+   * the page's validation. */
+  maxLen?: number;
   /** Wired to the field's <label htmlFor>; lands on the text input. */
   id?: string;
   disabled?: boolean;
+  /** Fired when the text input loses focus, so the parent can mark the field
+   * touched and reveal any validation note. */
+  onBlur?: () => void;
   /** The field's error note — mirrored onto the inner input. */
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
@@ -46,8 +53,10 @@ export function SkillsInput({
   value,
   onChange,
   max = 16,
+  maxLen = 32,
   id,
   disabled = false,
+  onBlur,
   "aria-describedby": ariaDescribedby,
   "aria-invalid": ariaInvalid,
 }: SkillsInputProps) {
@@ -66,12 +75,21 @@ export function SkillsInput({
    * (case-insensitive) → max. Emits a single onChange and reports whether the
    * cap was hit so the caller can decide what to keep in the input.
    */
-  function addTokens(rawTokens: string[]): { added: number; maxHit: boolean } {
+  function addTokens(rawTokens: string[]): {
+    added: number;
+    maxHit: boolean;
+    tooLong: boolean;
+  } {
     const next = [...value];
     let maxHit = false;
+    let tooLong = false;
     for (const raw of rawTokens) {
       const token = sanitize(raw).trim();
       if (!token) continue;
+      if (token.length > maxLen) {
+        tooLong = true;
+        continue;
+      }
       if (next.some((s) => s.toLowerCase() === token.toLowerCase())) continue;
       if (next.length >= max) {
         maxHit = true;
@@ -81,9 +99,9 @@ export function SkillsInput({
     }
     const added = next.length - value.length;
     if (added > 0) onChange(next);
-    if (maxHit) setRejected(true);
+    if (maxHit || tooLong) setRejected(true);
     else if (added > 0) setRejected(false);
-    return { added, maxHit };
+    return { added, maxHit, tooLong };
   }
 
   function removeAt(index: number) {
@@ -111,10 +129,11 @@ export function SkillsInput({
       // Never let the comma reach the value or Enter submit the form.
       e.preventDefault();
       if (!sanitize(input).trim()) return;
-      const { maxHit } = addTokens([input]);
-      // Keep the token visible when it was refused for the cap; otherwise the
-      // committed/duplicate token is absorbed and the field clears.
-      if (!maxHit) setInput("");
+      const { maxHit, tooLong } = addTokens([input]);
+      // Keep the token visible when it was refused (cap or over-length) so the
+      // user can fix it; otherwise the committed/duplicate token is absorbed and
+      // the field clears.
+      if (!maxHit && !tooLong) setInput("");
       return;
     }
     if (e.key === "Backspace" && input === "" && value.length > 0) {
@@ -161,6 +180,7 @@ export function SkillsInput({
         value={input}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
+        onBlur={onBlur}
         disabled={disabled}
         aria-invalid={invalid || undefined}
         aria-describedby={ariaDescribedby}

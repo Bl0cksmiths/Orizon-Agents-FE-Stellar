@@ -5,17 +5,17 @@ import {
   StellarExpertLink,
   defaultExplorerNetwork,
 } from "@/components/ui/stellar-link";
+import { fallbackReputationLedgerId } from "@/lib/contract-addresses";
 import type { ReputationParams } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-// deployed ledger ids — fallback until /reputation/params loads
-const FALLBACK_CONTRACT_IDS = {
-  public: "CDFWQJY72GPH7PEQVFGBDZESZNVRF6LQLVWU42CFMWPGRME5RWN5AXSX",
-  testnet: "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
-} as const;
-const FALLBACK_CONTRACT_ID =
-  FALLBACK_CONTRACT_IDS[defaultExplorerNetwork] ??
-  FALLBACK_CONTRACT_IDS.testnet;
+// Fallback until /reputation/params loads. The id comes from the shared
+// address book (lib/contract-addresses.ts) rather than a local constant so
+// there is one place in this repo to be stale, and so CI can compare that one
+// place against the deploy scripts' address book. Resolved against the BUILD's
+// network — a fallback is shown precisely when the backend has not told us
+// which network it is on, so its own reported network cannot select it.
+const FALLBACK_CONTRACT_ID = fallbackReputationLedgerId(defaultExplorerNetwork);
 
 const METHODS = [
   {

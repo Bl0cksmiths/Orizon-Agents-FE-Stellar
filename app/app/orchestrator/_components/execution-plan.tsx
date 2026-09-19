@@ -9,23 +9,33 @@ import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { TxStatus, type TxState } from "@/components/ui/tx-status";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
-import { buildAuthorize, execute, submitSigned } from "@/lib/api";
+import {
+  buildAuthorize,
+  execute,
+  getStellarNetwork,
+  submitSigned,
+} from "@/lib/api";
+import { assetLabel } from "@/lib/money";
+import { useFetch } from "@/lib/use-fetch";
+import {
+  DegradedBanner,
+  hasUnverifiedReputation,
+  UNVERIFIED_BANNER_ID,
+} from "./degraded-banner";
+import { ExclusionsPanel } from "./exclusions-panel";
+import { FloorSummary } from "./floor-summary";
+import {
+  isPlannerFallback,
+  PLANNER_FALLBACK_NOTICE_ID,
+  PlannerFallbackNotice,
+} from "./planner-fallback-notice";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
-import type { DecomposeResponse, PlanFloorNoticeKind } from "@/lib/types";
+import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 
 // Display label for the configured network — "mainnet" | "testnet".
-
-/** Tone per floor-notice kind (story 3.02). Meaning is never carried by the
- * color alone — every row also prints the kind word and the reason. */
-const NOTICE_TONE: Record<PlanFloorNoticeKind, "magenta" | "cyan" | "violet"> =
-  {
-    excluded: "magenta",
-    substituted: "cyan",
-    degraded: "violet",
-  };
 
 /** Which stage of the on-chain authorize flow is running (for button copy). */
 type ExecStep = "" | "sign" | "broadcast" | "execute";
@@ -58,10 +68,22 @@ function bytesToHex(v: unknown): string | null {
 /**
  * The decomposed-plan card: step list, totals, and the execute flows
  * (simulate / fiat funding / on-chain authorize). Mirrors the FiatFund
- * pattern — self-contained state and actions, fed only by the plan.
+ * pattern — self-contained state and actions, fed by the plan and by its own
+ * network read, which names the asset its amounts are denominated in.
  * The task read token from execute responses is stored by lib/api.ts.
+ *
+ * `onReplan` is the one flow the card does not own: asking for a new plan is
+ * the page's decompose, so the page hands it down for the planner-fallback
+ * notice rather than the card calling the API itself.
  */
-export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
+export function ExecutionPlan({
+  plan,
+  onReplan,
+}: {
+  plan: DecomposeResponse;
+  /** Decomposes this plan's intent again — offered on a fallback plan. */
+  onReplan?: () => void;
+}) {
   const router = useRouter();
   const wallet = useWallet();
   const [showFiat, setShowFiat] = useState(false);
@@ -71,6 +93,20 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
     null,
   );
   const [authorizeHash, setAuthorizeHash] = useState<string | null>(null);
+
+  // What every amount on this card is actually denominated in. `total_usdc`
+  // is a legacy field name, not a currency: the cap the buyer signs is that
+  // figure in stroops of whatever the escrow's SAC wraps, and on testnet that
+  // is native XLM. Until the network read lands — or if it fails — `unit` is
+  // empty and amounts print bare, because a guessed "USDC" is the false claim
+  // this replaces.
+  const { data: network } = useFetch(getStellarNetwork, [], {
+    revalidateOnFocus: true,
+  });
+  const unit = assetLabel(network?.asset);
+  /** An amount with its real unit, or bare while the unit is unknown. */
+  const priced = (value: number) =>
+    unit ? `${value.toFixed(3)} ${unit}` : value.toFixed(3);
 
   /** Simulated path — no wallet required. */
   const simulate = useAsyncAction(async () => {
@@ -132,6 +168,20 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
     }
   });
 
+  // Every notice above the Authorize panel that is on the page, in reading
+  // order. Composed, never chosen between: a fallback plan built during a
+  // failed reputation read owes the buyer both facts at the button. None at
+  // all is no attribute rather than an empty one, and an id is only named
+  // while its notice renders — a reference to an absent id describes nothing
+  // and is flagged by accessibility audits.
+  const authorizeDescribedBy =
+    [
+      isPlannerFallback(plan) && PLANNER_FALLBACK_NOTICE_ID,
+      hasUnverifiedReputation(plan) && UNVERIFIED_BANNER_ID,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
+
   const executing = simulate.pending || authorize.pending;
   // Authorize failures render in the TxStatus FailedCard (via friendlyError);
   // only the simulate path reports through the alert below.
@@ -184,9 +234,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
               <div className="text-muted uppercase tracking-widest text-[10px]">
                 total est.
               </div>
-              <div className="text-cyan text-lg">
-                {plan.total_usdc.toFixed(3)} USDC
-              </div>
+              <div className="text-cyan text-lg">{priced(plan.total_usdc)}</div>
             </div>
             <div>
               <div className="text-muted uppercase tracking-widest text-[10px]">
@@ -198,6 +246,12 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
             </div>
           </div>
         </div>
+
+        {/* Above the steps, not below them. The floor is the frame the plan
+            was built in, and a buyer who reads the steps first has already
+            formed a view of the plan by the time they meet the threshold that
+            shaped it. */}
+        <FloorSummary plan={plan} />
 
         <ol className="space-y-3">
           {plan.steps.map((s, i) => (
@@ -213,10 +267,40 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="violet">{s.agent_name ?? s.agent_id}</Badge>
+                {/* The floor goes in ONLY beside the step's own lower bound.
+
+                    ReputationBadge decides below-floor with
+                    `(lowerBoundBps ?? bps) < floorBps`, and the backend gates
+                    on the lower bound, never on `rep_bps` — the smoothed
+                    headline score. The two disagree exactly where it matters,
+                    for an agent with a healthy average and too few ratings to
+                    back it, so a floor handed over without the bound would
+                    judge the wrong number and clear an agent the planner
+                    refused. A backend predating `rep_lower_bound_bps` gets no
+                    floor verdict on the chip at all; a step the starvation
+                    backstop re-admitted still carries its own `▾ below floor`
+                    badge below either way.
+
+                    `rep_degraded` is this step's own failed read, and it is
+                    what stops a prior served in place of an unreachable
+                    history from being worded "no on-chain ratings yet". The
+                    plan-wide `reputation_degraded` stands in only when a
+                    backend predating the step field omits it. That flag says
+                    some read failed, not which, so in such a plan a genuine
+                    cold start may be worded as a failed read — the smaller
+                    error of the two, since the other misstates a real
+                    agent's record. */}
                 {s.rep_bps != null && (
                   <ReputationBadge
                     bps={s.rep_bps}
+                    lowerBoundBps={s.rep_lower_bound_bps ?? undefined}
                     source={s.rep_source ?? "prior"}
+                    degraded={s.rep_degraded ?? plan.reputation_degraded}
+                    count={s.rep_count ?? undefined}
+                    disputeRateBps={s.rep_dispute_rate_bps ?? undefined}
+                    floorBps={
+                      s.rep_lower_bound_bps != null ? plan.floor_bps : undefined
+                    }
                   />
                 )}
                 {s.substituted_for && (
@@ -241,37 +325,33 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
           ))}
         </ol>
 
-        {(plan.notices?.length ?? 0) > 0 && (
-          <div className="mt-4 clip-cyber-sm border border-violet/40 bg-violet/5 p-4">
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-violet mb-2">
-              ▸ reputation floor — why this plan changed shape
-            </div>
-            <ul className="space-y-2">
-              {plan.notices?.map((n, i) => (
-                <li
-                  key={`${n.kind}-${n.agent_id}-${i}`}
-                  className="flex flex-wrap items-center gap-2 text-sm"
-                >
-                  <Badge tone={NOTICE_TONE[n.kind]}>{n.kind}</Badge>
-                  <span>
-                    <b className="text-text">{n.agent_name ?? n.agent_id}</b>
-                    {n.kind === "substituted" && (
-                      <>
-                        {" → "}
-                        <b className="text-text">
-                          {n.replacement_name ?? n.replacement_id}
-                        </b>
-                      </>
-                    )}
-                  </span>
-                  <span className="font-mono text-xs text-muted">
-                    {n.reason}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* Replaces an always-expanded list. It was the right information in
+            the wrong shape: a plan with four floor actions pushed the steps
+            and the Authorize control down the card, so the protection read as
+            an obstacle. Collapsed, with the count on the summary, it informs
+            without dominating — and it is a product rule of the story that it
+            is never hidden outright. */}
+        <div className="mt-4">
+          <ExclusionsPanel plan={plan} />
+        </div>
+
+        {/* Above the Authorize panel, because it changes what the buyer is
+            about to pay for — and above the reputation banner rather than
+            below it, which keeps that banner immediately over the button as
+            its own comment requires. This one is about how the plan was made;
+            that one is about the evidence the buyer pays against. */}
+        <PlannerFallbackNotice
+          plan={plan}
+          onReplan={onReplan}
+          busy={executing}
+        />
+
+        {/* Immediately above the Authorize panel, and that position is the
+            requirement rather than a layout preference. The banner says the
+            floor could not check anyone against on-chain evidence for this
+            plan — a buyer who meets that after committing funds has been told
+            nothing useful. */}
+        <DegradedBanner plan={plan} />
 
         <m.div
           initial={{ opacity: 0, y: 8 }}
@@ -288,11 +368,13 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                 <div className="text-sm">
                   Freighter will prompt for{" "}
                   <b className="text-text">one signature</b> authorizing up to{" "}
-                  <b className="text-text">{plan.total_usdc.toFixed(3)} USDC</b>
-                  .
+                  <b className="text-text">{priced(plan.total_usdc)}</b>.
                 </div>
               </div>
-              <div className="flex gap-2">
+              {/* flex-wrap: three buttons are wider than a 390px card, and the
+                  card's clip-path cuts off whatever overflows it — at phone
+                  width that was the Authorize button itself. */}
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   onClick={onSimulate}
@@ -307,6 +389,10 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                   onClick={onAuthorize}
                   disabled={executing}
                   size="md"
+                  // Tab goes from the exclusions panel straight here, past the
+                  // polite notices above, so the button carries them as its
+                  // description — each one only while it exists.
+                  aria-describedby={authorizeDescribedBy}
                 >
                   {executing
                     ? step
@@ -327,7 +413,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
                   or run a simulated pass.
                 </div>
               </div>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-wrap gap-2 items-center">
                 <ConnectWallet size="md" />
                 {fiatToggle}
                 <Button
@@ -357,6 +443,7 @@ export function ExecutionPlan({ plan }: { plan: DecomposeResponse }) {
             <FiatFund
               usdcAmount={plan.total_usdc}
               stellarAddress={wallet.address ?? undefined}
+              asset={network?.asset}
             />
           </div>
         )}

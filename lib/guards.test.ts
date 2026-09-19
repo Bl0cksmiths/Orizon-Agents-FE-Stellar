@@ -8,11 +8,15 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  isAgentBinding,
   isAgentIdAvailability,
   isAgentList,
   isArtifactResponse,
   isAuthorizeBuild,
+  isBindChallenge,
+  isBindErrorCode,
   isDecomposeResponse,
+  isEndpointCheck,
   isFlow,
   isOverview,
   isReputationBatch,
@@ -350,6 +354,288 @@ describe("isDecomposeResponse", () => {
   it("rejects a non-string substituted_for", () => {
     const step = { ...valid.steps[0], substituted_for: 7 };
     expect(isDecomposeResponse({ ...valid, steps: [step] })).toBe(false);
+  });
+
+  // The per-step reputation evidence is additive in the same way the floor
+  // fields are: a backend predating it omits every key, and a null is how
+  // FastAPI serializes an unset Optional.
+  it("accepts the per-step reputation evidence present, null or absent", () => {
+    const evidenced = {
+      ...valid.steps[0],
+      rep_bps: 5750,
+      rep_source: "onchain",
+      rep_lower_bound_bps: 5283,
+      rep_count: 24,
+      rep_dispute_rate_bps: 2500,
+      rep_degraded: false,
+    };
+    expect(isDecomposeResponse({ ...valid, steps: [evidenced] })).toBe(true);
+    const nulled = {
+      ...valid.steps[0],
+      rep_lower_bound_bps: null,
+      rep_count: null,
+      rep_dispute_rate_bps: null,
+      rep_degraded: null,
+    };
+    expect(isDecomposeResponse({ ...valid, steps: [nulled] })).toBe(true);
+    // `valid` carries none of them, which is the pre-field backend.
+    expect(isDecomposeResponse(valid)).toBe(true);
+  });
+
+  it("rejects wrong types on the per-step reputation evidence", () => {
+    // Each of these reaches the reputation badge: the bound is compared
+    // against the floor, the count and dispute rate are printed, and the flag
+    // picks between "no ratings yet" and "the read did not come back".
+    const wrong: Record<string, unknown>[] = [
+      { rep_lower_bound_bps: "5283" },
+      { rep_lower_bound_bps: Number.NaN },
+      { rep_count: "24" },
+      { rep_count: Number.POSITIVE_INFINITY },
+      { rep_dispute_rate_bps: "2500" },
+      { rep_dispute_rate_bps: {} },
+      // Truthy, and would report a healthy read as a failed one.
+      { rep_degraded: "false" },
+      { rep_degraded: 1 },
+    ];
+    for (const field of wrong) {
+      const step = { ...valid.steps[0], ...field };
+      expect(
+        isDecomposeResponse({ ...valid, steps: [step] }),
+        JSON.stringify(field),
+      ).toBe(false);
+    }
+  });
+
+  // AC-5 — a build predating story 3.02 keeps rendering the plan. The whole
+  // design rests on the four floor fields being ADDITIVE, and that claim has
+  // two halves the guard is the only thing holding: a backend that predates
+  // them serves a plan with none of them (below), and a frontend that predates
+  // them meets keys its guard never heard of (these guards are non-exhaustive
+  // on purpose, so unknown keys are ignored rather than rejected).
+  //
+  // The old shape is spelled out in full rather than derived from `valid` —
+  // a later edit to the shared fixture must not be able to quietly delete the
+  // thing being pinned here.
+  it("accepts a pre-3.02 plan carrying none of the floor fields (AC-5)", () => {
+    const legacy = {
+      plan_id: "pln_legacy",
+      intent: "tetris",
+      steps: [
+        {
+          agent_id: "agt_01",
+          agent_name: "code.next",
+          rationale: "codes",
+          est_price_usdc: 0.03,
+          est_eta_seconds: 4.5,
+          rep_bps: 8200,
+          rep_source: "onchain",
+        },
+      ],
+      total_usdc: 0.03,
+      total_eta: 4.5,
+    };
+    expect(isDecomposeResponse(legacy)).toBe(true);
+    // The mid-roll shape too: `notices` shipped with the kit-path half of
+    // 3.02, the numbers inside them with this half, so a backend serving
+    // notices without `reason_code`/`lower_bound_bps`/`floor_bps` is a real
+    // deployment state and not a hypothetical.
+    expect(isDecomposeResponse({ ...legacy, notices: [notice] })).toBe(true);
+  });
+
+  it("accepts the full 3.02 shape, with every reason_code the union names", () => {
+    const extended = {
+      ...valid,
+      // The floor is carried in the payload rather than assumed client-side:
+      // it is configurable per deployment, so a hardcoded copy would narrate
+      // the wrong threshold after an operator changed it.
+      floor_bps: 5500,
+      reputation_degraded: true,
+      steps: [
+        { ...valid.steps[0], substituted_for: "agt_02", degraded: false },
+      ],
+      notices: [
+        {
+          ...notice,
+          reason_code: "below_floor",
+          lower_bound_bps: 4200,
+          floor_bps: 5500,
+        },
+        {
+          kind: "excluded",
+          agent_id: "agt_03",
+          agent_name: "vision.ocr",
+          reason: "no endpoint bound",
+          reason_code: "unbound_endpoint",
+          // Excluded before its standing was ever consulted, so there is no
+          // bound to report — see the null test below for why that is not 0.
+          lower_bound_bps: null,
+          floor_bps: 5500,
+        },
+        {
+          kind: "degraded",
+          agent_id: "agt_04",
+          agent_name: "code.next",
+          reason: "re-admitted by starvation backstop (4800 < 5500 bps)",
+          reason_code: "floor_relaxed",
+          lower_bound_bps: 4800,
+          floor_bps: 5500,
+        },
+      ],
+    };
+    expect(isDecomposeResponse(extended)).toBe(true);
+    // The other half of AC-5: a guard from a build that predates these fields
+    // ignores what it does not know. Pinning unknown-key tolerance here is
+    // what keeps the next additive field from needing a frontend release.
+    expect(isDecomposeResponse({ ...extended, floor_policy: "v3" })).toBe(true);
+  });
+
+  it("rejects wrong types on the four new fields", () => {
+    // Optional means "may be absent", never "may be anything". Each of these
+    // reaches a comparison or a rendered sentence.
+    expect(isDecomposeResponse({ ...valid, floor_bps: "5500" })).toBe(false);
+    // The classic truthy non-boolean: `"false"` reads as true, which would
+    // tell every buyer the trust signals beside their plan came off the
+    // Bayesian prior when the ledger read was in fact healthy.
+    expect(
+      isDecomposeResponse({ ...valid, reputation_degraded: "false" }),
+    ).toBe(false);
+    const stringBound = { ...notice, lower_bound_bps: "4200" };
+    expect(isDecomposeResponse({ ...valid, notices: [stringBound] })).toBe(
+      false,
+    );
+    const stringFloor = { ...notice, floor_bps: "5500" };
+    expect(isDecomposeResponse({ ...valid, notices: [stringFloor] })).toBe(
+      false,
+    );
+  });
+
+  it("rejects a non-finite floor or bound (NaN compares false, silently)", () => {
+    // `isNum` screens on Number.isFinite, and this is the reason: NaN passes
+    // `typeof === "number"`, prints as "NaN" in the threshold sentence, and —
+    // worse — every `bound < floor` comparison against it is false, so a
+    // below-floor agent would read as clearing a floor nobody can see.
+    expect(isDecomposeResponse({ ...valid, floor_bps: Number.NaN })).toBe(
+      false,
+    );
+    const infinite = { ...valid, floor_bps: Number.POSITIVE_INFINITY };
+    expect(isDecomposeResponse(infinite)).toBe(false);
+    const nanBound = { ...notice, lower_bound_bps: Number.NaN };
+    expect(isDecomposeResponse({ ...valid, notices: [nanBound] })).toBe(false);
+  });
+
+  it("accepts a null lower bound and leaves it distinguishable from 0", () => {
+    // null is not a missing number, and it is emphatically not zero. It means
+    // there is no deciding bound: on an `unbound_endpoint` notice, like this
+    // one, because standing was never consulted; on a floor notice, because
+    // the agent has no reputation entry at all — and a never-rated agent
+    // CLEARS the floor, its Wilson lower bound coming off the Bayesian prior
+    // at 5677 bps against a floor of 5500. Zero would be the opposite fact —
+    // an agent rated into the ground.
+    const noEntry = {
+      kind: "excluded",
+      agent_id: "agt_new",
+      agent_name: "fresh.agent",
+      reason: "no endpoint bound",
+      reason_code: "unbound_endpoint",
+      lower_bound_bps: null,
+      floor_bps: 5500,
+    };
+    const payload = { ...valid, notices: [noEntry] };
+    expect(isDecomposeResponse(payload)).toBe(true);
+    // Both accepted, because both are real backend answers…
+    const ratedToZero = { ...noEntry, lower_bound_bps: 0 };
+    expect(isDecomposeResponse({ ...valid, notices: [ratedToZero] })).toBe(
+      true,
+    );
+    // …and the guard narrows rather than normalizes, so the caller can still
+    // tell them apart afterwards. A guard that "helpfully" coerced null to 0
+    // would put "0 bps against a 5500 floor" beside an agent that passed the
+    // floor — a contradiction the buyer cannot resolve and we cannot defend.
+    expect(payload.notices[0].lower_bound_bps).toBeNull();
+    expect(payload.notices[0].lower_bound_bps).not.toBe(0);
+    // Absent is the third distinct case: a backend predating the field.
+    const { lower_bound_bps: _drop, ...noField } = noEntry;
+    expect(isDecomposeResponse({ ...valid, notices: [noField] })).toBe(true);
+  });
+
+  /**
+   * The asymmetry between `kind` and `reason_code`, pinned because it reads
+   * like an oversight and the "fix" is one line away.
+   *
+   * `kind` is set-checked: it picks the notice row's tone and label, so a
+   * value this build has no arm for renders an unstyled, unexplained row —
+   * a plan that looks fine and is not. Failing the guard, and showing the
+   * ordinary error state, is the better of the two.
+   *
+   * `reason_code` is NOT, and must not become so. It is a machine-readable
+   * companion to `reason`, which carries the same fact in prose and already
+   * renders. An unrecognised code therefore costs nothing: the row still
+   * explains itself. Set-checking it would mean a backend adding a fourth
+   * exclusion reason blanks the whole plan card on every frontend build older
+   * than that deploy — trading a rendered plan for no plan, to gain nothing.
+   */
+  it("accepts an unknown reason_code while still rejecting an unknown kind", () => {
+    const futureCode = { ...notice, reason_code: "floor_raised_by_operator" };
+    expect(isDecomposeResponse({ ...valid, notices: [futureCode] })).toBe(true);
+    const futureKind = { ...notice, kind: "reshuffled" };
+    expect(isDecomposeResponse({ ...valid, notices: [futureKind] })).toBe(
+      false,
+    );
+    // The vocabulary is open; the type is not. A non-string code would reach
+    // a comparison as an object and match nothing, which is the one outcome
+    // worse than an unknown string.
+    const objectCode = { ...notice, reason_code: { code: "below_floor" } };
+    expect(isDecomposeResponse({ ...valid, notices: [objectCode] })).toBe(
+      false,
+    );
+  });
+
+  it("accepts a null notices list but rejects one that is not a list", () => {
+    // Null is how FastAPI serializes the unset Optional, and it is the exact
+    // payload the common path produces: every routed agent cleared the floor,
+    // so the floor did nothing and has nothing to report. That must never be
+    // an error state — it is the good outcome.
+    expect(isDecomposeResponse({ ...valid, notices: null })).toBe(true);
+    // A non-list is a different story: the plan card maps it, and an error
+    // envelope or a keyed object arriving here would throw mid-render rather
+    // than surface as the failed read it is.
+    expect(isDecomposeResponse({ ...valid, notices: { 0: notice } })).toBe(
+      false,
+    );
+    expect(isDecomposeResponse({ ...valid, notices: [notice.reason] })).toBe(
+      false,
+    );
+  });
+
+  // `planner_fallback` is additive like the floor fields: true on a plan the
+  // backend built without the planner, false on the planner's own and on every
+  // demo-kit plan, and absent from a backend predating it.
+  it("accepts the planner fallback flag true, false, null or absent", () => {
+    expect(isDecomposeResponse({ ...valid, planner_fallback: true })).toBe(
+      true,
+    );
+    expect(isDecomposeResponse({ ...valid, planner_fallback: false })).toBe(
+      true,
+    );
+    // Null is FastAPI's serialization of an unset Optional.
+    expect(isDecomposeResponse({ ...valid, planner_fallback: null })).toBe(
+      true,
+    );
+    // `valid` carries no flag at all, which is the pre-field backend.
+    expect("planner_fallback" in valid).toBe(false);
+    expect(isDecomposeResponse(valid)).toBe(true);
+  });
+
+  it("rejects a planner fallback flag that is not a boolean", () => {
+    // The string "false" is the dangerous one: truthy, so it would put the
+    // fallback notice on a plan the planner built itself.
+    const wrong: unknown[] = ["false", "true", 1, 0, {}, []];
+    for (const planner_fallback of wrong) {
+      expect(
+        isDecomposeResponse({ ...valid, planner_fallback }),
+        JSON.stringify(planner_fallback),
+      ).toBe(false);
+    }
   });
 });
 
@@ -742,5 +1028,147 @@ describe("isSyncResponse", () => {
 
   it("rejects non-objects", () => {
     expect(isSyncResponse(null)).toBe(false);
+  });
+});
+
+describe("isBindChallenge", () => {
+  const challenge = {
+    agent_id: "orizon_batch",
+    nonce: "n_7f3a91",
+    message:
+      "orizon-bind:v1:orizon_batch:https://agent.example.com/run:n_7f3a91",
+    expires_at: "2026-09-15T12:00:30Z",
+    ttl_seconds: 30,
+    request_id: "req_01",
+  };
+
+  it("accepts a full challenge, extra envelope keys included", () => {
+    expect(isBindChallenge(challenge)).toBe(true);
+  });
+
+  it("accepts either timestamp serialization the contract allows", () => {
+    expect(isBindChallenge({ ...challenge, expires_at: 1_789_000_000 })).toBe(
+      true,
+    );
+  });
+
+  it("rejects a missing message (the wallet would sign 'undefined')", () => {
+    const { message: _drop, ...rest } = challenge;
+    expect(isBindChallenge(rest)).toBe(false);
+  });
+
+  it("rejects a missing nonce (matched against the message tail)", () => {
+    const { nonce: _drop, ...rest } = challenge;
+    expect(isBindChallenge(rest)).toBe(false);
+  });
+
+  it("rejects a non-numeric ttl (counts down as NaN)", () => {
+    expect(isBindChallenge({ ...challenge, ttl_seconds: "30" })).toBe(false);
+  });
+
+  it("rejects a null expires_at that would render as Invalid Date", () => {
+    expect(isBindChallenge({ ...challenge, expires_at: null })).toBe(false);
+  });
+
+  it("rejects non-objects", () => {
+    expect(isBindChallenge(null)).toBe(false);
+    expect(isBindChallenge([challenge])).toBe(false);
+  });
+});
+
+describe("isAgentBinding", () => {
+  const binding = {
+    agent_id: "orizon_batch",
+    endpoint_url: "https://agent.example.com/run",
+    owner: "GBVN3FUM3TPMZXNSBMEGBLYBM2QFGXN7QCZL4TWZ5PJ7V36E",
+    bound_at: "2026-09-15T12:00:00Z",
+    replaced: false,
+  };
+
+  it("accepts a first binding and a replacement", () => {
+    expect(isAgentBinding(binding)).toBe(true);
+    expect(isAgentBinding({ ...binding, replaced: true })).toBe(true);
+  });
+
+  it("accepts an epoch bound_at", () => {
+    expect(isAgentBinding({ ...binding, bound_at: 1_789_000_000 })).toBe(true);
+  });
+
+  it("rejects a non-boolean replaced (the string 'false' reads as true)", () => {
+    expect(isAgentBinding({ ...binding, replaced: "false" })).toBe(false);
+  });
+
+  it("rejects a missing replaced flag (hides an overwritten route)", () => {
+    const { replaced: _drop, ...rest } = binding;
+    expect(isAgentBinding(rest)).toBe(false);
+  });
+
+  it("rejects a missing endpoint_url or owner", () => {
+    const { endpoint_url: _url, ...noUrl } = binding;
+    const { owner: _owner, ...noOwner } = binding;
+    expect(isAgentBinding(noUrl)).toBe(false);
+    expect(isAgentBinding(noOwner)).toBe(false);
+  });
+
+  it("rejects non-objects", () => {
+    expect(isAgentBinding(null)).toBe(false);
+  });
+});
+
+describe("isEndpointCheck", () => {
+  it("accepts an allowed verdict and a refusal carrying its rule", () => {
+    expect(isEndpointCheck({ allowed: true, rule: null, message: null })).toBe(
+      true,
+    );
+    expect(
+      isEndpointCheck({
+        allowed: false,
+        rule: "loopback",
+        message: "loopback addresses cannot be reached from the registry",
+      }),
+    ).toBe(true);
+  });
+
+  it("accepts a verdict that omits rule and message entirely", () => {
+    expect(isEndpointCheck({ allowed: true })).toBe(true);
+  });
+
+  it("rejects a non-boolean allowed (a truthy string reads as permitted)", () => {
+    expect(isEndpointCheck({ allowed: "false" })).toBe(false);
+  });
+
+  it("rejects a non-string rule", () => {
+    expect(isEndpointCheck({ allowed: false, rule: 7 })).toBe(false);
+  });
+
+  it("rejects non-objects", () => {
+    expect(isEndpointCheck(null)).toBe(false);
+  });
+});
+
+describe("isBindErrorCode", () => {
+  it("accepts every code the bind envelope is documented to carry", () => {
+    for (const code of [
+      "agent_not_found",
+      "not_agent_owner",
+      "challenge_invalid",
+      "endpoint_not_allowed",
+      "signature_malformed",
+      "registry_unavailable",
+      "binding_not_found",
+      "rate_limited",
+    ]) {
+      expect(isBindErrorCode(code)).toBe(true);
+    }
+  });
+
+  it("rejects a code the contract does not name", () => {
+    expect(isBindErrorCode("id_taken")).toBe(false);
+    expect(isBindErrorCode("")).toBe(false);
+  });
+
+  it("rejects a missing or non-string code", () => {
+    expect(isBindErrorCode(undefined)).toBe(false);
+    expect(isBindErrorCode(404)).toBe(false);
   });
 });

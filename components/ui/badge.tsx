@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 type Tone = "violet" | "cyan" | "magenta" | "muted" | "success";
 
 const tones: Record<Tone, string> = {
-  violet: "bg-violet/15 text-violet border-violet/40",
+  violet: "bg-violet/15 text-violet-readable border-violet/40",
   cyan: "bg-cyan/10 text-cyan border-cyan/40",
   magenta: "bg-magenta/15 text-magenta border-magenta/40",
   muted: "bg-white/5 text-muted border-white/10",

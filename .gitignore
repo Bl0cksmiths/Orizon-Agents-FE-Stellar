@@ -30,3 +30,10 @@ playwright-report/
 /PRD.md
 /docs/evidence/*.md
 /Week-1-Tranche-Submission/**/*.md
+# Lighthouse CI reports
+.lighthouseci/
+
+# Checkout of the contract repo's address book, compared against
+# lib/contract-addresses.json by scripts/check-contract-addresses.mjs.
+# CI writes it here; a local clone belongs here too, never committed.
+.canonical-contracts/
