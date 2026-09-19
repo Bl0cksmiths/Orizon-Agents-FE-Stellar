@@ -175,13 +175,19 @@ function formattedJson(keys, verify) {
 
 const jsonBox = (page) => rectOf(page.locator("#json"), "formatted body");
 
-// Stellar Expert: the page from its header to the last content segment
-// (the footer is left out).
-async function expertPage(page) {
-  const bottom = await page.evaluate(() => Math.max(...[...document.querySelectorAll(".segment")].map((s) => s.getBoundingClientRect().bottom)));
-  if (!Number.isFinite(bottom) || bottom < 200) throw new Error("Stellar Expert content did not render");
-  const width = page.viewportSize().width;
-  return { x: 0, y: 0, width, height: bottom + 20 };
+// Stellar Expert: the page from its header (which names the network) down to
+// the last content segment, or to the last segment holding `upTo` — for a
+// transaction, its invocation; the signatures below it are left out, as is
+// the footer.
+function expertPage(upTo) {
+  return async (page) => {
+    const bottom = await page.evaluate(
+      (sel) => Math.max(...[...document.querySelectorAll(".segment")].filter((s) => !sel || s.querySelector(sel)).map((s) => s.getBoundingClientRect().bottom)),
+      upTo ?? null,
+    );
+    if (!Number.isFinite(bottom) || bottom < 200) throw new Error("Stellar Expert content did not render");
+    return { x: 0, y: 0, width: page.viewportSize().width, height: bottom + 20 };
+  };
 }
 
 // ----------------------------------------------------------------- scenes ---
@@ -291,6 +297,7 @@ const SCENES = [
   {
     url: "https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar",
     viewport: { width: 1280, height: 2400 },
+    scale: 2,
     ready: "Five commands. Do them in order.",
     shots: [
       {
@@ -311,6 +318,7 @@ const SCENES = [
   {
     url: "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/verifying-a-dispatch.md",
     viewport: { width: 1280, height: 2400 },
+    scale: 2,
     ready: "The five steps",
     shots: [
       {
@@ -381,6 +389,7 @@ const SCENES = [
   {
     url: `${BE}/api/stellar/network`,
     viewport: { width: 1000, height: 1200 },
+    scale: 2,
     settle: 500,
     shots: [
       {
@@ -398,6 +407,7 @@ const SCENES = [
   {
     url: `${BE}/api/stellar/reputation/params`,
     viewport: { width: 1000, height: 1200 },
+    scale: 2,
     settle: 500,
     shots: [
       {
@@ -416,6 +426,7 @@ const SCENES = [
   {
     url: `${BE}/readiness`,
     viewport: { width: 1000, height: 1200 },
+    scale: 2,
     settle: 500,
     shots: [
       {
@@ -434,6 +445,7 @@ const SCENES = [
   {
     url: `https://stellar.expert/explorer/testnet/contract/${LEDGER}`,
     viewport: { width: 1280, height: 1200 },
+    scale: 2,
     waitUntil: "networkidle",
     settle: 4000,
     ready: "Summary",
@@ -441,7 +453,7 @@ const SCENES = [
       {
         file: "d4-reputation-ledger-contract.png",
         expect: [LEDGER, "WASM contract", "set_scorer"],
-        region: expertPage,
+        region: expertPage(),
         marks: [
           (page) => rectOf(page.locator("h2").getByText(LEDGER), "contract id"),
           (page) => rectOf(page.getByText(/set_scorer/).first(), "set_scorer call"),
@@ -452,6 +464,7 @@ const SCENES = [
   {
     url: "https://stellar.expert/explorer/testnet/tx/0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa",
     viewport: { width: 1280, height: 1200 },
+    scale: 2,
     waitUntil: "networkidle",
     settle: 4000,
     ready: "Summary",
@@ -459,7 +472,7 @@ const SCENES = [
       {
         file: "d5-register-tx.png",
         expect: ["Successful", "register(", "calculatorai", "2026-09-17"],
-        region: expertPage,
+        region: expertPage(".op-container"),
         marks: [
           (page) => rectOf(page.getByText("Successful", { exact: true }), "status"),
           (page) => rectOf(page.locator(".op-container").first(), "register call"),
@@ -470,6 +483,7 @@ const SCENES = [
   {
     url: "https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8",
     viewport: { width: 1280, height: 1200 },
+    scale: 2,
     waitUntil: "networkidle",
     settle: 4000,
     ready: "Summary",
@@ -477,7 +491,7 @@ const SCENES = [
       {
         file: "d6-set-scorer-tx.png",
         expect: ["Successful", "set_scorer(", "2026-09-19"],
-        region: expertPage,
+        region: expertPage(".op-container"),
         marks: [
           (page) => rectOf(page.getByText("Successful", { exact: true }), "status"),
           (page) => rectOf(page.locator(".op-container").first(), "set_scorer call"),
@@ -488,6 +502,7 @@ const SCENES = [
   {
     url: `${BE}/docs`,
     viewport: { width: 1280, height: 1400 },
+    scale: 2,
     waitUntil: "networkidle",
     ready: "Orizon Agents API",
     shots: [
@@ -554,15 +569,17 @@ async function assertHealthy(page) {
 }
 
 const browser = await chromium.launch();
-// Manila time, so any local timestamps on the pages read as PHT.
-const context = await browser.newContext({ viewport: CONSOLE, locale: "en-US", timezoneId: "Asia/Manila" });
 let failed = 0;
 for (const scene of todo) {
-  const { url, viewport = CONSOLE, waitUntil = "load", settle = 3000, ready, prepare } = scene;
+  // `scale` is the device pixel ratio: 2 for the light, text-dense pages
+  // (GitHub, Stellar Expert, the API) so their small type stays sharp when
+  // the PDF is zoomed. Marks and region sizes stay in CSS pixels.
+  const { url, viewport = CONSOLE, scale = 1, waitUntil = "load", settle = 3000, ready, prepare } = scene;
+  // Manila time, so any local timestamps on the pages read as PHT.
+  const context = await browser.newContext({ viewport, deviceScaleFactor: scale, locale: "en-US", timezoneId: "Asia/Manila" });
   let lastErr;
   for (let attempt = 1; attempt <= 2; attempt++) {
     const page = await context.newPage();
-    await page.setViewportSize(viewport);
     const taken = [];
     try {
       await page.goto(url, { waitUntil, timeout: 60000 * attempt });
@@ -581,7 +598,7 @@ for (const scene of todo) {
         const marks = [];
         for (const m of shot.marks ?? []) marks.push(relativeTo(await m(page), region));
         await page.screenshot({ path: join(OUT, shot.file), clip: region });
-        taken.push([shot.file, { url: shot.url ?? url, ...(shot.via ? { via: shot.via } : {}), capturedAt: new Date().toISOString(), width: region.width, height: region.height, marks }]);
+        taken.push([shot.file, { url: shot.url ?? url, ...(shot.via ? { via: shot.via } : {}), capturedAt: new Date().toISOString(), width: region.width, height: region.height, scale, marks }]);
       }
       for (const [file, entry] of taken) {
         manifest[file] = entry;
@@ -596,6 +613,7 @@ for (const scene of todo) {
       await page.close();
     }
   }
+  await context.close();
   if (lastErr) {
     failed++;
     console.error(`FAIL ${url}: ${lastErr.message.split("\n")[0]}`);
