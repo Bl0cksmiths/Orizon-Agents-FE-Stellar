@@ -519,4 +519,4 @@ await page.pdf({
 });
 await browser.close();
 const pages = (readFileSync(PDF).toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length;
-console.log(`wrote ${PDF} — ${pages} pages, ${(statSync(PDF).size / 1024 / 1024).toFixed(2)} MB (${kept.length} evidence pages + cover)`);
+console.log(`wrote ${PDF} — ${pages} pages, ${(statSync(PDF).size / 1024 / 1024).toFixed(2)} MB (cover + ${SUMMARY.length} summary pages + ${kept.length} evidence pages)`);
