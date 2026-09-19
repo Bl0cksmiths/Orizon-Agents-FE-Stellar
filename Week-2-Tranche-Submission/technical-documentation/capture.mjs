@@ -173,6 +173,94 @@ const SCENES = [
       },
     ],
   },
+
+  // Walkthrough B — the operator's side. Forms are shown, never submitted.
+  {
+    url: `${APP}/register`,
+    ready: "Register an Agent",
+    settle: 5000,
+    shots: [
+      {
+        file: "b1-register-agent.png",
+        expect: ["two signatures, one at a time", "connect a wallet to register"],
+        region: main,
+        marks: [
+          async (page) => union(await rectOf(page.locator("label[for='reg-agent-id']"), "agent id label"), await rectOf(page.locator("#reg-price"), "price field")),
+          (page) => rectOf(page.getByText("two signatures, one at a time").locator("xpath=ancestor::div[contains(@class,'clip-cyber-sm')][1]"), "two-signatures note"),
+          (page) => rectOf(page.getByRole("button", { name: /Register agent/ }), "Register agent"),
+        ],
+      },
+    ],
+  },
+  {
+    url: `${APP}/bind`,
+    ready: "Bind an Endpoint",
+    settle: 5000,
+    shots: [
+      {
+        file: "b2-bind-endpoint.png",
+        expect: ["one-time challenge naming your agent, the endpoint and a nonce", "connect the owner wallet to sign"],
+        region: main,
+        marks: [
+          (page) => rectOf(page.locator("#bind-agent-id"), "agent id"),
+          (page) => rectOf(page.locator("#bind-endpoint"), "endpoint url"),
+          (page) => rectOf(page.getByRole("button", { name: /Bind endpoint/ }), "Bind endpoint"),
+          (page) => rectOf(page.getByText("how binding works").locator("xpath=ancestor::div[contains(@class,'glow-card')][1]"), "how binding works"),
+        ],
+      },
+    ],
+  },
+  {
+    url: "https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar",
+    viewport: { width: 1280, height: 2400 },
+    ready: "Five commands. Do them in order.",
+    shots: [
+      {
+        file: "b3-reference-agent-readme.png",
+        expect: ["Orizon reference agent", "Verifying an Orizon dispatch"],
+        // The README from its title to the link to the operator guide: the
+        // five-step table is what an operator follows.
+        region: async (page) => {
+          const article = await rectOf(page.locator("article.markdown-body"), "README");
+          const title = await rectOf(page.getByRole("heading", { name: "Orizon reference agent" }), "README title");
+          const link = await rectOf(page.locator("article.markdown-body p").filter({ hasText: "Verifying an Orizon dispatch →" }), "guide link");
+          return { x: article.x - 20, y: title.y - 20, width: article.width + 40, height: link.y + link.height + 20 - (title.y - 20) };
+        },
+        marks: [(page) => rectOf(page.locator("article.markdown-body table"), "five-step table")],
+      },
+    ],
+  },
+  {
+    url: "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/verifying-a-dispatch.md",
+    viewport: { width: 1280, height: 2400 },
+    ready: "The five steps",
+    shots: [
+      {
+        file: "b4-verifying-a-dispatch.png",
+        expect: ["Fetch our signer once, and pin it", "Check freshness and replay"],
+        // "The five steps" section, from its heading to the next one.
+        region: async (page) => {
+          const article = await rectOf(page.locator("article.markdown-body"), "document");
+          const start = await rectOf(page.getByRole("heading", { name: "The five steps" }), "section heading");
+          const next = await rectOf(page.getByRole("heading", { name: "What we expect back" }), "next heading");
+          return { x: article.x - 20, y: start.y - 16, width: article.width + 40, height: next.y - 12 - (start.y - 16) };
+        },
+      },
+    ],
+  },
+  {
+    url: `${APP}/operator`,
+    ready: "My Agents",
+    settle: 5000,
+    shots: [
+      {
+        file: "b5-operator-dashboard.png",
+        expect: ["Connect a wallet", "it signs nothing and moves no funds"],
+        region: main,
+        marks: [(page) => rectOf(page.locator("main#main .glow-card"), "connect prompt")],
+      },
+    ],
+  },
 ];
 
 // ----------------------------------------------------------------- runner ---
