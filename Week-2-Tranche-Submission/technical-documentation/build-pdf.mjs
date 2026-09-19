@@ -91,6 +91,88 @@ function walkthrough(w, layout) {
   layout.forEach((ids, i) => PAGES.push({ kind: "walk", w, first: i === 0, steps: ids }));
 }
 
+// ---------------------------------------------------- links at a glance ---
+
+PAGES.push({
+  kind: "links",
+  eyebrow: "At a glance · 1 of 2",
+  title: "The live application, the API and the documentation",
+  lead: "Everything below is public. The application and the API run on Stellar testnet; the documentation lives in the public GitHub repositories.",
+  groups: [
+    {
+      title: "Deployed application",
+      rows: [
+        ["Orizon Agents", "the live dApp", SITE],
+        ["Plan card", "the orchestrator · A", `${APP}/orchestrator`],
+        ["Marketplace", "the agent registry · C", `${APP}/agents`],
+        ["Register an agent", "B1", `${APP}/register`],
+        ["Bind an endpoint", "B2", `${APP}/bind`],
+        ["Operator dashboard", "“My Agents” · B5", `${APP}/operator`],
+        ["Reputation", "per-agent reputation", `${APP}/reputation`],
+      ],
+    },
+    {
+      title: "Backend API (live)",
+      rows: [
+        ["Interactive API docs", "D7", `${BE}/docs`],
+        ["Readiness", "cold start, ratings writer · D3", `${BE}/readiness`],
+        ["Network and contracts", "dispatch signer · D1", `${BE}/api/stellar/network`],
+        ["Reputation parameters", "floor and prior · D2", `${BE}/api/stellar/reputation/params`],
+      ],
+    },
+    {
+      title: "Documentation (GitHub, public)",
+      note: `Backend documents are under ${a(`${GH}/Orizon-Agents-BE-Stellar/blob/main/`, "github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/")}; each row links the full address.`,
+      rows: [
+        ["Backend README", "setup and architecture", `${GH}/Orizon-Agents-BE-Stellar#readme`],
+        ["Reputation guide", "prior, floor, cold start", BE_DOC("docs/reputation.md"), "…/docs/reputation.md"],
+        ["Operator guide", "verifying a dispatch · B4", BE_DOC("docs/operators/verifying-a-dispatch.md"), "…/docs/operators/verifying-a-dispatch.md"],
+        ["Design record 0003", "endpoint binding", BE_DOC("docs/decisions/0003-operator-endpoint-binding.md"), "…/docs/decisions/0003-operator-endpoint-binding.md"],
+        ["Design record 0004", "dispatch signing", BE_DOC("docs/decisions/0004-external-dispatch-hardening.md"), "…/docs/decisions/0004-external-dispatch-hardening.md"],
+        ["Design record 0005", "failure semantics", BE_DOC("docs/decisions/0005-external-failure-semantics.md"), "…/docs/decisions/0005-external-failure-semantics.md"],
+        ["Design record 0006", "floor visibility", BE_DOC("docs/decisions/0006-floor-visibility.md"), "…/docs/decisions/0006-floor-visibility.md"],
+        ["Reference agent README", "B3", `${GH}/Orizon-Agents-Example-Agent-Stellar#readme`],
+        ["Frontend repository", "the dApp", `${GH}/Orizon-Agents-FE-Stellar`],
+        ["UAT suite", "end-to-end QA", `${GH}/Orizon-Agents-UAT-Stellar`],
+        ["Smart contracts", "Soroban contracts", `${GH}/Orizon-Agents-Smart-Contract-Stellar`],
+      ],
+    },
+  ],
+});
+
+PAGES.push({
+  kind: "links",
+  eyebrow: "At a glance · 2 of 2",
+  title: "Demo video, contracts, transactions and pull requests",
+  lead: "Contracts and transactions open on Stellar Expert (testnet). Each link shows the full id or hash, so the page also works printed.",
+  groups: [
+    {
+      title: "Demo video",
+      rows: [["Week-2 build video", "≈40 s · 2026-09-19", XPOST]],
+    },
+    {
+      title: "Stellar Expert — contracts (testnet)",
+      rows: CONTRACTS.map(([name, id, role]) => [name, role, contractUrl(id), id]),
+    },
+    {
+      title: "Stellar Expert — transactions this week (testnet)",
+      html: `<table class="txs">
+      <tr><th>Date</th><th>Call</th><th>Transaction (opens on Stellar Expert)</th></tr>
+      ${TXS.map(([d, call, note, h]) => `<tr><td class="d">${d}</td><td><b>${call}</b><span>${note}</span></td><td class="h">${tx(h, h)}</td></tr>`).join("\n      ")}
+  </table>`,
+    },
+    {
+      title: "Weekly pull-request evidence",
+      rows: [
+        ["Backend PR #59", "Week-2 branch", `${GH}/Orizon-Agents-BE-Stellar/pull/59`],
+        ["Frontend PR #62", "Week-2 branch", `${GH}/Orizon-Agents-FE-Stellar/pull/62`],
+        ["UAT PR #3", "Rie’s Week-2 QA", `${GH}/Orizon-Agents-UAT-Stellar/pull/3`],
+        ["All 27 Week-2 PRs", "05-pull-requests.md", `${GH}/Orizon-Agents-FE-Stellar/blob/main/Week-2-Tranche-Submission/05-pull-requests.md`],
+      ],
+    },
+  ],
+});
+
 // ----------------------------------------------------- render: figures ---
 
 function shot(s) {
