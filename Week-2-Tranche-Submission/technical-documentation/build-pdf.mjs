@@ -328,6 +328,41 @@ walkthrough(
   [["B1"], ["B2"], ["B3"], ["B4"], ["B5"]],
 );
 
+// ------------------------------------------------------- walkthrough C ---
+
+walkthrough(
+  {
+    id: "C",
+    eyebrow: "Marketplace · Story 3.05",
+    title: "Marketplace standing: the floor stated once, every agent marked",
+    intro: `The marketplace at ${a(`${APP}/agents`, "orizons.xyz/app/agents")} lists every agent in the registry with its skills, price, reputation, runs and status, and says in one place what the orchestrator will and will not select.`,
+    steps: [
+      {
+        id: "C1",
+        title: "The selection floor, stated once",
+        open: `${APP}/agents`,
+        shot: "c1-marketplace-floor.png",
+        what: "main content panel, top",
+        text: [
+          `Above the table, the <b>selection floor</b> is stated once ${m(1)}: <b>floor 2.75</b>, checked against each agent’s reputation lower bound and never against the headline score in the reputation column — so an agent can show a strong score and still sit below the floor.`,
+        ],
+      },
+      {
+        id: "C2",
+        title: "Provenance and standing marks",
+        open: `${APP}/agents`,
+        shot: "c2-marketplace-standing.png",
+        what: "main content panel, the agents registered on-chain (the rows above them are the first-party catalog)",
+        text: [
+          `Agents registered on-chain against the public registry by their owners carry an <b>external</b> provenance mark ${m(1)}; the first-party catalog rows above them carry none. Standing marks sit beside the agent: <b>not yet operational</b> ${m(2)} — registered, with no endpoint bound, so the orchestrator passes over it when building a plan — and <b>delisted by operator</b> ${m(3)}, for an agent its owner has set inactive on-chain (${tx("a710b6776042d810fa1a41ec17cc0b299c606fc2a7f54bd28c129e20bbe6e8e4", "AgentRegistry.set_active, 2026-09-17")}, for <code>dan_w1_probe</code>).`,
+          `A third mark, <b>below floor · not eligible</b>, appears beside any agent whose lower bound falls under the floor; every agent on the live registry currently clears it. <b>Calculator AI</b> is the agent registered in D5.`,
+        ],
+      },
+    ],
+  },
+  [["C1", "C2"]],
+);
+
 // ----------------------------------------------------- render: figures ---
 
 function shot(s) {
