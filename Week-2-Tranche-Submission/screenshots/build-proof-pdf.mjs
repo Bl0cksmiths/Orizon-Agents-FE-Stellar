@@ -465,6 +465,7 @@ const html = `<!doctype html>
 </head>
 <body>
 ${cover}
+${SUMMARY.map(summaryPage).join("\n")}
 ${kept.map(evidencePage).join("\n")}
 <script>
   // Shrink each figure (keeping its aspect) until it fits the space left on
