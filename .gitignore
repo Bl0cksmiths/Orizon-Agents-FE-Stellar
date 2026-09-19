@@ -29,7 +29,6 @@ playwright-report/
 /GREENBELT.md
 /PRD.md
 /docs/evidence/*.md
-/Week-1-Tranche-Submission/**/*.md
 # Lighthouse CI reports
 .lighthouseci/
 
