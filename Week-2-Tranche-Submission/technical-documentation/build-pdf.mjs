@@ -471,6 +471,24 @@ walkthrough(
   [["D1", "D2"], ["D3", "D4"], ["D5", "D6"], ["D7"]],
 );
 
+// ------------------------------------------------------------ demo video ---
+
+PAGES.push({
+  kind: "html",
+  num: "Demo video",
+  eyebrow: "Week-2 build video · public post on X",
+  title: "Demo video: the Week-2 build",
+  toc: "Demo video — the Week-2 build video on X",
+  html: `
+  <p class="lead">The Week-2 build video (about 40 seconds) is in the public post from <b>@OrizonAgents402</b>, published <b>2026-09-19 at 08:18 PHT</b> (00:18 UTC): “This week, we focused on making external agents actually work safely and making reputation part of the routing”. Open the post to play the video ${m(1)}.</p>
+  <table class="lt">
+    <tr><th>The post <span>· plays the video</span></th><td>${a(XPOST)}</td></tr>
+    <tr><th>Embed view <span>· the same post, no login</span></th><td>${a(XEMBED)}</td></tr>
+  </table>
+  ${shot({ id: "video", title: "Week-2 build video post", shot: "e1-week-2-video-post.png", what: "the post, drawn by X’s embed renderer", light: true, max: 60 })}
+  <p class="small">x.com shows a blank page to a logged-out automated browser, so this capture is X’s own embed view of the same post id.</p>`,
+});
+
 // ----------------------------------------------------- render: figures ---
 
 function shot(s) {
