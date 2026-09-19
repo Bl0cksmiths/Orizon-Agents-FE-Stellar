@@ -261,6 +261,43 @@ const SCENES = [
       },
     ],
   },
+
+  // Walkthrough C — marketplace standing. Two regions of the one page: the
+  // floor stated once above the table, then the on-chain-registered rows
+  // with their marks (the seeded catalog rows between carry none).
+  {
+    url: `${APP}/agents`,
+    ready: "Selection floor",
+    settle: 6000,
+    shots: [
+      {
+        file: "c1-marketplace-floor.png",
+        expect: ["Selection floor", "floor 2.75", "never against the headline score"],
+        region: async (page) => {
+          const m = await main(page);
+          const card = await rectOf(page.locator("main#main .glow-card").first(), "selection floor card");
+          return { x: m.x, y: m.y, width: m.width, height: card.y + card.height + 14 - m.y };
+        },
+        marks: [(page) => rectOf(page.locator("main#main .glow-card").first().getByText(/floor 2\.75/), "floor badge")],
+      },
+      {
+        file: "c2-marketplace-standing.png",
+        expect: ["external", "not yet operational", "delisted by operator"],
+        region: async (page) => {
+          const rows = page.locator("main#main tbody tr");
+          const table = await rectOf(page.locator("main#main table"), "registry table");
+          const first = await rectOf(rows.filter({ has: page.getByText(/^\W*external\s*$/i) }), "first on-chain row");
+          const last = await rectOf(rows.last(), "last row");
+          return { x: table.x - 12, y: first.y - 12, width: table.width + 24, height: last.y + last.height + 12 - (first.y - 12) };
+        },
+        marks: [
+          (page) => rectOf(page.locator("main#main tbody").getByText(/^\W*external\s*$/i), "external mark"),
+          (page) => rectOf(page.locator("main#main tbody").getByText(/^\W*not yet operational\s*$/i), "not yet operational mark"),
+          (page) => rectOf(page.locator("main#main tbody").getByText(/^\W*delisted by operator\s*$/i), "delisted mark"),
+        ],
+      },
+    ],
+  },
 ];
 
 // ----------------------------------------------------------------- runner ---
