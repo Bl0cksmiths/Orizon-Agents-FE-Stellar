@@ -366,6 +366,15 @@ function evidencePage(s, i) {
 </section>`;
 }
 
+function summaryPage(s) {
+  return `
+<section class="page summary">
+  <div class="eyebrow"><span class="num">Summary</span><span>${esc(s.eyebrow)}</span></div>
+  <h2>${esc(s.title)}</h2>
+  ${s.html}
+</section>`;
+}
+
 const cover = `
 <section class="page cover">
   <div class="kicker">${esc(COVER.programme)}</div>
