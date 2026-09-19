@@ -106,6 +106,84 @@ async function openFloorPanel(page) {
   await page.waitForTimeout(600);
 }
 
+// ------------------------------------------------------------ JSON bodies ---
+
+const LEDGER = "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT";
+const CONTRACTS = {
+  agent_registry: "CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+  reputation_ledger: LEDGER,
+  payment_escrow: "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+  attestation_registry: "CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
+};
+const ASSET_SAC = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+
+function manilaNow() {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+      .formatToParts(new Date())
+      .map((x) => [x.type, x.value]),
+  );
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute} PHT`;
+}
+
+function assertEq(actual, expected, what) {
+  if (actual !== expected) throw new Error(`${what}: expected ${JSON.stringify(expected)}, live value ${JSON.stringify(actual)}`);
+}
+
+// A bare JSON body prints as one long line. Re-print the same parsed body
+// indented (JSON.stringify of the live response, so no value is touched) and
+// tint the lines whose key the PDF's text refers to. `verify` checks the
+// values the text quotes, so a changed deployment fails the capture instead
+// of contradicting the document.
+function formattedJson(keys, verify) {
+  return async (page) => {
+    const raw = await page.evaluate(() => (document.querySelector("pre") ?? document.body).innerText);
+    const body = JSON.parse(raw);
+    verify(body);
+    await page.evaluate(
+      ({ text, url, at, keys }) => {
+        document.head.innerHTML = "";
+        document.body.innerHTML = "";
+        document.body.style.cssText = "margin:0;padding:24px;background:#fff;color:#172033;font:15px/1.6 'DejaVu Sans Mono',ui-monospace,Menlo,Consolas,monospace";
+        const box = document.createElement("div");
+        box.id = "json";
+        box.style.cssText = "display:inline-block;min-width:760px;border:1px solid #d5dbe6;border-radius:4px;overflow:hidden";
+        const head = document.createElement("div");
+        head.style.cssText = "padding:10px 16px;background:#f3f6fb;border-bottom:1px solid #d5dbe6;font-weight:700";
+        head.textContent = `GET ${url}`;
+        const sub = document.createElement("div");
+        sub.style.cssText = "font-weight:400;color:#5b6475;font-size:12px;margin-top:2px";
+        sub.textContent = `fetched ${at} · response body, formatted · tinted lines are the fields the text refers to`;
+        head.append(sub);
+        const pre = document.createElement("div");
+        pre.style.cssText = "padding:12px 0";
+        for (const line of text.split("\n")) {
+          const row = document.createElement("div");
+          row.textContent = line;
+          row.style.cssText = "padding:0 16px;white-space:pre";
+          const key = line.match(/^\s*"([^"]+)":/)?.[1];
+          if (key && keys.includes(key)) row.style.cssText += ";background:#fff4dc;box-shadow:inset 3px 0 #d99100";
+          pre.append(row);
+        }
+        box.append(head, pre);
+        document.body.append(box);
+      },
+      { text: JSON.stringify(body, null, 2), url: page.url(), at: manilaNow(), keys },
+    );
+  };
+}
+
+const jsonBox = (page) => rectOf(page.locator("#json"), "formatted body");
+
+// Stellar Expert: the page from its header to the last content segment
+// (the footer is left out).
+async function expertPage(page) {
+  const bottom = await page.evaluate(() => Math.max(...[...document.querySelectorAll(".segment")].map((s) => s.getBoundingClientRect().bottom)));
+  if (!Number.isFinite(bottom) || bottom < 200) throw new Error("Stellar Expert content did not render");
+  const width = page.viewportSize().width;
+  return { x: 0, y: 0, width, height: bottom + 20 };
+}
+
 // ----------------------------------------------------------------- scenes ---
 // A scene loads one URL once and takes its shots in order; a shot's `act`
 // runs first, then `expect` (strings that must be on the page — the PDF's
@@ -295,6 +373,134 @@ const SCENES = [
           (page) => rectOf(page.locator("main#main tbody").getByText(/^\W*not yet operational\s*$/i), "not yet operational mark"),
           (page) => rectOf(page.locator("main#main tbody").getByText(/^\W*delisted by operator\s*$/i), "delisted mark"),
         ],
+      },
+    ],
+  },
+
+  // Walkthrough D — verify on the live API and on-chain.
+  {
+    url: `${BE}/api/stellar/network`,
+    viewport: { width: 1000, height: 1200 },
+    settle: 500,
+    shots: [
+      {
+        file: "d1-api-network.png",
+        act: formattedJson(["network", "dispatch_signer", "asset_sac", ...Object.keys(CONTRACTS)], (b) => {
+          assertEq(b.network, "testnet", "network");
+          assertEq(b.asset_sac, ASSET_SAC, "asset_sac");
+          for (const [k, v] of Object.entries(CONTRACTS)) assertEq(b.contracts?.[k], v, `contracts.${k}`);
+          if (!/^G[A-Z2-7]{55}$/.test(b.dispatch_signer ?? "")) throw new Error("dispatch_signer is not a G-address");
+        }),
+        region: jsonBox,
+      },
+    ],
+  },
+  {
+    url: `${BE}/api/stellar/reputation/params`,
+    viewport: { width: 1000, height: 1200 },
+    settle: 500,
+    shots: [
+      {
+        file: "d2-api-reputation-params.png",
+        act: formattedJson(["floor_bps", "prior_bps", "wilson_z", "contract_id"], (b) => {
+          assertEq(b.floor_bps, 5500, "floor_bps");
+          assertEq(b.prior_bps, 7000, "prior_bps");
+          assertEq(b.wilson_z, 1, "wilson_z");
+          assertEq(b.contract_id, LEDGER, "contract_id");
+          assertEq(b.network, "testnet", "network");
+        }),
+        region: jsonBox,
+      },
+    ],
+  },
+  {
+    url: `${BE}/readiness`,
+    viewport: { width: 1000, height: 1200 },
+    settle: 500,
+    shots: [
+      {
+        file: "d3-api-readiness.png",
+        act: formattedJson(["cold_start", "routable", "lower_bound_bps", "floor_bps", "margin_bps", "writer"], (b) => {
+          assertEq(b.cold_start?.routable, true, "cold_start.routable");
+          assertEq(b.cold_start?.lower_bound_bps, 5677, "cold_start.lower_bound_bps");
+          assertEq(b.cold_start?.floor_bps, 5500, "cold_start.floor_bps");
+          assertEq(b.cold_start?.margin_bps, 177, "cold_start.margin_bps");
+          assertEq(b.ratings?.writer, "scorer", "ratings.writer");
+        }),
+        region: jsonBox,
+      },
+    ],
+  },
+  {
+    url: `https://stellar.expert/explorer/testnet/contract/${LEDGER}`,
+    viewport: { width: 1280, height: 1200 },
+    waitUntil: "networkidle",
+    settle: 4000,
+    ready: "Summary",
+    shots: [
+      {
+        file: "d4-reputation-ledger-contract.png",
+        expect: [LEDGER, "WASM contract", "set_scorer"],
+        region: expertPage,
+        marks: [
+          (page) => rectOf(page.locator("h2").getByText(LEDGER), "contract id"),
+          (page) => rectOf(page.getByText(/set_scorer/).first(), "set_scorer call"),
+        ],
+      },
+    ],
+  },
+  {
+    url: "https://stellar.expert/explorer/testnet/tx/0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa",
+    viewport: { width: 1280, height: 1200 },
+    waitUntil: "networkidle",
+    settle: 4000,
+    ready: "Summary",
+    shots: [
+      {
+        file: "d5-register-tx.png",
+        expect: ["Successful", "register(", "calculatorai", "2026-09-17"],
+        region: expertPage,
+        marks: [
+          (page) => rectOf(page.getByText("Successful", { exact: true }), "status"),
+          (page) => rectOf(page.locator(".op-container").first(), "register call"),
+        ],
+      },
+    ],
+  },
+  {
+    url: "https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8",
+    viewport: { width: 1280, height: 1200 },
+    waitUntil: "networkidle",
+    settle: 4000,
+    ready: "Summary",
+    shots: [
+      {
+        file: "d6-set-scorer-tx.png",
+        expect: ["Successful", "set_scorer(", "2026-09-19"],
+        region: expertPage,
+        marks: [
+          (page) => rectOf(page.getByText("Successful", { exact: true }), "status"),
+          (page) => rectOf(page.locator(".op-container").first(), "set_scorer call"),
+        ],
+      },
+    ],
+  },
+  {
+    url: `${BE}/docs`,
+    viewport: { width: 1280, height: 1400 },
+    waitUntil: "networkidle",
+    ready: "Orizon Agents API",
+    shots: [
+      {
+        file: "d7-api-docs.png",
+        expect: ["/readiness", "/api/stellar/network"],
+        // From the title down to the start of the "orchestrator" group: the
+        // service description, the server, and the meta and agents groups.
+        region: async (page) => {
+          const next = await rectOf(page.locator("#operations-tag-orchestrator"), "orchestrator group");
+          return { x: 0, y: 0, width: page.viewportSize().width, height: next.y - 8 };
+        },
+        marks: [(page) => rectOf(page.locator(".opblock-summary").filter({ has: page.locator(".opblock-summary-path[data-path='/readiness']") }), "/readiness")],
       },
     ],
   },
