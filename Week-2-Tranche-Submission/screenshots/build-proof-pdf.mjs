@@ -231,6 +231,92 @@ const COVER = {
   ],
 };
 
+// Written summary pages, placed between the cover and the evidence — the same
+// role the write-up plays in the Week-1 PDF. Each entry is one A4 page.
+const SUMMARY = [
+  {
+    eyebrow: "Summary · Week-2 delivery",
+    title: "What we shipped in Week 2",
+    html: `
+  <p class="lead">This week we shipped the <b>external agent execution path</b> and <b>reputation-gated routing (Deliverable D2)</b>, both live on Stellar testnet at <a href="https://orizons.xyz">orizons.xyz</a>.</p>
+  <h3>External agent execution path — Epic 2</h3>
+  <ul>
+    <li><b>Endpoint binding by wallet signature</b> (2.01, 2.05) — an operator attaches their service URL to their on-chain agent by signing a one-time challenge with the wallet that owns it, on its own or inside registration.</li>
+    <li><b>Signed, bounded dispatch</b> (2.02) — every workflow step sent to an external agent is signed so the operator can verify it came from Orizon; unsafe URLs are refused and every step has a deadline and a size cap.</li>
+    <li><b>Fair failure rules</b> (2.03) — a step that times out or returns unusable output is not charged and counts against the agent's reputation.</li>
+    <li><b>Reference agent</b> (2.04) — a public, copyable example agent that runs from its README.</li>
+    <li><b>Operator dashboard</b> (2.06) — each operator's agents, earnings and reputation in one place, with transaction links.</li>
+  </ul>
+  <h3>Reputation-gated routing — Epic 3 · Deliverable D2</h3>
+  <ul>
+    <li><b>A reputation floor on every plan</b> (3.01, 3.02) — every planning path reads each agent's on-chain reputation and applies the floor on its conservative lower bound.</li>
+    <li><b>The trust signal before payment</b> (3.04) — the plan card shows each agent's reputation and its source, the floor applied, and any agent the floor acted on, with the reason.</li>
+    <li><b>Honest reads</b> (3.03) — if reputation cannot be read from chain, the plan and the card say so.</li>
+    <li><b>Marketplace standing</b> (3.05) — the floor stated once, on-chain agents marked, standing marks per agent.</li>
+    <li><b>New agents are hireable on day one</b> (3.06) — a brand-new agent clears the floor by 177 bps, guaranteed by a test and a startup check.</li>
+    <li><b>Contract addresses kept in agreement</b> (3.07) — checked daily and against the live deployment.</li>
+    <li><b>On-chain ratings from production</b> — every paid run is rated, and <code>/readiness</code> verifies production is the ledger's authorized scorer.</li>
+  </ul>
+  <h3>Fixes and hardening</h3>
+  <ul>
+    <li>A planning-service outage now returns a fallback plan instead of an error (BLO-121).</li>
+    <li>The floor holds after planning: a step survives only if its agent was offered to the planner.</li>
+    <li>Secrets are masked in every log line; prices show the network's real currency (XLM); accessibility and mobile fixes across the app.</li>
+  </ul>
+  <h3>QA — Rie</h3>
+  <ul>
+    <li>End-to-end QA on testnet of the external execution path (6.05) and the operator surfaces (6.06), a reputation-floor test suite, and 14 defects logged and handed to engineering.</li>
+  </ul>
+  <div class="stats">
+    <div><b>27</b><span>pull requests merged</span></div>
+    <div><b>5</b><span>public repositories</span></div>
+    <div><b>1,217</b><span>authored commits (Dan 1,080 · Rie 137)</span></div>
+    <div><b>1,534</b><span>backend tests passing</span></div>
+    <div><b>1,086</b><span>frontend tests passing</span></div>
+  </div>`,
+  },
+  {
+    eyebrow: "Summary · Stellar integration",
+    title: "Stellar integration this week",
+    html: `
+  <p class="lead">All work runs on <b>Stellar testnet</b>.</p>
+  <h3>SDKs and libraries</h3>
+  <ul>
+    <li><b>Backend</b> — Python <code>stellar-sdk</code> 13.2.1: builds unsigned XDR for wallets to sign, simulates, prepares and submits Soroban transactions, reads contract storage, verifies SEP-53 message signatures.</li>
+    <li><b>Frontend</b> — <code>@stellar/stellar-sdk</code> 15.0.1 and <code>@creit.tech/stellar-wallets-kit</code> 2.1.0 for wallet connection and transaction / message signing.</li>
+    <li><b>Reference agent</b> — verifies Orizon's SEP-53 dispatch signatures with PyNaCl (ed25519) and hand-rolled StrKey decoding, so operators need no Stellar SDK.</li>
+  </ul>
+  <h3>Soroban contracts</h3>
+  <ul>
+    <li><b>AgentRegistry</b> — <code>owner_of</code> gates endpoint binding; <code>set_active</code> delisting is honoured by routing; <code>register</code> for new agents.</li>
+    <li><b>ReputationLedger</b> — batched, time-bounded <code>rep_state</code> reads feed the routing floor; <code>submit</code> records ratings; <code>/readiness</code> reads its storage via <code>getLedgerEntries</code> to confirm the authorized scorer.</li>
+    <li><b>PaymentEscrow</b> — the buyer authorizes a workflow cap from their own wallet; the operator dashboard reads the escrow's on-chain events.</li>
+    <li><b>AttestationRegistry</b> — sealer role assigned to the production key. <b>Native XLM SAC</b> — the escrow asset.</li>
+  </ul>
+  <h3>Wallet integration</h3>
+  <ul>
+    <li><b>Binding by signature</b> — the owner wallet signs a SEP-53 challenge naming the agent, endpoint and a nonce; a separately signed message revokes it.</li>
+    <li><b>Signed dispatch</b> — every step is signed over SEP-53 by a dedicated keypair published as <code>dispatch_signer</code> (<code>GB5MKHDF…KCMR</code>).</li>
+  </ul>
+  <h3>Transactions (testnet)</h3>
+  <table class="tx">
+    <tr><th>Date</th><th>Call</th><th>Transaction hash</th></tr>
+    <tr><td>09-17</td><td>AgentRegistry.set_active (delist)</td><td class="mono">a710b6776042d810fa1a41ec17cc0b299c606fc2a7f54bd28c129e20bbe6e8e4</td></tr>
+    <tr><td>09-17</td><td>AgentRegistry.register (calculatorai)</td><td class="mono">0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa</td></tr>
+    <tr><td>09-17</td><td>PaymentEscrow.authorize (0.168 XLM)</td><td class="mono">67701b46ef60bf488481464cf527aeadb01bb407cf294efc120c5f4ecc31e56d</td></tr>
+    <tr><td>09-17</td><td>AgentRegistry.register (algorex)</td><td class="mono">7e3b6c02731906ddb685b080f11c63e0c1c2665a7bad0f0836bfa7ee5d83c872</td></tr>
+    <tr><td>09-19</td><td>ReputationLedger.set_scorer</td><td class="mono">216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8</td></tr>
+    <tr><td>09-19</td><td>AttestationRegistry.set_sealer</td><td class="mono">c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c</td></tr>
+  </table>
+  <p class="small">Each hash opens at <span class="mono">stellar.expert/explorer/testnet/tx/&lt;hash&gt;</span>.</p>
+  <h3>APIs</h3>
+  <ul>
+    <li><b>Soroban RPC</b> (<code>soroban-testnet.stellar.org</code>) — <code>simulateTransaction</code>, <code>sendTransaction</code>, <code>getLedgerEntries</code>, <code>getEvents</code>. <b>Horizon</b> testnet for transaction verification.</li>
+    <li>The contract address book is tracked in git; a daily check and a 6-hourly production smoke test compare the live <code>/api/stellar/network</code> ids with it.</li>
+  </ul>`,
+  },
+];
+
 // ---------------------------------------------------------------- render ---
 
 const kept = [];
