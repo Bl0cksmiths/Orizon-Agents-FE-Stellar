@@ -159,9 +159,10 @@
   },
   "b3-reference-agent-readme.png": {
     "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar",
-    "capturedAt": "2026-09-19T09:07:51.663Z",
+    "capturedAt": "2026-09-19T09:24:41.980Z",
     "width": 878,
     "height": 714,
+    "scale": 2,
     "marks": [
       {
         "x": 20,
@@ -173,9 +174,10 @@
   },
   "b4-verifying-a-dispatch.png": {
     "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/verifying-a-dispatch.md",
-    "capturedAt": "2026-09-19T09:07:55.614Z",
+    "capturedAt": "2026-09-19T09:24:46.173Z",
     "width": 901,
     "height": 1233,
+    "scale": 2,
     "marks": []
   },
   "b5-operator-dashboard.png": {
@@ -234,30 +236,34 @@
   },
   "d1-api-network.png": {
     "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/network",
-    "capturedAt": "2026-09-19T09:11:11.022Z",
+    "capturedAt": "2026-09-19T09:24:46.891Z",
     "width": 811,
     "height": 453,
+    "scale": 2,
     "marks": []
   },
   "d2-api-reputation-params.png": {
     "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params",
-    "capturedAt": "2026-09-19T09:11:11.667Z",
+    "capturedAt": "2026-09-19T09:24:47.562Z",
     "width": 786,
     "height": 429,
+    "scale": 2,
     "marks": []
   },
   "d3-api-readiness.png": {
     "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
-    "capturedAt": "2026-09-19T09:11:12.301Z",
+    "capturedAt": "2026-09-19T09:24:48.235Z",
     "width": 786,
     "height": 525,
+    "scale": 2,
     "marks": []
   },
   "d4-reputation-ledger-contract.png": {
     "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
-    "capturedAt": "2026-09-19T09:12:06.086Z",
+    "capturedAt": "2026-09-19T09:24:56.182Z",
     "width": 1280,
     "height": 839,
+    "scale": 2,
     "marks": [
       {
         "x": 118.3,
@@ -275,9 +281,10 @@
   },
   "d5-register-tx.png": {
     "url": "https://stellar.expert/explorer/testnet/tx/0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa",
-    "capturedAt": "2026-09-19T09:11:25.432Z",
+    "capturedAt": "2026-09-19T09:25:01.338Z",
     "width": 1280,
-    "height": 672,
+    "height": 546,
+    "scale": 2,
     "marks": [
       {
         "x": 121.6,
@@ -295,9 +302,10 @@
   },
   "d6-set-scorer-tx.png": {
     "url": "https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8",
-    "capturedAt": "2026-09-19T09:11:30.430Z",
+    "capturedAt": "2026-09-19T09:25:06.433Z",
     "width": 1280,
-    "height": 659,
+    "height": 534,
+    "scale": 2,
     "marks": [
       {
         "x": 121.6,
@@ -315,9 +323,10 @@
   },
   "d7-api-docs.png": {
     "url": "https://orizon-agents-be-stellar.onrender.com/docs",
-    "capturedAt": "2026-09-19T09:11:34.400Z",
+    "capturedAt": "2026-09-19T09:25:10.456Z",
     "width": 1280,
     "height": 845,
+    "scale": 2,
     "marks": [
       {
         "x": 29,
