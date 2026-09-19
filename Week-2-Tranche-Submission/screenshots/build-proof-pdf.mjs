@@ -214,7 +214,7 @@ const SHOTS = [
 ];
 
 const COVER = {
-  programme: "Stellar Community Fund — Blue Belt Instawards (Cohort 2026)",
+  programme: "Stellar Instawards (Cohort 2026)",
   milestone: "M2 · Week 2 — Reputation-Gated Routing (Deliverable D2) + External Agent Execution Path (Epic 2)",
   week: "Mon 2026-09-14 → Fri 2026-09-18",
   network: "Stellar testnet only",
@@ -230,6 +230,92 @@ const COVER = {
     ["Asset SAC", "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"],
   ],
 };
+
+// Written summary pages, placed between the cover and the evidence — the same
+// role the write-up plays in the Week-1 PDF. Each entry is one A4 page.
+const SUMMARY = [
+  {
+    eyebrow: "Summary · Week-2 delivery",
+    title: "What we shipped in Week 2",
+    html: `
+  <p class="lead">This week we shipped the <b>external agent execution path</b> and <b>reputation-gated routing (Deliverable D2)</b>, both live on Stellar testnet at <a href="https://orizons.xyz">orizons.xyz</a>.</p>
+  <h3>External agent execution path — Epic 2</h3>
+  <ul>
+    <li><b>Endpoint binding by wallet signature</b> (2.01, 2.05) — an operator attaches their service URL to their on-chain agent by signing a one-time challenge with the wallet that owns it, on its own or inside registration.</li>
+    <li><b>Signed, bounded dispatch</b> (2.02) — every workflow step sent to an external agent is signed so the operator can verify it came from Orizon; unsafe URLs are refused and every step has a deadline and a size cap.</li>
+    <li><b>Fair failure rules</b> (2.03) — a step that times out or returns unusable output is not charged and counts against the agent's reputation.</li>
+    <li><b>Reference agent</b> (2.04) — a public, copyable example agent that runs from its README.</li>
+    <li><b>Operator dashboard</b> (2.06) — each operator's agents, earnings and reputation in one place, with transaction links.</li>
+  </ul>
+  <h3>Reputation-gated routing — Epic 3 · Deliverable D2</h3>
+  <ul>
+    <li><b>A reputation floor on every plan</b> (3.01, 3.02) — every planning path reads each agent's on-chain reputation and applies the floor on its conservative lower bound.</li>
+    <li><b>The trust signal before payment</b> (3.04) — the plan card shows each agent's reputation and its source, the floor applied, and any agent the floor acted on, with the reason.</li>
+    <li><b>Honest reads</b> (3.03) — if reputation cannot be read from chain, the plan and the card say so.</li>
+    <li><b>Marketplace standing</b> (3.05) — the floor stated once, on-chain agents marked, standing marks per agent.</li>
+    <li><b>New agents are hireable on day one</b> (3.06) — a brand-new agent clears the floor by 177 bps, guaranteed by a test and a startup check.</li>
+    <li><b>Contract addresses kept in agreement</b> (3.07) — checked daily and against the live deployment.</li>
+    <li><b>On-chain ratings from production</b> — every paid run is rated, and <code>/readiness</code> verifies production is the ledger's authorized scorer.</li>
+  </ul>
+  <h3>Fixes and hardening</h3>
+  <ul>
+    <li>A planning-service outage now returns a fallback plan instead of an error (BLO-121).</li>
+    <li>The floor holds after planning: a step survives only if its agent was offered to the planner.</li>
+    <li>Secrets are masked in every log line; prices show the network's real currency (XLM); accessibility and mobile fixes across the app.</li>
+  </ul>
+  <h3>QA — Rie</h3>
+  <ul>
+    <li>End-to-end QA on testnet of the external execution path (6.05) and the operator surfaces (6.06), a reputation-floor test suite, and 14 defects logged and handed to engineering.</li>
+  </ul>
+  <div class="stats">
+    <div><b>27</b><span>pull requests merged</span></div>
+    <div><b>5</b><span>public repositories</span></div>
+    <div><b>1,217</b><span>authored commits (Dan 1,080 · Rie 137)</span></div>
+    <div><b>1,534</b><span>backend tests passing</span></div>
+    <div><b>1,086</b><span>frontend tests passing</span></div>
+  </div>`,
+  },
+  {
+    eyebrow: "Summary · Stellar integration",
+    title: "Stellar integration this week",
+    html: `
+  <p class="lead">All work runs on <b>Stellar testnet</b>.</p>
+  <h3>SDKs and libraries</h3>
+  <ul>
+    <li><b>Backend</b> — Python <code>stellar-sdk</code> 13.2.1: builds unsigned XDR for wallets to sign, simulates, prepares and submits Soroban transactions, reads contract storage, verifies SEP-53 message signatures.</li>
+    <li><b>Frontend</b> — <code>@stellar/stellar-sdk</code> 15.0.1 and <code>@creit.tech/stellar-wallets-kit</code> 2.1.0 for wallet connection and transaction / message signing.</li>
+    <li><b>Reference agent</b> — verifies Orizon's SEP-53 dispatch signatures with PyNaCl (ed25519) and hand-rolled StrKey decoding, so operators need no Stellar SDK.</li>
+  </ul>
+  <h3>Soroban contracts</h3>
+  <ul>
+    <li><b>AgentRegistry</b> — <code>owner_of</code> gates endpoint binding; <code>set_active</code> delisting is honoured by routing; <code>register</code> for new agents.</li>
+    <li><b>ReputationLedger</b> — batched, time-bounded <code>rep_state</code> reads feed the routing floor; <code>submit</code> records ratings; <code>/readiness</code> reads its storage via <code>getLedgerEntries</code> to confirm the authorized scorer.</li>
+    <li><b>PaymentEscrow</b> — the buyer authorizes a workflow cap from their own wallet; the operator dashboard reads the escrow's on-chain events.</li>
+    <li><b>AttestationRegistry</b> — sealer role assigned to the production key. <b>Native XLM SAC</b> — the escrow asset.</li>
+  </ul>
+  <h3>Wallet integration</h3>
+  <ul>
+    <li><b>Binding by signature</b> — the owner wallet signs a SEP-53 challenge naming the agent, endpoint and a nonce; a separately signed message revokes it.</li>
+    <li><b>Signed dispatch</b> — every step is signed over SEP-53 by a dedicated keypair published as <code>dispatch_signer</code> (<code>GB5MKHDF…KCMR</code>).</li>
+  </ul>
+  <h3>Transactions (testnet)</h3>
+  <table class="tx">
+    <tr><th>Date</th><th>Call</th><th>Transaction hash</th></tr>
+    <tr><td>09-17</td><td>AgentRegistry.set_active (delist)</td><td class="mono">a710b6776042d810fa1a41ec17cc0b299c606fc2a7f54bd28c129e20bbe6e8e4</td></tr>
+    <tr><td>09-17</td><td>AgentRegistry.register (calculatorai)</td><td class="mono">0741a0822b6976f88a4582ffc65f1528004a9a5c3c544171e4be7ba099b1c8aa</td></tr>
+    <tr><td>09-17</td><td>PaymentEscrow.authorize (0.168 XLM)</td><td class="mono">67701b46ef60bf488481464cf527aeadb01bb407cf294efc120c5f4ecc31e56d</td></tr>
+    <tr><td>09-17</td><td>AgentRegistry.register (algorex)</td><td class="mono">7e3b6c02731906ddb685b080f11c63e0c1c2665a7bad0f0836bfa7ee5d83c872</td></tr>
+    <tr><td>09-19</td><td>ReputationLedger.set_scorer</td><td class="mono">216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8</td></tr>
+    <tr><td>09-19</td><td>AttestationRegistry.set_sealer</td><td class="mono">c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c</td></tr>
+  </table>
+  <p class="small">Each hash opens at <span class="mono">stellar.expert/explorer/testnet/tx/&lt;hash&gt;</span>.</p>
+  <h3>APIs</h3>
+  <ul>
+    <li><b>Soroban RPC</b> (<code>soroban-testnet.stellar.org</code>) — <code>simulateTransaction</code>, <code>sendTransaction</code>, <code>getLedgerEntries</code>, <code>getEvents</code>. <b>Horizon</b> testnet for transaction verification.</li>
+    <li>The contract address book is tracked in git; a daily check and a 6-hourly production smoke test compare the live <code>/api/stellar/network</code> ids with it.</li>
+  </ul>`,
+  },
+];
 
 // ---------------------------------------------------------------- render ---
 
@@ -280,6 +366,15 @@ function evidencePage(s, i) {
 </section>`;
 }
 
+function summaryPage(s) {
+  return `
+<section class="page summary">
+  <div class="eyebrow"><span class="num">Summary</span><span>${esc(s.eyebrow)}</span></div>
+  <h2>${esc(s.title)}</h2>
+  ${s.html}
+</section>`;
+}
+
 const cover = `
 <section class="page cover">
   <div class="kicker">${esc(COVER.programme)}</div>
@@ -299,9 +394,10 @@ const cover = `
   </table>
   <h3>Evidence in this document</h3>
   <table class="toc">
-    ${kept.map((s, i) => `<tr><td class="n">${String(i + 1).padStart(2, "0")}</td><td>${esc(s.title)}</td><td class="t">${esc(s.short)}</td><td class="p">p. ${i + 2}</td></tr>`).join("\n    ")}
+    ${SUMMARY.map((s, i) => `<tr><td class="n">—</td><td>${esc(s.title)}</td><td class="t">summary</td><td class="p">p. ${i + 2}</td></tr>`).join("\n    ")}
+    ${kept.map((s, i) => `<tr><td class="n">${String(i + 1).padStart(2, "0")}</td><td>${esc(s.title)}</td><td class="t">${esc(s.short)}</td><td class="p">p. ${i + 2 + SUMMARY.length}</td></tr>`).join("\n    ")}
   </table>
-  <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. On the plan-card and marketplace pages every agent reads the ≈3.50 prior estimate: no on-chain ratings existed during Week 2, so those frames show the floor being stated and applied, not any agent being excluded by it.</p>
+  <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. On the plan-card and marketplace pages every agent carries the ≈3.50 starting estimate and clears the 2.75 routing floor, which each page states and applies.</p>
 </section>`;
 
 const html = `<!doctype html>
@@ -352,10 +448,25 @@ const html = `<!doctype html>
   .toc .t { width: 44mm; padding-left: 3mm; font-size: 7.2pt; color: var(--muted); }
   .toc .p { width: 10mm; text-align: right; color: var(--muted); white-space: nowrap; }
   .note { margin-top: 3.5mm; font-size: 8pt; color: var(--muted); }
+  /* summary pages */
+  .summary { font-size: 8.9pt; line-height: 1.42; }
+  .summary .lead { font-size: 10pt; margin: 0 0 1.5mm; }
+  .summary h3 { font-size: 9.6pt; color: var(--accent); margin: 3.2mm 0 1mm; padding-bottom: 0.6mm; border-bottom: 1px solid var(--rule); }
+  .summary ul { margin: 0; padding-left: 4.5mm; }
+  .summary li { margin: 0 0 0.9mm; }
+  .summary .small { font-size: 7.6pt; color: var(--muted); margin: 1mm 0 0; }
+  .summary .tx th { text-align: left; font-size: 7.4pt; color: var(--muted); font-weight: 600; padding: 0.6mm 2mm 0.6mm 0; }
+  .summary .tx td { font-size: 7.6pt; padding: 0.7mm 2mm 0.7mm 0; border-top: 1px solid #e7ebf2; vertical-align: top; }
+  .summary .tx td.mono { font-size: 6.9pt; overflow-wrap: anywhere; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2mm; margin-top: 4mm; }
+  .stats div { background: var(--soft); border-radius: 3px; padding: 2mm; text-align: center; }
+  .stats b { display: block; font-size: 14pt; color: var(--accent); line-height: 1.1; }
+  .stats span { display: block; font-size: 7pt; color: var(--muted); margin-top: 0.6mm; }
 </style>
 </head>
 <body>
 ${cover}
+${SUMMARY.map(summaryPage).join("\n")}
 ${kept.map(evidencePage).join("\n")}
 <script>
   // Shrink each figure (keeping its aspect) until it fits the space left on
@@ -408,4 +519,4 @@ await page.pdf({
 });
 await browser.close();
 const pages = (readFileSync(PDF).toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length;
-console.log(`wrote ${PDF} — ${pages} pages, ${(statSync(PDF).size / 1024 / 1024).toFixed(2)} MB (${kept.length} evidence pages + cover)`);
+console.log(`wrote ${PDF} — ${pages} pages, ${(statSync(PDF).size / 1024 / 1024).toFixed(2)} MB (cover + ${SUMMARY.length} summary pages + ${kept.length} evidence pages)`);
