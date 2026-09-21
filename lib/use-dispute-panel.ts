@@ -155,12 +155,10 @@ export function useDisputePanel(
         if (err instanceof ApiError && err.status === 404) {
           res = noReceiptRoute(id);
         } else {
+          // Whatever is on screen stays: it is this task's (the epoch says no
+          // other load has started since), and the error dates it.
           const error = toMessage(err);
-          setState((s) => ({
-            taskId: id,
-            snapshot: s.taskId === id ? s.snapshot : null,
-            error,
-          }));
+          setState((s) => ({ ...s, error }));
           return;
         }
       }
