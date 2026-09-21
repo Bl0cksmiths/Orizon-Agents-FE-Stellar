@@ -131,6 +131,7 @@ function SettledReceipt({
   view,
   headingId,
   onDispute,
+  onConnect,
 }: {
   view: SettledView;
   headingId: string;
@@ -146,6 +147,10 @@ function SettledReceipt({
     ? view.window.closesAtMs - view.window.remainingMs
     : Date.now();
   const steps = view.steps.length;
+  // Only someone the page cannot yet place is told how to become able to
+  // dispute. A payer already has the buttons; a connected wallet that did not
+  // pay is not the payer, and a prompt would invite them to try.
+  const promptToConnect = view.viewer === "anonymous" && view.window.open;
 
   return (
     <section aria-labelledby={headingId}>
@@ -196,6 +201,8 @@ function SettledReceipt({
 
         <WindowState window={view.window} settledAtMs={view.settledAtMs} />
 
+        {promptToConnect && <ConnectPrompt onConnect={onConnect} />}
+
         <div className="space-y-3 border-t border-border/60 pt-5">
           <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
             Steps
@@ -219,6 +226,30 @@ function SettledReceipt({
         </div>
       </Card>
     </section>
+  );
+}
+
+/**
+ * The one line an anonymous viewer gets. They may well be the payer — on
+ * another device, or before connecting — so they are told what would let them
+ * dispute, and handed the control that does it, rather than shown Dispute
+ * buttons that could only fail once a signature was asked for.
+ */
+function ConnectPrompt({ onConnect }: { onConnect: () => void }) {
+  return (
+    <div className="clip-cyber-sm flex flex-col gap-3 border border-violet/40 bg-violet/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-xs leading-relaxed text-text/90">
+        If you paid for this workflow, connect that wallet to dispute a step.
+      </p>
+      <Button
+        type="button"
+        size="sm"
+        onClick={onConnect}
+        className="shrink-0 self-start sm:self-auto"
+      >
+        Connect wallet
+      </Button>
+    </div>
   );
 }
 
