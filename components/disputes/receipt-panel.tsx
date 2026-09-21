@@ -13,6 +13,7 @@
 import { useId } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { KVRow } from "@/components/ui/kv-row";
 import { formatAge } from "@/components/ui/stale-badge";
@@ -25,6 +26,7 @@ import type {
   StepDisputeState,
 } from "@/lib/types";
 
+import { DisputeStatusBadge } from "./dispute-status-badge";
 import { WindowState, formatLocalTime } from "./window-state";
 
 type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
@@ -128,6 +130,7 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
 function SettledReceipt({
   view,
   headingId,
+  onDispute,
 }: {
   view: SettledView;
   headingId: string;
@@ -204,7 +207,12 @@ function SettledReceipt({
           ) : (
             <ol className="space-y-3">
               {view.steps.map(({ step, state }) => (
-                <StepItem key={step.step_index} step={step} state={state} />
+                <StepItem
+                  key={step.step_index}
+                  step={step}
+                  state={state}
+                  onDispute={onDispute}
+                />
               ))}
             </ol>
           )}
@@ -235,9 +243,11 @@ function agentLabel(step: SettlementStepView): string {
 function StepItem({
   step,
   state,
+  onDispute,
 }: {
   step: SettlementStepView;
   state: StepDisputeState;
+  onDispute: (step: SettlementStepView) => void;
 }) {
   const n = stepNumber(step);
   const name = agentLabel(step);
@@ -270,6 +280,7 @@ function StepItem({
         </div>
         <div className="flex flex-wrap items-center gap-3 pl-10 sm:shrink-0 sm:flex-col sm:items-end sm:gap-2 sm:pl-0">
           <StepPrice step={step} charged={state.kind !== "not_charged"} />
+          <StepAction step={step} state={state} onDispute={onDispute} />
         </div>
       </div>
     </li>
@@ -300,4 +311,62 @@ function StepPrice({
       <span className="sr-only">Not charged, priced at {price}</span>
     </span>
   );
+}
+
+/**
+ * The step's one control, or its outcome. Only `disputable` carries an
+ * action. Every other state renders no control at all — not a disabled one:
+ * a greyed-out Dispute button tells a viewer who may not dispute that there
+ * is something here they are being kept from.
+ */
+function StepAction({
+  step,
+  state,
+  onDispute,
+}: {
+  step: SettlementStepView;
+  state: StepDisputeState;
+  onDispute: (step: SettlementStepView) => void;
+}) {
+  switch (state.kind) {
+    case "disputable":
+      return (
+        <div className="flex flex-col items-start gap-1.5 sm:items-end">
+          {/* Several rows each carry a "Dispute" button, so the accessible
+              name says which step this one opens — and starts with the
+              visible word, so voice control still finds it (WCAG 2.5.3). */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={`Dispute step ${stepNumber(step)}, ${agentLabel(step)}`}
+            onClick={() => onDispute(step)}
+          >
+            Dispute
+          </Button>
+          {step.creditable_usdc > 0 && (
+            <span className="font-mono text-[10px] text-muted">
+              credits {formatUsdc(step.creditable_usdc)} if upheld
+            </span>
+          )}
+        </div>
+      );
+    case "disputed":
+      return <DisputeStatusBadge status={state.dispute.status} />;
+    // The price beside this already tells a screen reader "not charged";
+    // the badge is the same fact for the eye, so it is not read twice.
+    case "not_charged":
+      return (
+        <span aria-hidden="true">
+          <Badge tone="muted">not charged</Badge>
+        </span>
+      );
+    // A closed window is explained once, by the window state above the list;
+    // repeating it on every row adds noise and no information.
+    case "window_closed":
+    // Someone who did not pay is shown the receipt and nothing else — no
+    // control, no hint, no disabled button.
+    case "view_only":
+      return null;
+  }
 }
