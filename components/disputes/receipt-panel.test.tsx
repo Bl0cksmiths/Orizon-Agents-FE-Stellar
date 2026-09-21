@@ -304,9 +304,11 @@ describe("ReceiptPanel — the step list", () => {
       ]),
     );
     const item = screen.getByRole("listitem");
-    expect(item.textContent).toContain("did not deliver");
-    expect(item.textContent).toContain("never charged");
-    expect(item.textContent).toContain("nothing to dispute");
+    expect(item.textContent).toContain(
+      "Nothing was charged for this step, so there is nothing to dispute.",
+    );
+    // Not every uncharged step failed: the line must not claim a cause.
+    expect(item.textContent).not.toContain("did not deliver");
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 

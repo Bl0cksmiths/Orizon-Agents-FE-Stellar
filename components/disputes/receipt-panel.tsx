@@ -367,9 +367,9 @@ function StepItem({
 }
 
 /**
- * What the step cost. A step that never delivered was never billed, so its
- * price is struck through rather than listed as if it had been paid — a
- * receipt that adds up to more than was charged is not a receipt.
+ * What the step cost. A step that was not charged has its price struck
+ * through rather than listed as if it had been paid — a receipt that adds up
+ * to more than was charged is not a receipt.
  */
 function StepPrice({
   step,
@@ -455,8 +455,10 @@ function StepDetail({ state }: { state: StepDisputeState }) {
   if (state.kind === "not_charged") {
     return (
       <p className="mt-3 border-t border-border/40 pt-3 text-xs leading-relaxed text-muted">
-        This step did not deliver, so it was never charged — there is nothing to
-        dispute.
+        {/* Worded for every way a step ends up here — it did not deliver,
+            it was priced at zero, or the whole settlement moved nothing — so
+            it never claims a cause the view did not establish. */}
+        Nothing was charged for this step, so there is nothing to dispute.
       </p>
     );
   }
