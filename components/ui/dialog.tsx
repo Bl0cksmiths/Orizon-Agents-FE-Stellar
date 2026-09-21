@@ -19,6 +19,7 @@
  * a dialog must not be abandoned, such as a wallet signature in flight.
  */
 
+import { m } from "framer-motion";
 import {
   useEffect,
   useId,
@@ -235,9 +236,18 @@ export function Dialog({
       )}
     >
       {/* Content mounts only while open: a closed dialog holds no stale form
-          in the DOM, and every open starts from the top. */}
+          in the DOM, and every open starts from the top and replays the
+          entrance. Entrance only — an exit animation would have to hold the
+          element open past `open` going false, the very drift the prop exists
+          to prevent. The app's MotionConfig (reducedMotion="user") drops the
+          slide for anyone who asked for less motion, leaving a plain fade. */}
       {open && (
-        <div className="clip-cyber relative flex max-h-[calc(100dvh-0.75rem)] flex-col border border-border bg-surface sm:max-h-[min(46rem,calc(100dvh-4rem))]">
+        <m.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="clip-cyber relative flex max-h-[calc(100dvh-0.75rem)] flex-col border border-border bg-surface sm:max-h-[min(46rem,calc(100dvh-4rem))]"
+        >
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet/10 via-transparent to-cyan/5"
@@ -286,7 +296,7 @@ export function Dialog({
               {footer}
             </div>
           )}
-        </div>
+        </m.div>
       )}
     </dialog>
   );
