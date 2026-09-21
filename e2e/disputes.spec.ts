@@ -14,6 +14,7 @@
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import {
+  DISPUTE_WINDOW_S,
   mockApi,
   mockDisputeApi,
   mockDisputeTaskId,
@@ -184,4 +185,33 @@ test.describe("dispute action on the trace / receipt view", () => {
       expect(opened).toEqual([]);
     });
   }
+
+  test("a closed window says it closed and when, and offers no action anywhere", async ({
+    page,
+  }) => {
+    const settledAtS = nowS() - DISPUTE_WINDOW_S - HOUR_S;
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS }),
+    });
+
+    await expect(receipt(page)).toBeVisible();
+    await expect(
+      receipt(page).getByText("Dispute window closed", { exact: true }),
+    ).toBeVisible();
+    // "When" is the window's own closing instant — machine-readable on the
+    // <time> the buyer sees, and spoken in the sentence a screen reader gets.
+    const closesAtIso = new Date(
+      (settledAtS + DISPUTE_WINDOW_S) * 1000,
+    ).toISOString();
+    const closedAt = receipt(page).locator(`time[datetime="${closesAtIso}"]`);
+    await expect(closedAt).toBeVisible();
+    const closedAtText = (await closedAt.textContent()) ?? "";
+    expect(closedAtText).not.toBe("");
+    await expect(
+      receipt(page)
+        .getByRole("status")
+        .filter({ hasText: /dispute window/ }),
+    ).toHaveText(`The dispute window closed on ${closedAtText}.`);
+    await expect(disputeButtons(page)).toHaveCount(0);
+  });
 });
