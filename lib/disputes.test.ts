@@ -14,15 +14,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api";
 import {
+  DisputeRefusal,
   createDisputeChallenge,
+  disputeErrorCode,
   getTaskDisputes,
   openDispute,
+  serverClockOffsetMs,
 } from "./disputes";
 import { rememberTaskToken } from "./task-tokens";
 import type {
   CreditPolicy,
   Dispute,
   DisputeChallenge,
+  DisputeErrorCode,
   SettlementStepView,
   SettlementView,
   TaskDisputes,
@@ -422,5 +426,97 @@ describe("openDispute", () => {
     await expect(openDispute(req)).rejects.toThrow(
       "malformed response from /disputes",
     );
+  });
+});
+
+// ── error codes ─────────────────────────────────────────────────
+
+describe("disputeErrorCode", () => {
+  const contract: [DisputeErrorCode, number][] = [
+    ["reason_required", 422],
+    ["unknown_job", 404],
+    ["signature_malformed", 400],
+    ["challenge_expired", 400],
+    ["not_the_payer", 403],
+    ["dispute_window_closed", 409],
+    ["step_not_settled", 409],
+    ["nothing_was_charged", 409],
+    ["duplicate_dispute", 409],
+    ["rate_limited", 429],
+  ];
+
+  it.each(contract)("names %s off a %i", (code, status) => {
+    expect(
+      disputeErrorCode(new ApiError("refused", status, undefined, code)),
+    ).toBe(code);
+  });
+
+  it("names a real server refusal end to end", async () => {
+    fetchMock.mockResolvedValueOnce(refusal(409, "dispute_window_closed"));
+
+    const err = await createDisputeChallenge({
+      job_id_hex: JOB,
+      step_index: 0,
+    }).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe("dispute_window_closed");
+  });
+
+  it("returns null for a code the contract does not name", () => {
+    expect(
+      disputeErrorCode(new ApiError("bad", 422, undefined, "validation_error")),
+    ).toBeNull();
+    expect(disputeErrorCode(new ApiError("down", 503))).toBeNull();
+  });
+
+  it("reads any 429 as rate_limited, envelope or not", () => {
+    // A proxy in front of the backend can throttle without the envelope; the
+    // screen the buyer needs is the same.
+    expect(disputeErrorCode(new ApiError("slow down", 429, 5_000))).toBe(
+      "rate_limited",
+    );
+  });
+
+  it("returns null for anything that is not a server or client refusal", () => {
+    expect(disputeErrorCode(new Error("Failed to fetch"))).toBeNull();
+    expect(disputeErrorCode("challenge_expired")).toBeNull();
+    expect(disputeErrorCode({ code: "challenge_expired" })).toBeNull();
+    expect(disputeErrorCode(null)).toBeNull();
+  });
+
+  it("names a client-side refusal by the code the server would have used", () => {
+    const early = new DisputeRefusal("reason_required", "say why");
+    expect(disputeErrorCode(early)).toBe("reason_required");
+    expect(early).toBeInstanceOf(Error);
+    expect(early).not.toBeInstanceOf(ApiError);
+    expect(early.name).toBe("DisputeRefusal");
+    expect(early.message).toBe("say why");
+  });
+});
+
+// ── the server's clock ──────────────────────────────────────────
+
+describe("serverClockOffsetMs", () => {
+  it("is 0 when the backend sends no clock — the local one is trusted", () => {
+    const { now: _omitted, ...legacy } = taskDisputes();
+    expect(serverClockOffsetMs(legacy, 1_000)).toBe(0);
+  });
+
+  it("is positive when the server runs ahead of this browser", () => {
+    const res = taskDisputes({ now: 1_000_090 });
+    expect(serverClockOffsetMs(res, 1_000_000_000)).toBe(90_000);
+  });
+
+  it("is negative when the server runs behind", () => {
+    const res = taskDisputes({ now: 999_999.5 });
+    expect(serverClockOffsetMs(res, 1_000_000_000)).toBe(-500);
+  });
+
+  it("rounds the server's fractional seconds to whole milliseconds", () => {
+    const res = taskDisputes({ now: 1_000_000.0004 });
+    expect(serverClockOffsetMs(res, 1_000_000_000)).toBe(0);
+  });
+
+  it("is 0 when the arrival time is not a number", () => {
+    expect(serverClockOffsetMs(taskDisputes(), Number.NaN)).toBe(0);
   });
 });
