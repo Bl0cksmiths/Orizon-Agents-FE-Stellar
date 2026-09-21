@@ -295,6 +295,37 @@ test.describe("dispute status and refund receipt", () => {
     await attachShot(testInfo, "receipt — rating pending", credited);
   });
 
+  test("a credit recorded without a refund transaction wears 'Refund in progress', never 'Refunded'", async ({
+    page,
+  }, testInfo) => {
+    // `credited` with no transfer on record: the backend's own tooling holds
+    // this as unreconciled, so the status alone proves no money moved.
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS: nowS() - 40 * 60,
+          refund_tx: null,
+        }),
+      ],
+    });
+
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Refund in progress");
+    await expect(row).not.toContainText("Refunded");
+    const refund = artifact(row, "Refund transfer");
+    await expect(refund).toContainText("Being sent");
+    await expect(refund).not.toContainText("Confirmed on Stellar");
+    // Nothing to link: there is no transaction to prove it.
+    await expect(row.getByRole("link", { name: /refund/i })).toHaveCount(0);
+    await expect(row).toContainText(
+      "the refund transfer is not confirmed on Stellar yet",
+    );
+    // And the figure stays a promise.
+    await expect(row).toContainText("Up to 0.027 USDC to be credited");
+    await attachShot(testInfo, "receipt — credited, refund unconfirmed", row);
+  });
+
   test("a wallet that did not pay sees the statuses and the links, but neither the buyer's reason nor the rejection's", async ({
     page,
   }) => {
