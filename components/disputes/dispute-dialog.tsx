@@ -40,6 +40,7 @@ import type {
 import { inputCls } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
+import { classifyError } from "@/lib/wallet-errors";
 
 export type DisputeDialogProps = {
   /** Shown only while this is true AND both `step` and `settlement` are set. */
@@ -122,12 +123,50 @@ const GENERIC_FAILURE: Failure = {
   field: false,
 };
 
+/** The same submit can succeed on a second press. */
+const retryable = (message: string): Failure => ({
+  message,
+  next: "retry",
+  field: false,
+});
+
 /** Nothing in this dialog can change the answer; only closing is offered. */
 const closeOnly = (message: string): Failure => ({
   message,
   next: "close",
   field: false,
 });
+
+const CANCELLED_NOTICE = "You cancelled the signature. Nothing was sent.";
+
+/**
+ * A failure inside the wallet, classified exactly as the bind page classifies
+ * one — lib/wallet-errors' `classifyError`, whose `user_rejected` is a
+ * declined or closed prompt. That is the buyer changing their mind, not a
+ * failure, so it answers null and the form goes back to idle, reason intact.
+ *
+ * The classifier's own sentences are not reused: they were written for
+ * transactions ("click Register again", "nothing was sent on-chain"), and
+ * this prompt signs a message.
+ */
+function walletFailure(err: unknown): Failure | null {
+  switch (classifyError(err).kind) {
+    case "user_rejected":
+      return null;
+    case "wallet_locked":
+      return retryable(
+        "Your wallet is locked. Unlock it and try again — nothing was sent.",
+      );
+    case "wallet_not_found":
+      return retryable(
+        "No Stellar wallet answered in this browser. Check that the wallet that paid is installed and enabled, then try again.",
+      );
+    default:
+      return retryable(
+        "Your wallet couldn't sign the message, so nothing was sent. Check your wallet and try again.",
+      );
+  }
+}
 
 /**
  * A refusal in the buyer's words, keyed on the machine-readable code and
@@ -155,13 +194,10 @@ function refusalFailure(err: unknown, payer: string): Failure {
         "Nothing was charged for this step, so there is nothing to dispute on it.",
       );
     case "rate_limited":
-      return {
-        message:
-          rateLimitMessage(err) ??
+      return retryable(
+        rateLimitMessage(err) ??
           "Too many requests — wait a moment and try again. Nothing was lost.",
-        next: "retry",
-        field: false,
-      };
+      );
     case "reason_required":
       return {
         message:
@@ -343,19 +379,32 @@ function DisputeForm({
     if (!step || !settlement || !wallet.address) return;
     inFlight.current = true;
     const payer = wallet.address;
-    let signatures = 0;
+    // What happened inside the wallet, recorded where it happened rather than
+    // guessed from whatever raiseDispute rethrows: a wallet error and a
+    // backend refusal need different words, and only this wrapper knows for
+    // certain which one it was.
+    const attempt: {
+      signatures: number;
+      walletError: { cause: unknown } | null;
+    } = { signatures: 0, walletError: null };
     setState({ kind: "signing", prompt: "preparing" });
 
     // Handed to raiseDispute in place of the wallet's own signMessage so the
     // form can follow the sequence it runs: the prompt opening, the signature
     // coming back, and a second prompt if the first challenge expired.
     const signMessage = async (message: string): Promise<string> => {
-      signatures += 1;
+      attempt.signatures += 1;
       setState({
         kind: "signing",
-        prompt: signatures > 1 ? "again" : "wallet",
+        prompt: attempt.signatures > 1 ? "again" : "wallet",
       });
-      const signature = await wallet.signMessage(message);
+      let signature: string;
+      try {
+        signature = await wallet.signMessage(message);
+      } catch (cause) {
+        attempt.walletError = { cause };
+        throw cause;
+      }
       setState({ kind: "submitting" });
       return signature;
     };
@@ -371,10 +420,19 @@ function DisputeForm({
       setState({ kind: "done", dispute });
       onSubmitted(dispute);
     } catch (err) {
-      setState({
-        kind: "error",
-        failure: refusalFailure(err, settlement.payer),
-      });
+      if (attempt.walletError) {
+        const failure = walletFailure(attempt.walletError.cause);
+        setState(
+          failure
+            ? { kind: "error", failure }
+            : { kind: "idle", notice: CANCELLED_NOTICE },
+        );
+      } else {
+        setState({
+          kind: "error",
+          failure: refusalFailure(err, settlement.payer),
+        });
+      }
     } finally {
       inFlight.current = false;
     }
