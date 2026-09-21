@@ -358,3 +358,60 @@ describe("Dialog — focus", () => {
     expect(document.activeElement).not.toBe(opener);
   });
 });
+
+describe("Dialog — close button and backdrop", () => {
+  it("has a visible, named close button that requests a close", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    openDialog();
+
+    const close = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Close",
+    });
+    expect(close.disabled).toBe(false);
+    fireEvent.click(close);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialogEl().open).toBe(false);
+  });
+
+  it("closes on a click on the backdrop", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    openDialog();
+
+    // A ::backdrop click is dispatched to the <dialog> element itself.
+    fireEvent.pointerDown(dialogEl());
+    fireEvent.click(dialogEl());
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialogEl().open).toBe(false);
+  });
+
+  it("ignores a click inside the panel", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    openDialog();
+
+    const copy = screen.getByText("Body copy");
+    fireEvent.pointerDown(copy);
+    fireEvent.click(copy);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialogEl().open).toBe(true);
+  });
+
+  it("ignores a drag that starts in the panel and ends on the backdrop", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    openDialog();
+
+    // Selecting text and releasing past the panel's edge: the click lands on
+    // the common ancestor, the dialog, though the press was inside.
+    fireEvent.pointerDown(screen.getByRole("textbox", { name: "Reason" }));
+    fireEvent.click(dialogEl());
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialogEl().open).toBe(true);
+  });
+});
