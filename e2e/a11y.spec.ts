@@ -7,9 +7,18 @@
  * rings, the inert mobile drawer, landmark structure, tab semantics) were
  * found by hand once, and without a gate they can quietly come back.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockApi } from "./mocks";
+import {
+  mockApi,
+  mockDispute,
+  mockDisputeApi,
+  mockDisputeTaskId,
+  mockSettlementSteps,
+  mockSettlementView,
+  mockTraceStream,
+  mockWallet,
+} from "./mocks";
 
 const ROUTES = [
   "/",
@@ -46,4 +55,61 @@ test.describe("accessibility", () => {
       expect(summary).toEqual([]);
     });
   }
+});
+
+/**
+ * The receipt and the dispute form (story 4.05) exist only on a settled
+ * workflow opened with `?task=`. The sweep above visits /app/trace in demo
+ * mode, where the receipt renders nothing, so neither state has reached axe
+ * there — and they are the two a buyer acts in.
+ *
+ * One fixture carries every step state at once: a step still disputable, one
+ * already disputed with its status badge, and one that was never charged and
+ * says why.
+ */
+test.describe("accessibility — the trace page's receipt", () => {
+  const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
+
+  async function openReceipt(page: Page): Promise<void> {
+    const settledAtS = Math.floor(Date.now() / 1000) - 60 * 60;
+    await mockWallet(page);
+    await mockApi(page);
+    await mockTraceStream(page, mockDisputeTaskId);
+    await mockDisputeApi(page, {
+      settlement: mockSettlementView({ settledAtS }),
+      disputes: [
+        mockDispute(mockSettlementSteps[0], {
+          openedAtS: settledAtS + 600,
+          reason: "the outline misses half of the brief",
+        }),
+      ],
+    });
+    await page.goto(`/app/trace?task=${mockDisputeTaskId}`);
+    await expect(page.getByRole("region", { name: "Receipt" })).toBeVisible();
+  }
+
+  async function violations(page: Page): Promise<string[]> {
+    const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+    return result.violations.map(
+      (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+    );
+  }
+
+  test("the receipt panel has no WCAG A/AA violations", async ({ page }) => {
+    await openReceipt(page);
+    expect(await violations(page)).toEqual([]);
+  });
+
+  test("the open dispute form has no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await openReceipt(page);
+    await page
+      .getByRole("region", { name: "Receipt" })
+      .getByRole("button", { name: /dispute/i })
+      .first()
+      .click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+  });
 });
