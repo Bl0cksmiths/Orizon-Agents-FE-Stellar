@@ -69,6 +69,10 @@ const COUNTER_WARN_AT = 25;
 /** Steps count from 0 on the wire, as the backend enumerates the plan. */
 const stepNumber = (step: SettlementStepView) => step.step_index + 1;
 
+/** GABC…WXYZ — enough of a G-address to recognise the wallet by. */
+const shortAddress = (address: string) =>
+  `${address.slice(0, 4)}…${address.slice(-4)}`;
+
 /** 0.5 → "50%", 0.125 → "12.5%": as exact as the policy, never "50.00%". */
 const formatPercent = (fraction: number) =>
   `${Number((fraction * 100).toFixed(2))}%`;
@@ -267,6 +271,15 @@ function DisputeForm({ open, step, settlement, onClose }: DisputeDialogProps) {
                   : ""}
             </p>
           </section>
+
+          <p className="border border-cyan/30 bg-cyan/5 px-3 py-2.5 text-xs leading-relaxed text-text">
+            Submitting asks the wallet that paid,{" "}
+            <span className="font-mono text-cyan" title={settlement.payer}>
+              {shortAddress(settlement.payer)}
+            </span>
+            , to sign a message. Signing costs nothing, and no transaction is
+            sent.
+          </p>
         </div>
       )}
     </Dialog>
