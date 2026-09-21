@@ -26,7 +26,10 @@ import { cn } from "@/lib/utils";
 
 const levelColor: Record<TraceLine["level"], string> = {
   input: "text-cyan",
-  exec: "text-violet",
+  // The readable violet: plain `text-violet` is 4.49:1 on the log's #060010,
+  // just under AA for this 10px label — axe caught it once a live run's exec
+  // lines were on screen, which the demo sweep never waited for.
+  exec: "text-violet-readable",
   proof: "text-magenta",
   cost: "text-emerald-300",
   out: "text-text",
