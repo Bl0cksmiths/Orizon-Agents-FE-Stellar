@@ -547,6 +547,14 @@ describe("DisputeDialog — submitting", () => {
 
     expect(screen.getByText("dispute raised")).toBeTruthy();
     expect(screen.getByText("under review")).toBeTruthy();
+    // Same name, so a screen reader is not told it is somewhere new; the
+    // description says where things now stand.
+    expect(
+      screen.getByRole("dialog", {
+        name: "Dispute step 2",
+        description: "Your dispute is on record. The platform reviews it next.",
+      }),
+    ).toBe(dialog());
     expect(screen.getByText(REASON)).toBeTruthy();
     const done = screen.getByRole("button", { name: "Done" });
     expect(document.activeElement).toBe(done);
