@@ -140,4 +140,48 @@ test.describe("dispute action on the trace / receipt view", () => {
     await reason.fill("");
     await expect(submit).toBeDisabled();
   });
+
+  // The fraction is printed as the dialog prints it — to at most two decimal
+  // places — so a third is "33.33%", never a recomputed "33%" or a raw
+  // 33.333…: the half-credit case alone would pass either way.
+  for (const { fraction, percent, credit } of [
+    { fraction: 0.5, percent: "50%", credit: "0.027 USDC" },
+    { fraction: 1 / 3, percent: "33.33%", credit: "0.018 USDC" },
+  ]) {
+    test(`the credit terms (${percent}) are stated in the form before anything is submitted`, async ({
+      page,
+    }) => {
+      const opened: string[] = [];
+      page.on("request", (request) => {
+        if (new URL(request.url()).pathname === "/api/disputes") {
+          opened.push(request.method());
+        }
+      });
+      await openTrace(page, {
+        settlement: mockSettlementView({
+          settledAtS: nowS() - HOUR_S,
+          creditedFraction: fraction,
+        }),
+      });
+      const form = await openDialog(page, codeStep.agent_id);
+
+      // The fraction as served, the one who pays it, and the one who
+      // decides — all on screen while the reason is empty and submit is off.
+      await expect(form).toContainText(
+        `An upheld dispute credits ${percent} of this step's charge back to the wallet that paid.`,
+      );
+      await expect(form).toContainText(
+        "The platform pays the credit. Nothing is clawed back from the agent.",
+      );
+      await expect(form).toContainText(
+        "The platform reviews the dispute and decides. There is no on-chain arbitration.",
+      );
+      // And what that comes to for this step, as the backend computed it.
+      await expect(form).toContainText(credit);
+      await expect(
+        form.getByRole("button", { name: /sign and submit/i }),
+      ).toBeDisabled();
+      expect(opened).toEqual([]);
+    });
+  }
 });
