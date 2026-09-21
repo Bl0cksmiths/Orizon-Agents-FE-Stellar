@@ -483,4 +483,27 @@ test.describe("dispute action on the trace / receipt view", () => {
       expect(Math.abs(after.y - before.y)).toBeLessThanOrEqual(MAX_SHIFT_PX);
     });
   }
+
+  test("the window closing while the page is open takes the action away", async ({
+    page,
+  }) => {
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    const settledAtS = Math.floor(start / 1000) - DISPUTE_WINDOW_S + 90;
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS }),
+      // The server's clock is the page's: after the jump below, a re-read
+      // must not report a time from before it.
+      clock: () => page.evaluate(() => Date.now()),
+    });
+    await expect(disputeButtons(page)).toHaveCount(2);
+
+    // Two minutes on, the window closed 30 seconds ago — with no reload.
+    await page.clock.runFor(120_000);
+
+    await expect(
+      receipt(page).getByText("Dispute window closed", { exact: true }),
+    ).toBeVisible();
+    await expect(disputeButtons(page)).toHaveCount(0);
+  });
 });
