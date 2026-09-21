@@ -326,6 +326,30 @@ test.describe("dispute status and refund receipt", () => {
     await attachShot(testInfo, "receipt — credited, refund unconfirmed", row);
   });
 
+  test("the credited amount and who funded it are one line", async ({
+    page,
+  }, testInfo) => {
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS: nowS() - 40 * 60,
+          credited_usdc: 0.0265,
+        }),
+      ],
+    });
+
+    // One element, one sentence: a figure seen without its funder reads as
+    // money clawed back from the agent, so the two are never split apart.
+    const creditLine = stepRow(page, codeStep.agent_id)
+      .locator("p")
+      .filter({ hasText: /^credit · / });
+    await expect(creditLine).toHaveText(
+      "credit · 0.0265 USDC credited to your wallet — funded by the platform, not clawed back from the agent.",
+    );
+    await attachShot(testInfo, "receipt — credit line", creditLine);
+  });
+
   test("a wallet that did not pay sees the statuses and the links, but neither the buyer's reason nor the rejection's", async ({
     page,
   }) => {
