@@ -16,6 +16,7 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import {
   DISPUTE_WINDOW_S,
   mockApi,
+  mockDispute,
   mockDisputeApi,
   mockDisputeTaskId,
   mockSettlementSteps,
@@ -213,5 +214,33 @@ test.describe("dispute action on the trace / receipt view", () => {
         .filter({ hasText: /dispute window/ }),
     ).toHaveText(`The dispute window closed on ${closedAtText}.`);
     await expect(disputeButtons(page)).toHaveCount(0);
+  });
+
+  test("an already disputed step shows its dispute and status, not a second action", async ({
+    page,
+  }) => {
+    const settledAtS = nowS() - HOUR_S;
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS }),
+      disputes: [
+        mockDispute(codeStep, {
+          openedAtS: settledAtS + 600,
+          reason: "the calculator app does not compute anything",
+        }),
+      ],
+    });
+
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row).toContainText(
+      "the calculator app does not compute anything",
+    );
+    await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
+    // The other settled step is still the buyer's to dispute.
+    await expect(
+      stepRow(page, briefStep.agent_id).getByRole("button", {
+        name: /dispute/i,
+      }),
+    ).toBeVisible();
   });
 });
