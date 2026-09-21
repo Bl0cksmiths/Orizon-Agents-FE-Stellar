@@ -26,9 +26,11 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import {
   MAX_DISPUTE_REASON_CHARS,
+  disputeErrorCode,
   formatUsdc,
   raiseDispute,
 } from "@/lib/disputes";
+import { rateLimitMessage } from "@/lib/rate-limit-message";
 import type {
   CreditPolicy,
   Dispute,
@@ -88,6 +90,8 @@ type Failure = {
    * when nothing inside this dialog can change the answer.
    */
   next: "retry" | "close";
+  /** The reason itself is what has to change. */
+  field: boolean;
 };
 
 /**
@@ -115,7 +119,60 @@ const GENERIC_FAILURE: Failure = {
   message:
     "Your dispute couldn't be submitted. Your reason is still here — try again.",
   next: "retry",
+  field: false,
 };
+
+/** Nothing in this dialog can change the answer; only closing is offered. */
+const closeOnly = (message: string): Failure => ({
+  message,
+  next: "close",
+  field: false,
+});
+
+/**
+ * A refusal in the buyer's words, keyed on the machine-readable code and
+ * never on the backend's own sentence, which may be reworded at any time.
+ * Anything without a code this form knows — a dropped connection, a second
+ * expired challenge, a malformed signature — is the generic, retryable
+ * failure: the reason stays and the same button tries again.
+ */
+function refusalFailure(err: unknown, payer: string): Failure {
+  switch (disputeErrorCode(err)) {
+    case "not_the_payer":
+      return closeOnly(
+        `The connected wallet isn't the one that paid for this workflow. Close this, connect ${shortAddress(payer)}, and try again.`,
+      );
+    case "dispute_window_closed":
+      return closeOnly(
+        "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+      );
+    case "step_not_settled":
+      return closeOnly(
+        "This step was never settled, so there is nothing to dispute on it.",
+      );
+    case "nothing_was_charged":
+      return closeOnly(
+        "Nothing was charged for this step, so there is nothing to dispute on it.",
+      );
+    case "rate_limited":
+      return {
+        message:
+          rateLimitMessage(err) ??
+          "Too many requests — wait a moment and try again. Nothing was lost.",
+        next: "retry",
+        field: false,
+      };
+    case "reason_required":
+      return {
+        message:
+          "Say what went wrong with this step, in words, before submitting.",
+        next: "retry",
+        field: true,
+      };
+    default:
+      return GENERIC_FAILURE;
+  }
+}
 
 /** The one live line under the form: what is happening right now. */
 function statusLine(state: FormState, walletName: string | null): string {
@@ -313,8 +370,11 @@ function DisputeForm({
       });
       setState({ kind: "done", dispute });
       onSubmitted(dispute);
-    } catch {
-      setState({ kind: "error", failure: GENERIC_FAILURE });
+    } catch (err) {
+      setState({
+        kind: "error",
+        failure: refusalFailure(err, settlement.payer),
+      });
     } finally {
       inFlight.current = false;
     }
@@ -510,6 +570,7 @@ function DisputeForm({
                 // Read-only rather than disabled while signing, so focus and
                 // the text stay put and the words remain selectable.
                 readOnly={busy || finished}
+                aria-invalid={state.kind === "error" && state.failure.field}
                 maxLength={MAX_DISPUTE_REASON_CHARS}
                 required
                 rows={4}
