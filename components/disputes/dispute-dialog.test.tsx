@@ -27,7 +27,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import type {
   CreditPolicy,
@@ -153,9 +153,17 @@ function renderDialog(overrides: Partial<DisputeDialogProps> = {}) {
   };
 }
 
+const REASON = "the calculator it built does not compute anything";
+
 const dialog = () => screen.getByRole("dialog");
 const reasonBox = () =>
   screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Your reason" });
+const submitButton = () =>
+  screen.getByRole<HTMLButtonElement>("button", { name: /sign and submit/i });
+
+function typeReason(value: string) {
+  fireEvent.change(reasonBox(), { target: { value } });
+}
 
 describe("DisputeDialog — what the buyer reads before submitting", () => {
   it("is named for the step and hidden when there is no step to dispute", () => {
@@ -263,5 +271,82 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
     expect(line.textContent).toContain("GBPA…QQQQ");
     expect(line.textContent).toContain("Signing costs nothing");
     expect(line.textContent).toContain("no transaction is sent");
+  });
+});
+
+describe("DisputeDialog — the reason", () => {
+  it("keeps submit disabled while the reason is empty", () => {
+    renderDialog();
+
+    expect(reasonBox().value).toBe("");
+    expect(submitButton().disabled).toBe(true);
+  });
+
+  it("keeps submit disabled while the reason is only whitespace", () => {
+    renderDialog();
+
+    typeReason("   \n\t  ");
+
+    expect(submitButton().disabled).toBe(true);
+  });
+
+  it("enables submit once there are words, and disables it again when they go", () => {
+    renderDialog();
+
+    typeReason(REASON);
+    expect(submitButton().disabled).toBe(false);
+
+    typeReason("");
+    expect(submitButton().disabled).toBe(true);
+  });
+
+  it("is a required field, described by its hint and its counter", () => {
+    renderDialog();
+
+    const box = reasonBox();
+    expect(box.required).toBe(true);
+    const describedBy = (box.getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "");
+    expect(describedBy[0]).toMatch(/^Required\./);
+    expect(describedBy[1]).toBe("0 / 500 characters");
+  });
+
+  it("caps the field at 500 characters, so nothing is cut behind the buyer's back", () => {
+    renderDialog();
+
+    // The browser enforces maxLength on typing and pasting; jsdom does not
+    // simulate either, so the cap is asserted where it lives.
+    expect(reasonBox().maxLength).toBe(500);
+  });
+
+  it("counts characters as they are typed", () => {
+    renderDialog();
+
+    typeReason("hello");
+
+    expect(screen.getByText("5 / 500 characters")).toBeTruthy();
+  });
+
+  it("starts speaking only when the cap is close", () => {
+    renderDialog();
+    const live = () =>
+      dialog().querySelector('[aria-live="polite"]:not([role])')?.textContent;
+
+    typeReason("a".repeat(400));
+    expect(live()).toBe("");
+
+    typeReason("a".repeat(480));
+    expect(live()).toBe("20 characters left.");
+  });
+
+  it("says when the limit is reached", () => {
+    renderDialog();
+
+    typeReason("a".repeat(500));
+
+    expect(
+      screen.getByText("500 / 500 characters · limit reached"),
+    ).toBeTruthy();
   });
 });
