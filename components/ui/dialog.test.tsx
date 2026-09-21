@@ -415,3 +415,85 @@ describe("Dialog — close button and backdrop", () => {
     expect(dialogEl().open).toBe(true);
   });
 });
+
+describe("Dialog — the dismissal veto", () => {
+  it("stops Escape at the keydown, before it becomes a close request", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} dismissible={false} />);
+    openDialog();
+
+    expect(pressEscape()).toBe("keydown");
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialogEl().open).toBe(true);
+  });
+
+  it("refuses a close request that arrives without a keydown", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} dismissible={false} />);
+    openDialog();
+
+    // The Android back gesture fires `cancel` with no Escape keydown.
+    const cancel = new Event("cancel", { cancelable: true });
+    act(() => {
+      dialogEl().dispatchEvent(cancel);
+    });
+
+    expect(cancel.defaultPrevented).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialogEl().open).toBe(true);
+  });
+
+  it("disables the close button", () => {
+    render(<Harness dismissible={false} />);
+    openDialog();
+
+    const close = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Close",
+    });
+    expect(close.disabled).toBe(true);
+  });
+
+  it("ignores a click on the backdrop", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} dismissible={false} />);
+    openDialog();
+
+    fireEvent.pointerDown(dialogEl());
+    fireEvent.click(dialogEl());
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialogEl().open).toBe(true);
+  });
+
+  it("undoes a close the browser forces anyway", async () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} dismissible={false} />);
+    openDialog();
+
+    act(() => dialogEl().close());
+    await flushTasks();
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialogEl().open).toBe(true);
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "Raise a dispute" }),
+    );
+  });
+
+  it("dismisses normally again once the veto is lifted", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <Harness onClose={onClose} dismissible={false} />,
+    );
+    openDialog();
+    pressEscape();
+    expect(onClose).not.toHaveBeenCalled();
+
+    rerender(<Harness onClose={onClose} dismissible />);
+    pressEscape();
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialogEl().open).toBe(false);
+  });
+});
