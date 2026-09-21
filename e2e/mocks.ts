@@ -4,6 +4,7 @@ import type {
   DecomposeResponse,
   ReputationBatch,
   SettlementStepView,
+  SettlementView,
   TraceLine,
 } from "../lib/types";
 
@@ -1235,3 +1236,32 @@ export const mockSettlementSteps: SettlementStepView[] = [
     output_summary: null,
   },
 ];
+
+/** The 24-hour window story 4.02 stamps at settlement. */
+export const DISPUTE_WINDOW_S = 24 * 60 * 60;
+
+/**
+ * A settlement that happened at `settledAtS` (epoch seconds). Built from an
+ * explicit instant rather than "an hour ago" so the window's closing time is
+ * fixed for the whole test, as the backend's is: it is stamped once at
+ * settlement and never moves, however long the page stays open.
+ */
+export function mockSettlementView(opts: {
+  settledAtS: number;
+  windowS?: number;
+  payer?: string;
+}): SettlementView {
+  return {
+    job_id_hex: mockDisputeJobIdHex,
+    payer: opts.payer ?? mockWalletAddress,
+    settled_at: opts.settledAtS,
+    window_closes_at: opts.settledAtS + (opts.windowS ?? DISPUTE_WINDOW_S),
+    settled_usdc: 0.063,
+    charge_tx:
+      "a41c7e0d93b25f6817ce4a0b9d3f72e15c86a0d4b7e2f91c3a58d06e4b1f7c29",
+    proof_tx:
+      "0e9d4c71b3a85f2e6c1d07b94a3e8f52d6c10a7e9b4f38d2c5a16e0b7d93f4a8",
+    steps: mockSettlementSteps,
+    policy: mockCreditPolicy,
+  };
+}
