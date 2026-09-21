@@ -27,6 +27,7 @@ import type {
   DisputeChallenge,
   DisputeChallengeReq,
   DisputeErrorCode,
+  OpenDisputeReq,
   SettlementStepView,
   SettlementView,
   TaskDisputes,
@@ -297,4 +298,18 @@ export function createDisputeChallenge(
     }
     return challenge;
   });
+}
+
+/**
+ * POST /api/disputes — open the dispute, presenting the payer's signature
+ * over the challenge. Resolves to the stored dispute, status `open`.
+ *
+ * A `duplicate_dispute` 409 rejects like any other refusal. Its body carries
+ * the original dispute, but `ApiError` keeps no body, so the caller refetches
+ * the task's disputes instead — which is also the only read that shows the
+ * step as the panel will draw it from then on.
+ */
+export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
+  const path = "/disputes";
+  return post<Dispute, OpenDisputeReq>(path, req, ensure(path, isDispute));
 }
