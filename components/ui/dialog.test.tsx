@@ -278,3 +278,83 @@ describe("Dialog — Escape", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Dialog — focus", () => {
+  it("moves focus to the title on open, ahead of any control", () => {
+    render(<Harness />);
+    openDialog();
+
+    const title = screen.getByRole("heading", { name: "Raise a dispute" });
+    expect(document.activeElement).toBe(title);
+    // A landing point for script, never a Tab stop.
+    expect(title.getAttribute("tabindex")).toBe("-1");
+  });
+
+  it("moves focus to the caller's element when one is given", () => {
+    render(<Harness focusField />);
+    openDialog();
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("textbox", { name: "Reason" }),
+    );
+  });
+
+  it("returns focus to the opener when Escape closes it", () => {
+    render(<Harness />);
+    const opener = openDialog();
+
+    pressEscape();
+
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("returns focus to the opener when the close button closes it", () => {
+    render(<Harness />);
+    const opener = openDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("returns focus to the opener when it unmounts while open", () => {
+    function Page({ show }: { show: boolean }) {
+      return show ? (
+        <Dialog open onClose={() => {}} title="Receipt">
+          <p>Body copy</p>
+        </Dialog>
+      ) : null;
+    }
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+
+    const { rerender } = render(<Page show />);
+    expect(document.activeElement).not.toBe(outside);
+
+    rerender(<Page show={false} />);
+
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("leaves focus alone when the opener is gone", () => {
+    function Page({ open }: { open: boolean }) {
+      return (
+        <Dialog open={open} onClose={() => {}} title="Receipt">
+          <p>Body copy</p>
+        </Dialog>
+      );
+    }
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+    const { rerender } = render(<Page open />);
+
+    // The page swapped the opener for a result while the dialog was up.
+    opener.remove();
+
+    expect(() => rerender(<Page open={false} />)).not.toThrow();
+    expect(document.activeElement).not.toBe(opener);
+  });
+});
