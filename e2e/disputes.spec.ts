@@ -18,10 +18,12 @@ import {
   mockApi,
   mockDispute,
   mockDisputeApi,
+  mockDisputeJobIdHex,
   mockDisputeTaskId,
   mockOtherOwnerAddress,
   mockSettlementSteps,
   mockSettlementView,
+  mockSignature,
   mockTraceStream,
   mockWallet,
   mockWalletAddress,
@@ -291,5 +293,48 @@ test.describe("dispute action on the trace / receipt view", () => {
     // picker every other page uses.
     await prompt.click();
     await expect(page.locator("section.stellar-wallets-kit")).toBeVisible();
+  });
+
+  test("the happy path: reason, signature, and the step then shows its dispute", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    const reason = "the calculator app does not compute anything";
+    await form.getByRole("textbox", { name: /your reason/i }).fill(reason);
+
+    const openRequest = page.waitForRequest(
+      (request) =>
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === "/api/disputes",
+    );
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    // What reached the backend is what the wallet signed, byte for byte, from
+    // the wallet that paid, against the challenge's nonce.
+    const body = (await openRequest).postDataJSON() as Record<string, unknown>;
+    expect(body).toMatchObject({
+      job_id_hex: mockDisputeJobIdHex,
+      step_index: codeStep.step_index,
+      reason,
+      payer: mockWalletAddress,
+      signature_b64: mockSignature,
+    });
+
+    // Pending, then the dispute with its status, in the form itself…
+    await expect(form).toContainText("dispute raised");
+    await expect(form).toContainText(/under review/i);
+    await form.getByRole("button", { name: "Done" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+
+    // …and on the receipt, re-read from the server: the step shows its
+    // dispute, the buyer's own words and its status, and the action is gone.
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row).toContainText(reason);
+    await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(1);
   });
 });
