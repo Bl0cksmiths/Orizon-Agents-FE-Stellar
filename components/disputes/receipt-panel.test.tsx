@@ -27,6 +27,7 @@ import {
 import { formatAge } from "@/components/ui/stale-badge";
 import { formatRemaining, formatUsdc } from "@/lib/disputes";
 import type {
+  CreditPolicy,
   Dispute,
   DisputeArtifact,
   DisputePanelView,
@@ -84,6 +85,13 @@ function dispute(over: Partial<Dispute> = {}): Dispute {
     ...over,
   };
 }
+
+/** The one policy every fixture in this file is settled under. */
+const POLICY: CreditPolicy = {
+  credited_fraction: 0.5,
+  funded_by: "platform",
+  adjudicated_by: "platform",
+};
 
 /**
  * The receipt disputeView() derives for a dispute, rebuilt by the same rules
@@ -174,11 +182,7 @@ function settled(
     settledUsdc: 0.162,
     chargeTx: CHARGE_TX,
     proofTx: PROOF_TX,
-    policy: {
-      credited_fraction: 0.5,
-      funded_by: "platform",
-      adjudicated_by: "platform",
-    },
+    policy: POLICY,
     steps: rows,
     ...over,
   };
