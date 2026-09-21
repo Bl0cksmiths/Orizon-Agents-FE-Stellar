@@ -18,12 +18,15 @@ import {
   createDisputeChallenge,
   disputeErrorCode,
   disputeView,
+  formatRemaining,
+  formatUsdc,
   getTaskDisputes,
   MAX_DISPUTE_REASON_CHARS,
   openDispute,
   raiseDispute,
   serverClockOffsetMs,
 } from "./disputes";
+import { formatSettled } from "./money";
 import { rememberTaskToken } from "./task-tokens";
 import { classifyError } from "./wallet-errors";
 import type {
@@ -1074,4 +1077,102 @@ describe("raiseDispute", () => {
     await expect(raise({ signMessage })).rejects.toBe(declined);
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+});
+
+// ── formatting ──────────────────────────────────────────────────
+
+const S = 1_000;
+const M = 60 * S;
+const H = 60 * M;
+const D = 24 * H;
+
+describe("formatRemaining", () => {
+  it.each([
+    [26 * H + 30 * M, "1d 2h left"],
+    [D, "1d left"],
+    [D - 1, "23h 59m left"],
+    [22 * H + 59 * M + 30 * S, "22h 59m left"],
+    [5 * H, "5h left"],
+    [H, "1h left"],
+    [H - 1, "59m 59s left"],
+    [4 * M + 12 * S + 900, "4m 12s left"],
+    [4 * M, "4m left"],
+    [M, "1m left"],
+    [M - 1, "less than a minute left"],
+    [1, "less than a minute left"],
+  ])("formats %i ms as %s", (ms, label) => {
+    expect(formatRemaining(ms)).toBe(label);
+  });
+
+  it.each([
+    ["zero", 0],
+    ["a negative", -5 * S],
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+  ])("reads %s as no time left — never negative, never zero", (_, ms) => {
+    expect(formatRemaining(ms)).toBe("no time left");
+  });
+
+  it("never prints a zero unit or a minus sign across a whole day", () => {
+    for (let ms = -2 * S; ms <= D + H; ms += 997) {
+      const label = formatRemaining(ms);
+      expect(label).not.toMatch(/(^|\s)0[dhms]\b/);
+      expect(label).not.toContain("-");
+    }
+  });
+
+  describe("against a running clock", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("counts down through the hour and minute boundaries to nothing", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const closesAt = H + 30 * S;
+      const left = () => formatRemaining(closesAt - Date.now());
+
+      expect(left()).toBe("1h left");
+      await vi.advanceTimersByTimeAsync(30 * S + 1);
+      expect(left()).toBe("59m 59s left");
+      await vi.advanceTimersByTimeAsync(58 * M + 59 * S);
+      expect(left()).toBe("1m left"); // 60.999s
+      await vi.advanceTimersByTimeAsync(S);
+      expect(left()).toBe("less than a minute left"); // 59.999s
+      await vi.advanceTimersByTimeAsync(M - 1);
+      expect(left()).toBe("no time left");
+    });
+  });
+});
+
+describe("formatUsdc", () => {
+  it.each([
+    [0.05, "0.05 USDC"],
+    [0.0025, "0.0025 USDC"],
+    [1, "1.0 USDC"],
+    [0, "0.0 USDC"],
+    [1.23456789, "1.2345679 USDC"],
+  ])("prints %d as %s", (n, label) => {
+    expect(formatUsdc(n)).toBe(label);
+  });
+
+  it("does not round a fractional credit up to three places", () => {
+    // Half of a 0.005 step: a fixed toFixed(3) would promise 0.003.
+    expect(formatUsdc(0.005 * 0.5)).toBe("0.0025 USDC");
+  });
+
+  it("absorbs float noise at the stroop, the chain's own precision", () => {
+    expect(formatUsdc(0.1 + 0.2)).toBe("0.3 USDC");
+  });
+
+  it("is lib/money's settled-value formatter, not a second definition", () => {
+    expect(formatUsdc(0.0123)).toBe(formatSettled(123_000, "USDC"));
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+    "prints %d as a dash rather than a broken figure",
+    (n) => {
+      expect(formatUsdc(n)).toBe("—");
+    },
+  );
 });
