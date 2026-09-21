@@ -19,7 +19,11 @@ import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { formatUsdc } from "@/lib/disputes";
-import type { DisputePanelView, SettlementStepView } from "@/lib/types";
+import type {
+  DisputePanelView,
+  SettlementStepView,
+  StepDisputeState,
+} from "@/lib/types";
 
 import { WindowState, formatLocalTime } from "./window-state";
 
@@ -188,7 +192,112 @@ function SettledReceipt({
         </dl>
 
         <WindowState window={view.window} settledAtMs={view.settledAtMs} />
+
+        <div className="space-y-3 border-t border-border/60 pt-5">
+          <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
+            Steps
+          </h3>
+          {steps === 0 ? (
+            <p className="text-xs leading-relaxed text-muted">
+              No steps were recorded for this settlement.
+            </p>
+          ) : (
+            <ol className="space-y-3">
+              {view.steps.map(({ step, state }) => (
+                <StepItem key={step.step_index} step={step} state={state} />
+              ))}
+            </ol>
+          )}
+        </div>
       </Card>
     </section>
+  );
+}
+
+/** `step_index` counts from 0, as the backend enumerates the plan. */
+function stepNumber(step: SettlementStepView): number {
+  return step.step_index + 1;
+}
+
+/** The agent's name, or its id when it registered none. */
+function agentLabel(step: SettlementStepView): string {
+  return step.agent_name?.trim() || step.agent_id;
+}
+
+/**
+ * One step of the receipt.
+ *
+ * Below `sm` everything stacks — identity, then price and state — so a long
+ * agent name or output line wraps inside the row instead of pushing it past a
+ * 360px screen, where the page's `overflow-x: hidden` would cut it off rather
+ * than scroll it.
+ */
+function StepItem({
+  step,
+  state,
+}: {
+  step: SettlementStepView;
+  state: StepDisputeState;
+}) {
+  const n = stepNumber(step);
+  const name = agentLabel(step);
+  return (
+    <li className="clip-cyber-sm border border-border/60 bg-bg/40 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="flex min-w-0 gap-3">
+          <span
+            aria-hidden="true"
+            className="flex h-7 w-7 shrink-0 items-center justify-center border border-border font-mono text-[11px] text-muted"
+          >
+            {String(n).padStart(2, "0")}
+          </span>
+          <div className="min-w-0">
+            <p className="break-words font-medium leading-snug text-text">
+              <span className="sr-only">Step {n}: </span>
+              {name}
+            </p>
+            {name !== step.agent_id && (
+              <p className="mt-0.5 break-all font-mono text-[10px] text-muted">
+                {step.agent_id}
+              </p>
+            )}
+            {step.output_summary && (
+              <p className="mt-2 break-words text-xs leading-relaxed text-muted">
+                {step.output_summary}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 pl-10 sm:shrink-0 sm:flex-col sm:items-end sm:gap-2 sm:pl-0">
+          <StepPrice step={step} charged={state.kind !== "not_charged"} />
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * What the step cost. A step that never delivered was never billed, so its
+ * price is struck through rather than listed as if it had been paid — a
+ * receipt that adds up to more than was charged is not a receipt.
+ */
+function StepPrice({
+  step,
+  charged,
+}: {
+  step: SettlementStepView;
+  charged: boolean;
+}) {
+  const price = formatUsdc(step.price_usdc);
+  if (charged) {
+    return <span className="font-mono text-sm text-text">{price}</span>;
+  }
+  return (
+    <span className="font-mono text-sm text-muted">
+      <span aria-hidden="true" className="line-through">
+        {price}
+      </span>
+      <span className="sr-only">Not charged, priced at {price}</span>
+    </span>
   );
 }
