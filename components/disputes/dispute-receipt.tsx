@@ -17,11 +17,15 @@
  * chooses how each decided state looks and reads.
  */
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 import { formatAge } from "@/components/ui/stale-badge";
 import { formatUsdc } from "@/lib/disputes";
-import type { DisputeReceiptView, DisputeViewer } from "@/lib/types";
+import type {
+  CreditPolicy,
+  DisputeReceiptView,
+  DisputeViewer,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { DisputeStatusBadge } from "./dispute-status-badge";
@@ -47,6 +51,14 @@ const OTHER_VOICE: Voice = {
   owner: "The",
   wallet: "the payer's wallet",
   who: "the payer",
+};
+
+// Keyed by the policy's own literal type, as the panel's terms are, so a new
+// funder cannot reach the buyer without someone writing down what it means.
+// The funder rides on the credit line itself (story 4.06's product rule): a
+// figure seen without it reads as money taken back from the agent.
+const FUNDED_BY: Record<CreditPolicy["funded_by"], string> = {
+  platform: "funded by the platform, not clawed back from the agent",
 };
 
 export function DisputeReceipt({
@@ -101,6 +113,8 @@ export function DisputeReceipt({
       <p className="text-xs leading-relaxed text-text/90">
         {nextStep(view, agentName, voice)}
       </p>
+
+      {view.status !== "rejected" && <CreditLine view={view} voice={voice} />}
     </div>
   );
 }
@@ -167,4 +181,55 @@ function nextStep(
         view.rejectionReason !== null ? ", and the reason is below" : ""
       }.`;
   }
+}
+
+/**
+ * What the dispute pays, and who pays it, on one line. A figure that is not
+ * final is only ever what WOULD be credited — "up to", never "credited" as a
+ * fact — because the amount actually transferred is only known once the
+ * refund has landed.
+ */
+function CreditLine({
+  view,
+  voice,
+}: {
+  view: DisputeReceiptView;
+  voice: Voice;
+}) {
+  const figure = (
+    <span className="font-mono text-sm text-text">
+      {formatUsdc(view.amount.usdc)}
+    </span>
+  );
+  let claim: ReactNode;
+  if (view.amount.final) {
+    claim = (
+      <>
+        {figure} credited to {voice.wallet}
+      </>
+    );
+  } else {
+    // "Credited" only once the refund is confirmed — an older backend can
+    // confirm the transfer without reporting its settled figure, so the
+    // promise stays the only number; short of that it is still on its way.
+    const tail =
+      view.status === "open"
+        ? `would be credited to ${voice.wallet} if upheld`
+        : view.refund.state === "confirmed"
+          ? `credited to ${voice.wallet}`
+          : `to be credited to ${voice.wallet}`;
+    claim = (
+      <>
+        Up to {figure} {tail}
+      </>
+    );
+  }
+  return (
+    <p className="text-xs leading-relaxed text-text/90">
+      <span className="font-mono text-[10px] uppercase tracking-widest text-cyan">
+        credit ·{" "}
+      </span>
+      {claim} <span className="text-muted">— {FUNDED_BY[view.fundedBy]}.</span>
+    </p>
+  );
 }
