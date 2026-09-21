@@ -24,6 +24,9 @@
  *   rejects: a failure lands in `error`. The page calls it after a submit and
  *   on `duplicate_dispute`, whose original dispute must be re-read because
  *   the error carries no body.
+ * - While a dispute is unresolved the hook re-reads on its own (story 4.06,
+ *   see `disputePollMs`), on the same terms as `refresh()`: the view stays up,
+ *   and a failure lands in `error`.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -281,6 +284,31 @@ export function useDisputePanel(
     }, tickMs);
     return () => clearTimeout(timer);
   }, [tickMs, clockMs]);
+
+  // The live receipt (story 4.06): re-read on `disputePollMs`'s cadence while
+  // a dispute is unresolved, so the buyer watches it move instead of sitting
+  // on the state it was raised in.
+  //
+  // Separate from the tick on purpose. The window can close while a dispute
+  // is still open, so neither timer may depend on the other; and a poll is an
+  // ordinary `load`, so it re-measures the server's clock from its own fresh
+  // answer — and only from that: a failed or superseded poll leaves the offset
+  // and the view exactly as they were, and surfaces its error the way
+  // `refresh()` does. It never shows `loading` either, because a poll only
+  // runs with a view on screen, which `load` keeps.
+  //
+  // `state` is a dependency only to re-arm: each answer that lands — a
+  // poll's, a refresh's, a failure — schedules the next poll a full interval
+  // after it, so a refresh is never followed by a redundant read.
+  const pollMs = disputePollMs(snapshot?.res ?? null);
+  useEffect(() => {
+    if (target === null || pollMs === null) return;
+    const id = target;
+    const timer = setTimeout(() => {
+      if (!inFlightRef.current) void load(id, doneRef.current);
+    }, pollMs);
+    return () => clearTimeout(timer);
+  }, [target, pollMs, state, load]);
 
   return { view, loading, error, refresh };
 }
