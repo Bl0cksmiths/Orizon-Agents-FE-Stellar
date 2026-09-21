@@ -263,6 +263,44 @@ test.describe("dispute receipt while the page stays open", () => {
    */
   const networkBeat = (page: Page) => page.waitForTimeout(1_000);
 
+  /**
+   * Lets a test hide and show the tab. Headless Chromium reports a page
+   * visible whatever is in front of it — there is no window to minimise and
+   * no tab to cover it with on demand — so the two properties a page reads to
+   * know, `document.hidden` and `document.visibilityState`, are overridden on
+   * the document, and the event it listens for is fired by hand, bubbling as
+   * the browser's own does. Installed before any page script runs, so the
+   * page never reads the real properties at all.
+   */
+  function installVisibilityControl(): void {
+    let hidden = false;
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => hidden,
+    });
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => (hidden ? "hidden" : "visible"),
+    });
+    Object.assign(window, {
+      __setTabHidden(next: boolean) {
+        hidden = next;
+        document.dispatchEvent(
+          new Event("visibilitychange", { bubbles: true }),
+        );
+      },
+    });
+  }
+
+  const setTabHidden = (page: Page, hidden: boolean) =>
+    page.evaluate(
+      (next) =>
+        (
+          window as unknown as { __setTabHidden: (h: boolean) => void }
+        ).__setTabHidden(next),
+      hidden,
+    );
+
   test("an open dispute flips to credited with both links while the buyer watches, with no reload, and is announced", async ({
     page,
   }, testInfo) => {
@@ -359,5 +397,36 @@ test.describe("dispute receipt while the page stays open", () => {
     await page.clock.runFor(60_000);
     await networkBeat(page);
     expect(reads.count()).toBe(loaded + 1);
+  });
+
+  test("a hidden tab reads nothing, and reads at once when it is shown again", async ({
+    page,
+  }) => {
+    await page.addInitScript(installVisibilityControl);
+    const { reads, openedAtS } = await openOnFakeClock(page, (openedAtS) => [
+      mockReceiptDispute(codeStep, { status: "upheld", openedAtS }),
+    ]);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Upheld");
+    await freezeClock(page);
+    const loaded = reads.count();
+
+    // Upheld is the fast cadence: two minutes would be 24 reads for a tab
+    // anyone was looking at. Hidden, it is none.
+    await setTabHidden(page, true);
+    // The override took: the page itself believes it is in the background.
+    expect(await page.evaluate(() => document.visibilityState)).toBe("hidden");
+    await page.clock.runFor(120_000);
+    await networkBeat(page);
+    expect(reads.count()).toBe(loaded);
+
+    // The refund landed meanwhile. Shown again, the receipt reads AT ONCE:
+    // the clock is still frozen, so no timer can be what asked.
+    reads.answer([
+      mockReceiptDispute(codeStep, { status: "credited", openedAtS }),
+    ]);
+    await setTabHidden(page, false);
+    await expect.poll(reads.count).toBe(loaded + 1);
+    await expect(row).toContainText("Refunded");
   });
 });
