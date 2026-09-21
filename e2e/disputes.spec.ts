@@ -273,4 +273,23 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(disputeButtons(page)).toHaveCount(0);
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
+
+  test("with no wallet connected, the page prompts to connect and offers no dispute", async ({
+    page,
+  }) => {
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      { wallet: false },
+    );
+
+    const prompt = receipt(page).getByRole("button", { name: /connect/i });
+    await expect(prompt).toBeVisible();
+    await expect(disputeButtons(page)).toHaveCount(0);
+
+    // The prompt is the console's own connect flow: it opens the wallet
+    // picker every other page uses.
+    await prompt.click();
+    await expect(page.locator("section.stellar-wallets-kit")).toBeVisible();
+  });
 });
