@@ -570,6 +570,25 @@ export type Dispute = {
   resolved_at: number | null;
   refund_tx: string | null;
   rating_tx: string | null;
+  // The four fields story 4.06 added. OPTIONAL, unlike every field above:
+  // this client deploys itself on merge and the backend does not, so it will
+  // meet a backend that sends none of them, and a strict check that demanded
+  // them would put every receipt into an error state until the backend caught
+  // up. Absent means "not known", never a value.
+  /** What the refund actually transferred; set once credited. */
+  credited_usdc?: number | null;
+  /** Epoch seconds of the dispute's last state change. */
+  updated_at?: number | null;
+  /**
+   * Whether `rating_tx` is known to have landed. A hash is recorded on a
+   * timeout too, so the hash alone never proves the agent was rated.
+   */
+  rating_confirmed?: boolean | null;
+  /**
+   * The adjudicator's reason, present only when the dispute was rejected.
+   * Written for the buyer, and shown only to the buyer.
+   */
+  rejection_reason?: string | null;
 };
 
 /**
