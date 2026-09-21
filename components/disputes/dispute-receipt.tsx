@@ -21,7 +21,7 @@ import { useId, useState, type ReactNode } from "react";
 
 import { formatAge } from "@/components/ui/stale-badge";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { formatUsdc } from "@/lib/disputes";
+import { formatUsdc, receiptBadgeStatus } from "@/lib/disputes";
 import type {
   CreditPolicy,
   DisputeArtifact,
@@ -139,7 +139,9 @@ export function DisputeReceipt({
                 heading says which agent this one is about. */}
             <span className="sr-only">, {agentName}</span>
           </h4>
-          <DisputeStatusBadge status={view.status} />
+          {/* Not `view.status`: a credit recorded without a confirmed
+              transfer must not wear the green "Refunded" badge. */}
+          <DisputeStatusBadge status={receiptBadgeStatus(view)} />
         </div>
         <div className="flex flex-col gap-0.5 font-mono text-[11px] text-muted sm:flex-row sm:flex-wrap sm:gap-x-5">
           <Moment label="Raised" ms={view.openedAtMs} nowMs={now} />
