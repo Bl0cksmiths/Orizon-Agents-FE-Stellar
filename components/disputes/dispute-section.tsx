@@ -159,7 +159,8 @@ export const DisputeSection = memo(function DisputeSection({
   }, [refresh]);
 
   if (demo || !taskId) return null;
-  if (loading && view.kind === "hidden") return <ReceiptSkeleton />;
+  // Only before the first answer: a refresh keeps the receipt on screen.
+  if (loading) return <ReceiptSkeleton />;
   // An older backend answers without a settlement, and nothing is drawn: not
   // an empty box, which would still take a gap in the page's stack.
   if (view.kind === "hidden" && !error) return null;
