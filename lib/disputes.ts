@@ -26,10 +26,12 @@ import { STROOPS_PER_UNIT, formatSettled } from "./money";
 import type {
   CreditPolicy,
   Dispute,
+  DisputeArtifact,
   DisputeChallenge,
   DisputeChallengeReq,
   DisputeErrorCode,
   DisputePanelView,
+  DisputeReceiptView,
   DisputeViewer,
   OpenDisputeReq,
   SettlementStepView,
@@ -381,6 +383,107 @@ function disputesByStep(disputes: Dispute[]): Map<number, Dispute> {
       byStep.set(d.step_index, d);
   }
   return byStep;
+}
+
+/**
+ * The refund transfer, stated only as far as the record can vouch for it.
+ *
+ * - `credited` with its `refund_tx` is the one confirmed case: the backend
+ *   writes `credited` only once the transfer has landed, alongside the hash
+ *   that proves it.
+ * - `credited` WITHOUT a `refund_tx` is pending, with no hash — never
+ *   confirmed. The backend's own operator tooling treats that record as
+ *   unreconciled and refuses to write anything against it until the payer's
+ *   account has been checked on-chain, so the status alone cannot say that
+ *   money moved, and "refunded" beside nothing to link is exactly the
+ *   premature success the receipt exists to avoid.
+ * - `crediting` is a transfer in flight: pending, carrying its hash when one
+ *   was recorded, so the buyer can watch it land.
+ * - `upheld` is decided but not yet sent: pending, and never a hash. One left
+ *   on an upheld record belongs to an attempt that was released because it
+ *   moved nothing.
+ * - `open` and `rejected` have no transfer to speak of.
+ *
+ * An empty hash is no hash: there would be nothing to link.
+ */
+function refundArtifact(d: Dispute): DisputeArtifact {
+  const txHash = d.refund_tx || null;
+  switch (d.status) {
+    case "credited":
+      return txHash
+        ? { txHash, state: "confirmed" }
+        : { txHash: null, state: "pending" };
+    case "crediting":
+      return { txHash, state: "pending" };
+    case "upheld":
+      return { txHash: null, state: "pending" };
+    case "open":
+    case "rejected":
+      return { txHash: null, state: "none" };
+  }
+}
+
+/**
+ * The dispute rating, on the same terms. A `rating_tx` is recorded when the
+ * rating lands and ALSO when its submission times out, so the hash alone
+ * proves nothing: only `rating_confirmed === true` — the ledger having vouched
+ * for it — reads as done. `false` is in flight, and absent or null is a
+ * backend that cannot say, which is not the same as yes.
+ */
+function ratingArtifact(d: Dispute): DisputeArtifact {
+  if (!d.rating_tx) return { txHash: null, state: "none" };
+  return {
+    txHash: d.rating_tx,
+    state: d.rating_confirmed === true ? "confirmed" : "pending",
+  };
+}
+
+/**
+ * Everything the receipt says about one dispute, for this viewer, under this
+ * policy: status, when it was raised and last changed, the amount and who
+ * funds it, the refund and the rating each with how far the record vouches
+ * for it, and — for the payer alone — the words on both sides.
+ *
+ * - The amount is FINAL only when the refund is confirmed and the backend
+ *   recorded what it transferred (`credited_usdc`). Anything short of that —
+ *   an upheld or in-flight credit, a `credited` record with no transfer to
+ *   link, a backend from before `credited_usdc` — prints the promise frozen
+ *   at opening, marked as such, so the copy never calls a promise a payment.
+ * - The last change falls back from `updated_at` to `resolved_at` to
+ *   `opened_at`: an older backend stamps no transitions, and the closest time
+ *   it did record is still true.
+ * - The buyer's reason and the adjudicator's rejection are both written for
+ *   the buyer. Anyone else — including a connected wallet that did not pay —
+ *   gets null for each, whatever the record holds, and a rejection reason
+ *   exists only on a rejected dispute. A reason of only whitespace is none.
+ */
+export function disputeReceipt(
+  dispute: Dispute,
+  viewer: DisputeViewer,
+  policy: CreditPolicy,
+): DisputeReceiptView {
+  const refund = refundArtifact(dispute);
+  const credited = dispute.credited_usdc;
+  const isPayer = viewer === "payer";
+  const rejection = dispute.rejection_reason;
+  return {
+    status: dispute.status,
+    openedAtMs: dispute.opened_at * 1_000,
+    lastChangedAtMs:
+      (dispute.updated_at ?? dispute.resolved_at ?? dispute.opened_at) * 1_000,
+    amount:
+      refund.state === "confirmed" && isNum(credited)
+        ? { usdc: credited, final: true }
+        : { usdc: dispute.creditable_usdc, final: false },
+    fundedBy: policy.funded_by,
+    refund,
+    rating: ratingArtifact(dispute),
+    reason: isPayer ? dispute.reason : null,
+    rejectionReason:
+      isPayer && dispute.status === "rejected" && rejection?.trim()
+        ? rejection
+        : null,
+  };
 }
 
 /**
