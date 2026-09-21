@@ -16,7 +16,13 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 
 import { formatRemaining, formatUsdc } from "@/lib/disputes";
 import type {
@@ -390,6 +396,59 @@ describe("ReceiptPanel — the step list", () => {
     const item = screen.getByRole("listitem");
     expect(item.querySelectorAll("button")).toHaveLength(0);
     expect(item.textContent ?? "").not.toMatch(/dispute/i);
+  });
+});
+
+describe("ReceiptPanel — a disputed step's receipt", () => {
+  const REFUND = "d".repeat(64);
+  const RATING = "e".repeat(64);
+  const RESOLVED_AT = SETTLED_AT / 1000 + 1_800;
+  // Credited with a figure deliberately unlike the promise (0.027), so a
+  // receipt printing the promise could not pass for one printing the payment.
+  const credited = dispute({
+    status: "credited",
+    refund_tx: REFUND,
+    rating_tx: RATING,
+    rating_confirmed: true,
+    credited_usdc: 0.0265,
+    resolved_at: RESOLVED_AT,
+    updated_at: RESOLVED_AT,
+  });
+
+  it("draws the receipt in the disputed step's row, with no dispute button", () => {
+    renderPanel(
+      settled([
+        {
+          step: step(0, { agent_name: "Code Critic" }),
+          state: disputed(credited),
+        },
+        { step: step(1), state: { kind: "disputable" } },
+      ]),
+    );
+    const [row, other] = screen.getAllByRole("listitem");
+
+    const receipt = within(row).getByRole("group", {
+      name: "Dispute receipt, Code Critic",
+    });
+    expect(receipt.textContent).toContain("Refunded");
+    expect(receipt.textContent).toContain(
+      `${formatUsdc(0.0265)} credited to your wallet — funded by the platform, not clawed back from the agent.`,
+    );
+    const hrefs = within(receipt)
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href") ?? "");
+    expect(hrefs).toEqual([
+      expect.stringMatching(new RegExp(`/tx/${REFUND}$`)),
+      expect.stringMatching(new RegExp(`/tx/${RATING}$`)),
+    ]);
+
+    expect(within(row).queryAllByRole("button")).toHaveLength(0);
+    // The status is said once in the row — by the receipt, not a second badge.
+    expect(row.textContent?.match(/Dispute status:/g)).toHaveLength(1);
+    // The other settled step is still the buyer's to dispute.
+    expect(
+      within(other).getByRole("button", { name: /^Dispute step 2/ }),
+    ).toBeTruthy();
   });
 });
 
