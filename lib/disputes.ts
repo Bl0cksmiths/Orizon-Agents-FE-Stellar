@@ -12,8 +12,22 @@
  * recorded at settlement, and so does this module before offering anything.
  */
 
-import { ApiError } from "./api";
-import type { DisputeErrorCode } from "./types";
+import {
+  ApiError,
+  GET_TIMEOUT_MS,
+  ensure,
+  fetchWithTimeout,
+  httpError,
+  taskAuthHeaders,
+} from "./api";
+import type {
+  CreditPolicy,
+  Dispute,
+  DisputeErrorCode,
+  SettlementStepView,
+  SettlementView,
+  TaskDisputes,
+} from "./types";
 
 /**
  * The longest reason the dialog accepts, after trimming. The backend allows
@@ -74,4 +88,162 @@ export function disputeErrorCode(err: unknown): DisputeErrorCode | null {
   if (!(err instanceof ApiError)) return null;
   if (isDisputeErrorCode(err.code)) return err.code;
   return err.status === 429 ? "rate_limited" : null;
+}
+
+// ── response guards ─────────────────────────────────────────────
+//
+// Local rather than in lib/guards.ts because nothing else reads these shapes,
+// and in the same spirit: a payload the panel would compute with or render
+// wrongly fails here, into the hook's error state, instead of mid-render.
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+const isNum = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+const isStr = (v: unknown): v is string => typeof v === "string";
+
+/** A string or an explicit null. Absent is refused too: every shape here was
+ * born with these keys (the backend serialises `None` as null), so a missing
+ * one is a broken payload, and letting it through would hand the panel an
+ * `undefined` its `=== null` checks do not expect. */
+const isNullableStr = (v: unknown): v is string | null =>
+  v === null || isStr(v);
+
+/** A finite number or an explicit null, on `isNullableStr`'s terms. */
+const isNullableNum = (v: unknown): v is number | null =>
+  v === null || isNum(v);
+
+/** A step index is sent back to the server in the challenge, so it must be
+ * the integer the settlement record holds — never a float that rounds. */
+const isStepIndex = (v: unknown): v is number =>
+  isNum(v) && Number.isInteger(v) && v >= 0;
+
+/** Checked as a set: the status picks the badge and the copy beside it, and
+ * an unlisted one would render as though nothing had happened to it. */
+const DISPUTE_STATUSES: ReadonlySet<string> = new Set([
+  "open",
+  "upheld",
+  "crediting",
+  "credited",
+  "rejected",
+] satisfies Dispute["status"][]);
+
+/** The policy is shown to the buyer as the terms they dispute under, so a
+ * value the copy cannot state truthfully is refused rather than drawn: the
+ * literals are checked exactly, and the fraction must be one. */
+function isCreditPolicy(v: unknown): v is CreditPolicy {
+  return (
+    isRecord(v) &&
+    isNum(v.credited_fraction) &&
+    v.credited_fraction >= 0 &&
+    v.credited_fraction <= 1 &&
+    v.funded_by === "platform" &&
+    v.adjudicated_by === "platform"
+  );
+}
+
+/** `delivered` strictly boolean: it decides whether a step can be disputed at
+ * all, and the string "false" is truthy. */
+function isSettlementStep(v: unknown): v is SettlementStepView {
+  return (
+    isRecord(v) &&
+    isStepIndex(v.step_index) &&
+    isStr(v.agent_id) &&
+    isNullableStr(v.agent_name) &&
+    isNum(v.price_usdc) &&
+    typeof v.delivered === "boolean" &&
+    isNum(v.creditable_usdc) &&
+    isNullableStr(v.output_summary)
+  );
+}
+
+function isSettlement(v: unknown): v is SettlementView {
+  return (
+    isRecord(v) &&
+    isStr(v.job_id_hex) &&
+    isStr(v.payer) &&
+    isNum(v.settled_at) &&
+    isNum(v.window_closes_at) &&
+    isNum(v.settled_usdc) &&
+    isNullableStr(v.charge_tx) &&
+    isNullableStr(v.proof_tx) &&
+    Array.isArray(v.steps) &&
+    v.steps.every(isSettlementStep) &&
+    isCreditPolicy(v.policy)
+  );
+}
+
+function isDispute(v: unknown): v is Dispute {
+  return (
+    isRecord(v) &&
+    isStr(v.id) &&
+    isStr(v.job_id_hex) &&
+    isStr(v.task_id) &&
+    isStepIndex(v.step_index) &&
+    isStr(v.agent_id) &&
+    isStr(v.payer) &&
+    isStr(v.reason) &&
+    isStr(v.status) &&
+    DISPUTE_STATUSES.has(v.status) &&
+    isNum(v.charged_usdc) &&
+    isNum(v.creditable_usdc) &&
+    isNum(v.opened_at) &&
+    isNullableNum(v.resolved_at) &&
+    isNullableStr(v.refund_tx) &&
+    isNullableStr(v.rating_tx)
+  );
+}
+
+/**
+ * `settlement` is checked only when the key is present. Absent is a backend
+ * that predates the field — the panel hides — while `null` is that backend's
+ * real answer that nothing has settled yet. Both are valid; a malformed
+ * settlement is not, and neither is a `now` that is not a number, since the
+ * window is judged on it.
+ */
+function isTaskDisputes(v: unknown): v is TaskDisputes {
+  return (
+    isRecord(v) &&
+    isStr(v.task_id) &&
+    isNullableNum(v.window_closes_at) &&
+    (v.now === undefined || isNum(v.now)) &&
+    (v.settlement === undefined ||
+      v.settlement === null ||
+      isSettlement(v.settlement)) &&
+    Array.isArray(v.disputes) &&
+    v.disputes.every(isDispute)
+  );
+}
+
+// ── wire calls ──────────────────────────────────────────────────
+
+/**
+ * GET /api/tasks/{task_id}/disputes — the workflow's settlement and every
+ * dispute raised against it, in one read.
+ *
+ * Deliberately NOT through lib/api's deduped `get`. Two things depend on this
+ * answer being fresh: the server clock the window is judged on is measured
+ * when it arrives, and the refresh after a submit must see the dispute it just
+ * opened. A response replayed from the dedupe window would get both wrong —
+ * and the refetch fired when a live run finishes, often within a second of
+ * the first read, would be handed the pre-settlement answer and report that
+ * nothing was charged.
+ *
+ * Sends the task read token like every other per-task read; the route is
+ * gated by it once the backend's enforcement flag flips.
+ */
+export async function getTaskDisputes(taskId: string): Promise<TaskDisputes> {
+  const path = `/tasks/${encodeURIComponent(taskId)}/disputes`;
+  const headers = taskAuthHeaders(taskId);
+  const res = await fetchWithTimeout(
+    "GET",
+    path,
+    { cache: "no-store", ...(headers ? { headers } : {}) },
+    GET_TIMEOUT_MS,
+  );
+  if (!res.ok) throw await httpError("GET", path, res);
+  const json: unknown = await res.json();
+  return ensure(path, isTaskDisputes)(json);
 }
