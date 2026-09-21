@@ -391,3 +391,32 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
     expect(text()).not.toContain("Dispute rating");
   });
 });
+
+describe("DisputeReceipt — reasons", () => {
+  it("shows the buyer's own reason, labelled as theirs", () => {
+    renderReceipt(receipt("open"));
+    const quote = screen.getByText(REASON);
+    expect(quote.tagName).toBe("BLOCKQUOTE");
+    expect(quote.previousElementSibling?.textContent).toBe("Your reason");
+  });
+
+  it("shows why a rejection was made, labelled", () => {
+    renderReceipt(receipt("rejected"));
+    const quote = screen.getByText(REJECTION);
+    expect(quote.tagName).toBe("BLOCKQUOTE");
+    expect(quote.previousElementSibling?.textContent).toBe(
+      "Why it was rejected",
+    );
+  });
+
+  it("renders neither reason when the view carries none", () => {
+    renderReceipt(
+      receipt("rejected", { reason: null, rejectionReason: null }),
+      { viewer: "other" },
+    );
+    expect(text()).not.toContain("Your reason");
+    expect(text()).not.toContain("Why it was rejected");
+    expect(screen.queryAllByRole("blockquote")).toHaveLength(0);
+    expect(document.querySelectorAll("blockquote")).toHaveLength(0);
+  });
+});
