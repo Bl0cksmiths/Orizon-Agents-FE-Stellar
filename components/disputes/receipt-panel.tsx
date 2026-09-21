@@ -195,7 +195,9 @@ function SettledReceipt({
           </div>
 
           <dl className="space-y-3 font-mono text-sm">
-            <KVRow k="paid by">
+            {/* One word: a two-word key wraps onto two lines beside a
+                56-character address on a 360px screen. */}
+            <KVRow k="payer">
               <span className="block break-all">{view.payer}</span>
               <StellarExpertLink
                 kind="account"
