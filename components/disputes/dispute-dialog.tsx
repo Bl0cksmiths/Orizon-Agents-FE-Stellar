@@ -158,7 +158,7 @@ const retryable = (message: string): Failure => ({
   stale: false,
 });
 
-/** Nothing in this dialog can change the answer; only closing is offered. */
+/** Nothing in this dialog can change the answer; only a way out is offered. */
 const closeOnly = (message: string, stale: boolean): Failure => ({
   message,
   next: "close",
@@ -576,7 +576,10 @@ function DisputeForm({
               onClick={requestClose}
               className="flex-1 sm:flex-none"
             >
-              {state.kind === "done" ? "Done" : "Close"}
+              {/* Not "Close": the ✕ in the header already carries that
+                  name, and two buttons with one name tell a screen reader
+                  user nothing about which is which. */}
+              {state.kind === "done" ? "Done" : "Back to the receipt"}
             </Button>
           ) : (
             <>
