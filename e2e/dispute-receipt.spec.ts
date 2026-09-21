@@ -114,6 +114,35 @@ async function attachShot(
   });
 }
 
+/**
+ * Sideways overflow inside `root`, as the offending elements' own
+ * descriptions — the measure the story 4.05 spec takes of the receipt, for
+ * the same reason: the console hides horizontal overflow on html and body,
+ * so on a phone anything past the right edge is not scrolled to, it is cut
+ * off. A 64-character hash that does not wrap is the classic offender.
+ */
+async function horizontalOverflow(root: Locator): Promise<string[]> {
+  return root.evaluate((el) => {
+    const limit = document.documentElement.clientWidth + 1;
+    const offenders: string[] = [];
+    for (const node of [el, ...Array.from(el.querySelectorAll("*"))]) {
+      const box = node.getBoundingClientRect();
+      if (box.width === 0) continue;
+      const scrolls = node.scrollWidth > node.clientWidth + 1;
+      const style = getComputedStyle(node);
+      const scrollable =
+        scrolls && (style.overflowX === "auto" || style.overflowX === "scroll");
+      if (box.left < -1 || box.right > limit || scrollable) {
+        const text = (node.textContent ?? "").trim().slice(0, 40);
+        offenders.push(
+          `<${node.tagName.toLowerCase()}> ${Math.round(box.left)}–${Math.round(box.right)}px "${text}"`,
+        );
+      }
+    }
+    return offenders;
+  });
+}
+
 test.describe("dispute status and refund receipt", () => {
   test("an open dispute says it is under review, when it was raised, and what happens next", async ({
     page,
@@ -204,6 +233,32 @@ test.describe("dispute status and refund receipt", () => {
     // Nothing was paid, so nothing may be linked as if it had been.
     await expect(row.getByRole("link")).toHaveCount(0);
     await attachShot(testInfo, "receipt — rejected", row);
+  });
+
+  test("at 360px a credited receipt with both full hashes fits without sideways scroll", async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS: nowS() - 40 * 60,
+        }),
+      ],
+    });
+
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row.getByRole("link", { name: /refund/i })).toBeVisible();
+    await expect(row.getByRole("link", { name: /rating/i })).toBeVisible();
+    expect(await horizontalOverflow(receipt(page))).toEqual([]);
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+    await attachShot(testInfo, "receipt — credited at 360px", row);
   });
 });
 
