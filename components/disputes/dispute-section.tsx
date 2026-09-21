@@ -138,22 +138,19 @@ export const DisputeSection = memo(function DisputeSection({
     demo,
   });
   const { connect } = useWallet();
-  const [open, setOpen] = useState(false);
-  // Kept after the dialog closes so it still has its content while it animates
-  // out. The settlement is a snapshot taken at the click: a settlement record
-  // never changes once written, so the snapshot is exact, and the dialog is
-  // not handed a new object on every tick of the countdown.
+  // The open dialog's step, and the settlement as it stood at the click. A
+  // settlement record never changes once written, so the snapshot is exact —
+  // and the dialog is not handed a new object on every tick of the countdown.
   const [target, setTarget] = useState<DisputeTarget | null>(null);
 
   const onDispute = (step: SettlementStepView) => {
     if (view.kind !== "settled") return;
     setTarget({ step, settlement: settlementOf(view) });
-    setOpen(true);
   };
   const onConnect = useCallback(() => {
     void connect();
   }, [connect]);
-  const onClose = useCallback(() => setOpen(false), []);
+  const onClose = useCallback(() => setTarget(null), []);
   // A new dispute and a duplicate one end the same way: the step now has a
   // dispute on record, and the receipt re-reads it so the step shows that
   // dispute instead of an action the server would refuse.
@@ -182,7 +179,7 @@ export const DisputeSection = memo(function DisputeSection({
       )}
       <ReceiptPanel view={view} onDispute={onDispute} onConnect={onConnect} />
       <DisputeDialog
-        open={open}
+        open={target !== null}
         step={target?.step ?? null}
         settlement={target?.settlement ?? null}
         onClose={onClose}
