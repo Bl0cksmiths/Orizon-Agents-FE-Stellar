@@ -21,6 +21,7 @@ import {
   post,
   taskAuthHeaders,
 } from "./api";
+import { STROOPS_PER_UNIT, formatSettled } from "./money";
 import type {
   CreditPolicy,
   Dispute,
@@ -599,4 +600,19 @@ export function formatRemaining(ms: number): string {
   const days = Math.floor(ms / DAY_MS);
   const hours = Math.floor((ms % DAY_MS) / HOUR_MS);
   return `${pair(days, "d", hours, "h")} left`;
+}
+
+/**
+ * A USDC amount as the receipt prints it: "0.05 USDC", "0.0025 USDC".
+ *
+ * lib/money's `formatSettled` is the codebase's one definition of settled
+ * value, so this only converts to it. It prints to the stroop — the chain's
+ * own precision — which matters here: a credit of half a 0.005 step is 0.0025,
+ * and a fixed three places would round the buyer's refund up to 0.003, a
+ * figure the backend computed precisely so the UI would never re-derive it.
+ * A value that is not a number prints as a dash, never "NaN USDC".
+ */
+export function formatUsdc(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  return formatSettled(Math.round(n * STROOPS_PER_UNIT), "USDC");
 }
