@@ -206,3 +206,114 @@ test.describe("dispute status and refund receipt", () => {
     await attachShot(testInfo, "receipt — rejected", row);
   });
 });
+
+/**
+ * The receipt keeping up while the buyer watches (story 4.06's polling).
+ *
+ * The page's clock is Playwright's: installed before load so every timer the
+ * page arms is fake, and frozen once the receipt is up so that no time passes
+ * except what a test hands out with `runFor`. From then on a read can only
+ * come from a timer `runFor` fired — or from something that is not a timer at
+ * all, which is exactly what the hidden-tab test needs to tell apart.
+ */
+test.describe("dispute receipt while the page stays open", () => {
+  /** The story's cadence while every unresolved dispute is still open. */
+  const OPEN_POLL_MS = 30_000;
+  /** …and while any is upheld or crediting: money is about to move. */
+  const ACTIVE_POLL_MS = 5_000;
+
+  /**
+   * Installs the fake clock and opens the receipt on it, with the mock
+   * server's `now` read off the page's clock: after a `runFor`, a read that
+   * reported Node's time would wind the page's window countdown back.
+   */
+  async function openOnFakeClock(
+    page: Page,
+    disputes: (openedAtS: number) => readonly Dispute[],
+  ): Promise<{ reads: MockDisputeReads; openedAtS: number }> {
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    const settledAtS = Math.floor(start / 1000) - HOUR_S;
+    const openedAtS = settledAtS + 10 * 60;
+    const reads = await openReceipt(page, {
+      settledAtS,
+      disputes: disputes(openedAtS),
+      clock: () => page.evaluate(() => Date.now()),
+    });
+    return { reads, openedAtS };
+  }
+
+  /**
+   * Stops the page's clock a second past where it stands. Not exactly where
+   * it stands: the clock keeps flowing while this call travels, and pausing
+   * at an instant it has already passed throws. A second is far inside the
+   * margins the tests below leave around each cadence.
+   */
+  async function freezeClock(page: Page): Promise<void> {
+    const pageNowMs = await page.evaluate(() => Date.now());
+    await page.clock.pauseAt(pageNowMs + 1_000);
+  }
+
+  test("an open dispute flips to credited with both links while the buyer watches, with no reload, and is announced", async ({
+    page,
+  }, testInfo) => {
+    const { reads, openedAtS } = await openOnFakeClock(page, (openedAtS) => [
+      mockReceiptDispute(codeStep, { status: "open", openedAtS }),
+    ]);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await freezeClock(page);
+    // Survives anything but a reload: proof the flip happened in place.
+    await page.evaluate(() => Object.assign(window, { __sameDocument: true }));
+    const loaded = reads.count();
+
+    // The platform upholds it. Short of the open cadence nothing is read…
+    reads.answer([
+      mockReceiptDispute(codeStep, {
+        status: "upheld",
+        openedAtS,
+        updatedAtS: openedAtS + 20 * 60,
+      }),
+    ]);
+    await page.clock.runFor(OPEN_POLL_MS - ACTIVE_POLL_MS);
+    expect(reads.count()).toBe(loaded);
+    // …and at it, the receipt reads again and shows the decision.
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await expect(row).toContainText("Upheld");
+    expect(reads.count()).toBe(loaded + 1);
+    await attachShot(testInfo, "receipt — upheld", row);
+
+    // Then the refund and the rating land, and five seconds is all it takes
+    // for the receipt to say so: upheld is the fast cadence.
+    reads.answer([
+      mockReceiptDispute(codeStep, {
+        status: "credited",
+        openedAtS,
+        updatedAtS: openedAtS + 21 * 60,
+      }),
+    ]);
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await expect(row).toContainText("Refunded");
+    await expect(row.getByRole("link", { name: /refund/i })).toHaveAttribute(
+      "href",
+      testnetTx(mockRefundTx),
+    );
+    await expect(row.getByRole("link", { name: /rating/i })).toHaveAttribute(
+      "href",
+      testnetTx(mockRatingTx),
+    );
+    expect(reads.count()).toBe(loaded + 2);
+    expect(
+      await page.evaluate(
+        () => (window as { __sameDocument?: boolean }).__sameDocument,
+      ),
+    ).toBe(true);
+
+    // Heard as well as seen: the change reached a polite live region, once.
+    const announced = page
+      .locator('[aria-live="polite"]')
+      .filter({ hasText: /refunded/i });
+    await expect(announced).toHaveCount(1);
+    await attachShot(testInfo, "receipt — credited live", row);
+  });
+});
