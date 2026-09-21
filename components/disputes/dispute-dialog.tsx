@@ -416,7 +416,7 @@ function DisputeForm({
   // focus from a control the moment it is disabled — a keyboard user would be
   // left on the page body. When the attempt settles, focus goes to what comes
   // next: the reason when it is the reason that must change, otherwise the
-  // footer's primary action (try again, Close, or Done).
+  // footer's primary action (try again, back to the receipt, or Done).
   useEffect(() => {
     if (wasBusy.current && !busy) {
       const fixReason = state.kind === "error" && state.failure.field;
