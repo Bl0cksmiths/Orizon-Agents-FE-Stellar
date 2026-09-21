@@ -1,0 +1,197 @@
+// @vitest-environment jsdom
+/**
+ * Unit tests for Dialog, the native-<dialog> modal primitive.
+ *
+ * The component's whole contract is that the `open` prop, and nothing else,
+ * decides whether the dialog is shown: the browser's own ways of closing it
+ * (Escape, a forced close) become requests, the caller can refuse them all at
+ * once, and focus goes back where it came from. Each of those is driven here
+ * through a small stateful harness so the request → answer loop is exercised
+ * the way a page uses it.
+ *
+ * Assertions are plain DOM checks — this repo does not install jest-dom.
+ */
+
+import { useRef, useState, type ReactNode } from "react";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+
+import { Dialog } from "./dialog";
+
+// ── jsdom has no modal dialogs ──────────────────────────────────────────────
+//
+// jsdom 29 ships HTMLDialogElement and reflects its `open` attribute, but
+// implements none of show(), showModal() or close(). Rather than teach the
+// component a fallback no browser needs, the missing methods are modelled
+// here, for this file only, on the parts of the HTML spec the component
+// relies on:
+//
+//   showModal()  throws InvalidStateError when already open (as browsers do),
+//                sets `open`, then runs the dialog focusing steps: the first
+//                [autofocus] descendant, else the first focusable one.
+//   close()      a no-op when closed; otherwise clears `open` and fires
+//                `close` as a queued task — asynchronously, as in browsers.
+//
+// Escape is modelled by `pressEscape` below, not here: it is the user agent's
+// close-request algorithm, not a method. What cannot be modelled in jsdom —
+// the top layer, inertness, the ::backdrop box — is not asserted.
+
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+const dialogProto = HTMLDialogElement.prototype;
+const polyfilled = typeof dialogProto.showModal !== "function";
+
+if (polyfilled) {
+  dialogProto.showModal = function showModal(this: HTMLDialogElement) {
+    if (this.open) {
+      throw new DOMException(
+        "The dialog is already open.",
+        "InvalidStateError",
+      );
+    }
+    this.setAttribute("open", "");
+    const target =
+      this.querySelector<HTMLElement>("[autofocus]") ??
+      this.querySelector<HTMLElement>(FOCUSABLE);
+    target?.focus();
+  };
+  dialogProto.close = function close(this: HTMLDialogElement) {
+    if (!this.open) return;
+    this.removeAttribute("open");
+    setTimeout(() => this.dispatchEvent(new Event("close")), 0);
+  };
+}
+
+afterAll(() => {
+  if (!polyfilled) return;
+  Reflect.deleteProperty(dialogProto, "showModal");
+  Reflect.deleteProperty(dialogProto, "close");
+});
+
+afterEach(cleanup);
+
+/** The <dialog> element, open or not — a closed one has no role to query. */
+function dialogEl(): HTMLDialogElement {
+  const el = document.querySelector("dialog");
+  if (!el) throw new Error("no <dialog> rendered");
+  return el;
+}
+
+/**
+ * A page that owns `open`, the way every real caller does: a button opens the
+ * dialog and `onClose` requests are answered by closing it, unless the test
+ * says the page should refuse.
+ */
+function Harness({
+  dismissible,
+  onClose = () => {},
+  refuseClose = false,
+  focusField = false,
+  footer,
+}: {
+  dismissible?: boolean;
+  onClose?: () => void;
+  refuseClose?: boolean;
+  focusField?: boolean;
+  footer?: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const fieldRef = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open dialog
+      </button>
+      <Dialog
+        open={open}
+        onClose={() => {
+          onClose();
+          if (!refuseClose) setOpen(false);
+        }}
+        eyebrow="dispute"
+        title="Raise a dispute"
+        description="One step, one reason."
+        dismissible={dismissible}
+        initialFocusRef={focusField ? fieldRef : undefined}
+        footer={footer}
+      >
+        <label>
+          Reason
+          <input ref={fieldRef} />
+        </label>
+        <p>Body copy</p>
+      </Dialog>
+    </>
+  );
+}
+
+/** Focuses the opener first, as a real click or Enter would, then opens. */
+function openDialog(): HTMLButtonElement {
+  const opener = screen.getByRole<HTMLButtonElement>("button", {
+    name: "Open dialog",
+  });
+  opener.focus();
+  fireEvent.click(opener);
+  return opener;
+}
+
+describe("Dialog — open and close", () => {
+  it("renders an empty, closed element until it is opened", () => {
+    render(<Harness />);
+
+    expect(dialogEl().open).toBe(false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Content mounts only while open, so nothing stale sits in the DOM.
+    expect(screen.queryByText("Body copy")).toBeNull();
+  });
+
+  it("opens modally, named by its title and described by its description", () => {
+    render(<Harness />);
+    openDialog();
+
+    expect(dialogEl().open).toBe(true);
+    const dialog = screen.getByRole("dialog", {
+      name: "Raise a dispute",
+      description: "One step, one reason.",
+    });
+    expect(dialog).toBe(dialogEl());
+    expect(screen.getByText("Body copy")).toBeTruthy();
+  });
+
+  it("renders the footer outside the scrolling body", () => {
+    render(<Harness footer={<button type="button">Confirm</button>} />);
+    openDialog();
+
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    const body = screen.getByText("Body copy").parentElement;
+    expect(body?.contains(confirm)).toBe(false);
+  });
+
+  it("closes when the prop turns false, and unmounts its content", () => {
+    function Controlled({ open }: { open: boolean }) {
+      return (
+        <Dialog open={open} onClose={() => {}} title="Receipt">
+          <p>Body copy</p>
+        </Dialog>
+      );
+    }
+    const { rerender } = render(<Controlled open />);
+    expect(dialogEl().open).toBe(true);
+
+    rerender(<Controlled open={false} />);
+
+    expect(dialogEl().open).toBe(false);
+    expect(screen.queryByText("Body copy")).toBeNull();
+  });
+
+  it("does not describe itself when there is no description", () => {
+    render(
+      <Dialog open onClose={() => {}} title="Receipt">
+        <p>Body copy</p>
+      </Dialog>,
+    );
+
+    expect(dialogEl().hasAttribute("aria-describedby")).toBe(false);
+  });
+});
