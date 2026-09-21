@@ -154,6 +154,11 @@ export function useDisputePanel(
   // The latest request wins: an older one settling later — for this task or
   // the one before it — is dropped, as is anything landing after unmount.
   const epochRef = useRef(0);
+  // Whether the latest read is still on its way. A poll that falls due
+  // meanwhile is skipped rather than sent: the answer coming is at least as
+  // fresh as the one it would ask for, and a second read would supersede it —
+  // turning a `refresh()` into one that resolves before its answer is shown.
+  const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -165,6 +170,7 @@ export function useDisputePanel(
   const load = useCallback(
     async (id: string, doneAtRequest: boolean): Promise<void> => {
       const epoch = ++epochRef.current;
+      inFlightRef.current = true;
       const isLatest = () =>
         mountedRef.current &&
         epochRef.current === epoch &&
@@ -193,6 +199,10 @@ export function useDisputePanel(
           setState((s) => ({ ...s, error }));
           return;
         }
+      } finally {
+        // Only the latest read speaks for the flag: an older one settling
+        // late must not clear it while a newer one is still out.
+        if (epochRef.current === epoch) inFlightRef.current = false;
       }
       // Measured before anything else runs: the offset is only as good as
       // the moment it is taken.
