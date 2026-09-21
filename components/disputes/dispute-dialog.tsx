@@ -12,6 +12,7 @@
  */
 
 import {
+  useEffect,
   useId,
   useRef,
   useState,
@@ -386,6 +387,9 @@ function DisputeForm({
   // A second guard beside the disabled button: a double click can land
   // before React has re-rendered the button disabled.
   const inFlight = useRef(false);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  const wasBusy = useRef(false);
   const uid = useId();
   const ids = {
     form: `${uid}-form`,
@@ -407,6 +411,19 @@ function DisputeForm({
     (state.kind === "error" && state.failure.next === "close");
   const canSubmit =
     reason.trim().length > 0 && !busy && !finished && wallet.address !== null;
+
+  // The submit button is disabled while the sequence runs, and browsers drop
+  // focus from a control the moment it is disabled — a keyboard user would be
+  // left on the page body. When the attempt settles, focus goes to what comes
+  // next: the reason when it is the reason that must change, otherwise the
+  // footer's primary action (try again, Close, or Done).
+  useEffect(() => {
+    if (wasBusy.current && !busy) {
+      const fixReason = state.kind === "error" && state.failure.field;
+      (fixReason ? reasonRef : primaryRef).current?.focus();
+    }
+    wasBusy.current = busy;
+  }, [busy, state]);
 
   async function submit() {
     if (!canSubmit || inFlight.current) return;
@@ -537,6 +554,7 @@ function DisputeForm({
         <div className="flex shrink-0 items-center justify-end gap-3 sm:ml-auto">
           {finished ? (
             <Button
+              ref={primaryRef}
               type="button"
               variant={state.kind === "done" ? "primary" : "outline"}
               onClick={requestClose}
@@ -555,6 +573,7 @@ function DisputeForm({
                 Cancel
               </Button>
               <Button
+                ref={primaryRef}
                 type="submit"
                 form={ids.form}
                 disabled={!canSubmit}
@@ -668,6 +687,7 @@ function DisputeForm({
                   reason silently, and a buyer must never be judged on words
                   they did not see go missing. */}
               <textarea
+                ref={reasonRef}
                 id={ids.reason}
                 value={reason}
                 onChange={(e) => editReason(e.target.value)}
