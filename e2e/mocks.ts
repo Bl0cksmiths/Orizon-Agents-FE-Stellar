@@ -1604,3 +1604,63 @@ export function mockReceiptDispute(
     ),
   };
 }
+
+/** A scripted disputes read, as `mockDisputeReads` hands it to a spec. */
+export type MockDisputeReads = {
+  /** How many times the page has read the task's disputes so far. */
+  count: () => number;
+  /** What every read from now on answers with. */
+  answer: (disputes: readonly Dispute[]) => void;
+};
+
+/**
+ * The task's disputes read, answered with whatever the spec last set, and
+ * counted. The answer moving is the platform adjudicating and paying while the
+ * buyer watches; the count is the one honest measure of the page's polling —
+ * a spec proves reads start, speed up, pause and stop by how many arrived,
+ * never by how long something took.
+ *
+ * Register it AFTER `mockApi` (and after `mockDisputeApi`, when a spec also
+ * needs the challenge and open routes): Playwright tries the newest route
+ * first, so this one wins for the read and nothing else.
+ */
+export async function mockDisputeReads(
+  page: Page,
+  options: {
+    settlement: SettlementView;
+    disputes: readonly Dispute[];
+    /** The server's clock, in epoch ms; see `MockDisputeApiOptions.clock`. */
+    clock?: () => number | Promise<number>;
+  },
+): Promise<MockDisputeReads> {
+  let current = options.disputes;
+  let reads = 0;
+  await page.route(
+    (url) => DISPUTES_RE.test(url.pathname),
+    async (route) => {
+      const request = route.request();
+      if (request.method() !== "GET") return route.fallback();
+      reads += 1;
+      // Taken as the request arrives, before the clock is awaited: a spec
+      // that moves the answer on right after this read must not change it.
+      const disputes = [...current];
+      const { pathname } = new URL(request.url());
+      const taskId = decodeURIComponent(DISPUTES_RE.exec(pathname)?.[1] ?? "");
+      const nowMs = await (options.clock ?? Date.now)();
+      const body: TaskDisputes = {
+        task_id: taskId,
+        window_closes_at: options.settlement.window_closes_at,
+        now: Math.floor(nowMs / 1000),
+        settlement: options.settlement,
+        disputes,
+      };
+      return json(route, body);
+    },
+  );
+  return {
+    count: () => reads,
+    answer: (disputes) => {
+      current = disputes;
+    },
+  };
+}
