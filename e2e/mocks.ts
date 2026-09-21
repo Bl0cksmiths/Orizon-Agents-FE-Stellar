@@ -3,6 +3,7 @@ import type {
   CreditPolicy,
   DecomposeResponse,
   ReputationBatch,
+  SettlementStepView,
   TraceLine,
 } from "../lib/types";
 
@@ -1196,4 +1197,41 @@ export const mockDisputeTrace: TraceLine[] = [
   { t: "01.905", level: "cost", msg: "x402 payment → code.gen :: 0.054 USDC" },
   { t: "02.640", level: "error", msg: "vision.ocr failed — step not charged" },
   { t: "02.700", level: "out", msg: "workflow settled" },
+];
+
+/**
+ * The steps as they settled: two that delivered and were charged, and one
+ * that failed. The failed step keeps its own price, as the backend's
+ * `SettlementStep` does, but credits nothing. `creditable_usdc` is price x
+ * `mockCreditPolicy.credited_fraction`, precomputed the way the backend
+ * serves it, because the UI is meant to print it rather than re-derive it.
+ */
+export const mockSettlementSteps: SettlementStepView[] = [
+  {
+    step_index: 0,
+    agent_id: "seo.brief",
+    agent_name: "seo.brief",
+    price_usdc: 0.009,
+    delivered: true,
+    creditable_usdc: 0.0045,
+    output_summary: "outline with 12 target keywords",
+  },
+  {
+    step_index: 1,
+    agent_id: "code.gen",
+    agent_name: "code.gen",
+    price_usdc: 0.054,
+    delivered: true,
+    creditable_usdc: 0.027,
+    output_summary: "calculator app, 3 files",
+  },
+  {
+    step_index: 2,
+    agent_id: "vision.ocr",
+    agent_name: "vision.ocr",
+    price_usdc: 0.012,
+    delivered: false,
+    creditable_usdc: 0,
+    output_summary: null,
+  },
 ];
