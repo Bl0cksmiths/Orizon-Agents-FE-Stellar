@@ -493,11 +493,7 @@ export type BindErrorCode =
  * pay twice (story 4.03).
  */
 export type DisputeStatus =
-  | "open"
-  | "upheld"
-  | "crediting"
-  | "credited"
-  | "rejected";
+  "open" | "upheld" | "crediting" | "credited" | "rejected";
 
 /**
  * The terms a dispute is raised under. Served by the backend rather than
