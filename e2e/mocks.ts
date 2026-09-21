@@ -1531,3 +1531,76 @@ export const mockRatingTx =
  */
 export const mockRejectionReason =
   "the calculator handles every operation the brief asked for; a scientific mode was never in scope";
+
+/** The four fields story 4.06 added, and the two hashes they qualify. */
+type ReceiptFields = Pick<
+  Dispute,
+  | "refund_tx"
+  | "rating_tx"
+  | "credited_usdc"
+  | "rating_confirmed"
+  | "rejection_reason"
+>;
+
+/**
+ * A dispute as the story 4.06 backend reports it: the 4.05 record plus what
+ * actually happened to it — what the refund moved, when the record last
+ * changed, whether the rating landed, and why a rejection was made.
+ *
+ * Each status carries what the backend has written by the time it reports
+ * that status, so `{ status: "credited" }` is a whole credited dispute: both
+ * hashes, the rating confirmed, the amount paid. Any of those can be
+ * overridden — `null` included — which is how a spec builds the in-between
+ * records the receipt must not overstate: a refund hash still in flight, a
+ * rating recorded but not yet confirmed.
+ *
+ * For a record from a backend that predates the four fields, use
+ * `mockDispute`, which sends none of them.
+ */
+export function mockReceiptDispute(
+  step: SettlementStepView,
+  opts: {
+    status: DisputeStatus;
+    openedAtS: number;
+    /** The last state change; ten minutes after opening unless given. */
+    updatedAtS?: number;
+    reason?: string;
+    payer?: string;
+  } & Partial<ReceiptFields>,
+): Dispute {
+  const { status, openedAtS } = opts;
+  const updatedAtS = opts.updatedAtS ?? openedAtS + 600;
+  const credited = status === "credited";
+  // `undefined` means "what this status implies"; an explicit null is kept,
+  // because a spec passing one is stating that the backend recorded nothing.
+  const overrides: Partial<ReceiptFields> = opts;
+  const given = <K extends keyof ReceiptFields>(
+    key: K,
+    implied: ReceiptFields[K],
+  ): ReceiptFields[K] => {
+    const value: ReceiptFields[K] | undefined = overrides[key];
+    return value === undefined ? implied : value;
+  };
+  return {
+    ...mockDispute(step, {
+      openedAtS,
+      status,
+      reason: opts.reason ?? "the calculator app does not compute anything",
+      payer: opts.payer,
+    }),
+    resolved_at: status === "open" ? null : updatedAtS,
+    refund_tx: given("refund_tx", credited ? mockRefundTx : null),
+    rating_tx: given("rating_tx", credited ? mockRatingTx : null),
+    // The backend pays exactly what was promised at open: `creditable_usdc`.
+    credited_usdc: given(
+      "credited_usdc",
+      credited ? step.creditable_usdc : null,
+    ),
+    updated_at: updatedAtS,
+    rating_confirmed: given("rating_confirmed", credited),
+    rejection_reason: given(
+      "rejection_reason",
+      status === "rejected" ? mockRejectionReason : null,
+    ),
+  };
+}
