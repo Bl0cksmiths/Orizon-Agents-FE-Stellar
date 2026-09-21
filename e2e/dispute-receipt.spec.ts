@@ -31,6 +31,7 @@ import {
   mockReceiptDispute,
   mockRatingTx,
   mockRefundTx,
+  mockRejectionReason,
   mockSettlementSteps,
   mockSettlementView,
   mockTraceStream,
@@ -182,5 +183,26 @@ test.describe("dispute status and refund receipt", () => {
       "href",
       testnetTx(mockRefundTx),
     );
+  });
+
+  test("a rejected dispute says so and gives the platform's reason", async ({
+    page,
+  }, testInfo) => {
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "rejected",
+          openedAtS: nowS() - 40 * 60,
+        }),
+      ],
+    });
+
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Rejected");
+    // A rejection with no explanation is worse than no dispute system.
+    await expect(row).toContainText(mockRejectionReason);
+    // Nothing was paid, so nothing may be linked as if it had been.
+    await expect(row.getByRole("link")).toHaveCount(0);
+    await attachShot(testInfo, "receipt — rejected", row);
   });
 });
