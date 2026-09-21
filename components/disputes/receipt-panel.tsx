@@ -160,77 +160,81 @@ function SettledReceipt({
 
   return (
     <section aria-labelledby={headingId}>
-      <Card className="space-y-6 p-4 sm:p-6">
-        {/* A plain div, not <header>: some engines expose a header inside a
+      <Card className="p-4 sm:p-6">
+        {/* Spaced here, not on the Card: Card wraps its children in an inner
+            div of its own, so a space-y on the Card never reaches them. */}
+        <div className="space-y-6">
+          {/* A plain div, not <header>: some engines expose a header inside a
             section as a page banner landmark, and this is not one. */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2
-                id={headingId}
-                className="text-lg font-semibold tracking-tight"
-              >
-                Receipt
-              </h2>
-              <Badge tone="success">
-                <span aria-hidden="true">✓</span> settled
-              </Badge>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2
+                  id={headingId}
+                  className="text-lg font-semibold tracking-tight"
+                >
+                  Receipt
+                </h2>
+                <Badge tone="success">
+                  <span aria-hidden="true">✓</span> settled
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted">
+                Settled{" "}
+                <time dateTime={new Date(view.settledAtMs).toISOString()}>
+                  {formatAge(nowMs - view.settledAtMs)}
+                </time>{" "}
+                · {steps} step{steps === 1 ? "" : "s"}
+              </p>
             </div>
-            <p className="mt-1 text-sm text-muted">
-              Settled{" "}
-              <time dateTime={new Date(view.settledAtMs).toISOString()}>
-                {formatAge(nowMs - view.settledAtMs)}
-              </time>{" "}
-              · {steps} step{steps === 1 ? "" : "s"}
-            </p>
-          </div>
-          <StatTile
-            label="total charged"
-            value={formatUsdc(view.settledUsdc)}
-            className="sm:text-right"
-          />
-        </div>
-
-        <dl className="space-y-3 font-mono text-sm">
-          <KVRow k="paid by">
-            <span className="block break-all">{view.payer}</span>
-            <StellarExpertLink
-              kind="account"
-              id={view.payer}
-              className="mt-1 inline-block"
+            <StatTile
+              label="total charged"
+              value={formatUsdc(view.settledUsdc)}
+              className="sm:text-right"
             />
-          </KVRow>
-          <KVRow k="settled" value={formatLocalTime(view.settledAtMs)} />
-          <TxRow label="charge" hash={view.chargeTx} />
-          <TxRow label="seal" hash={view.proofTx} />
-        </dl>
+          </div>
 
-        <WindowState window={view.window} settledAtMs={view.settledAtMs} />
+          <dl className="space-y-3 font-mono text-sm">
+            <KVRow k="paid by">
+              <span className="block break-all">{view.payer}</span>
+              <StellarExpertLink
+                kind="account"
+                id={view.payer}
+                className="mt-1 inline-block"
+              />
+            </KVRow>
+            <KVRow k="settled" value={formatLocalTime(view.settledAtMs)} />
+            <TxRow label="charge" hash={view.chargeTx} />
+            <TxRow label="seal" hash={view.proofTx} />
+          </dl>
 
-        {promptToConnect && <ConnectPrompt onConnect={onConnect} />}
+          <WindowState window={view.window} settledAtMs={view.settledAtMs} />
 
-        {canDispute && <CreditTerms policy={view.policy} />}
+          {promptToConnect && <ConnectPrompt onConnect={onConnect} />}
 
-        <div className="space-y-3 border-t border-border/60 pt-5">
-          <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
-            Steps
-          </h3>
-          {steps === 0 ? (
-            <p className="text-xs leading-relaxed text-muted">
-              No steps were recorded for this settlement.
-            </p>
-          ) : (
-            <ol className="space-y-3">
-              {view.steps.map(({ step, state }) => (
-                <StepItem
-                  key={step.step_index}
-                  step={step}
-                  state={state}
-                  onDispute={onDispute}
-                />
-              ))}
-            </ol>
-          )}
+          {canDispute && <CreditTerms policy={view.policy} />}
+
+          <div className="space-y-3 border-t border-border/60 pt-5">
+            <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
+              Steps
+            </h3>
+            {steps === 0 ? (
+              <p className="text-xs leading-relaxed text-muted">
+                No steps were recorded for this settlement.
+              </p>
+            ) : (
+              <ol className="space-y-3">
+                {view.steps.map(({ step, state }) => (
+                  <StepItem
+                    key={step.step_index}
+                    step={step}
+                    state={state}
+                    onDispute={onDispute}
+                  />
+                ))}
+              </ol>
+            )}
+          </div>
         </div>
       </Card>
     </section>
