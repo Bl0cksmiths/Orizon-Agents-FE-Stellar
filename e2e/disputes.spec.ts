@@ -67,6 +67,17 @@ const disputeButtons = (page: Page): Locator =>
 const stepRow = (page: Page, agent: string): Locator =>
   receipt(page).getByRole("listitem").filter({ hasText: agent });
 
+const dialog = (page: Page): Locator => page.getByRole("dialog");
+
+/** Opens the dispute form for one step. */
+async function openDialog(page: Page, agent: string): Promise<Locator> {
+  await stepRow(page, agent)
+    .getByRole("button", { name: /dispute/i })
+    .click();
+  await expect(dialog(page)).toBeVisible();
+  return dialog(page);
+}
+
 test.describe("dispute action on the trace / receipt view", () => {
   test("the payer, an hour after settling, is offered a dispute on every settled step and sees the time left", async ({
     page,
@@ -104,5 +115,29 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(row).toBeVisible();
     await expect(row.getByRole("button")).toHaveCount(0);
     await expect(row).toContainText(/not charged|did not deliver/i);
+  });
+
+  test("the reason is required: submit stays disabled until it is filled", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+
+    const reason = form.getByRole("textbox", { name: /your reason/i });
+    const submit = form.getByRole("button", { name: /sign and submit/i });
+    await expect(reason).toHaveValue("");
+    await expect(submit).toBeDisabled();
+
+    // Whitespace is not a reason.
+    await reason.fill("   ");
+    await expect(submit).toBeDisabled();
+
+    await reason.fill("the calculator app does not compute anything");
+    await expect(submit).toBeEnabled();
+
+    await reason.fill("");
+    await expect(submit).toBeDisabled();
   });
 });
