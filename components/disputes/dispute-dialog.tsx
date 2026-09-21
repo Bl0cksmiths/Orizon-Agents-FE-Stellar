@@ -623,7 +623,13 @@ function DisputeForm({
       dismissible={!busy}
       eyebrow="dispute"
       title={step ? `Dispute step ${stepNumber(step)}` : "Dispute a step"}
-      description="Ask the platform to credit part of what this step cost."
+      // The title stays put so the dialog's name never changes under a
+      // screen reader; the line beneath it says where things stand.
+      description={
+        state.kind === "done"
+          ? "Your dispute is on record. The platform reviews it next."
+          : "Ask the platform to credit part of what this step cost."
+      }
       footer={footer}
     >
       {step &&
