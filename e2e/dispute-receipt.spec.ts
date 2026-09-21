@@ -100,6 +100,14 @@ const stepRow = (page: Page, agent: string): Locator =>
   receipt(page).getByRole("listitem").filter({ hasText: agent });
 
 /**
+ * One on-chain artifact in a step's dispute receipt — the refund transfer or
+ * the dispute rating — found by the title it is listed under, so a state
+ * asserted of one can never be satisfied by the other beside it.
+ */
+const artifact = (row: Locator, title: string): Locator =>
+  row.locator("dl > div").filter({ hasText: title });
+
+/**
  * Attaches a picture of one receipt state to this test's report. An
  * attachment and never a committed file: it shows a MOCKED backend, and a PNG
  * in the tree is one careless upload away from passing as the live recording.
@@ -234,6 +242,57 @@ test.describe("dispute status and refund receipt", () => {
     // Nothing was paid, so nothing may be linked as if it had been.
     await expect(row.getByRole("link")).toHaveCount(0);
     await attachShot(testInfo, "receipt — rejected", row);
+  });
+
+  test("a refund or a rating still in flight reads as pending, never as done", async ({
+    page,
+  }, testInfo) => {
+    // Submitted, not confirmed: the settler recorded the hash on its way out.
+    const inFlightTx =
+      "28dd7753821ea76879f0c8d3899255a06905a39bfc1fc2f3a833f353015d15a1";
+    const openedAtS = nowS() - 40 * 60;
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(briefStep, {
+          status: "crediting",
+          openedAtS,
+          refund_tx: inFlightTx,
+        }),
+        // Refunded, but the rating's hash was recorded on a timeout: the
+        // ledger has not vouched for it, so it has not cost the agent yet.
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS,
+          rating_confirmed: false,
+        }),
+      ],
+    });
+
+    // The refund in flight: its own words, its hash to watch — and nothing
+    // that could pass for success, not the badge and not the mark.
+    const crediting = stepRow(page, briefStep.agent_id);
+    await expect(crediting).toContainText("Refund in progress");
+    await expect(crediting).not.toContainText("Refunded");
+    const inFlight = artifact(crediting, "Refund transfer");
+    await expect(inFlight).toContainText("Submitted, waiting for confirmation");
+    await expect(inFlight).toContainText(inFlightTx);
+    await expect(crediting).not.toContainText("Confirmed on Stellar");
+    // The figure is still the promise: nothing has been paid yet.
+    await expect(crediting).toContainText("Up to 0.0045 USDC to be credited");
+
+    // The refund landed; the rating did not, and the receipt says which.
+    const credited = stepRow(page, codeStep.agent_id);
+    await expect(artifact(credited, "Refund transfer")).toContainText(
+      "Confirmed on Stellar",
+    );
+    const rating = artifact(credited, "Dispute rating against");
+    await expect(rating).toContainText("Submitted, waiting for confirmation");
+    await expect(rating).not.toContainText("Confirmed on Stellar");
+    await expect(credited).toContainText(
+      `the dispute rating it costs ${codeStep.agent_id} is not confirmed yet`,
+    );
+    await attachShot(testInfo, "receipt — crediting", crediting);
+    await attachShot(testInfo, "receipt — rating pending", credited);
   });
 
   test("a wallet that did not pay sees the statuses and the links, but neither the buyer's reason nor the rejection's", async ({
