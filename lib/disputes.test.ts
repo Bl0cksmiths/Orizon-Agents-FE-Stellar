@@ -26,6 +26,7 @@ import {
   MAX_DISPUTE_REASON_CHARS,
   openDispute,
   raiseDispute,
+  receiptBadgeStatus,
   serverClockOffsetMs,
 } from "./disputes";
 import { formatSettled } from "./money";
@@ -1570,6 +1571,36 @@ describe("formatUsdc", () => {
     "prints %d as a dash rather than a broken figure",
     (n) => {
       expect(formatUsdc(n)).toBe("—");
+    },
+  );
+});
+
+describe("receiptBadgeStatus", () => {
+  // Views are built by the real disputeReceipt(), so no case here is a
+  // combination the data could never hand the badge.
+  const badgeFor = (over: Partial<Dispute>) =>
+    receiptBadgeStatus(disputeReceipt(dispute(0, over), "payer", policy));
+
+  it("shows a confirmed credit as credited", () => {
+    expect(
+      badgeFor({
+        status: "credited",
+        refund_tx: "a".repeat(64),
+        credited_usdc: 0.005,
+      }),
+    ).toBe("credited");
+  });
+
+  it("never shows a credit whose transfer is unconfirmed as credited", () => {
+    // Recorded `credited` with no transfer on record: the badge must not read
+    // "Refunded" above a line saying the transfer is not confirmed.
+    expect(badgeFor({ status: "credited", refund_tx: null })).toBe("crediting");
+  });
+
+  it.each(["open", "upheld", "crediting", "rejected"] as const)(
+    "passes %s through unchanged",
+    (status) => {
+      expect(badgeFor({ status })).toBe(status);
     },
   );
 });
