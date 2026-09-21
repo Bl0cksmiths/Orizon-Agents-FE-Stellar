@@ -433,3 +433,99 @@ describe("DisputeReceipt — who is reading", () => {
     },
   );
 });
+
+describe("DisputeReceipt — the live announcement", () => {
+  function liveRegion(): HTMLElement {
+    return screen.getByRole("status");
+  }
+
+  it("is a polite live region, present and silent on first render", () => {
+    renderReceipt(receipt("crediting"));
+    const region = liveRegion();
+    expect(region.getAttribute("aria-live")).toBe("polite");
+    expect(region.textContent).toBe("");
+  });
+
+  it("announces a status change once, and a repeat poll not at all", () => {
+    const { rerender } = renderReceipt(receipt("crediting"));
+    const region = liveRegion();
+
+    // Every write to the region's text is a chance for a screen reader to
+    // speak, so the count of DOM mutations is the count of announcements.
+    let writes = 0;
+    const observer = new MutationObserver((records) => {
+      writes += records.length;
+    });
+    observer.observe(region, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+
+    const redraw = (view: DisputeReceiptView) =>
+      rerender(<DisputeReceipt view={view} agentName={AGENT} nowMs={NOW} />);
+
+    // A poll that changed nothing, then the refund landing, then two more
+    // polls that brought the same status back — one with a newer timestamp.
+    redraw(receipt("crediting"));
+    expect(region.textContent).toBe("");
+    redraw(receipt("credited"));
+    redraw(receipt("credited"));
+    redraw(receipt("credited", { lastChangedAtMs: CHANGED_AT + MIN }));
+    writes += observer.takeRecords().length;
+    observer.disconnect();
+
+    // The same node throughout: a region replaced is a region re-read.
+    expect(liveRegion()).toBe(region);
+    expect(region.textContent).toBe(
+      `Your dispute against ${AGENT} was refunded.`,
+    );
+    expect(writes).toBe(1);
+  });
+
+  it("does not announce a refund the record has not confirmed", () => {
+    const { rerender } = renderReceipt(receipt("crediting"));
+    rerender(
+      <DisputeReceipt
+        view={receipt("credited", UNRECONCILED)}
+        agentName={AGENT}
+        nowMs={NOW}
+      />,
+    );
+    const said = liveRegion().textContent ?? "";
+    expect(said).toBe(
+      `Your dispute against ${AGENT} was marked as paid, but its refund is not confirmed on Stellar yet.`,
+    );
+    expect(said).not.toContain("refunded");
+  });
+
+  it("announces each later change in turn", () => {
+    const { rerender } = renderReceipt(receipt("open"));
+    const redraw = (view: DisputeReceiptView) =>
+      rerender(<DisputeReceipt view={view} agentName={AGENT} nowMs={NOW} />);
+
+    redraw(receipt("upheld"));
+    expect(liveRegion().textContent).toBe(
+      `Your dispute against ${AGENT} was upheld.`,
+    );
+    redraw(receipt("crediting"));
+    expect(liveRegion().textContent).toBe(
+      `Your dispute against ${AGENT} is being refunded.`,
+    );
+  });
+
+  it("speaks about the dispute, not to its owner, for anyone else", () => {
+    const { rerender } = renderReceipt(receipt("open"), { viewer: "other" });
+    rerender(
+      <DisputeReceipt
+        view={receipt("rejected")}
+        agentName={AGENT}
+        nowMs={NOW}
+        viewer="other"
+      />,
+    );
+    expect(liveRegion().textContent).toBe(
+      `The dispute against ${AGENT} was rejected.`,
+    );
+  });
+});
