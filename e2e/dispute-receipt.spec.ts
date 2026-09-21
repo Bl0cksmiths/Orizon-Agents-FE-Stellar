@@ -577,6 +577,11 @@ test.describe("dispute receipt while the page stays open", () => {
     ]);
     const row = stepRow(page, codeStep.agent_id);
     await expect(row).toContainText("Under review");
+    // Mounted, and silent: the status a receipt opens on is not a change,
+    // and announcing it would talk over the page a reader just arrived on.
+    const announcer = row.getByRole("status");
+    await expect(announcer).toHaveAttribute("aria-live", "polite");
+    await expect(announcer).toHaveText("");
     await freezeClock(page);
     // Survives anything but a reload: proof the flip happened in place.
     await page.evaluate(() => Object.assign(window, { __sameDocument: true }));
@@ -625,11 +630,12 @@ test.describe("dispute receipt while the page stays open", () => {
       ),
     ).toBe(true);
 
-    // Heard as well as seen: the change reached a polite live region, once.
-    const announced = page
-      .locator('[aria-live="polite"]')
-      .filter({ hasText: /refunded/i });
-    await expect(announced).toHaveCount(1);
+    // Heard as well as seen: one sentence in the polite live region, in the
+    // badge's words rather than the backend's, and only the latest one — a
+    // region holding both changes would read the whole history out again.
+    await expect(announcer).toHaveText(
+      `Your dispute against ${codeStep.agent_id} was refunded.`,
+    );
     await attachShot(testInfo, "receipt — credited live", row);
   });
 
