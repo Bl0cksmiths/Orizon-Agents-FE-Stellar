@@ -20,9 +20,11 @@
 import { useId, type ReactNode } from "react";
 
 import { formatAge } from "@/components/ui/stale-badge";
+import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { formatUsdc } from "@/lib/disputes";
 import type {
   CreditPolicy,
+  DisputeArtifact,
   DisputeReceiptView,
   DisputeViewer,
 } from "@/lib/types";
@@ -115,6 +117,8 @@ export function DisputeReceipt({
       </p>
 
       {view.status !== "rejected" && <CreditLine view={view} voice={voice} />}
+
+      <Artifacts view={view} agentName={agentName} voice={voice} />
     </div>
   );
 }
@@ -230,6 +234,159 @@ function CreditLine({
         credit ·{" "}
       </span>
       {claim} <span className="text-muted">— {FUNDED_BY[view.fundedBy]}.</span>
+    </p>
+  );
+}
+
+type ArtifactCopy = {
+  title: string;
+  /** What the transaction means for the reader, beside its name. */
+  caption: string;
+  /** Visible link text, distinct per artifact so a link list is legible. */
+  link: string;
+};
+
+/**
+ * The refund transfer and the dispute rating, each with its hash and its
+ * Stellar Expert link — the two things a reviewer matches against the chain.
+ *
+ * A `none` artifact is left out while the dispute is still moving: an absent
+ * refund on an open dispute is not news. Once it is credited, an artifact the
+ * record lacks gets one quiet line instead, because a finished receipt with a
+ * row silently missing reads as complete when it is not.
+ */
+function Artifacts({
+  view,
+  agentName,
+  voice,
+}: {
+  view: DisputeReceiptView;
+  agentName: string;
+  voice: Voice;
+}) {
+  const explainAbsence = view.status === "credited";
+  const rows = [
+    {
+      key: "refund",
+      artifact: view.refund,
+      copy: {
+        title: "Refund transfer",
+        caption: `what ${voice.who} received`,
+        link: "view refund on stellar.expert",
+      },
+    },
+    {
+      key: "rating",
+      artifact: view.rating,
+      copy: {
+        title: `Dispute rating against ${agentName}`,
+        caption: "what it cost the agent",
+        link: "view rating on stellar.expert",
+      },
+    },
+  ].filter(({ artifact }) => artifact.state !== "none" || explainAbsence);
+
+  if (rows.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <h5 className="font-mono text-[10px] uppercase tracking-widest text-muted">
+        On-chain record
+      </h5>
+      {/* A description list, not a <ul>: these are named transactions and
+          their facts — the panel's own charge and seal rows are a <dl> too —
+          and list items nested in a step's own <li> would read as more steps
+          of the receipt. */}
+      <dl className="space-y-2">
+        {rows.map(({ key, artifact, copy }) => (
+          <ArtifactRow key={key} artifact={artifact} copy={copy} />
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function ArtifactRow({
+  artifact,
+  copy,
+}: {
+  artifact: DisputeArtifact;
+  copy: ArtifactCopy;
+}) {
+  if (artifact.state === "none") {
+    return (
+      <div className="text-xs leading-relaxed text-muted">
+        <dt className="inline">{copy.title}</dt>{" "}
+        <dd className="inline">— not recorded on-chain yet.</dd>
+      </div>
+    );
+  }
+  const confirmed = artifact.state === "confirmed";
+  return (
+    <div
+      className={cn(
+        "clip-cyber-sm border px-3 py-2.5",
+        confirmed ? "border-cyan/30 bg-cyan/5" : "border-violet/40 bg-violet/5",
+      )}
+    >
+      <dt className="text-xs leading-snug text-text">
+        {copy.title}
+        <span className="block font-mono text-[10px] uppercase tracking-widest text-muted">
+          {copy.caption}
+        </span>
+      </dt>
+      <dd className="mt-2 space-y-1.5">
+        <ArtifactMark artifact={artifact} />
+        {artifact.txHash && (
+          <>
+            {/* The full hash, wrapping, never truncated: in a recording the
+                link cannot be inspected, so the painted characters are the
+                only thing a reviewer can match to Stellar Expert — and all
+                64 of them can be typed into its search from a paused frame. */}
+            <p className="break-all font-mono text-xs leading-relaxed text-text">
+              <span className="sr-only">Transaction hash </span>
+              {artifact.txHash}
+            </p>
+            <StellarExpertLink
+              kind="tx"
+              id={artifact.txHash}
+              className="inline-block"
+            >
+              {copy.link}
+              <span aria-hidden="true"> ▸</span>
+            </StellarExpertLink>
+          </>
+        )}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * An artifact's state in TxStatus's visual language — a cyan ✓ once
+ * confirmed, a pulsing violet dot while in flight — but not TxStatus itself:
+ * its Build → Sign → Broadcast trail narrates a transaction the USER signs,
+ * and the platform's settler signs these. That trail here would tell the
+ * buyer they had signed something they never saw.
+ *
+ * Pending borrows nothing from confirmed — no ✓, no cyan — so no frame of a
+ * recording can pass a transaction in flight off as a landed one.
+ */
+function ArtifactMark({ artifact }: { artifact: DisputeArtifact }) {
+  if (artifact.state === "confirmed") {
+    return (
+      <p className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-cyan">
+        <span aria-hidden="true">✓</span>
+        Confirmed on Stellar
+      </p>
+    );
+  }
+  return (
+    <p className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-violet-readable">
+      <span
+        aria-hidden="true"
+        className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-violet shadow-[0_0_8px_#B026FF] motion-reduce:animate-none"
+      />
+      {artifact.txHash ? "Submitted, waiting for confirmation" : "Being sent"}
     </p>
   );
 }
