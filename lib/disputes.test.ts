@@ -17,6 +17,7 @@ import {
   DisputeRefusal,
   createDisputeChallenge,
   disputeErrorCode,
+  disputeView,
   getTaskDisputes,
   openDispute,
   serverClockOffsetMs,
@@ -27,6 +28,7 @@ import type {
   Dispute,
   DisputeChallenge,
   DisputeErrorCode,
+  DisputePanelView,
   SettlementStepView,
   SettlementView,
   TaskDisputes,
@@ -87,6 +89,7 @@ function initOf(call: number): RequestInit {
 // ── fixtures ────────────────────────────────────────────────────
 
 const PAYER = "GBPAYER".padEnd(56, "A");
+const OTHER = "GBOTHER".padEnd(56, "B");
 const JOB = "0123456789abcdef0123456789abcdef";
 const TASK = "task_9f2c";
 /** Epoch seconds, server clock. */
@@ -518,5 +521,351 @@ describe("serverClockOffsetMs", () => {
 
   it("is 0 when the arrival time is not a number", () => {
     expect(serverClockOffsetMs(taskDisputes(), Number.NaN)).toBe(0);
+  });
+});
+
+// ── the panel, derived ──────────────────────────────────────────
+
+/** Server-clock epoch ms of the window's close in the default fixture. */
+const CLOSES_AT_MS = CLOSES_AT * 1_000;
+/** An hour into a 24h window. */
+const EARLY_MS = (SETTLED_AT + 3_600) * 1_000;
+
+type ViewInput = Parameters<typeof disputeView>[0];
+type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
+
+function view(over: Partial<ViewInput> = {}): DisputePanelView {
+  return disputeView({
+    res: taskDisputes(),
+    viewerAddress: PAYER,
+    workflowDone: true,
+    nowMs: EARLY_MS,
+    demo: false,
+    ...over,
+  });
+}
+
+function settled(over: Partial<ViewInput> = {}): SettledView {
+  const v = view(over);
+  if (v.kind !== "settled") throw new Error(`expected settled, got ${v.kind}`);
+  return v;
+}
+
+/** Each step's state kind, by step index. */
+function kinds(v: SettledView): Record<number, string> {
+  return Object.fromEntries(
+    v.steps.map(({ step: s, state }) => [s.step_index, state.kind]),
+  );
+}
+
+describe("disputeView — hidden and not settled", () => {
+  it("is hidden in demo mode, whatever the backend said", () => {
+    expect(view({ demo: true })).toEqual({ kind: "hidden" });
+  });
+
+  it("is hidden until there is an answer — loading and failure are not 'not settled'", () => {
+    expect(view({ res: null })).toEqual({ kind: "hidden" });
+  });
+
+  it("is hidden for a backend that predates the settlement field", () => {
+    const { settlement: _omitted, ...legacy } = taskDisputes();
+    expect(view({ res: legacy })).toEqual({ kind: "hidden" });
+    expect(view({ res: legacy, workflowDone: false })).toEqual({
+      kind: "hidden",
+    });
+  });
+
+  it("is not settled while the run is still going", () => {
+    expect(
+      view({ res: taskDisputes({ settlement: null }), workflowDone: false }),
+    ).toEqual({ kind: "not_settled", running: true });
+  });
+
+  it("is not settled — and not running — when a finished run charged nothing", () => {
+    expect(
+      view({ res: taskDisputes({ settlement: null }), workflowDone: true }),
+    ).toEqual({ kind: "not_settled", running: false });
+  });
+
+  it("shows a settlement even before the page has seen the run finish", () => {
+    // The backend records the settlement before it closes the stream.
+    expect(view({ workflowDone: false }).kind).toBe("settled");
+  });
+});
+
+describe("disputeView — the receipt", () => {
+  it("carries the settlement onto the receipt in epoch ms", () => {
+    const v = settled();
+    expect(v).toMatchObject({
+      kind: "settled",
+      viewer: "payer",
+      jobIdHex: JOB,
+      payer: PAYER,
+      settledAtMs: SETTLED_AT * 1_000,
+      settledUsdc: 0.03,
+      chargeTx: "tx_charge",
+      proofTx: "tx_proof",
+      policy,
+    });
+    expect(v.window).toEqual({
+      open: true,
+      closesAtMs: CLOSES_AT_MS,
+      remainingMs: CLOSES_AT_MS - EARLY_MS,
+    });
+  });
+
+  it("keeps a missing charge or proof tx as null", () => {
+    const v = settled({
+      res: taskDisputes({
+        settlement: settlement({ charge_tx: null, proof_tx: null }),
+      }),
+    });
+    expect(v.chargeTx).toBeNull();
+    expect(v.proofTx).toBeNull();
+  });
+
+  it("orders the steps by index whatever order they arrived in", () => {
+    const v = settled({
+      res: taskDisputes({
+        settlement: settlement({ steps: [step(2), step(0), step(1)] }),
+      }),
+    });
+    expect(v.steps.map(({ step: s }) => s.step_index)).toEqual([0, 1, 2]);
+  });
+
+  it("does not modify the answer it was given", () => {
+    const res = taskDisputes({
+      settlement: settlement({ steps: [step(1), step(0)] }),
+      disputes: [dispute(1)],
+    });
+    const before = structuredClone(res);
+    view({ res, viewerAddress: OTHER });
+    expect(res).toEqual(before);
+  });
+});
+
+describe("disputeView — who is looking", () => {
+  it("is anonymous with no wallet connected", () => {
+    expect(settled({ viewerAddress: null }).viewer).toBe("anonymous");
+    expect(settled({ viewerAddress: "" }).viewer).toBe("anonymous");
+  });
+
+  it("is the payer only for the exact recorded address", () => {
+    expect(settled({ viewerAddress: PAYER }).viewer).toBe("payer");
+  });
+
+  it("is someone else for any other address", () => {
+    expect(settled({ viewerAddress: OTHER }).viewer).toBe("other");
+  });
+
+  it("does not fold case: a re-cased G-address is not the payer", () => {
+    // StrKey has one spelling, and the backend compares with `!=`; a folded
+    // match here would offer an action the server is going to refuse.
+    expect(settled({ viewerAddress: PAYER.toLowerCase() }).viewer).toBe(
+      "other",
+    );
+  });
+});
+
+describe("disputeView — each step", () => {
+  it("offers the payer every charged step while the window is open", () => {
+    expect(kinds(settled())).toEqual({
+      0: "disputable",
+      1: "disputable",
+      2: "disputable",
+    });
+  });
+
+  it("offers nobody else an action: other and anonymous see view_only", () => {
+    expect(kinds(settled({ viewerAddress: OTHER }))).toEqual({
+      0: "view_only",
+      1: "view_only",
+      2: "view_only",
+    });
+    expect(kinds(settled({ viewerAddress: null }))).toEqual({
+      0: "view_only",
+      1: "view_only",
+      2: "view_only",
+    });
+  });
+
+  it("marks a step that did not deliver as not charged", () => {
+    const v = settled({
+      res: taskDisputes({
+        settlement: settlement({
+          steps: [step(0), step(1, { delivered: false, creditable_usdc: 0 })],
+        }),
+      }),
+    });
+    expect(kinds(v)).toEqual({ 0: "disputable", 1: "not_charged" });
+  });
+
+  it("marks a free step as not charged — there is nothing to credit back", () => {
+    const v = settled({
+      res: taskDisputes({
+        settlement: settlement({ steps: [step(0, { price_usdc: 0 })] }),
+      }),
+    });
+    expect(kinds(v)).toEqual({ 0: "not_charged" });
+  });
+
+  it("marks every step not charged when the settlement moved nothing", () => {
+    const v = settled({
+      res: taskDisputes({ settlement: settlement({ settled_usdc: 0 }) }),
+    });
+    expect(kinds(v)).toEqual({
+      0: "not_charged",
+      1: "not_charged",
+      2: "not_charged",
+    });
+  });
+
+  it("keeps an undelivered step not charged even if a dispute names it", () => {
+    const v = settled({
+      res: taskDisputes({
+        settlement: settlement({ steps: [step(0, { delivered: false })] }),
+        disputes: [dispute(0)],
+      }),
+    });
+    expect(kinds(v)).toEqual({ 0: "not_charged" });
+  });
+
+  it("shows the payer their own dispute, reason and all", () => {
+    const v = settled({ res: taskDisputes({ disputes: [dispute(1)] }) });
+    expect(v.steps[1]?.state).toEqual({
+      kind: "disputed",
+      dispute: dispute(1),
+      showReason: true,
+    });
+    expect(kinds(v)).toEqual({
+      0: "disputable",
+      1: "disputed",
+      2: "disputable",
+    });
+  });
+
+  it.each([
+    ["someone else", OTHER],
+    ["an anonymous viewer", null],
+  ])(
+    "shows %s THAT a step is disputed, never the buyer's words",
+    (_, viewerAddress) => {
+      const v = settled({
+        res: taskDisputes({ disputes: [dispute(1, { status: "upheld" })] }),
+        viewerAddress,
+      });
+      expect(v.steps[1]?.state).toEqual({
+        kind: "disputed",
+        dispute: { ...dispute(1, { status: "upheld" }), reason: "" },
+        showReason: false,
+      });
+    },
+  );
+
+  it("keeps a dispute on its step after the window has closed", () => {
+    const v = settled({
+      res: taskDisputes({ disputes: [dispute(2)] }),
+      nowMs: CLOSES_AT_MS + 1,
+    });
+    expect(kinds(v)).toEqual({
+      0: "window_closed",
+      1: "window_closed",
+      2: "disputed",
+    });
+  });
+
+  it.each([
+    ["the payer", PAYER],
+    ["someone else", OTHER],
+    ["an anonymous viewer", null],
+  ])("shows %s window_closed on an undisputed step once closed", (_, who) => {
+    const v = settled({ viewerAddress: who, nowMs: CLOSES_AT_MS + 60_000 });
+    expect(kinds(v)).toEqual({
+      0: "window_closed",
+      1: "window_closed",
+      2: "window_closed",
+    });
+  });
+
+  it("ignores a dispute naming a step the settlement does not have", () => {
+    const v = settled({ res: taskDisputes({ disputes: [dispute(9)] }) });
+    expect(kinds(v)).toEqual({
+      0: "disputable",
+      1: "disputable",
+      2: "disputable",
+    });
+  });
+});
+
+describe("disputeView — one dispute per step", () => {
+  const first = dispute(1, { id: "dsp_b", opened_at: SETTLED_AT + 60 });
+  const later = dispute(1, { id: "dsp_a", opened_at: SETTLED_AT + 90 });
+
+  it.each([
+    ["listed first", [first, later]],
+    ["listed last", [later, first]],
+  ])("keeps the earliest-opened dispute when it is %s", (_, disputes) => {
+    const v = settled({ res: taskDisputes({ disputes }) });
+    expect(v.steps[1]?.state).toMatchObject({
+      kind: "disputed",
+      dispute: { id: "dsp_b" },
+    });
+  });
+
+  it("breaks an opened_at tie on the lower id, so order never decides", () => {
+    const a = dispute(1, { id: "dsp_a" });
+    const b = dispute(1, { id: "dsp_b" });
+    for (const disputes of [
+      [a, b],
+      [b, a],
+    ]) {
+      const v = settled({ res: taskDisputes({ disputes }) });
+      expect(v.steps[1]?.state).toMatchObject({ dispute: { id: "dsp_a" } });
+    }
+  });
+});
+
+describe("disputeView — the window, on the server's clock", () => {
+  it("is open a millisecond before the close", () => {
+    const v = settled({ nowMs: CLOSES_AT_MS - 1 });
+    expect(v.window).toMatchObject({ open: true, remainingMs: 1 });
+    expect(kinds(v)[0]).toBe("disputable");
+  });
+
+  it("is closed AT the close, with nothing left and nothing offered", () => {
+    const v = settled({ nowMs: CLOSES_AT_MS });
+    expect(v.window).toEqual({
+      open: false,
+      closesAtMs: CLOSES_AT_MS,
+      remainingMs: 0,
+    });
+    expect(Object.values(kinds(v))).not.toContain("disputable");
+  });
+
+  it("never reports negative time after the close", () => {
+    const v = settled({ nowMs: CLOSES_AT_MS + 86_400_000 });
+    expect(v.window.remainingMs).toBe(0);
+    expect(v.window.open).toBe(false);
+  });
+
+  it("fails shut on a clock that is not a number", () => {
+    const v = settled({ nowMs: Number.NaN });
+    expect(v.window).toMatchObject({ open: false, remainingMs: 0 });
+    expect(Object.values(kinds(v))).not.toContain("disputable");
+  });
+
+  it("drops every action on the first tick past the close", () => {
+    const before = settled({ nowMs: CLOSES_AT_MS - 500 });
+    const after = settled({ nowMs: CLOSES_AT_MS + 500 });
+    expect(Object.values(kinds(before))).toEqual([
+      "disputable",
+      "disputable",
+      "disputable",
+    ]);
+    expect(Object.values(kinds(after))).toEqual([
+      "window_closed",
+      "window_closed",
+      "window_closed",
+    ]);
   });
 });
