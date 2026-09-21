@@ -37,34 +37,76 @@ function settlementOf(view: SettledView): SettlementView {
 /** The step a dialog is about, and the settlement it was charged under. */
 type DisputeTarget = { step: SettlementStepView; settlement: SettlementView };
 
+/** The receipt's four facts: payer, settled time, charge and seal. */
+const FACT_LINES = [2, 1, 2, 2] as const;
+
 /**
- * Held at the height of a receipt so the trace below does not jump when the
- * settlement arrives: a header row, the window line, and one row per step.
+ * The receipt's own frame, drawn empty while it loads: the same card, header,
+ * facts, window line and step rows the panel renders, at their heights. A
+ * one-line placeholder reserved none of it, so the settlement arriving pushed
+ * the whole trace log half a screen down under the reader.
  */
 function ReceiptSkeleton() {
   return (
-    <Card aria-busy="true">
+    <div aria-busy="true">
       <LoadingStatus label="Loading the receipt…" />
-      <div className="flex items-center justify-between gap-4">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-5 w-28" />
-      </div>
-      <Skeleton className="mt-4 h-4 w-56 max-w-full" />
-      <div className="mt-5 space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex items-center justify-between gap-4 border-t border-border/40 pt-3"
-          >
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-3 w-32 max-w-full" />
-              <Skeleton className="h-3 w-48 max-w-full" />
+      <Card className="space-y-6 p-4 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-7 w-24" />
+              <Skeleton className="h-5 w-20" />
             </div>
-            <Skeleton className="h-8 w-20 shrink-0" />
+            <Skeleton className="mt-2 h-4 w-40" />
           </div>
-        ))}
-      </div>
-    </Card>
+          <div className="flex flex-col gap-3 sm:items-end">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-9 w-36" />
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {FACT_LINES.map((lines, i) => (
+            <div
+              key={i}
+              className="flex items-start justify-between gap-4 border-b border-border/40 pb-2 last:border-0"
+            >
+              <Skeleton className="mt-1 h-3 w-14 shrink-0" />
+              <div className="flex min-w-0 flex-1 flex-col items-end gap-2">
+                <Skeleton className="h-4 w-full max-w-[26rem]" />
+                {lines === 2 && <Skeleton className="h-3 w-28" />}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="clip-cyber-sm space-y-3 border border-border/60 px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <Skeleton className="h-1 w-full" />
+          <Skeleton className="h-3 w-48 max-w-full" />
+        </div>
+
+        <div className="space-y-3 border-t border-border/60 pt-5">
+          <Skeleton className="h-3 w-12" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="clip-cyber-sm flex gap-3 border border-border/60 p-4"
+            >
+              <Skeleton className="h-7 w-7 shrink-0" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-32 max-w-full" />
+                <Skeleton className="h-3 w-48 max-w-full" />
+              </div>
+              <Skeleton className="h-8 w-20 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
 
