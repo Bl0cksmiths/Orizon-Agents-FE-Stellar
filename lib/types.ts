@@ -484,3 +484,31 @@ export type BindErrorCode =
   | "registry_unavailable"
   | "binding_not_found"
   | "rate_limited";
+
+// ── disputes (stories 4.02–4.05) ─────────────────────────────────
+
+/**
+ * A dispute's lifecycle as the backend records it. `crediting` is not an
+ * outcome anyone chooses: it is a refund in flight, held so a retry can never
+ * pay twice (story 4.03).
+ */
+export type DisputeStatus =
+  | "open"
+  | "upheld"
+  | "crediting"
+  | "credited"
+  | "rejected";
+
+/**
+ * The terms a dispute is raised under. Served by the backend rather than
+ * written into the UI, so the buyer is shown the policy actually in force —
+ * and shown it BEFORE they commit (story 4.05's product rule).
+ */
+export type CreditPolicy = {
+  /** Share of a disputed step's charge credited if upheld, from 0 to 1. */
+  credited_fraction: number;
+  /** Who pays the credit: the platform, never clawed back from the agent. */
+  funded_by: "platform";
+  /** Who decides: the platform. There is no on-chain arbitration. */
+  adjudicated_by: "platform";
+};
