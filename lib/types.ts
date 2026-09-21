@@ -711,3 +711,44 @@ export type DisputePanelView =
       policy: CreditPolicy;
       steps: { step: SettlementStepView; state: StepDisputeState }[];
     };
+
+/**
+ * One on-chain artifact of an upheld dispute — the refund transfer or the
+ * dispute rating — stated only as far as the record can vouch for it.
+ * `confirmed` is the ONLY state that may read as done: a hash that is merely
+ * in flight is `pending`, because an optimistic "refunded" that is later
+ * contradicted is worse than no receipt at all (story 4.06).
+ */
+export type DisputeArtifact = {
+  txHash: string | null;
+  state: "confirmed" | "pending" | "none";
+};
+
+/**
+ * What a buyer is told about one dispute, derived purely from the record, the
+ * policy and who is looking. The receipt draws it and decides nothing.
+ */
+export type DisputeReceiptView = {
+  status: DisputeStatus;
+  /** Epoch milliseconds. */
+  openedAtMs: number;
+  /**
+   * Epoch milliseconds of the last state change. An older backend sends no
+   * `updated_at`, so this falls back to `resolved_at`, then `opened_at`.
+   */
+  lastChangedAtMs: number;
+  /**
+   * What an upheld dispute pays: the amount actually transferred once
+   * credited, the promise before that. `final` says which, so the copy never
+   * calls a promise a payment.
+   */
+  amount: { usdc: number; final: boolean };
+  /** Who pays the credit: always the platform, never clawed back. */
+  fundedBy: CreditPolicy["funded_by"];
+  refund: DisputeArtifact;
+  rating: DisputeArtifact;
+  /** The buyer's own reason; null for anyone but the payer. */
+  reason: string | null;
+  /** Why it was rejected; null unless rejected, and for anyone but the payer. */
+  rejectionReason: string | null;
+};
