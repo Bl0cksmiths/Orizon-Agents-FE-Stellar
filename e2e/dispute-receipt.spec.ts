@@ -28,6 +28,7 @@ import {
   mockApi,
   mockDisputeReads,
   mockDisputeTaskId,
+  mockOtherOwnerAddress,
   mockReceiptDispute,
   mockRatingTx,
   mockRefundTx,
@@ -233,6 +234,55 @@ test.describe("dispute status and refund receipt", () => {
     // Nothing was paid, so nothing may be linked as if it had been.
     await expect(row.getByRole("link")).toHaveCount(0);
     await attachShot(testInfo, "receipt — rejected", row);
+  });
+
+  test("a wallet that did not pay sees the statuses and the links, but neither the buyer's reason nor the rejection's", async ({
+    page,
+  }) => {
+    const openedAtS = nowS() - 40 * 60;
+    const buyerReasons = [
+      "the outline misses half of the brief",
+      "the calculator app does not compute anything",
+    ];
+    // Paid for, and disputed, by someone else: the connected wallet is
+    // `mockWalletAddress` — a stranger holding a shared trace link.
+    await openReceipt(page, {
+      payer: mockOtherOwnerAddress,
+      disputes: [
+        mockReceiptDispute(briefStep, {
+          status: "rejected",
+          openedAtS,
+          reason: buyerReasons[0],
+          payer: mockOtherOwnerAddress,
+        }),
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS,
+          reason: buyerReasons[1],
+          payer: mockOtherOwnerAddress,
+        }),
+      ],
+    });
+
+    // THAT the steps were disputed, and how it went, is public — and so are
+    // the refund and the rating: they are transactions on a public ledger.
+    await expect(stepRow(page, briefStep.agent_id)).toContainText("Rejected");
+    const credited = stepRow(page, codeStep.agent_id);
+    await expect(credited).toContainText("Refunded");
+    await expect(
+      credited.getByRole("link", { name: /refund/i }),
+    ).toHaveAttribute("href", testnetTx(mockRefundTx));
+    await expect(
+      credited.getByRole("link", { name: /rating/i }),
+    ).toHaveAttribute("href", testnetTx(mockRatingTx));
+
+    // The words on both sides were written for the buyer. Checked against
+    // the serialised DOM, not the visible text: a reason tucked into an
+    // attribute or an sr-only span is leaked all the same.
+    const dom = await page.content();
+    for (const reason of [...buyerReasons, mockRejectionReason]) {
+      expect(dom).not.toContain(reason);
+    }
   });
 
   test("at 360px a credited receipt with both full hashes fits without sideways scroll", async ({
