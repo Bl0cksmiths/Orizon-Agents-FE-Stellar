@@ -169,8 +169,10 @@ test.describe("dispute status and refund receipt", () => {
     await expect(
       row.locator(`time[datetime="${isoOf(openedAtS)}"]`),
     ).toBeVisible();
-    // Not silence: the buyer is told who acts next.
-    await expect(row).toContainText(/the platform (is )?review/i);
+    // Not silence: who acts next, and what an uphold would mean on both sides.
+    await expect(row).toContainText(
+      `The platform is reviewing this dispute; if it is upheld, the step's credit is paid to your wallet and ${codeStep.agent_id}'s reputation records the dispute.`,
+    );
     await attachShot(testInfo, "receipt — open", row);
   });
 
