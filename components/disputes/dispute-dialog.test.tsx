@@ -27,10 +27,17 @@ import {
   it,
   vi,
 } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 
 import type {
   CreditPolicy,
+  Dispute,
   SettlementStepView,
   SettlementView,
 } from "@/lib/types";
@@ -155,14 +162,75 @@ function renderDialog(overrides: Partial<DisputeDialogProps> = {}) {
 
 const REASON = "the calculator it built does not compute anything";
 
+const DISPUTE: Dispute = {
+  id: "dsp_1",
+  job_id_hex: JOB,
+  task_id: "task-1",
+  step_index: STEP.step_index,
+  agent_id: STEP.agent_id,
+  payer: PAYER,
+  reason: REASON,
+  status: "open",
+  charged_usdc: STEP.price_usdc,
+  creditable_usdc: STEP.creditable_usdc,
+  opened_at: 1_790_000_600,
+  resolved_at: null,
+  refund_tx: null,
+  rating_tx: null,
+};
+
+/** The challenge message the stand-in asks the wallet to sign. */
+const CHALLENGE = `orizon-dispute:v1:${JOB}:${STEP.step_index}:nonce-1`;
+
+type RaiseArgs = {
+  settlement: SettlementView;
+  step: SettlementStepView;
+  reason: string;
+  payer: string;
+  signMessage: (message: string) => Promise<string>;
+};
+
+/** A promise the test settles by hand, to hold the sequence at one state. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+/**
+ * The real sequence's shape — challenge, one signature over its message, then
+ * the open — with `open` deciding how the backend answers.
+ */
+function raiseThen(open: () => Promise<Dispute> = async () => DISPUTE) {
+  raiseDispute.mockImplementation(async ({ signMessage }: RaiseArgs) => {
+    await signMessage(CHALLENGE);
+    return open();
+  });
+}
+
 const dialog = () => screen.getByRole("dialog");
 const reasonBox = () =>
   screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Your reason" });
+/** The form's primary action, whatever its label says at this moment. */
 const submitButton = () =>
-  screen.getByRole<HTMLButtonElement>("button", { name: /sign and submit/i });
+  screen.getByRole<HTMLButtonElement>("button", { name: /sign|submit/i });
+
+const status = () => screen.getByRole("status").textContent;
 
 function typeReason(value: string) {
   fireEvent.change(reasonBox(), { target: { value } });
+}
+
+/** Types a reason and submits, letting whatever the stand-in does settle. */
+async function submitWith(reason = REASON) {
+  typeReason(reason);
+  await act(async () => {
+    fireEvent.click(submitButton());
+  });
 }
 
 describe("DisputeDialog — what the buyer reads before submitting", () => {
@@ -348,5 +416,188 @@ describe("DisputeDialog — the reason", () => {
     expect(
       screen.getByText("500 / 500 characters · limit reached"),
     ).toBeTruthy();
+  });
+});
+
+describe("DisputeDialog — submitting", () => {
+  it("hands raiseDispute the settlement, the step, the reason and the connected wallet", async () => {
+    raiseThen();
+    const { props } = renderDialog();
+
+    await submitWith();
+
+    expect(raiseDispute).toHaveBeenCalledTimes(1);
+    expect(raiseDispute.mock.calls[0][0]).toMatchObject({
+      settlement: props.settlement,
+      step: STEP,
+      reason: REASON,
+      payer: PAYER,
+    });
+    // The wallet signs the challenge's message, verbatim.
+    expect(wallet.signMessage).toHaveBeenCalledWith(CHALLENGE);
+  });
+
+  it("hands the stored dispute to onSubmitted, once", async () => {
+    raiseThen();
+    const { props } = renderDialog();
+
+    await submitWith();
+
+    expect(props.onSubmitted).toHaveBeenCalledTimes(1);
+    expect(props.onSubmitted).toHaveBeenCalledWith(DISPUTE);
+  });
+
+  it("moves idle → signing → submitting → done, one state at a time", async () => {
+    const challenge = deferred<void>();
+    const signature = deferred<string>();
+    const opened = deferred<Dispute>();
+    wallet.signMessage.mockReturnValue(signature.promise);
+    raiseDispute.mockImplementation(async ({ signMessage }: RaiseArgs) => {
+      await challenge.promise;
+      await signMessage(CHALLENGE);
+      return opened.promise;
+    });
+    renderDialog();
+    expect(status()).toBe("");
+
+    await submitWith();
+    expect(status()).toBe("Preparing the message to sign…");
+
+    await act(async () => challenge.resolve());
+    expect(status()).toBe(
+      "Waiting for your wallet… Approve the signature in Freighter.",
+    );
+    // Named without the decorative ◉, which is hidden from assistive tech.
+    expect(submitButton()).toBe(
+      screen.getByRole("button", { name: "Signing…" }),
+    );
+
+    await act(async () => signature.resolve("c2lnbmF0dXJl"));
+    expect(status()).toBe("Signed. Submitting your dispute…");
+    expect(submitButton()).toBe(
+      screen.getByRole("button", { name: "Submitting…" }),
+    );
+
+    await act(async () => opened.resolve(DISPUTE));
+    expect(status()).toBe("Your dispute was raised.");
+  });
+
+  it("cannot be dismissed, or submitted twice, while the wallet is signing", async () => {
+    const signature = deferred<string>();
+    wallet.signMessage.mockReturnValue(signature.promise);
+    raiseThen();
+    const { props } = renderDialog();
+    await submitWith();
+
+    // Escape is stopped before it becomes a close request…
+    expect(fireEvent.keyDown(reasonBox(), { key: "Escape" })).toBe(false);
+    // …and so is a close request that arrives without one.
+    const cancel = new Event("cancel", { cancelable: true });
+    act(() => {
+      dialog().dispatchEvent(cancel);
+    });
+    expect(cancel.defaultPrevented).toBe(true);
+    // The backdrop is ignored, and every way out is disabled.
+    fireEvent.pointerDown(dialog());
+    fireEvent.click(dialog());
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Close" }).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Cancel" })
+        .disabled,
+    ).toBe(true);
+    expect(props.onClose).not.toHaveBeenCalled();
+
+    // A second submit — even one forced past the disabled button — is refused.
+    expect(submitButton().disabled).toBe(true);
+    const form = dialog().querySelector("form");
+    if (!form) throw new Error("no form rendered");
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+    expect(raiseDispute).toHaveBeenCalledTimes(1);
+    // The reason stays on screen, fixed, while it is being signed.
+    expect(reasonBox().readOnly).toBe(true);
+    expect(reasonBox().value).toBe(REASON);
+
+    await act(async () => signature.resolve("c2lnbmF0dXJl"));
+  });
+
+  it("cannot be dismissed while the dispute is being submitted", async () => {
+    const opened = deferred<Dispute>();
+    raiseThen(() => opened.promise);
+    const { props } = renderDialog();
+    await submitWith();
+    expect(status()).toBe("Signed. Submitting your dispute…");
+
+    expect(fireEvent.keyDown(reasonBox(), { key: "Escape" })).toBe(false);
+    expect(props.onClose).not.toHaveBeenCalled();
+
+    await act(async () => opened.resolve(DISPUTE));
+  });
+
+  it("shows the dispute as stored, focuses Done, and closes as dismissed", async () => {
+    raiseThen();
+    const { props } = renderDialog();
+
+    await submitWith();
+
+    expect(screen.getByText("dispute raised")).toBeTruthy();
+    expect(screen.getByText("under review")).toBeTruthy();
+    expect(screen.getByText(REASON)).toBeTruthy();
+    const done = screen.getByRole("button", { name: "Done" });
+    expect(document.activeElement).toBe(done);
+
+    fireEvent.click(done);
+
+    expect(props.onClose).toHaveBeenCalledWith("dismissed");
+  });
+
+  it("asks the wallet once more when the first challenge expired unused", async () => {
+    const second = deferred<string>();
+    wallet.signMessage
+      .mockResolvedValueOnce("Zmlyc3Q=")
+      .mockReturnValueOnce(second.promise);
+    raiseDispute.mockImplementation(async ({ signMessage }: RaiseArgs) => {
+      await signMessage(CHALLENGE);
+      await signMessage(`${CHALLENGE}-2`);
+      return DISPUTE;
+    });
+    renderDialog();
+
+    await submitWith();
+
+    expect(status()).toBe(
+      "The first signature expired before it could be used. Waiting for your wallet to sign once more…",
+    );
+    await act(async () => second.resolve("c2Vjb25k"));
+    expect(status()).toBe("Your dispute was raised.");
+  });
+
+  it("submits from the reason with Ctrl+Enter", async () => {
+    raiseThen();
+    renderDialog();
+    typeReason(REASON);
+
+    await act(async () => {
+      fireEvent.keyDown(reasonBox(), { key: "Enter", ctrlKey: true });
+    });
+
+    expect(raiseDispute).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so, and cannot submit, when no wallet is connected", () => {
+    wallet.address = null;
+    renderDialog();
+
+    typeReason(REASON);
+
+    expect(
+      screen.getByText(
+        "No wallet is connected. Close this, connect that wallet, then raise the dispute.",
+      ),
+    ).toBeTruthy();
+    expect(submitButton().disabled).toBe(true);
   });
 });
