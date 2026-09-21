@@ -34,6 +34,7 @@ import type {
   DisputeErrorCode,
   DisputePanelView,
   DisputeReceiptView,
+  DisputeStatus,
   DisputeViewer,
   OpenDisputeReq,
   SettlementStepView,
@@ -505,6 +506,21 @@ export function disputeReceipt(
         ? rejection
         : null,
   };
+}
+
+/**
+ * The status a dispute receipt's badge shows: the record's own, except in the
+ * one case where it would claim a success the chain has not confirmed. A
+ * dispute recorded `credited` whose refund transfer is not confirmed — no
+ * transaction on record, which the operator script treats as unreconciled —
+ * reads as `crediting` ("Refund in progress"). A green "Refunded" above a line
+ * saying the transfer is unconfirmed is the premature success story 4.06
+ * forbids, and the badge is what a screenshot is read by first.
+ */
+export function receiptBadgeStatus(view: DisputeReceiptView): DisputeStatus {
+  return view.status === "credited" && view.refund.state !== "confirmed"
+    ? "crediting"
+    : view.status;
 }
 
 /**
