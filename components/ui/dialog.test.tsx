@@ -13,8 +13,14 @@
  */
 
 import { useRef, useState, type ReactNode } from "react";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 
 import { Dialog } from "./dialog";
 
@@ -70,6 +76,31 @@ afterAll(() => {
 });
 
 afterEach(cleanup);
+
+/** Lets queued tasks (the polyfill's `close` event) run inside act(). */
+async function flushTasks() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+/**
+ * The user agent's close-request steps for Escape: a keydown on the focused
+ * element; unless that is cancelled, a cancelable `cancel` on the dialog;
+ * unless that is cancelled too, close(). Returns which stage stopped it.
+ */
+function pressEscape(): "keydown" | "cancel" | "closed" {
+  const dialog = dialogEl();
+  const target = (document.activeElement as HTMLElement | null) ?? dialog;
+  if (!fireEvent.keyDown(target, { key: "Escape" })) return "keydown";
+  const cancel = new Event("cancel", { cancelable: true });
+  act(() => {
+    dialog.dispatchEvent(cancel);
+  });
+  if (cancel.defaultPrevented) return "cancel";
+  act(() => dialog.close());
+  return "closed";
+}
 
 /** The <dialog> element, open or not — a closed one has no role to query. */
 function dialogEl(): HTMLDialogElement {
@@ -193,5 +224,57 @@ describe("Dialog — open and close", () => {
     );
 
     expect(dialogEl().hasAttribute("aria-describedby")).toBe(false);
+  });
+});
+
+describe("Dialog — Escape", () => {
+  it("turns Escape into a close request the page answers", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    openDialog();
+
+    // The native close is always cancelled: the prop, not the browser, closes.
+    expect(pressEscape()).toBe("cancel");
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialogEl().open).toBe(false);
+    expect(screen.queryByText("Body copy")).toBeNull();
+  });
+
+  it("stays open when the page does not answer the request", () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} refuseClose />);
+    openDialog();
+
+    pressEscape();
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(dialogEl().open).toBe(true);
+    expect(screen.getByText("Body copy")).toBeTruthy();
+  });
+
+  it("reports a close the browser forced, so the prop follows it", async () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    openDialog();
+
+    // Chrome closes outright on a second Escape once a cancel was refused.
+    act(() => dialogEl().close());
+    await flushTasks();
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Body copy")).toBeNull();
+  });
+
+  it("does not report its own close as a dismissal", async () => {
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    openDialog();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await flushTasks();
+
+    // Once for the button; the `close` event that followed was ours.
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
