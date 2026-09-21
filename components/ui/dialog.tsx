@@ -228,10 +228,14 @@ export function Dialog({
       className={cn(
         // Below `sm` the dialog is a full-width bottom sheet; from `sm` up it is
         // a centred panel. The UA sheet centres with `margin: auto`, so the
-        // sheet only has to give up its bottom margin to sit on the edge.
-        "m-0 mt-auto w-full max-w-none max-h-none overflow-visible border-0 bg-transparent p-0 text-text",
+        // sheet only has to give up its bottom margin to sit on the edge. The
+        // margins are !important because the element still sits wherever the
+        // page renders it: a parent's `space-y-*` reaches it through a more
+        // specific sibling selector and would lift the sheet off the bottom
+        // edge, or push the centred panel down.
+        "!m-0 !mt-auto w-full max-w-none max-h-none overflow-visible border-0 bg-transparent p-0 text-text",
         "backdrop:bg-bg/80 backdrop:backdrop-blur-sm",
-        "sm:m-auto sm:w-[calc(100%-2rem)] sm:max-w-lg",
+        "sm:!m-auto sm:w-[calc(100%-2rem)] sm:max-w-lg",
         className,
       )}
     >
