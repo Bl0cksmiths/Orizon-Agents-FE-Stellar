@@ -550,3 +550,44 @@ export type SettlementView = {
   steps: SettlementStepView[];
   policy: CreditPolicy;
 };
+
+/** One buyer's dispute of one settled step. */
+export type Dispute = {
+  id: string;
+  job_id_hex: string;
+  task_id: string;
+  step_index: number;
+  agent_id: string;
+  payer: string;
+  reason: string;
+  status: DisputeStatus;
+  /** What the disputed step cost. */
+  charged_usdc: number;
+  /** What an upheld dispute credits, frozen when the dispute was opened. */
+  creditable_usdc: number;
+  /** Epoch seconds. */
+  opened_at: number;
+  resolved_at: number | null;
+  refund_tx: string | null;
+  rating_tx: string | null;
+};
+
+/**
+ * Response of GET /api/tasks/{task_id}/disputes — a workflow's settlement and
+ * every dispute raised against it, in one read.
+ *
+ * `now` and `settlement` are OPTIONAL on purpose. The frontend deploys itself
+ * on every merge and the backend does not, so this client will meet a backend
+ * that predates both fields; an absent `settlement` must read as "not
+ * disputable yet", never as a crash.
+ */
+export type TaskDisputes = {
+  task_id: string;
+  /** Kept for older clients; equals `settlement.window_closes_at`. */
+  window_closes_at: number | null;
+  /** The server's clock at response time, in epoch seconds. */
+  now?: number;
+  /** Null until the workflow settles. */
+  settlement?: SettlementView | null;
+  disputes: Dispute[];
+};
