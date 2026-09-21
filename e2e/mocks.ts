@@ -1450,3 +1450,27 @@ export async function mockDisputeApi(
     return route.fallback();
   });
 }
+
+/**
+ * A backend older than story 4.02, which has no disputes route at all: the
+ * read answers FastAPI's 404 in the shared error envelope. Register it AFTER
+ * `mockDisputeApi` so it wins for that one read.
+ */
+export async function mockDisputesRouteMissing(page: Page): Promise<void> {
+  await page.route(
+    (url) => DISPUTES_RE.test(url.pathname),
+    (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "Not Found",
+          error: {
+            code: "not_found",
+            message: "Not Found",
+            request_id: "e2e0000000000404",
+          },
+        }),
+      }),
+  );
+}
