@@ -3,11 +3,13 @@
  * Unit tests for useDisputePanel (lib/use-dispute-panel.ts).
  *
  * The hook owns everything the receipt panel needs that is not a pure rule:
- * the fetch, the server clock measured on arrival, the connected wallet, and
- * the tick. `getTaskDisputes` is replaced with deferred promises the tests
- * settle by hand, `useWallet` with a mutable address, and fake timers drive
- * the tick — so each cadence, the close, and every timer's cleanup are
- * observable exactly, down to the millisecond.
+ * the fetch, the server clock measured on arrival, the connected wallet, the
+ * tick, and (story 4.06) the poll that keeps an unresolved dispute live.
+ * `getTaskDisputes` is replaced with deferred promises the tests settle by
+ * hand, `useWallet` with a mutable address, `document.visibilityState` with
+ * an override, and fake timers drive the tick and the poll — so each cadence,
+ * the close, and every timer's and listener's cleanup are observable exactly,
+ * down to the millisecond.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
