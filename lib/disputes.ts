@@ -497,8 +497,9 @@ export function disputeReceipt(
  * would only walk the buyer through a signature to be told so.
  *
  * A disputed step is visible to everyone — a shared trace may show THAT a step
- * was disputed — but the buyer's own words are for the buyer. For anyone else
- * the reason is blanked out of the view as well as flagged: the panel cannot
+ * was disputed — but the buyer's own words are for the buyer, and so is the
+ * adjudicator's answer to them. For anyone else both are blanked out of the
+ * view as well as flagged, and the receipt carries neither: the panel cannot
  * leak what it was never handed.
  */
 function stepState(
@@ -512,12 +513,14 @@ function stepState(
     step.delivered && step.price_usdc > 0 && settlement.settled_usdc > 0;
   if (!charged) return { kind: "not_charged" };
   if (dispute !== undefined) {
+    const receipt = disputeReceipt(dispute, viewer, settlement.policy);
     return viewer === "payer"
-      ? { kind: "disputed", dispute, showReason: true }
+      ? { kind: "disputed", dispute, showReason: true, receipt }
       : {
           kind: "disputed",
-          dispute: { ...dispute, reason: "" },
+          dispute: { ...dispute, reason: "", rejection_reason: null },
           showReason: false,
+          receipt,
         };
   }
   if (!open) return { kind: "window_closed" };
