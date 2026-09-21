@@ -300,14 +300,37 @@ export function useDisputePanel(
   // `state` is a dependency only to re-arm: each answer that lands — a
   // poll's, a refresh's, a failure — schedules the next poll a full interval
   // after it, so a refresh is never followed by a redundant read.
+  //
+  // Paused while the tab is hidden: nobody is watching, and a background tab
+  // left on a receipt should not poll the backend for hours. Coming back is
+  // the moment the view is most likely stale, so it re-reads at once rather
+  // than waiting out an interval, and the cadence resumes from that answer.
   const pollMs = disputePollMs(snapshot?.res ?? null);
   useEffect(() => {
     if (target === null || pollMs === null) return;
     const id = target;
-    const timer = setTimeout(() => {
+    // Undefined while paused, and between a poll firing and its answer
+    // landing — which re-runs this effect and arms the next one.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = () => {
+      timer = undefined;
       if (!inFlightRef.current) void load(id, doneRef.current);
-    }, pollMs);
-    return () => clearTimeout(timer);
+    };
+    const hidden = () => document.visibilityState === "hidden";
+    const onVisibilityChange = () => {
+      if (hidden()) {
+        clearTimeout(timer);
+        timer = undefined;
+      } else if (timer === undefined) {
+        poll();
+      }
+    };
+    if (!hidden()) timer = setTimeout(poll, pollMs);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [target, pollMs, state, load]);
 
   return { view, loading, error, refresh };
