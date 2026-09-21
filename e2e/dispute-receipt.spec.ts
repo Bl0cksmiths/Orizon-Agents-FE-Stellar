@@ -41,7 +41,7 @@ import {
 
 const HOUR_S = 60 * 60;
 
-const [, codeStep] = mockSettlementSteps;
+const [briefStep, codeStep] = mockSettlementSteps;
 
 /** Now, in epoch seconds, on the clock the mock server shares with the page. */
 const nowS = () => Math.floor(Date.now() / 1000);
@@ -254,6 +254,15 @@ test.describe("dispute receipt while the page stays open", () => {
     await page.clock.pauseAt(pageNowMs + 1_000);
   }
 
+  /**
+   * Lets any read a fired timer started reach the mock before a test counts
+   * none. A request leaves the page the moment `fetch` is called, but it
+   * reaches the route handler over another process's channel, so "nothing
+   * arrived" is only worth asserting after a beat — and a second of real time
+   * is orders of magnitude longer than that hop.
+   */
+  const networkBeat = (page: Page) => page.waitForTimeout(1_000);
+
   test("an open dispute flips to credited with both links while the buyer watches, with no reload, and is announced", async ({
     page,
   }, testInfo) => {
@@ -315,5 +324,39 @@ test.describe("dispute receipt while the page stays open", () => {
       .filter({ hasText: /refunded/i });
     await expect(announced).toHaveCount(1);
     await attachShot(testInfo, "receipt — credited live", row);
+  });
+
+  test("once every dispute is credited or rejected, the receipt stops reading", async ({
+    page,
+  }) => {
+    const { reads, openedAtS } = await openOnFakeClock(page, (openedAtS) => [
+      mockReceiptDispute(briefStep, { status: "rejected", openedAtS }),
+      mockReceiptDispute(codeStep, {
+        status: "crediting",
+        openedAtS,
+        refund_tx: mockRefundTx,
+      }),
+    ]);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Refund in progress");
+    await freezeClock(page);
+    const loaded = reads.count();
+
+    // The positive control: while a refund is in flight the receipt reads on
+    // the fast cadence, through this very mock — so the silence below is a
+    // measurement, not a counter that could never have moved.
+    reads.answer([
+      mockReceiptDispute(briefStep, { status: "rejected", openedAtS }),
+      mockReceiptDispute(codeStep, { status: "credited", openedAtS }),
+    ]);
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await expect(row).toContainText("Refunded");
+    expect(reads.count()).toBe(loaded + 1);
+
+    // Both terminal now: a whole minute on the clock — twice the slow
+    // cadence, twelve times the fast one — and not one more read.
+    await page.clock.runFor(60_000);
+    await networkBeat(page);
+    expect(reads.count()).toBe(loaded + 1);
   });
 });
