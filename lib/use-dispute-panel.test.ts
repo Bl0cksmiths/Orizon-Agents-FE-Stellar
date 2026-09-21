@@ -15,10 +15,19 @@ import { createElement } from "react";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
 import { ApiError } from "./api";
 import { getTaskDisputes } from "./disputes";
-import type { DisputePanelView, SettlementView, TaskDisputes } from "./types";
+import type {
+  Dispute,
+  DisputePanelView,
+  DisputeStatus,
+  SettlementView,
+  TaskDisputes,
+} from "./types";
 import {
+  ADJUDICATION_POLL_MS,
   COARSE_TICK_MS,
+  CREDIT_POLL_MS,
   FINAL_HOUR_TICK_MS,
+  disputePollMs,
   disputeTickMs,
   useDisputePanel,
 } from "./use-dispute-panel";
@@ -99,6 +108,31 @@ function settlement(closesAtMs: number, job = JOB_A): SettlementView {
       funded_by: "platform",
       adjudicated_by: "platform",
     },
+  };
+}
+
+/** A dispute of `step` on task_a, in `status`. */
+function dsp(
+  step: number,
+  status: DisputeStatus,
+  over: Partial<Dispute> = {},
+): Dispute {
+  return {
+    id: `dsp_${step}`,
+    job_id_hex: JOB_A,
+    task_id: "task_a",
+    step_index: step,
+    agent_id: `agt_${step}`,
+    payer: PAYER,
+    reason: "empty summary",
+    status,
+    charged_usdc: 0.01,
+    creditable_usdc: 0.005,
+    opened_at: T0 / 1_000,
+    resolved_at: null,
+    refund_tx: null,
+    rating_tx: null,
+    ...over,
   };
 }
 
@@ -207,6 +241,71 @@ describe("disputeTickMs", () => {
     expect(disputeTickMs(open(400))).toBe(400);
     expect(disputeTickMs(open(0.3))).toBe(1);
   });
+});
+
+describe("disputePollMs", () => {
+  const withStatuses = (...statuses: DisputeStatus[]) =>
+    answer(H, { disputes: statuses.map((s, i) => dsp(i, s)) });
+
+  it("keeps the two cadences where the story sets them", () => {
+    expect(ADJUDICATION_POLL_MS).toBe(30 * S);
+    expect(CREDIT_POLL_MS).toBe(5 * S);
+  });
+
+  it("polls nothing without an answer, or with no dispute on the task", () => {
+    expect(disputePollMs(null)).toBeNull();
+    expect(disputePollMs(withStatuses())).toBeNull();
+  });
+
+  it("polls nothing for a panel that draws no receipt, whatever is unresolved", () => {
+    const { settlement: _omitted, ...legacy } = withStatuses("open");
+    expect(disputePollMs(legacy)).toBeNull();
+    expect(
+      disputePollMs({ ...withStatuses("crediting"), settlement: null }),
+    ).toBeNull();
+  });
+
+  /** One case per status mix, labelled with the whole mix. */
+  const mixes = (...cases: DisputeStatus[][]) =>
+    cases.map((statuses) => ({ mix: statuses.join(" + "), statuses }));
+
+  it.each(mixes(["credited"], ["rejected"], ["credited", "rejected"]))(
+    "stops once every dispute is final: $mix",
+    ({ statuses }) => {
+      expect(disputePollMs(withStatuses(...statuses))).toBeNull();
+    },
+  );
+
+  it.each(
+    mixes(
+      ["open"],
+      ["open", "open"],
+      ["credited", "open"],
+      ["open", "rejected"],
+    ),
+  )(
+    "re-reads every 30 s while the only unresolved disputes are open: $mix",
+    ({ statuses }) => {
+      expect(disputePollMs(withStatuses(...statuses))).toBe(
+        ADJUDICATION_POLL_MS,
+      );
+    },
+  );
+
+  it.each(
+    mixes(
+      ["upheld"],
+      ["crediting"],
+      ["open", "upheld"],
+      ["crediting", "open"],
+      ["credited", "rejected", "crediting"],
+    ),
+  )(
+    "re-reads every 5 s while any credit is decided or in flight: $mix",
+    ({ statuses }) => {
+      expect(disputePollMs(withStatuses(...statuses))).toBe(CREDIT_POLL_MS);
+    },
+  );
 });
 
 describe("useDisputePanel — what it fetches", () => {
