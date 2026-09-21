@@ -125,8 +125,12 @@ export const DisputeSection = memo(function DisputeSection({
   // an empty box, which would still take a gap in the page's stack.
   if (view.kind === "hidden" && !error) return null;
 
+  // A flex gap, not `space-y`: the dialog is a child here, and space-y's
+  // sibling margin outranks the `mt-auto` that seats it as a bottom sheet on
+  // a phone and centres it above. A closed <dialog> is display:none and an
+  // open one sits in the top layer, so neither takes a gap.
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {error && (
         // Beside the receipt, never instead of the page: the trace below
         // renders from its own stream whatever this read did.
