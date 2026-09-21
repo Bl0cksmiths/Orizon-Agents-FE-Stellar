@@ -119,6 +119,17 @@ export function DisputeReceipt({
       {view.status !== "rejected" && <CreditLine view={view} voice={voice} />}
 
       <Artifacts view={view} agentName={agentName} voice={voice} />
+
+      {view.reason !== null && (
+        <Quote label="Your reason" tone="border-violet/40">
+          {view.reason}
+        </Quote>
+      )}
+      {view.rejectionReason !== null && (
+        <Quote label="Why it was rejected" tone="border-magenta/50">
+          {view.rejectionReason}
+        </Quote>
+      )}
     </div>
   );
 }
@@ -388,5 +399,33 @@ function ArtifactMark({ artifact }: { artifact: DisputeArtifact }) {
       />
       {artifact.txHash ? "Submitted, waiting for confirmation" : "Being sent"}
     </p>
+  );
+}
+
+/** Someone's own words, labelled with whose they are. */
+function Quote({
+  label,
+  tone,
+  children,
+}: {
+  label: string;
+  /** The rule's colour: the buyer's words and the platform's differ. */
+  tone: string;
+  children: string;
+}) {
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
+        {label}
+      </p>
+      <blockquote
+        className={cn(
+          "mt-1 whitespace-pre-line break-words border-l-2 pl-3 text-xs leading-relaxed text-text/90",
+          tone,
+        )}
+      >
+        {children}
+      </blockquote>
+    </div>
   );
 }
