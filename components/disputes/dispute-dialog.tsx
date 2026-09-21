@@ -15,13 +15,15 @@ import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { KVRow } from "@/components/ui/kv-row";
-import { formatUsdc } from "@/lib/disputes";
+import { MAX_DISPUTE_REASON_CHARS, formatUsdc } from "@/lib/disputes";
 import type {
   CreditPolicy,
   Dispute,
   SettlementStepView,
   SettlementView,
 } from "@/lib/types";
+import { inputCls } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 export type DisputeDialogProps = {
   /** Shown only while this is true AND both `step` and `settlement` are set. */
@@ -36,18 +38,33 @@ export type DisputeDialogProps = {
   onSubmitted: (dispute: Dispute) => void;
 };
 
-/** The mono section label the console uses above a block ("▸ intent"). */
-function SectionLabel({ id, children }: { id: string; children: ReactNode }) {
+/**
+ * The mono section label the console uses above a block ("▸ intent"). With
+ * `htmlFor` the heading's text is also the field's <label>, so the reason's
+ * visible title and its accessible name are one and the same.
+ */
+function SectionLabel({
+  id,
+  htmlFor,
+  children,
+}: {
+  id: string;
+  htmlFor?: string;
+  children: ReactNode;
+}) {
   return (
     <h3
       id={id}
       className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan"
     >
       <span aria-hidden>▸ </span>
-      {children}
+      {htmlFor ? <label htmlFor={htmlFor}>{children}</label> : children}
     </h3>
   );
 }
+
+/** Within this many characters of the cap the counter starts to speak. */
+const COUNTER_WARN_AT = 25;
 
 /** Steps count from 0 on the wire, as the backend enumerates the plan. */
 const stepNumber = (step: SettlementStepView) => step.step_index + 1;
@@ -113,12 +130,20 @@ export function DisputeDialog(props: DisputeDialogProps) {
 
 function DisputeForm({ open, step, settlement, onClose }: DisputeDialogProps) {
   const shown = open && step !== null && settlement !== null;
+  const [reason, setReason] = useState("");
   const uid = useId();
   const ids = {
     step: `${uid}-step`,
     amounts: `${uid}-amounts`,
     terms: `${uid}-terms`,
+    reasonHeading: `${uid}-reason-heading`,
+    reason: `${uid}-reason`,
+    reasonHint: `${uid}-reason-hint`,
+    reasonCount: `${uid}-reason-count`,
   };
+  // Counted exactly as `maxLength` counts (UTF-16 units), so the counter and
+  // the field's own limit can never disagree about what fits.
+  const remaining = MAX_DISPUTE_REASON_CHARS - reason.length;
 
   return (
     <Dialog
@@ -191,6 +216,56 @@ function DisputeForm({ open, step, settlement, onClose }: DisputeDialogProps) {
                 </li>
               ))}
             </ul>
+          </section>
+
+          <section aria-labelledby={ids.reasonHeading} className="space-y-2">
+            <SectionLabel id={ids.reasonHeading} htmlFor={ids.reason}>
+              Your reason
+            </SectionLabel>
+            <p id={ids.reasonHint} className="text-xs text-muted">
+              Required. Say what went wrong with this step — the platform reads
+              this when it decides.
+            </p>
+            {/* Capped here, not trimmed later: the backend cuts a longer
+                reason silently, and a buyer must never be judged on words
+                they did not see go missing. */}
+            <textarea
+              id={ids.reason}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={MAX_DISPUTE_REASON_CHARS}
+              required
+              rows={4}
+              aria-describedby={`${ids.reasonHint} ${ids.reasonCount}`}
+              placeholder="e.g. the calculator it built does not compute anything"
+              className={cn(
+                inputCls,
+                "min-h-[6.5rem] resize-y font-sans leading-relaxed placeholder:text-muted/70",
+              )}
+            />
+            <p
+              id={ids.reasonCount}
+              className={cn(
+                "text-right font-mono text-[10px] uppercase tracking-widest",
+                remaining === 0
+                  ? "text-magenta"
+                  : remaining <= COUNTER_WARN_AT
+                    ? "text-violet-readable"
+                    : "text-muted",
+              )}
+            >
+              {reason.length} / {MAX_DISPUTE_REASON_CHARS} characters
+              {remaining === 0 && " · limit reached"}
+            </p>
+            {/* Silent until the cap is close: a count read out on every
+                keystroke would drown the buyer's own typing. */}
+            <p className="sr-only" aria-live="polite">
+              {remaining === 0
+                ? "Character limit reached."
+                : remaining <= COUNTER_WARN_AT
+                  ? `${remaining} characters left.`
+                  : ""}
+            </p>
           </section>
         </div>
       )}
