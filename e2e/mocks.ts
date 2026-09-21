@@ -1434,8 +1434,25 @@ export async function mockDisputeApi(
       const step = options.settlement?.steps.find(
         (s) => s.step_index === body.step_index,
       );
-      if (!step) return route.fallback();
+      if (!step || !options.settlement) return route.fallback();
       const opened = await nowS();
+      // The window is judged at open, on the server's clock, as
+      // `dispute_svc.open_dispute` judges it — so a spec that moves that
+      // clock past the close gets the refusal the real backend would give.
+      if (opened >= options.settlement.window_closes_at) {
+        return route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            detail: "dispute_window_closed",
+            error: {
+              code: "dispute_window_closed",
+              message: "the dispute window for this workflow has closed",
+              request_id: "e2e0000000000409",
+            },
+          }),
+        });
+      }
       if (options.open === "duplicate") {
         const existing = mockDispute(step, {
           openedAtS: opened - 600,
