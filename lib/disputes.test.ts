@@ -19,10 +19,13 @@ import {
   disputeErrorCode,
   disputeView,
   getTaskDisputes,
+  MAX_DISPUTE_REASON_CHARS,
   openDispute,
+  raiseDispute,
   serverClockOffsetMs,
 } from "./disputes";
 import { rememberTaskToken } from "./task-tokens";
+import { classifyError } from "./wallet-errors";
 import type {
   CreditPolicy,
   Dispute,
@@ -867,5 +870,208 @@ describe("disputeView — the window, on the server's clock", () => {
       "window_closed",
       "window_closed",
     ]);
+  });
+});
+
+// ── raising one ─────────────────────────────────────────────────
+
+describe("raiseDispute", () => {
+  /** A wallet that signs whatever it is shown, and remembers what that was. */
+  const wallet = () =>
+    vi.fn<(m: string) => Promise<string>>(async (m) => `sig(${m})`);
+
+  function raise(over: Partial<Parameters<typeof raiseDispute>[0]> = {}) {
+    return raiseDispute({
+      settlement: settlement(),
+      step: step(1),
+      reason: "the summary was empty",
+      payer: PAYER,
+      signMessage: wallet(),
+      ...over,
+    });
+  }
+
+  /** The JSON body the Nth fetch posted. */
+  const bodyOf = (call: number): unknown =>
+    JSON.parse(String(initOf(call).body));
+
+  const paths = () => fetchMock.mock.calls.map(([url]) => url);
+
+  it("challenges, signs the server's message verbatim, then opens", async () => {
+    // A message this build could not have composed itself: signing it proves
+    // nothing was rebuilt client-side.
+    const issued = {
+      message: `orizon-dispute:v9:${JOB}:1:n1:issued-by-the-server`,
+      nonce: "n1:issued-by-the-server",
+      expires_at: SETTLED_AT + 400,
+    };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, issued))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await expect(
+      raise({ signMessage, reason: "  the summary was empty \n" }),
+    ).resolves.toEqual(dispute(1));
+
+    expect(paths()).toEqual(["/api/disputes/challenge", "/api/disputes"]);
+    expect(bodyOf(0)).toEqual({ job_id_hex: JOB, step_index: 1 });
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(issued.message);
+    expect(bodyOf(1)).toEqual({
+      job_id_hex: JOB,
+      step_index: 1,
+      reason: "the summary was empty",
+      payer: PAYER,
+      nonce: issued.nonce,
+      signature_b64: `sig(${issued.message})`,
+    });
+  });
+
+  it.each([
+    ["an empty reason", ""],
+    ["a reason of only whitespace", " \n\t "],
+    [
+      "a reason one character over the limit",
+      "x".repeat(MAX_DISPUTE_REASON_CHARS + 1),
+    ],
+  ])("refuses %s before any network call", async (_, reason) => {
+    const signMessage = wallet();
+
+    const err = await raise({ reason, signMessage }).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe("reason_required");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(signMessage).not.toHaveBeenCalled();
+  });
+
+  it("accepts a reason at exactly the limit once trimmed", async () => {
+    const words = "x".repeat(MAX_DISPUTE_REASON_CHARS);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1)))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+
+    await raise({ reason: `   ${words}\n\n` });
+    expect(bodyOf(1)).toMatchObject({ reason: words });
+  });
+
+  it("refuses a wallet that is not the recorded payer before it is asked to sign", async () => {
+    const signMessage = wallet();
+
+    const err = await raise({ payer: OTHER, signMessage }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(DisputeRefusal);
+    expect(disputeErrorCode(err)).toBe("not_the_payer");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(signMessage).not.toHaveBeenCalled();
+  });
+
+  it("retries once, with a fresh challenge and signature, when the nonce expired in the wallet", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1, "n1")))
+      .mockResolvedValueOnce(refusal(400, "challenge_expired"))
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1, "n2")))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await expect(raise({ signMessage })).resolves.toEqual(dispute(1));
+
+    expect(paths()).toEqual([
+      "/api/disputes/challenge",
+      "/api/disputes",
+      "/api/disputes/challenge",
+      "/api/disputes",
+    ]);
+    expect(signMessage.mock.calls).toEqual([
+      [challenge(1, "n1").message],
+      [challenge(1, "n2").message],
+    ]);
+    expect(bodyOf(3)).toMatchObject({
+      nonce: "n2",
+      signature_b64: `sig(${challenge(1, "n2").message})`,
+    });
+  });
+
+  it("throws on a second expiry rather than asking the wallet a third time", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1, "n1")))
+      .mockResolvedValueOnce(refusal(400, "challenge_expired"))
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1, "n2")))
+      .mockResolvedValueOnce(refusal(400, "challenge_expired"));
+    const signMessage = wallet();
+
+    const err = await raise({ signMessage }).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe("challenge_expired");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(signMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["not_the_payer", 403],
+    ["dispute_window_closed", 409],
+    ["duplicate_dispute", 409],
+    ["step_not_settled", 409],
+    ["nothing_was_charged", 409],
+    ["signature_malformed", 400],
+    ["rate_limited", 429],
+  ])("never retries %s", async (code, status) => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1)))
+      .mockResolvedValueOnce(refusal(status, code));
+    const signMessage = wallet();
+
+    const err = await raise({ signMessage }).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe(code);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(signMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("never retries a network failure", async () => {
+    const dropped = new TypeError("Failed to fetch");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1)))
+      .mockRejectedValueOnce(dropped);
+
+    await expect(raise()).rejects.toBe(dropped);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops at a refused challenge without asking the wallet anything", async () => {
+    fetchMock.mockResolvedValueOnce(refusal(409, "dispute_window_closed"));
+    const signMessage = wallet();
+
+    const err = await raise({ signMessage }).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe("dispute_window_closed");
+    expect(signMessage).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes a declined wallet prompt through untouched, so the dialog can say 'cancelled'", async () => {
+    const declined = new Error("User declined access");
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, challenge(1)));
+    const signMessage = vi.fn<(m: string) => Promise<string>>(() =>
+      Promise.reject(declined),
+    );
+
+    const err = await raise({ signMessage }).catch((e: unknown) => e);
+    expect(err).toBe(declined);
+    expect(classifyError(err).kind).toBe("user_rejected");
+    expect(disputeErrorCode(err)).toBeNull();
+    expect(paths()).toEqual(["/api/disputes/challenge"]);
+  });
+
+  it("passes a prompt declined on the retry through untouched too", async () => {
+    const declined = new Error("User declined access");
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1, "n1")))
+      .mockResolvedValueOnce(refusal(400, "challenge_expired"))
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1, "n2")));
+    const signMessage = vi
+      .fn<(m: string) => Promise<string>>()
+      .mockResolvedValueOnce("sig-1")
+      .mockRejectedValueOnce(declined);
+
+    await expect(raise({ signMessage })).rejects.toBe(declined);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
