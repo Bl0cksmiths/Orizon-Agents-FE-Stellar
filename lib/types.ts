@@ -591,3 +591,51 @@ export type TaskDisputes = {
   settlement?: SettlementView | null;
   disputes: Dispute[];
 };
+
+export type DisputeChallengeReq = { job_id_hex: string; step_index: number };
+
+/**
+ * Response of POST /api/disputes/challenge — a single-use nonce the payer's
+ * wallet must sign before a dispute is accepted.
+ */
+export type DisputeChallenge = {
+  /**
+   * The EXACT string the wallet must sign, composed server-side as
+   * `orizon-dispute:v1:{job_id_hex}:{step_index}:{nonce}`. Signed verbatim and
+   * never rebuilt on the client, for the same reason as `BindChallenge`.
+   */
+  message: string;
+  nonce: string;
+  /** Epoch seconds after which the nonce is refused. */
+  expires_at: number;
+};
+
+/** Body of POST /api/disputes. */
+export type OpenDisputeReq = {
+  job_id_hex: string;
+  step_index: number;
+  reason: string;
+  /** The G-address that signed — it must be the workflow's payer. */
+  payer: string;
+  nonce: string;
+  signature_b64: string;
+};
+
+/**
+ * The codes opening a dispute can be refused with, in the shared
+ * `{ detail, error: { code, message, request_id } }` envelope. Each needs a
+ * different screen: `challenge_expired` is a silent retry, `not_the_payer` is
+ * a wallet mismatch, `dispute_window_closed` is final, and `duplicate_dispute`
+ * is not a failure at all — the step already has its dispute.
+ */
+export type DisputeErrorCode =
+  | "reason_required"
+  | "unknown_job"
+  | "signature_malformed"
+  | "challenge_expired"
+  | "not_the_payer"
+  | "dispute_window_closed"
+  | "step_not_settled"
+  | "nothing_was_charged"
+  | "duplicate_dispute"
+  | "rate_limited";
