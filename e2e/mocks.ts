@@ -1510,3 +1510,16 @@ export async function mockDisputesRouteMissing(page: Page): Promise<void> {
       }),
   );
 }
+
+// ── Dispute receipts (story 4.06) ───────────────────────────
+
+/**
+ * The two transactions an upheld dispute leaves on chain: the platform's
+ * refund to the payer, and the dispute rating recorded against the agent.
+ * Full 64-character hashes, as the backend stores them, so a phone-width
+ * receipt carrying both is measured against the width the real ones take.
+ */
+export const mockRefundTx =
+  "63e658669328e993706eedab30602d3da9e1538cbb008c9a6515333750984327";
+export const mockRatingTx =
+  "e46d4a71165f437fd4cfaa402be58dcd63163ef1cfbac4772494a27b40136b30";
