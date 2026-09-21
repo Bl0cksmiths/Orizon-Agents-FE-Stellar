@@ -283,6 +283,7 @@ function StepItem({
           <StepAction step={step} state={state} onDispute={onDispute} />
         </div>
       </div>
+      <StepDetail state={state} />
     </li>
   );
 }
@@ -369,4 +370,46 @@ function StepAction({
     case "view_only":
       return null;
   }
+}
+
+/** A full-width line under the step, for the states that owe an explanation. */
+function StepDetail({ state }: { state: StepDisputeState }) {
+  if (state.kind === "not_charged") {
+    return (
+      <p className="mt-3 border-t border-border/40 pt-3 text-xs leading-relaxed text-muted">
+        This step did not deliver, so it was never charged — there is nothing to
+        dispute.
+      </p>
+    );
+  }
+  if (state.kind !== "disputed") return null;
+
+  const { dispute, showReason } = state;
+  // The reason is one buyer's own words, shown only where the view says so —
+  // never inferred here from who happens to be looking. A refund, by
+  // contrast, is a public transaction, so its link is evidence for anyone.
+  if (!showReason && !dispute.refund_tx) return null;
+  return (
+    <div className="mt-3 space-y-2 border-t border-border/40 pt-3">
+      {showReason && (
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
+            your reason
+          </p>
+          <blockquote className="mt-1 whitespace-pre-line break-words border-l-2 border-violet/40 pl-3 text-xs leading-relaxed text-text/90">
+            {dispute.reason}
+          </blockquote>
+        </div>
+      )}
+      {dispute.refund_tx && (
+        <StellarExpertLink
+          kind="tx"
+          id={dispute.refund_tx}
+          className="inline-block"
+        >
+          view refund on stellar.expert ▸
+        </StellarExpertLink>
+      )}
+    </div>
+  );
 }
