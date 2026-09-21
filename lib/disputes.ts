@@ -7,9 +7,10 @@
  * `disputeView`'s answer; the dialog runs `raiseDispute` and switches on
  * `disputeErrorCode`.
  *
- * The wallet signature is the only credential. There is no account and no
- * task token in a dispute: the backend checks the signer against the payer it
- * recorded at settlement, and so does this module before offering anything.
+ * The wallet signature is the only credential for raising one. No account and
+ * no task token authorizes it (the token only scopes the READ): the backend
+ * checks the signer against the payer it recorded at settlement, and so does
+ * this module before offering anything.
  */
 
 import {
