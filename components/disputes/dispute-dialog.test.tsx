@@ -876,3 +876,117 @@ describe("DisputeDialog — the wallet says no", () => {
     expect(status()).not.toBe(CANCELLED);
   });
 });
+
+describe("DisputeDialog — closing, and a step already disputed", () => {
+  /** The user agent's Escape: a keydown, then — unless refused — `cancel`. */
+  function pressEscape() {
+    const target = document.activeElement ?? dialog();
+    if (!fireEvent.keyDown(target, { key: "Escape" })) return;
+    act(() => {
+      dialog().dispatchEvent(new Event("cancel", { cancelable: true }));
+    });
+  }
+
+  it("closes itself as duplicate_dispute, with nothing for onSubmitted", async () => {
+    raiseThen(async () => {
+      throw new ApiError(
+        "this step already has a dispute",
+        409,
+        undefined,
+        "duplicate_dispute",
+      );
+    });
+    const { props } = renderDialog();
+
+    await submitWith();
+
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledWith("duplicate_dispute");
+    expect(props.onSubmitted).not.toHaveBeenCalled();
+    // An answer, not an error.
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it.each([
+    [
+      "Cancel",
+      () => fireEvent.click(screen.getByRole("button", { name: "Cancel" })),
+    ],
+    [
+      "the ✕",
+      () => fireEvent.click(screen.getByRole("button", { name: "Close" })),
+    ],
+    ["Escape", pressEscape],
+    [
+      "the backdrop",
+      () => {
+        fireEvent.pointerDown(dialog());
+        fireEvent.click(dialog());
+      },
+    ],
+  ])("reports %s as dismissed", (_label, dismiss) => {
+    const { props } = renderDialog();
+
+    dismiss();
+
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledWith("dismissed");
+  });
+
+  it("reports the page's view as stale however the buyer leaves after a closed window", async () => {
+    raiseThen(async () => {
+      throw new ApiError("closed", 409, undefined, "dispute_window_closed");
+    });
+    const { props } = renderDialog();
+    await submitWith();
+
+    pressEscape();
+
+    expect(props.onClose).toHaveBeenCalledWith("stale");
+  });
+
+  it("reopens on the reason as it was left, without the old error", async () => {
+    raiseThen(async () => {
+      throw new Error("Failed to fetch");
+    });
+    const { rerender } = renderDialog();
+    await submitWith();
+    expect(screen.getByRole("alert")).toBeTruthy();
+
+    rerender({ open: false });
+    rerender({ open: true });
+
+    expect(reasonBox().value).toBe(REASON);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Sign and submit" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps the draft when the page hands back no step between opens", () => {
+    const { rerender } = renderDialog();
+    typeReason(REASON);
+
+    rerender({ open: false, step: null, settlement: null });
+    rerender({ open: true, step: STEP, settlement: settlementWith() });
+
+    expect(reasonBox().value).toBe(REASON);
+  });
+
+  it("starts a different step with an empty reason", () => {
+    const { rerender } = renderDialog();
+    typeReason(REASON);
+    rerender({ open: false });
+
+    const other: SettlementStepView = {
+      ...STEP,
+      step_index: 0,
+      agent_id: "seo.brief",
+      agent_name: "SEO Brief",
+    };
+    rerender({ open: true, step: other });
+
+    expect(screen.getByRole("dialog", { name: "Dispute step 1" })).toBeTruthy();
+    expect(reasonBox().value).toBe("");
+  });
+});
