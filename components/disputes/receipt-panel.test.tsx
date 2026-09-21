@@ -24,6 +24,7 @@ import {
   within,
 } from "@testing-library/react";
 
+import { formatAge } from "@/components/ui/stale-badge";
 import { formatRemaining, formatUsdc } from "@/lib/disputes";
 import type {
   Dispute,
@@ -449,6 +450,18 @@ describe("ReceiptPanel — a disputed step's receipt", () => {
     expect(
       within(other).getByRole("button", { name: /^Dispute step 2/ }),
     ).toBeTruthy();
+  });
+
+  it("dates the receipt on the panel's server clock, not the device's", () => {
+    renderPanel(settled([{ step: step(0), state: disputed(dispute()) }]));
+    // Raised a minute after settlement; the view is an hour in, so on the
+    // server's clock the dispute is 59 minutes old — whatever this machine's
+    // own clock says.
+    const openedAt = new Date(SETTLED_AT + 60_000).toISOString();
+    const raised = document.querySelector(`time[datetime="${openedAt}"]`);
+    expect(raised?.parentElement?.textContent).toContain(
+      formatAge(HOUR - 60_000),
+    );
   });
 });
 
