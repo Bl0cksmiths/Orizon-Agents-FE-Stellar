@@ -1027,3 +1027,96 @@ describe("useDisputePanel — the poll and the countdown", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("useDisputePanel — the poll and a hidden tab", () => {
+  /** Show or hide the tab the way a browser does: the state, then the event. */
+  function setVisibility(state: DocumentVisibilityState) {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => state,
+    });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  }
+
+  afterEach(() => {
+    // Drops the override, back to jsdom's own (visible) getter.
+    Reflect.deleteProperty(document, "visibilityState");
+  });
+
+  it("pauses while the tab is hidden, and re-reads the moment it is back", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+
+    setVisibility("hidden");
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    const poll = nextRead();
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    // And the cadence resumes from that answer.
+    await land(poll, closedWith(dsp(1, "open")));
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not re-read early when the tab was never hidden", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    await advance(10 * S);
+
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS - 10 * S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("arms nothing for an answer that lands in a hidden tab, until the tab is back", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+
+    setVisibility("hidden");
+    await land(poll, closedWith(dsp(1, "crediting")));
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    nextRead();
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("sends no second read when the tab comes back while one is still out", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+
+    setVisibility("hidden");
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    await land(poll, closedWith(dsp(1, "open")));
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("never starts polling while the tab is hidden", async () => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    await mountWith(closedWith(dsp(1, "upheld")));
+
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+});
