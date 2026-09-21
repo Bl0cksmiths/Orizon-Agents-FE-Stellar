@@ -29,6 +29,7 @@ import {
   mockDisputeReads,
   mockDisputeTaskId,
   mockReceiptDispute,
+  mockRatingTx,
   mockRefundTx,
   mockSettlementSteps,
   mockSettlementView,
@@ -158,5 +159,28 @@ test.describe("dispute status and refund receipt", () => {
     const refund = row.getByRole("link", { name: /refund/i });
     await expect(refund).toHaveAttribute("href", testnetTx(mockRefundTx));
     await attachShot(testInfo, "receipt — credited", row);
+  });
+
+  test("a credited dispute also links the dispute rating written against the agent", async ({
+    page,
+  }) => {
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS: nowS() - 40 * 60,
+        }),
+      ],
+    });
+
+    // The consequence to the agent, as its own artifact beside the credit:
+    // a second link, to a second transaction, on the same testnet explorer.
+    const row = stepRow(page, codeStep.agent_id);
+    const rating = row.getByRole("link", { name: /rating/i });
+    await expect(rating).toHaveAttribute("href", testnetTx(mockRatingTx));
+    await expect(row.getByRole("link", { name: /refund/i })).toHaveAttribute(
+      "href",
+      testnetTx(mockRefundTx),
+    );
   });
 });
