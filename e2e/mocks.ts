@@ -4,9 +4,11 @@ import type {
   DecomposeResponse,
   Dispute,
   DisputeStatus,
+  OpenDisputeReq,
   ReputationBatch,
   SettlementStepView,
   SettlementView,
+  TaskDisputes,
   TraceLine,
 } from "../lib/types";
 
@@ -1321,4 +1323,130 @@ export async function mockTraceStream(
       body,
     }),
   );
+}
+
+export type MockDisputeApiOptions = {
+  /** The workflow's settlement; null while it has not settled. */
+  settlement: SettlementView | null;
+  /** Disputes already on record when the page first loads. */
+  disputes?: readonly Dispute[];
+  /**
+   * Answer as the backend that is live today does: `window_closes_at` and
+   * `disputes`, with no `settlement` and no `now` key at all. Vercel ships the
+   * frontend on every merge and Render does not, so this is the response the
+   * new page meets first.
+   */
+  legacy?: boolean;
+  /**
+   * The server's clock, in epoch ms. Defaults to Node's, which agrees with the
+   * page's own. A spec that fast-forwards the page's clock must pass the
+   * page's clock here instead, or any read after the jump would report a
+   * server time from before it and the correction would wind the page back.
+   */
+  clock?: () => number | Promise<number>;
+  /**
+   * How `POST /api/disputes` answers. `created` records the dispute and
+   * returns it. `duplicate` answers the backend's 409 `duplicate_dispute`,
+   * whose body carries the dispute that already exists — one raised from the
+   * buyer's other tab — and every later read includes it, as the server's
+   * would.
+   */
+  open?: "created" | "duplicate";
+};
+
+const DISPUTES_RE = /^\/api\/tasks\/([^/]+)\/disputes$/;
+const disputeNonce = "e2edisputenonce000000000000000000";
+
+/**
+ * The dispute surface: the task's settlement and disputes, the challenge, and
+ * opening a dispute. Stateful on purpose — a dispute opened here is returned
+ * by every later read, which is what lets a spec assert that the step "now
+ * shows its dispute" rather than that a success toast appeared.
+ *
+ * Register it AFTER `mockApi`: Playwright tries the most recently added
+ * route first, and every path this does not own falls back to `mockApi`.
+ */
+export async function mockDisputeApi(
+  page: Page,
+  options: MockDisputeApiOptions,
+): Promise<void> {
+  const recorded: Dispute[] = [...(options.disputes ?? [])];
+  const nowS = async () =>
+    Math.floor((await (options.clock ?? Date.now)()) / 1000);
+
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const { pathname } = new URL(request.url());
+    const method = request.method();
+
+    const disputesFor = DISPUTES_RE.exec(pathname);
+    if (method === "GET" && disputesFor) {
+      const settlement = options.settlement;
+      const legacy = {
+        task_id: decodeURIComponent(disputesFor[1]),
+        window_closes_at: settlement?.window_closes_at ?? null,
+        disputes: recorded,
+      };
+      if (options.legacy) return json(route, legacy);
+      const body: TaskDisputes = {
+        ...legacy,
+        now: await nowS(),
+        settlement,
+      };
+      return json(route, body);
+    }
+
+    if (method === "POST" && pathname === "/api/disputes/challenge") {
+      const body = request.postDataJSON() as {
+        job_id_hex: string;
+        step_index: number;
+      };
+      return json(route, {
+        // Composed exactly as `dispute_svc.dispute_message` does; the wallet
+        // signs this string verbatim.
+        message: `orizon-dispute:v1:${body.job_id_hex}:${body.step_index}:${disputeNonce}`,
+        nonce: disputeNonce,
+        expires_at: (await nowS()) + 120,
+      });
+    }
+
+    if (method === "POST" && pathname === "/api/disputes") {
+      const body = request.postDataJSON() as OpenDisputeReq;
+      const step = options.settlement?.steps.find(
+        (s) => s.step_index === body.step_index,
+      );
+      if (!step) return route.fallback();
+      const opened = await nowS();
+      if (options.open === "duplicate") {
+        const existing = mockDispute(step, {
+          openedAtS: opened - 600,
+          reason: "raised from another tab",
+          payer: body.payer,
+        });
+        recorded.push(existing);
+        return route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            detail: "duplicate_dispute",
+            error: {
+              code: "duplicate_dispute",
+              message: "this step is already disputed",
+              request_id: "e2e0000000000405",
+            },
+            dispute: existing,
+          }),
+        });
+      }
+      const created = mockDispute(step, {
+        openedAtS: opened,
+        reason: body.reason,
+        payer: body.payer,
+      });
+      recorded.push(created);
+      return json(route, created);
+    }
+
+    return route.fallback();
+  });
 }
