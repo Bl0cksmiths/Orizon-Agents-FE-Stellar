@@ -1,6 +1,9 @@
 "use client";
 import { memo, useCallback, useState } from "react";
-import { DisputeDialog } from "@/components/disputes/dispute-dialog";
+import {
+  DisputeDialog,
+  type DisputeDialogCloseReason,
+} from "@/components/disputes/dispute-dialog";
 import { ReceiptPanel } from "@/components/disputes/receipt-panel";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
@@ -150,10 +153,19 @@ export const DisputeSection = memo(function DisputeSection({
   const onConnect = useCallback(() => {
     void connect();
   }, [connect]);
-  const onClose = useCallback(() => setTarget(null), []);
-  // A new dispute and a duplicate one end the same way: the step now has a
-  // dispute on record, and the receipt re-reads it so the step shows that
-  // dispute instead of an action the server would refuse.
+  // Every way out but a plain dismissal means the receipt is out of date: a
+  // `duplicate_dispute` (the step already had one, raised elsewhere) or a
+  // refusal that proves the window or the step is not what it shows. The
+  // re-read is what makes the step show that dispute, or lose its action,
+  // instead of offering one the server would refuse.
+  const onClose = useCallback(
+    (reason: DisputeDialogCloseReason) => {
+      setTarget(null);
+      if (reason !== "dismissed") void refresh();
+    },
+    [refresh],
+  );
+  // A dispute raised here: the step shows it from the server's own record.
   const onSubmitted = useCallback(() => {
     void refresh();
   }, [refresh]);
