@@ -1,11 +1,13 @@
 /**
- * Disputes (story 4.05): the buyer's side of a settled workflow, as pure code.
+ * Disputes (stories 4.05–4.06): the buyer's side of a settled workflow, as
+ * pure code.
  *
  * Every product rule of the receipt panel lives here — who may act, on which
- * step, until when, and what a stranger holding a shared trace link may see —
- * so the components that draw it decide nothing. The panel renders
- * `disputeView`'s answer; the dialog runs `raiseDispute` and switches on
- * `disputeErrorCode`.
+ * step, until when, what a stranger holding a shared trace link may see, and
+ * how far each dispute's receipt may vouch for its refund and rating — so the
+ * components that draw it decide nothing. The panel renders `disputeView`'s
+ * answer, each disputed step carrying `disputeReceipt`'s; the dialog runs
+ * `raiseDispute` and switches on `disputeErrorCode`.
  *
  * The wallet signature is the only credential for raising one. No account and
  * no task token authorizes it (the token only scopes the READ): the backend
