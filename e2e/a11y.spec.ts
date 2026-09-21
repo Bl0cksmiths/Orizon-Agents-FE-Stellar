@@ -15,6 +15,7 @@ import {
   mockDisputeApi,
   mockDisputeTaskId,
   mockReceiptDispute,
+  mockRejectionReason,
   mockSettlementSteps,
   mockSettlementView,
   mockTraceStream,
@@ -166,6 +167,13 @@ test.describe("accessibility — the dispute receipt", () => {
     // moment the row appears.
     await expect(row.getByRole("link", { name: /refund/i })).toBeVisible();
     await expect(row.getByRole("link", { name: /rating/i })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+  });
+
+  test("a rejected receipt has no WCAG A/AA violations", async ({ page }) => {
+    const row = await openResolved(page, "rejected");
+    // The reason is the part of this state worth scanning; wait for it.
+    await expect(row).toContainText(mockRejectionReason);
     expect(await violations(page)).toEqual([]);
   });
 });
