@@ -464,6 +464,53 @@ test.describe("dispute action on the trace / receipt view", () => {
     });
   }
 
+  test("a failed receipt read says so with a retry, and never blocks the trace", async ({
+    page,
+  }) => {
+    let failing = true;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            (route) =>
+              failing
+                ? route.fulfill({
+                    status: 503,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                      detail: "Service Unavailable",
+                      error: {
+                        code: "service_unavailable",
+                        message: "service unavailable",
+                        request_id: "e2e0000000000503",
+                      },
+                    }),
+                  })
+                : route.fallback(),
+          );
+        },
+      },
+    );
+
+    // Announced where it happened, and nowhere else: the trace below is the
+    // stream's, and it rendered in full whatever this read did.
+    const alert = page.locator("main").getByRole("alert");
+    await expect(alert).toContainText("receipt unavailable");
+    await expect(page.getByText("seo.brief → outline drafted")).toBeVisible();
+    await expect(page.getByText("sealed", { exact: true })).toBeVisible();
+    await expect(receipt(page)).toHaveCount(0);
+
+    // The backend comes back; one press brings the receipt.
+    failing = false;
+    await alert.getByRole("button", { name: /retry/i }).click();
+    await expect(receipt(page)).toBeVisible();
+    await expect(disputeButtons(page)).toHaveCount(2);
+    await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+  });
+
   // The skeleton is drawn in the panel's own line boxes, so the receipt
   // landing moves the trace below it by less than a line — the one step row
   // whose height the skeleton cannot know in advance (a failed step's
