@@ -247,6 +247,14 @@ export const DisputeSection = memo(function DisputeSection({
   const onSubmitted = useCallback(() => {
     void refresh();
   }, [refresh]);
+  // `refresh` never rejects and resolves once its answer is on screen, so the
+  // retry control can say it is working and not take a second press.
+  const [retrying, setRetrying] = useState(false);
+  const retry = useCallback(async () => {
+    setRetrying(true);
+    await refresh();
+    setRetrying(false);
+  }, [refresh]);
 
   if (demo || !taskId) return null;
   // Only before the first answer: a refresh keeps the receipt on screen.
@@ -264,7 +272,11 @@ export const DisputeSection = memo(function DisputeSection({
       {error && (
         // Beside the receipt, never instead of the page: the trace below
         // renders from its own stream whatever this read did.
-        <ErrorNote onRetry={() => void refresh()} retryLabel="↻ retry">
+        <ErrorNote
+          onRetry={() => void retry()}
+          retrying={retrying}
+          retryLabel="↻ retry"
+        >
           ⚠ receipt unavailable — {error}
         </ErrorNote>
       )}
