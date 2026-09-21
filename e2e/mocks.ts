@@ -2,6 +2,8 @@ import type { Page, Route } from "@playwright/test";
 import type {
   CreditPolicy,
   DecomposeResponse,
+  Dispute,
+  DisputeStatus,
   ReputationBatch,
   SettlementStepView,
   SettlementView,
@@ -1263,5 +1265,33 @@ export function mockSettlementView(opts: {
       "0e9d4c71b3a85f2e6c1d07b94a3e8f52d6c10a7e9b4f38d2c5a16e0b7d93f4a8",
     steps: mockSettlementSteps,
     policy: mockCreditPolicy,
+  };
+}
+
+/** A dispute already on record against one settled step. */
+export function mockDispute(
+  step: SettlementStepView,
+  opts: {
+    openedAtS: number;
+    reason: string;
+    status?: DisputeStatus;
+    payer?: string;
+  },
+): Dispute {
+  return {
+    id: `dsp_e2e_${step.step_index}`,
+    job_id_hex: mockDisputeJobIdHex,
+    task_id: mockDisputeTaskId,
+    step_index: step.step_index,
+    agent_id: step.agent_id,
+    payer: opts.payer ?? mockWalletAddress,
+    reason: opts.reason,
+    status: opts.status ?? "open",
+    charged_usdc: step.price_usdc,
+    creditable_usdc: step.creditable_usdc,
+    opened_at: opts.openedAtS,
+    resolved_at: null,
+    refund_tx: null,
+    rating_tx: null,
   };
 }
