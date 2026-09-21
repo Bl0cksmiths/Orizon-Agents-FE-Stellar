@@ -557,3 +557,46 @@ export async function raiseDispute(args: {
     }
   }
 }
+
+// ── formatting ──────────────────────────────────────────────────
+
+const SECOND_MS = 1_000;
+const MINUTE_MS = 60 * SECOND_MS;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/** `4m 12s`, or `4m` when the smaller unit is zero — never a "0m" or "0s". */
+const pair = (
+  big: number,
+  bigUnit: string,
+  small: number,
+  smallUnit: string,
+) => (small > 0 ? `${big}${bigUnit} ${small}${smallUnit}` : `${big}${bigUnit}`);
+
+/**
+ * What is left of the window, readable at every scale: "1d 2h left",
+ * "22h 59m left", "4m 12s left", "less than a minute left".
+ *
+ * Seconds appear only in the final hour, where the panel ticks every second
+ * and they are worth watching; under a minute a running number would only
+ * make the buyer race it, so the copy stops counting. Units are floored, so
+ * the label never promises time that is not there. Nothing left — or a value
+ * that is not a number — reads "no time left", never a negative or a zero.
+ */
+export function formatRemaining(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "no time left";
+  if (ms < MINUTE_MS) return "less than a minute left";
+  if (ms < HOUR_MS) {
+    const minutes = Math.floor(ms / MINUTE_MS);
+    const seconds = Math.floor((ms % MINUTE_MS) / SECOND_MS);
+    return `${pair(minutes, "m", seconds, "s")} left`;
+  }
+  if (ms < DAY_MS) {
+    const hours = Math.floor(ms / HOUR_MS);
+    const minutes = Math.floor((ms % HOUR_MS) / MINUTE_MS);
+    return `${pair(hours, "h", minutes, "m")} left`;
+  }
+  const days = Math.floor(ms / DAY_MS);
+  const hours = Math.floor((ms % DAY_MS) / HOUR_MS);
+  return `${pair(days, "d", hours, "h")} left`;
+}
