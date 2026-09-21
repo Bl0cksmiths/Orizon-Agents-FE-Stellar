@@ -508,3 +508,45 @@ export type CreditPolicy = {
   /** Who decides: the platform. There is no on-chain arbitration. */
   adjudicated_by: "platform";
 };
+
+/**
+ * One step of a settled workflow, as it was charged — read from the durable
+ * settlement record, never from the trace, which is in-memory and gone after
+ * a restart while a buyer still has the whole window to dispute.
+ */
+export type SettlementStepView = {
+  step_index: number;
+  agent_id: string;
+  agent_name: string | null;
+  /** What the step was charged, in USDC. */
+  price_usdc: number;
+  /**
+   * Whether the step produced output and was charged. A step that did not
+   * deliver was never billed, so there is nothing to dispute.
+   */
+  delivered: boolean;
+  /**
+   * What an upheld dispute of this step would credit, computed by the backend
+   * with the refund's own rule so the UI never re-derives the rounding. 0 when
+   * the step did not deliver.
+   */
+  creditable_usdc: number;
+  /** The one line the step produced; null when it was not recorded. */
+  output_summary: string | null;
+};
+
+/** A workflow's settlement: what moved, who paid, and until when to dispute. */
+export type SettlementView = {
+  job_id_hex: string;
+  /** The G-address that paid. Only this wallet may dispute. */
+  payer: string;
+  /** Epoch seconds, on the server's clock. */
+  settled_at: number;
+  /** Epoch seconds, stamped at settlement and never moved afterwards. */
+  window_closes_at: number;
+  settled_usdc: number;
+  charge_tx: string | null;
+  proof_tx: string | null;
+  steps: SettlementStepView[];
+  policy: CreditPolicy;
+};
