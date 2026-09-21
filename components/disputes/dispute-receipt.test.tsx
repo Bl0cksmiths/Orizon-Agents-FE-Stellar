@@ -223,3 +223,61 @@ describe("DisputeReceipt — what happens next", () => {
     expect(text()).not.toContain("below");
   });
 });
+
+describe("DisputeReceipt — the credit line", () => {
+  const FUNDED = "funded by the platform, not clawed back from the agent";
+
+  /** The one paragraph carrying the figure. */
+  function creditLine(): HTMLElement {
+    const figure = screen.getByText(formatUsdc(0.027), { selector: "span" });
+    return figure.closest("p") as HTMLElement;
+  }
+
+  it("states a final amount as credited, funder on the same line", () => {
+    renderReceipt(receipt("credited"));
+    expect(creditLine().textContent).toBe(
+      `credit · ${formatUsdc(0.027)} credited to your wallet — ${FUNDED}.`,
+    );
+  });
+
+  it("states a promise as what would be credited, never as paid", () => {
+    renderReceipt(receipt("open"));
+    const line = creditLine().textContent ?? "";
+    expect(line).toBe(
+      `credit · Up to ${formatUsdc(0.027)} would be credited to your wallet if upheld — ${FUNDED}.`,
+    );
+  });
+
+  it.each<DisputeStatus>(["upheld", "crediting"])(
+    "%s: the amount is still only on its way",
+    (status) => {
+      renderReceipt(receipt(status));
+      const line = creditLine().textContent ?? "";
+      expect(line).toContain(`Up to ${formatUsdc(0.027)} to be credited`);
+      expect(line).toContain(FUNDED);
+      expect(line).not.toMatch(/\d credited/);
+    },
+  );
+
+  it("keeps the hedge when a credited dispute has no settled figure", () => {
+    renderReceipt(
+      receipt("credited", { amount: { usdc: 0.027, final: false } }),
+    );
+    expect(creditLine().textContent).toContain(
+      `Up to ${formatUsdc(0.027)} credited to your wallet — ${FUNDED}`,
+    );
+  });
+
+  it("keeps a credited dispute's amount on its way until the refund is confirmed", () => {
+    renderReceipt(receipt("credited", UNRECONCILED));
+    expect(creditLine().textContent).toBe(
+      `credit · Up to ${formatUsdc(0.027)} to be credited to your wallet — ${FUNDED}.`,
+    );
+  });
+
+  it("shows no credit line on a rejection", () => {
+    renderReceipt(receipt("rejected"));
+    expect(screen.queryByText(formatUsdc(0.027))).toBeNull();
+    expect(text()).not.toContain("funded by");
+  });
+});
