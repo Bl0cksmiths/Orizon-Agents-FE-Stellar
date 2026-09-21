@@ -56,6 +56,38 @@ export function disputeTickMs(view: DisputePanelView): number | null {
   return Math.ceil(Math.min(FINAL_HOUR_TICK_MS, leftMs));
 }
 
+/** Re-read cadence while every unresolved dispute awaits the platform's
+ * decision — adjudication takes hours, so a faster poll would only add load. */
+export const ADJUDICATION_POLL_MS = 30_000;
+/** Re-read cadence while any credit is decided or in flight — a transfer lands
+ * in seconds, and the buyer is watching for it. */
+export const CREDIT_POLL_MS = 5_000;
+
+/**
+ * How long until the receipt should be re-read, or null for "never" (story
+ * 4.06). Between raising a dispute and its credit landing, nothing the buyer
+ * does would fetch again, so without this the receipt would sit on the state
+ * it was raised in while the dispute moved underneath it.
+ *
+ * Only an unresolved dispute can change on its own, so only one keeps a poll
+ * alive: `CREDIT_POLL_MS` while any is `upheld` or `crediting`, else
+ * `ADJUDICATION_POLL_MS` while any is `open`. `credited` and `rejected` are
+ * final, so a task whose disputes are all one or the other — or that has none
+ * — is not polled at all.
+ *
+ * Nor is an answer with no settlement: that panel draws no receipt, so there
+ * is nothing on screen a re-read could change.
+ */
+export function disputePollMs(res: TaskDisputes | null): number | null {
+  if (!res?.settlement) return null;
+  let ms: number | null = null;
+  for (const { status } of res.disputes) {
+    if (status === "upheld" || status === "crediting") return CREDIT_POLL_MS;
+    if (status === "open") ms = ADJUDICATION_POLL_MS;
+  }
+  return ms;
+}
+
 /**
  * What a backend without this route answers with, restated as the old
  * backend it is: no `settlement` key, so the panel hides.
