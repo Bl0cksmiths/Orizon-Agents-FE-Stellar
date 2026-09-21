@@ -21,6 +21,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { formatUsdc } from "@/lib/disputes";
 import type {
+  CreditPolicy,
   DisputePanelView,
   SettlementStepView,
   StepDisputeState,
@@ -151,6 +152,11 @@ function SettledReceipt({
   // dispute. A payer already has the buttons; a connected wallet that did not
   // pay is not the payer, and a prompt would invite them to try.
   const promptToConnect = view.viewer === "anonymous" && view.window.open;
+  // The terms travel with the action: shown wherever a Dispute button is,
+  // and nowhere a viewer has nothing to act on.
+  const canDispute = view.steps.some(
+    ({ state }) => state.kind === "disputable",
+  );
 
   return (
     <section aria-labelledby={headingId}>
@@ -203,6 +209,8 @@ function SettledReceipt({
 
         {promptToConnect && <ConnectPrompt onConnect={onConnect} />}
 
+        {canDispute && <CreditTerms policy={view.policy} />}
+
         <div className="space-y-3 border-t border-border/60 pt-5">
           <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
             Steps
@@ -250,6 +258,39 @@ function ConnectPrompt({ onConnect }: { onConnect: () => void }) {
         Connect wallet
       </Button>
     </div>
+  );
+}
+
+// Keyed by the policy's own literal types, so a new funder or adjudicator
+// cannot reach the buyer without someone writing down what it means for them.
+const FUNDED_BY: Record<CreditPolicy["funded_by"], string> = {
+  platform: "paid by the platform and never clawed back from the agent",
+};
+const ADJUDICATED_BY: Record<CreditPolicy["adjudicated_by"], string> = {
+  platform:
+    "The platform decides each dispute; there is no on-chain arbitration.",
+};
+
+const SHARE = new Intl.NumberFormat(undefined, {
+  style: "percent",
+  maximumFractionDigits: 1,
+});
+
+/**
+ * What a dispute can get the buyer, stated before they commit to one. The
+ * figures are the backend's policy in force, never a number written into the
+ * UI: a buyer shown the wrong share has been promised money they will not get.
+ */
+function CreditTerms({ policy }: { policy: CreditPolicy }) {
+  return (
+    <p className="max-w-2xl text-xs leading-relaxed text-muted">
+      <span className="font-mono text-[10px] uppercase tracking-widest text-cyan">
+        terms ·{" "}
+      </span>
+      An upheld dispute credits {SHARE.format(policy.credited_fraction)} of that
+      step&apos;s charge back to you, {FUNDED_BY[policy.funded_by]}.{" "}
+      {ADJUDICATED_BY[policy.adjudicated_by]}
+    </p>
   );
 }
 
