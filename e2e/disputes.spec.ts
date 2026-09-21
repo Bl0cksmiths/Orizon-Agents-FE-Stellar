@@ -35,6 +35,9 @@ const HOUR_S = 60 * 60;
 
 const [briefStep, codeStep, failedStep] = mockSettlementSteps;
 
+/** The one read the receipt is drawn from. */
+const DISPUTES_READ = /\/api\/tasks\/[^/]+\/disputes$/;
+
 /** Now, in epoch seconds, on the clock the mock server shares with the page. */
 const nowS = () => Math.floor(Date.now() / 1000);
 
@@ -437,7 +440,7 @@ test.describe("dispute action on the trace / receipt view", () => {
       page,
     }) => {
       const read = page.waitForResponse((response) =>
-        /\/api\/tasks\/[^/]+\/disputes$/.test(new URL(response.url()).pathname),
+        DISPUTES_READ.test(new URL(response.url()).pathname),
       );
       await openTrace(
         page,
@@ -488,7 +491,7 @@ test.describe("dispute action on the trace / receipt view", () => {
           // Holds the read until the skeleton has been measured.
           routes: async (p) => {
             await p.route(
-              (url) => /\/api\/tasks\/[^/]+\/disputes$/.test(url.pathname),
+              (url) => DISPUTES_READ.test(url.pathname),
               async (route) => {
                 await answered;
                 await route.fallback();
