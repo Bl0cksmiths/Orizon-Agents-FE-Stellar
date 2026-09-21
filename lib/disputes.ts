@@ -18,11 +18,14 @@ import {
   ensure,
   fetchWithTimeout,
   httpError,
+  post,
   taskAuthHeaders,
 } from "./api";
 import type {
   CreditPolicy,
   Dispute,
+  DisputeChallenge,
+  DisputeChallengeReq,
   DisputeErrorCode,
   SettlementStepView,
   SettlementView,
@@ -217,6 +220,18 @@ function isTaskDisputes(v: unknown): v is TaskDisputes {
   );
 }
 
+/** A non-empty nonce: the message is checked to END with it, and an empty one
+ * would make that check pass for any message at all. */
+function isDisputeChallenge(v: unknown): v is DisputeChallenge {
+  return (
+    isRecord(v) &&
+    isStr(v.message) &&
+    isStr(v.nonce) &&
+    v.nonce.length > 0 &&
+    isNum(v.expires_at)
+  );
+}
+
 // ── wire calls ──────────────────────────────────────────────────
 
 /**
@@ -246,4 +261,40 @@ export async function getTaskDisputes(taskId: string): Promise<TaskDisputes> {
   if (!res.ok) throw await httpError("GET", path, res);
   const json: unknown = await res.json();
   return ensure(path, isTaskDisputes)(json);
+}
+
+/**
+ * POST /api/disputes/challenge — a single-use nonce, and the exact message
+ * the payer's wallet must sign to dispute this one step.
+ *
+ * The message is signed verbatim and never rebuilt here (see
+ * `DisputeChallenge.message`), but it IS checked to address what was asked
+ * for, `createBindChallenge`'s reasoning: a wallet prompt shows the buyer an
+ * opaque string, so a proxy answering with a challenge for another step —
+ * dearer, or another agent's — would have them sign a dispute they never
+ * meant. Checked are the domain, the `:{job}:{step}:` it names and the nonce
+ * it ends with; the version segment is left free, because the backend
+ * returns the message precisely so its format can move without this build.
+ */
+export function createDisputeChallenge(
+  req: DisputeChallengeReq,
+): Promise<DisputeChallenge> {
+  const path = "/disputes/challenge";
+  return post<DisputeChallenge, DisputeChallengeReq>(
+    path,
+    req,
+    ensure(path, isDisputeChallenge),
+  ).then((challenge) => {
+    const { message, nonce } = challenge;
+    const addressesStep =
+      message.startsWith("orizon-dispute:") &&
+      message.includes(`:${req.job_id_hex}:${req.step_index}:`) &&
+      message.endsWith(`:${nonce}`);
+    if (!addressesStep) {
+      throw new Error(
+        `malformed response from ${path} — challenge does not address step ${req.step_index} of job ${req.job_id_hex}`,
+      );
+    }
+    return challenge;
+  });
 }
