@@ -950,3 +950,80 @@ describe("useDisputePanel — live updates", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("useDisputePanel — the poll and the countdown", () => {
+  const remaining = (view: DisputePanelView) =>
+    settledOf(view).window.remainingMs;
+
+  it("re-measures the server's clock from a poll's own answer", async () => {
+    const { result } = await mountWith(
+      answer(2 * H, { disputes: [dsp(1, "open")] }),
+    );
+
+    // The coarse tick and the poll fall due together.
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(remaining(result.current.view)).toBe(2 * H - 30 * S);
+
+    // The poll's answer finds the server 5 s ahead of this laptop, and the
+    // window is judged on that from now on.
+    await land(
+      poll,
+      answer(2 * H - 35 * S, { skewMs: 35 * S, disputes: [dsp(1, "open")] }),
+    );
+    expect(remaining(result.current.view)).toBe(2 * H - 35 * S);
+  });
+
+  it("keeps the offset it had when a poll fails", async () => {
+    // The server runs 10 minutes ahead.
+    const { result } = await mountWith(
+      answer(2 * H, { skewMs: 10 * M, disputes: [dsp(1, "open")] }),
+    );
+
+    fetchDisputes.mockRejectedValueOnce(new Error("Failed to fetch"));
+    await advance(ADJUDICATION_POLL_MS);
+    expect(result.current.error).toBe("Failed to fetch");
+    // Only the tick moved: still on the server's clock, 10 minutes ahead.
+    expect(remaining(result.current.view)).toBe(2 * H - 30 * S);
+  });
+
+  it("leaves the countdown ticking every second while a poll is out and after it lands", async () => {
+    const { result } = await mountWith(
+      answer(10 * M, { disputes: [dsp(1, "open")] }),
+    );
+
+    const poll = nextRead();
+    for (let i = 0; i < 30; i += 1) await advance(FINAL_HOUR_TICK_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(remaining(result.current.view)).toBe(10 * M - 30 * S);
+
+    // The tick does not wait on the poll.
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(remaining(result.current.view)).toBe(10 * M - 31 * S);
+
+    await land(
+      poll,
+      answer(10 * M - 31 * S, { skewMs: 31 * S, disputes: [dsp(1, "open")] }),
+    );
+    expect(remaining(result.current.view)).toBe(10 * M - 31 * S);
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(remaining(result.current.view)).toBe(10 * M - 32 * S);
+    // One countdown, one poll — never a second of either.
+    expect(vi.getTimerCount()).toBe(2);
+  });
+
+  it("keeps polling once the window closes: a dispute outlives it", async () => {
+    const { result } = await mountWith(
+      answer(2 * S, { disputes: [dsp(1, "open")] }),
+    );
+
+    await advance(S);
+    await advance(S);
+    expect(settledOf(result.current.view).window.open).toBe(false);
+    expect(vi.getTimerCount()).toBe(1);
+
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS - 2 * S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+});
