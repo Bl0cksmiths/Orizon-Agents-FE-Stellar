@@ -313,3 +313,26 @@ export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
   const path = "/disputes";
   return post<Dispute, OpenDisputeReq>(path, req, ensure(path, isDispute));
 }
+
+// ── the window's clock ──────────────────────────────────────────
+
+/**
+ * How far the server's clock runs ahead of this browser's, in ms, measured
+ * from a response's `now` at the moment it arrived: add it to `Date.now()` to
+ * read the server's clock.
+ *
+ * The window closes on the server's clock — that is where the refusal comes
+ * from — and a laptop whose clock is a few minutes off would otherwise offer a
+ * dispute the server has already stopped taking, or hide one it still would.
+ * The half round-trip the answer spent in flight is not corrected for: it is
+ * well under the panel's one-second tick.
+ *
+ * 0 — trust the local clock — when the backend predates `now`.
+ */
+export function serverClockOffsetMs(
+  res: TaskDisputes,
+  receivedAtMs: number,
+): number {
+  if (!isNum(res.now) || !isNum(receivedAtMs)) return 0;
+  return Math.round(res.now * 1_000 - receivedAtMs);
+}
