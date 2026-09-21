@@ -360,4 +360,40 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
   });
+
+  test("a refusal that dates the receipt re-reads it: the server says the window closed", async ({
+    page,
+  }) => {
+    // The page opened with 23 hours left on the server's clock; by the time
+    // the buyer submits, that clock is past the close — the case where the
+    // page's picture, not the buyer, is wrong.
+    let serverAheadMs = 0;
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      clock: () => Date.now() + serverAheadMs,
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    serverAheadMs = DISPUTE_WINDOW_S * 1000;
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    await expect(form.getByRole("alert")).toContainText(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+    // The footer's Close — the header's ✕ shares the name and the path out.
+    await form
+      .getByRole("button", { name: "Close", exact: true })
+      .last()
+      .click();
+    await expect(dialog(page)).toHaveCount(0);
+
+    // Closed as stale, so the receipt re-read the server: it now says the
+    // window closed, and no step offers an action the server would refuse.
+    await expect(
+      receipt(page).getByText("Dispute window closed", { exact: true }),
+    ).toBeVisible();
+    await expect(disputeButtons(page)).toHaveCount(0);
+  });
 });
