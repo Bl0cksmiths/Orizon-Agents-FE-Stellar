@@ -17,7 +17,7 @@
  * chooses how each decided state looks and reads.
  */
 
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { formatAge } from "@/components/ui/stale-badge";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
@@ -26,6 +26,7 @@ import type {
   CreditPolicy,
   DisputeArtifact,
   DisputeReceiptView,
+  DisputeStatus,
   DisputeViewer,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,36 @@ const FUNDED_BY: Record<CreditPolicy["funded_by"], string> = {
   platform: "funded by the platform, not clawed back from the agent",
 };
 
+/**
+ * What a screen reader hears when the status changes while the receipt is on
+ * screen — in the status badge's own words ("refunded", not the backend's
+ * "credited"), so the ear and the eye are told the same thing.
+ */
+const CHANGED: Record<DisputeStatus, string> = {
+  open: "is under review",
+  upheld: "was upheld",
+  crediting: "is being refunded",
+  credited: "was refunded",
+  rejected: "was rejected",
+};
+
+/**
+ * The announcement for the status in `view`. A dispute marked credited with no
+ * confirmed refund is not announced as refunded: the ear gets the same
+ * restraint as the sentence on screen.
+ */
+function changeSentence(
+  view: DisputeReceiptView,
+  agentName: string,
+  voice: Voice,
+): string {
+  const change =
+    view.status === "credited" && view.refund.state !== "confirmed"
+      ? "was marked as paid, but its refund is not confirmed on Stellar yet"
+      : CHANGED[view.status];
+  return `${voice.owner} dispute against ${agentName} ${change}.`;
+}
+
 export function DisputeReceipt({
   view,
   agentName,
@@ -85,6 +116,10 @@ export function DisputeReceipt({
 }) {
   const headingId = useId();
   const voice = viewer === "payer" ? PAYER_VOICE : OTHER_VOICE;
+  const announcement = useStatusAnnouncement(
+    view.status,
+    changeSentence(view, agentName, voice),
+  );
   const now = nowMs ?? Date.now();
 
   return (
@@ -130,8 +165,36 @@ export function DisputeReceipt({
           {view.rejectionReason}
         </Quote>
       )}
+
+      {/* Mounted empty from the first render: a live region has to exist
+          before its text changes, or the change is not announced. `status`
+          already implies polite; it is stated as well because some screen
+          reader and browser pairings only honour the attribute. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
     </div>
   );
+}
+
+/**
+ * The sentence to announce, set only when the status CHANGES while the
+ * receipt is mounted: nothing on first render, and nothing on a poll that
+ * brought the same status back, because the text is then left exactly as it
+ * was and an unchanged live region says nothing.
+ *
+ * Tracked in state and adjusted during render (React's pattern for deriving
+ * from a previous prop) rather than in an effect: the announcement lands in
+ * the same commit as the new status it describes, never one frame behind.
+ */
+function useStatusAnnouncement(status: DisputeStatus, sentence: string) {
+  const [seen, setSeen] = useState(status);
+  const [announcement, setAnnouncement] = useState("");
+  if (status !== seen) {
+    setSeen(status);
+    setAnnouncement(sentence);
+  }
+  return announcement;
 }
 
 /** One instant: local time with its zone for the record, and its age. */
