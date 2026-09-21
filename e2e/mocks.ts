@@ -1295,3 +1295,30 @@ export function mockDispute(
     rating_tx: null,
   };
 }
+
+/**
+ * The trace stream for one task, as a finished run: every line, then `done`.
+ *
+ * EventSource requests go through the same network stack as fetch, so a
+ * fulfilled `text/event-stream` body is parsed exactly like a live one. The
+ * connection closing after `done` is harmless — `openTraceStream` has already
+ * settled by then and ignores the error a closed stream fires.
+ */
+export async function mockTraceStream(
+  page: Page,
+  taskId: string,
+  lines: readonly TraceLine[] = mockDisputeTrace,
+): Promise<void> {
+  const body =
+    lines
+      .map((line) => `event: trace\ndata: ${JSON.stringify(line)}\n\n`)
+      .join("") + "event: done\ndata: {}\n\n";
+  await page.route(new RegExp(`/api/trace/${taskId}/stream(\\?|$)`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: { "cache-control": "no-cache" },
+      body,
+    }),
+  );
+}
