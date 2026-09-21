@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArtifactViewer } from "@/components/ui/artifact-viewer";
+import { DisputeSection } from "@/components/disputes/dispute-section";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
@@ -370,6 +371,10 @@ function TracePageInner() {
           </div>
         )}
       </div>
+
+      {/* Its own component so the dispute window's countdown re-renders the
+          receipt alone, never this page and its trace log. */}
+      <DisputeSection taskId={taskId} workflowDone={done} demo={!taskId} />
 
       {artifact && (
         <div className="flex gap-2" role="tablist" aria-label="Trace views">
