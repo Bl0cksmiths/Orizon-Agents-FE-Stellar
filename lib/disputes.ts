@@ -481,3 +481,79 @@ export function disputeView(input: {
     steps,
   };
 }
+
+// ── raising one ─────────────────────────────────────────────────
+
+/**
+ * Challenge → wallet signature → open, for one step.
+ *
+ * Refused before any network call, as a `DisputeRefusal` the dialog reads
+ * through `disputeErrorCode` like a server refusal: a reason that is empty
+ * once trimmed or longer than `MAX_DISPUTE_REASON_CHARS` (`reason_required`),
+ * and a wallet that is not the recorded payer (`not_the_payer`) — the server
+ * would refuse both, but only after the buyer had been asked to sign.
+ *
+ * The challenge's message is signed VERBATIM. A wallet that declines rejects
+ * with its own error, untouched, so the dialog can run it through
+ * `classifyError` and tell "you cancelled" from "it failed", exactly as the
+ * bind page does.
+ *
+ * One retry, on `challenge_expired` only: the nonce lives five minutes and a
+ * wallet popup can sit open for longer, which is nobody's fault and is cured
+ * by a fresh challenge and a second signature. A second expiry throws —
+ * something other than a slow buyer is wrong. Nothing else is retried: every
+ * other refusal is an answer, and `duplicate_dispute` in particular means the
+ * step already has its dispute, which the caller refetches rather than reads
+ * off the error (see `openDispute`).
+ */
+export async function raiseDispute(args: {
+  settlement: SettlementView;
+  step: SettlementStepView;
+  reason: string;
+  payer: string;
+  signMessage: (m: string) => Promise<string>;
+}): Promise<Dispute> {
+  const { settlement, step, payer, signMessage } = args;
+  const reason = args.reason.trim();
+  if (reason.length === 0) {
+    throw new DisputeRefusal(
+      "reason_required",
+      "Say what went wrong with this step.",
+    );
+  }
+  if (reason.length > MAX_DISPUTE_REASON_CHARS) {
+    throw new DisputeRefusal(
+      "reason_required",
+      `Keep the reason to ${MAX_DISPUTE_REASON_CHARS} characters.`,
+    );
+  }
+  if (payer !== settlement.payer) {
+    throw new DisputeRefusal(
+      "not_the_payer",
+      "Only the wallet that paid for this workflow can dispute it.",
+    );
+  }
+
+  const target: DisputeChallengeReq = {
+    job_id_hex: settlement.job_id_hex,
+    step_index: step.step_index,
+  };
+  for (let attempt = 1; ; attempt += 1) {
+    const challenge = await createDisputeChallenge(target);
+    const signature_b64 = await signMessage(challenge.message);
+    try {
+      return await openDispute({
+        ...target,
+        reason,
+        payer,
+        nonce: challenge.nonce,
+        signature_b64,
+      });
+    } catch (err) {
+      if (attempt === 1 && disputeErrorCode(err) === "challenge_expired") {
+        continue;
+      }
+      throw err;
+    }
+  }
+}
