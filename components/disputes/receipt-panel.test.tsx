@@ -18,7 +18,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import { formatUsdc } from "@/lib/disputes";
+import { formatRemaining, formatUsdc } from "@/lib/disputes";
 import type {
   Dispute,
   DisputePanelView,
@@ -27,6 +27,7 @@ import type {
   StepDisputeState,
 } from "@/lib/types";
 import { ReceiptPanel } from "./receipt-panel";
+import { WindowState, formatLocalTime } from "./window-state";
 
 afterEach(cleanup);
 
@@ -442,5 +443,101 @@ describe("ReceiptPanel — structure", () => {
     const region = screen.getByRole("region", { name: "Receipt" });
     expect(region.querySelector("h2")?.textContent).toBe("Receipt");
     expect(region.querySelector("ol")).not.toBeNull();
+  });
+});
+
+describe("WindowState", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const FOUR_MIN = 4 * 60_000 + 12_000;
+
+  function open(remainingMs: number) {
+    return { open: true, closesAtMs: CLOSES_AT, remainingMs };
+  }
+
+  it("shows an open window's countdown and its closing time", () => {
+    const { container } = render(
+      <WindowState window={open(FOUR_MIN)} settledAtMs={SETTLED_AT} />,
+    );
+    expect(container.textContent).toContain("Dispute window open");
+    expect(container.textContent).toContain(formatRemaining(FOUR_MIN));
+    expect(container.textContent).toContain(formatLocalTime(CLOSES_AT));
+    expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(
+      new Date(CLOSES_AT).toISOString(),
+    );
+  });
+
+  it("shows when a closed window closed, in local time", () => {
+    const { container } = render(
+      <WindowState window={CLOSED} settledAtMs={SETTLED_AT} />,
+    );
+    expect(container.textContent).toContain("Dispute window closed");
+    expect(container.textContent).toContain(formatLocalTime(CLOSES_AT));
+    expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(
+      new Date(CLOSES_AT).toISOString(),
+    );
+    expect(container.textContent).not.toContain("left");
+  });
+
+  // A screen reader must not hear the countdown every second. It sits in an
+  // aria-live="off" span; what is announced is a summary naming the absolute
+  // time, which does not change as the seconds go by.
+  it("keeps the countdown out of the announced summary", async () => {
+    vi.useFakeTimers();
+    const { container } = render(
+      <WindowState window={open(FOUR_MIN)} settledAtMs={SETTLED_AT} />,
+    );
+
+    const countdown = container.querySelector("[aria-live='off']");
+    expect(countdown?.textContent).toBe(formatRemaining(FOUR_MIN));
+
+    const status = screen.getByRole("status");
+    const summary = status.textContent;
+    expect(summary).toContain(formatLocalTime(CLOSES_AT));
+    expect(summary).not.toContain(formatRemaining(FOUR_MIN));
+    expect(status.contains(countdown)).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(countdown?.textContent).toBe(formatRemaining(FOUR_MIN - 5_000));
+    expect(screen.getByRole("status").textContent).toBe(summary);
+  });
+
+  it("re-anchors on every fresh value it is handed", () => {
+    const { container, rerender } = render(
+      <WindowState window={open(FOUR_MIN)} settledAtMs={SETTLED_AT} />,
+    );
+    rerender(<WindowState window={open(90_000)} settledAtMs={SETTLED_AT} />);
+    expect(container.querySelector("[aria-live='off']")?.textContent).toBe(
+      formatRemaining(90_000),
+    );
+  });
+
+  // Closing is disputeView()'s decision. Run out locally and the countdown
+  // holds at zero until the view itself says the window has closed.
+  it("never closes the window on its own", async () => {
+    vi.useFakeTimers();
+    const { container } = render(
+      <WindowState window={open(2_000)} settledAtMs={SETTLED_AT} />,
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(container.textContent).toContain("Dispute window open");
+    expect(container.querySelector("[aria-live='off']")?.textContent).toBe(
+      formatRemaining(0),
+    );
+  });
+
+  // The summary is the same node in both states, so its text changing in
+  // place is what a screen reader hears when the window closes.
+  it("announces the close through the same status node", () => {
+    const { rerender } = render(
+      <WindowState window={open(FOUR_MIN)} settledAtMs={SETTLED_AT} />,
+    );
+    const before = screen.getByRole("status");
+    rerender(<WindowState window={CLOSED} settledAtMs={SETTLED_AT} />);
+    const after = screen.getByRole("status");
+    expect(after).toBe(before);
+    expect(after.textContent).toContain("closed");
   });
 });
