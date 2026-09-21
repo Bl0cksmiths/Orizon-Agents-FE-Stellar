@@ -337,4 +337,27 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
     await expect(disputeButtons(page)).toHaveCount(1);
   });
+
+  test("a step disputed from another tab resolves to that dispute, not an error", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      open: "duplicate",
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    // Not a failure: the form closes itself, and the receipt re-reads the
+    // step, which now shows the dispute that was already there.
+    await expect(dialog(page)).toHaveCount(0);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row).toContainText("raised from another tab");
+    await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
+    await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+  });
 });
