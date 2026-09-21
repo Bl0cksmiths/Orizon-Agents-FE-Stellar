@@ -26,6 +26,7 @@ import {
 import type { Dispute } from "../lib/types";
 import {
   mockApi,
+  mockDispute,
   mockDisputeReads,
   mockDisputeTaskId,
   mockOtherOwnerAddress,
@@ -348,6 +349,52 @@ test.describe("dispute status and refund receipt", () => {
       "credit · 0.0265 USDC credited to your wallet — funded by the platform, not clawed back from the agent.",
     );
     await attachShot(testInfo, "receipt — credit line", creditLine);
+  });
+
+  test("an older backend's dispute, with none of the new fields, renders its amount as a promise and its rating as pending", async ({
+    page,
+  }) => {
+    const openedAtS = nowS() - 40 * 60;
+    // What the backend live today sends for a credited dispute: both hashes,
+    // and none of story 4.06's four fields.
+    const legacy: Dispute = {
+      ...mockDispute(codeStep, {
+        status: "credited",
+        openedAtS,
+        reason: "the calculator app does not compute anything",
+      }),
+      resolved_at: openedAtS + 600,
+      refund_tx: mockRefundTx,
+      rating_tx: mockRatingTx,
+    };
+    for (const key of [
+      "credited_usdc",
+      "updated_at",
+      "rating_confirmed",
+      "rejection_reason",
+    ]) {
+      expect(legacy).not.toHaveProperty(key);
+    }
+    await openReceipt(page, { disputes: [legacy] });
+
+    // Drawn, not refused: no error anywhere on the page.
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(
+      row.getByRole("group", { name: /dispute receipt/i }),
+    ).toBeVisible();
+    await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+
+    // The only figure this backend knows is the promise made at opening, and
+    // it is printed as one — "up to" — never as the amount a refund moved.
+    const creditLine = row.locator("p").filter({ hasText: /^credit · / });
+    await expect(creditLine).toHaveText(/^credit · Up to 0\.027 USDC /);
+    await expect(creditLine).not.toHaveText(/^credit · [\d.]+ USDC credited/);
+    await expect(row).not.toContainText("received 0.027");
+
+    // A rating hash with no word that it landed is pending, not confirmed.
+    const rating = artifact(row, "Dispute rating against");
+    await expect(rating).toContainText("Submitted, waiting for confirmation");
+    await expect(rating).not.toContainText("Confirmed on Stellar");
   });
 
   test("a wallet that did not pay sees the statuses and the links, but neither the buyer's reason nor the rejection's", async ({
