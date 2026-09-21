@@ -285,6 +285,7 @@ test.describe("dispute receipt while the page stays open", () => {
       }),
     ]);
     await page.clock.runFor(OPEN_POLL_MS - ACTIVE_POLL_MS);
+    await networkBeat(page);
     expect(reads.count()).toBe(loaded);
     // …and at it, the receipt reads again and shows the decision.
     await page.clock.runFor(ACTIVE_POLL_MS);
