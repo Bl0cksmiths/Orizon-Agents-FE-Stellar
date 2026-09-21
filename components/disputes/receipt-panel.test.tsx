@@ -16,12 +16,21 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 
+import { formatAge } from "@/components/ui/stale-badge";
 import { formatRemaining, formatUsdc } from "@/lib/disputes";
 import type {
   Dispute,
+  DisputeArtifact,
   DisputePanelView,
+  DisputeReceiptView,
   DisputeViewer,
   SettlementStepView,
   StepDisputeState,
@@ -74,6 +83,76 @@ function dispute(over: Partial<Dispute> = {}): Dispute {
     rating_tx: null,
     ...over,
   };
+}
+
+/**
+ * The receipt disputeView() derives for a dispute, rebuilt by the same rules
+ * so no fixture pairs a dispute with a receipt the data could never produce:
+ * the refund confirmed only once credited with its hash, the rating only when
+ * the ledger vouched for it, the settled figure final only beside a confirmed
+ * refund, and both reasons for the payer alone. `over` is for a test that
+ * pins one field on purpose.
+ */
+function receiptFor(
+  d: Dispute,
+  viewer: DisputeViewer = "payer",
+  over: Partial<DisputeReceiptView> = {},
+): DisputeReceiptView {
+  const refundTx = d.refund_tx || null;
+  let refund: DisputeArtifact = { txHash: null, state: "none" };
+  if (d.status === "credited") {
+    refund = refundTx
+      ? { txHash: refundTx, state: "confirmed" }
+      : { txHash: null, state: "pending" };
+  } else if (d.status === "crediting") {
+    refund = { txHash: refundTx, state: "pending" };
+  } else if (d.status === "upheld") {
+    refund = { txHash: null, state: "pending" };
+  }
+  const rating: DisputeArtifact = d.rating_tx
+    ? {
+        txHash: d.rating_tx,
+        state: d.rating_confirmed === true ? "confirmed" : "pending",
+      }
+    : { txHash: null, state: "none" };
+  const payer = viewer === "payer";
+  return {
+    status: d.status,
+    openedAtMs: d.opened_at * 1000,
+    lastChangedAtMs: (d.updated_at ?? d.resolved_at ?? d.opened_at) * 1000,
+    amount:
+      refund.state === "confirmed" && typeof d.credited_usdc === "number"
+        ? { usdc: d.credited_usdc, final: true }
+        : { usdc: d.creditable_usdc, final: false },
+    fundedBy: "platform",
+    refund,
+    rating,
+    reason: payer ? d.reason : null,
+    rejectionReason:
+      payer && d.status === "rejected" && d.rejection_reason?.trim()
+        ? d.rejection_reason
+        : null,
+    ...over,
+  };
+}
+
+/**
+ * A disputed step's state as disputeView() hands it to the panel for this
+ * viewer: the buyer's words kept for the payer and blanked for anyone else,
+ * and the receipt derived alongside.
+ */
+function disputed(
+  d: Dispute,
+  viewer: DisputeViewer = "payer",
+): StepDisputeState {
+  const payer = viewer === "payer";
+  const state = {
+    kind: "disputed" as const,
+    dispute: payer ? d : { ...d, reason: "", rejection_reason: null },
+    showReason: payer,
+    receipt: receiptFor(d, viewer),
+  };
+  return state;
 }
 
 /** A settled view one hour into a 24-hour window, the payer looking. */
@@ -242,11 +321,7 @@ describe("ReceiptPanel — the step list", () => {
       settled([
         {
           step: step(0),
-          state: {
-            kind: "disputed",
-            dispute: dispute({ status: "crediting" }),
-            showReason: false,
-          },
+          state: disputed(dispute({ status: "crediting" })),
         },
       ]),
     );
@@ -254,24 +329,22 @@ describe("ReceiptPanel — the step list", () => {
     expect(actionButtons()).toHaveLength(0);
   });
 
-  it("shows the buyer's own reason only when the view allows it", () => {
+  it("shows the buyer's own reason to the payer and nobody else", () => {
     const reason = "The summary missed the second half of the brief.";
-    const row = (showReason: boolean) =>
-      settled([
-        {
-          step: step(0),
-          state: { kind: "disputed", dispute: dispute({ reason }), showReason },
-        },
-      ]);
+    const row = (viewer: DisputeViewer) =>
+      settled(
+        [{ step: step(0), state: disputed(dispute({ reason }), viewer) }],
+        { viewer },
+      );
 
-    renderPanel(row(true));
+    renderPanel(row("payer"));
     expect(text()).toContain(reason);
-    expect(text()).toContain("your reason");
+    expect(text()).toMatch(/your reason/i);
     cleanup();
 
-    renderPanel(row(false));
+    renderPanel(row("other"));
     expect(text()).not.toContain(reason);
-    expect(text()).not.toContain("your reason");
+    expect(text()).not.toMatch(/your reason/i);
   });
 
   it("links a credited dispute's refund transaction", () => {
@@ -280,11 +353,7 @@ describe("ReceiptPanel — the step list", () => {
       settled([
         {
           step: step(0),
-          state: {
-            kind: "disputed",
-            dispute: dispute({ status: "credited", refund_tx: refund }),
-            showReason: false,
-          },
+          state: disputed(dispute({ status: "credited", refund_tx: refund })),
         },
       ]),
     );
@@ -328,6 +397,83 @@ describe("ReceiptPanel — the step list", () => {
     const item = screen.getByRole("listitem");
     expect(item.querySelectorAll("button")).toHaveLength(0);
     expect(item.textContent ?? "").not.toMatch(/dispute/i);
+  });
+});
+
+describe("ReceiptPanel — a disputed step's receipt", () => {
+  const REFUND = "d".repeat(64);
+  const RATING = "e".repeat(64);
+  const RESOLVED_AT = SETTLED_AT / 1000 + 1_800;
+  // Credited with a figure deliberately unlike the promise (0.027), so a
+  // receipt printing the promise could not pass for one printing the payment.
+  const credited = dispute({
+    status: "credited",
+    refund_tx: REFUND,
+    rating_tx: RATING,
+    rating_confirmed: true,
+    credited_usdc: 0.0265,
+    resolved_at: RESOLVED_AT,
+    updated_at: RESOLVED_AT,
+  });
+
+  it("draws the receipt in the disputed step's row, with no dispute button", () => {
+    renderPanel(
+      settled([
+        {
+          step: step(0, { agent_name: "Code Critic" }),
+          state: disputed(credited),
+        },
+        { step: step(1), state: { kind: "disputable" } },
+      ]),
+    );
+    const [row, other] = screen.getAllByRole("listitem");
+
+    const receipt = within(row).getByRole("group", {
+      name: "Dispute receipt, Code Critic",
+    });
+    expect(receipt.textContent).toContain("Refunded");
+    expect(receipt.textContent).toContain(
+      `${formatUsdc(0.0265)} credited to your wallet — funded by the platform, not clawed back from the agent.`,
+    );
+    const hrefs = within(receipt)
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href") ?? "");
+    expect(hrefs).toEqual([
+      expect.stringMatching(new RegExp(`/tx/${REFUND}$`)),
+      expect.stringMatching(new RegExp(`/tx/${RATING}$`)),
+    ]);
+
+    expect(within(row).queryAllByRole("button")).toHaveLength(0);
+    // The status is said once in the row — by the receipt, not a second badge.
+    expect(row.textContent?.match(/Dispute status:/g)).toHaveLength(1);
+    // The other settled step is still the buyer's to dispute.
+    expect(
+      within(other).getByRole("button", { name: /^Dispute step 2/ }),
+    ).toBeTruthy();
+  });
+
+  it("dates the receipt on the panel's server clock, not the device's", () => {
+    renderPanel(settled([{ step: step(0), state: disputed(dispute()) }]));
+    // Raised a minute after settlement; the view is an hour in, so on the
+    // server's clock the dispute is 59 minutes old — whatever this machine's
+    // own clock says.
+    const openedAt = new Date(SETTLED_AT + 60_000).toISOString();
+    const raised = document.querySelector(`time[datetime="${openedAt}"]`);
+    expect(raised?.parentElement?.textContent).toContain(
+      formatAge(HOUR - 60_000),
+    );
+  });
+
+  it("speaks to a non-payer as an onlooker, and never with the buyer's words", () => {
+    renderPanel(
+      settled([{ step: step(0), state: disputed(credited, "other") }], {
+        viewer: "other",
+      }),
+    );
+    const receipt = screen.getByRole("group", { name: /dispute receipt/i });
+    expect(receipt.textContent).toContain("credited to the payer's wallet");
+    expect(receipt.textContent).not.toMatch(/\byour?\b/i);
+    expect(text()).not.toContain(credited.reason);
   });
 });
 
@@ -376,11 +522,7 @@ describe("ReceiptPanel — who is looking", () => {
           { step: step(0), state: { kind: "view_only" } },
           {
             step: step(1),
-            state: {
-              kind: "disputed",
-              dispute: dispute({ step_index: 1 }),
-              showReason: false,
-            },
+            state: disputed(dispute({ step_index: 1 }), "other"),
           },
           {
             step: step(2, { delivered: false }),
@@ -431,7 +573,7 @@ describe("ReceiptPanel — the terms", () => {
       settled([
         {
           step: step(0),
-          state: { kind: "disputed", dispute: dispute(), showReason: true },
+          state: disputed(dispute()),
         },
       ]),
     );
