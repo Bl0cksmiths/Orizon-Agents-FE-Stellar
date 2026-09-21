@@ -25,11 +25,10 @@ import {
 } from "@testing-library/react";
 
 import { formatAge } from "@/components/ui/stale-badge";
-import { formatRemaining, formatUsdc } from "@/lib/disputes";
+import { disputeReceipt, formatRemaining, formatUsdc } from "@/lib/disputes";
 import type {
   CreditPolicy,
   Dispute,
-  DisputeArtifact,
   DisputePanelView,
   DisputeReceiptView,
   DisputeViewer,
@@ -94,11 +93,10 @@ const POLICY: CreditPolicy = {
 };
 
 /**
- * The receipt disputeView() derives for a dispute, rebuilt by the same rules
- * so no fixture pairs a dispute with a receipt the data could never produce:
- * the refund confirmed only once credited with its hash, the rating only when
- * the ledger vouched for it, the settled figure final only beside a confirmed
- * refund, and both reasons for the payer alone. `over` is for a test that
+ * The receipt disputeView() derives for a dispute — by calling the very
+ * function it calls, so no fixture here can pair a dispute with a receipt the
+ * data layer would never produce, and a change to those rules reaches these
+ * tests instead of drifting past a hand-kept copy. `over` is for a test that
  * pins one field on purpose.
  */
 function receiptFor(
@@ -106,42 +104,7 @@ function receiptFor(
   viewer: DisputeViewer = "payer",
   over: Partial<DisputeReceiptView> = {},
 ): DisputeReceiptView {
-  const refundTx = d.refund_tx || null;
-  let refund: DisputeArtifact = { txHash: null, state: "none" };
-  if (d.status === "credited") {
-    refund = refundTx
-      ? { txHash: refundTx, state: "confirmed" }
-      : { txHash: null, state: "pending" };
-  } else if (d.status === "crediting") {
-    refund = { txHash: refundTx, state: "pending" };
-  } else if (d.status === "upheld") {
-    refund = { txHash: null, state: "pending" };
-  }
-  const rating: DisputeArtifact = d.rating_tx
-    ? {
-        txHash: d.rating_tx,
-        state: d.rating_confirmed === true ? "confirmed" : "pending",
-      }
-    : { txHash: null, state: "none" };
-  const payer = viewer === "payer";
-  return {
-    status: d.status,
-    openedAtMs: d.opened_at * 1000,
-    lastChangedAtMs: (d.updated_at ?? d.resolved_at ?? d.opened_at) * 1000,
-    amount:
-      refund.state === "confirmed" && typeof d.credited_usdc === "number"
-        ? { usdc: d.credited_usdc, final: true }
-        : { usdc: d.creditable_usdc, final: false },
-    fundedBy: "platform",
-    refund,
-    rating,
-    reason: payer ? d.reason : null,
-    rejectionReason:
-      payer && d.status === "rejected" && d.rejection_reason?.trim()
-        ? d.rejection_reason
-        : null,
-    ...over,
-  };
+  return { ...disputeReceipt(d, viewer, POLICY), ...over };
 }
 
 /**
