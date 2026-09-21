@@ -29,6 +29,7 @@ import {
   mockDisputeReads,
   mockDisputeTaskId,
   mockReceiptDispute,
+  mockRefundTx,
   mockSettlementSteps,
   mockSettlementView,
   mockTraceStream,
@@ -42,6 +43,14 @@ const [, codeStep] = mockSettlementSteps;
 
 /** Now, in epoch seconds, on the clock the mock server shares with the page. */
 const nowS = () => Math.floor(Date.now() / 1000);
+
+/**
+ * Stellar Expert's TESTNET page for one transaction: what "a transaction that
+ * resolves on Stellar Expert (testnet)" means for a link, spelled out here
+ * rather than borrowed from the component under test.
+ */
+const testnetTx = (hash: string) =>
+  `https://stellar.expert/explorer/testnet/tx/${hash}`;
 
 /** How an epoch-seconds instant is written on a `<time datetime>`. */
 const isoOf = (epochS: number) => new Date(epochS * 1000).toISOString();
@@ -122,5 +131,32 @@ test.describe("dispute status and refund receipt", () => {
     // Not silence: the buyer is told who acts next.
     await expect(row).toContainText(/the platform (is )?review/i);
     await attachShot(testInfo, "receipt — open", row);
+  });
+
+  test("a credited dispute shows the amount actually paid and links its refund on Stellar Expert testnet", async ({
+    page,
+  }, testInfo) => {
+    // Deliberately NOT the step's `creditable_usdc` (0.027): were the two
+    // equal, a receipt printing the promise would pass as one printing what
+    // the refund moved.
+    const paidUsdc = 0.0265;
+    expect(paidUsdc).not.toBe(codeStep.creditable_usdc);
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS: nowS() - 40 * 60,
+          credited_usdc: paidUsdc,
+        }),
+      ],
+    });
+
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Refunded");
+    await expect(row).toContainText("0.0265 USDC");
+    // The link resolves on the testnet explorer, to exactly this refund.
+    const refund = row.getByRole("link", { name: /refund/i });
+    await expect(refund).toHaveAttribute("href", testnetTx(mockRefundTx));
+    await attachShot(testInfo, "receipt — credited", row);
   });
 });
