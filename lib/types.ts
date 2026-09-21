@@ -484,3 +484,211 @@ export type BindErrorCode =
   | "registry_unavailable"
   | "binding_not_found"
   | "rate_limited";
+
+// ── disputes (stories 4.02–4.05) ─────────────────────────────────
+
+/**
+ * A dispute's lifecycle as the backend records it. `crediting` is not an
+ * outcome anyone chooses: it is a refund in flight, held so a retry can never
+ * pay twice (story 4.03).
+ */
+export type DisputeStatus =
+  "open" | "upheld" | "crediting" | "credited" | "rejected";
+
+/**
+ * The terms a dispute is raised under. Served by the backend rather than
+ * written into the UI, so the buyer is shown the policy actually in force —
+ * and shown it BEFORE they commit (story 4.05's product rule).
+ */
+export type CreditPolicy = {
+  /** Share of a disputed step's charge credited if upheld, from 0 to 1. */
+  credited_fraction: number;
+  /** Who pays the credit: the platform, never clawed back from the agent. */
+  funded_by: "platform";
+  /** Who decides: the platform. There is no on-chain arbitration. */
+  adjudicated_by: "platform";
+};
+
+/**
+ * One step of a settled workflow, as it was charged — read from the durable
+ * settlement record, never from the trace, which is in-memory and gone after
+ * a restart while a buyer still has the whole window to dispute.
+ */
+export type SettlementStepView = {
+  step_index: number;
+  agent_id: string;
+  agent_name: string | null;
+  /** What the step was charged, in USDC. */
+  price_usdc: number;
+  /**
+   * Whether the step produced output and was charged. A step that did not
+   * deliver was never billed, so there is nothing to dispute.
+   */
+  delivered: boolean;
+  /**
+   * What an upheld dispute of this step would credit, computed by the backend
+   * with the refund's own rule so the UI never re-derives the rounding. 0 when
+   * the step did not deliver.
+   */
+  creditable_usdc: number;
+  /** The one line the step produced; null when it was not recorded. */
+  output_summary: string | null;
+};
+
+/** A workflow's settlement: what moved, who paid, and until when to dispute. */
+export type SettlementView = {
+  job_id_hex: string;
+  /** The G-address that paid. Only this wallet may dispute. */
+  payer: string;
+  /** Epoch seconds, on the server's clock. */
+  settled_at: number;
+  /** Epoch seconds, stamped at settlement and never moved afterwards. */
+  window_closes_at: number;
+  settled_usdc: number;
+  charge_tx: string | null;
+  proof_tx: string | null;
+  steps: SettlementStepView[];
+  policy: CreditPolicy;
+};
+
+/** One buyer's dispute of one settled step. */
+export type Dispute = {
+  id: string;
+  job_id_hex: string;
+  task_id: string;
+  step_index: number;
+  agent_id: string;
+  payer: string;
+  reason: string;
+  status: DisputeStatus;
+  /** What the disputed step cost. */
+  charged_usdc: number;
+  /** What an upheld dispute credits, frozen when the dispute was opened. */
+  creditable_usdc: number;
+  /** Epoch seconds. */
+  opened_at: number;
+  resolved_at: number | null;
+  refund_tx: string | null;
+  rating_tx: string | null;
+};
+
+/**
+ * Response of GET /api/tasks/{task_id}/disputes — a workflow's settlement and
+ * every dispute raised against it, in one read.
+ *
+ * `now` and `settlement` are OPTIONAL on purpose. The frontend deploys itself
+ * on every merge and the backend does not, so this client will meet a backend
+ * that predates both fields; an absent `settlement` must read as "not
+ * disputable yet", never as a crash.
+ */
+export type TaskDisputes = {
+  task_id: string;
+  /** Kept for older clients; equals `settlement.window_closes_at`. */
+  window_closes_at: number | null;
+  /** The server's clock at response time, in epoch seconds. */
+  now?: number;
+  /** Null until the workflow settles. */
+  settlement?: SettlementView | null;
+  disputes: Dispute[];
+};
+
+export type DisputeChallengeReq = { job_id_hex: string; step_index: number };
+
+/**
+ * Response of POST /api/disputes/challenge — a single-use nonce the payer's
+ * wallet must sign before a dispute is accepted.
+ */
+export type DisputeChallenge = {
+  /**
+   * The EXACT string the wallet must sign, composed server-side as
+   * `orizon-dispute:v1:{job_id_hex}:{step_index}:{nonce}`. Signed verbatim and
+   * never rebuilt on the client, for the same reason as `BindChallenge`.
+   */
+  message: string;
+  nonce: string;
+  /** Epoch seconds after which the nonce is refused. */
+  expires_at: number;
+};
+
+/** Body of POST /api/disputes. */
+export type OpenDisputeReq = {
+  job_id_hex: string;
+  step_index: number;
+  reason: string;
+  /** The G-address that signed — it must be the workflow's payer. */
+  payer: string;
+  nonce: string;
+  signature_b64: string;
+};
+
+/**
+ * The codes opening a dispute can be refused with, in the shared
+ * `{ detail, error: { code, message, request_id } }` envelope. Each needs a
+ * different screen: `challenge_expired` is a silent retry, `not_the_payer` is
+ * a wallet mismatch, `dispute_window_closed` is final, and `duplicate_dispute`
+ * is not a failure at all — the step already has its dispute.
+ */
+export type DisputeErrorCode =
+  | "reason_required"
+  | "unknown_job"
+  | "signature_malformed"
+  | "challenge_expired"
+  | "not_the_payer"
+  | "dispute_window_closed"
+  | "step_not_settled"
+  | "nothing_was_charged"
+  | "duplicate_dispute"
+  | "rate_limited";
+
+/**
+ * Who is looking at a settled workflow. The page cannot tell a payer from
+ * anyone else until a wallet connects, so `anonymous` is its own case: it is
+ * shown the receipt and a prompt to connect the paying wallet, never an action.
+ */
+export type DisputeViewer = "payer" | "other" | "anonymous";
+
+/**
+ * Why one settled step can or cannot be disputed by THIS viewer right now.
+ * Every rule story 4.05 states lives in how this is derived, in pure code:
+ * an undelivered step was never charged; a step has at most one dispute; a
+ * closed window offers nothing; and only the payer is ever offered an action.
+ */
+export type StepDisputeState =
+  | { kind: "disputable" }
+  | { kind: "disputed"; dispute: Dispute; showReason: boolean }
+  | { kind: "not_charged" }
+  | { kind: "window_closed" }
+  | { kind: "view_only" };
+
+/**
+ * The whole receipt panel, derived purely from the backend's answer, the
+ * connected wallet, whether the workflow has finished, and the server-corrected
+ * clock. The panel renders this and decides nothing.
+ *
+ * `hidden` covers the trace page's demo mode and a backend too old to send a
+ * settlement at all. `not_settled` is a real answer — nothing was charged, or
+ * not yet — and the panel says why rather than showing nothing.
+ */
+export type DisputePanelView =
+  | { kind: "hidden" }
+  | { kind: "not_settled"; running: boolean }
+  | {
+      kind: "settled";
+      viewer: DisputeViewer;
+      window: {
+        open: boolean;
+        /** Epoch milliseconds, server clock. */
+        closesAtMs: number;
+        /** Milliseconds left on the server's clock; 0 once closed. */
+        remainingMs: number;
+      };
+      jobIdHex: string;
+      payer: string;
+      /** Epoch milliseconds, server clock. */
+      settledAtMs: number;
+      settledUsdc: number;
+      chargeTx: string | null;
+      proofTx: string | null;
+      policy: CreditPolicy;
+      steps: { step: SettlementStepView; state: StepDisputeState }[];
+    };

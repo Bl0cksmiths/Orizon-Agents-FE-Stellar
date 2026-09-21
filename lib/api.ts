@@ -348,6 +348,16 @@ function taskAuthHeaders(taskId: string): Record<string, string> | undefined {
   return token ? { "X-Task-Token": token } : undefined;
 }
 
+/**
+ * The request plumbing above, for sibling clients that need more than
+ * `fetchWithTimeout` alone. lib/disputes.ts reads a task's receipt with the
+ * same error envelope, guard and task token as every read here, but WITHOUT
+ * the GET dedupe: that answer carries the server clock the dispute window is
+ * judged on, and a response replayed from the dedupe window would both skew
+ * the clock and hand a post-submit refresh the state from before the submit.
+ */
+export { ensure, httpError, post, taskAuthHeaders };
+
 export const listAgents = () =>
   get<Agent[]>("/agents", ensure("/agents", isAgentList));
 export const listTasks = () =>

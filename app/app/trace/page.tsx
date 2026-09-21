@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArtifactViewer } from "@/components/ui/artifact-viewer";
+import { DisputeSection } from "@/components/disputes/dispute-section";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
@@ -25,7 +26,10 @@ import { cn } from "@/lib/utils";
 
 const levelColor: Record<TraceLine["level"], string> = {
   input: "text-cyan",
-  exec: "text-violet",
+  // The readable violet: plain `text-violet` is 4.49:1 on the log's #060010,
+  // just under AA for this 10px label — axe caught it once a live run's exec
+  // lines were on screen, which the demo sweep never waited for.
+  exec: "text-violet-readable",
   proof: "text-magenta",
   cost: "text-emerald-300",
   out: "text-text",
@@ -370,6 +374,10 @@ function TracePageInner() {
           </div>
         )}
       </div>
+
+      {/* Its own component so the dispute window's countdown re-renders the
+          receipt alone, never this page and its trace log. */}
+      <DisputeSection taskId={taskId} workflowDone={done} demo={!taskId} />
 
       {artifact && (
         <div className="flex gap-2" role="tablist" aria-label="Trace views">

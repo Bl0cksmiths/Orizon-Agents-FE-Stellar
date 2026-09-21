@@ -1,5 +1,16 @@
 import type { Page, Route } from "@playwright/test";
-import type { DecomposeResponse, ReputationBatch } from "../lib/types";
+import type {
+  CreditPolicy,
+  DecomposeResponse,
+  Dispute,
+  DisputeStatus,
+  OpenDisputeReq,
+  ReputationBatch,
+  SettlementStepView,
+  SettlementView,
+  TaskDisputes,
+  TraceLine,
+} from "../lib/types";
 
 /**
  * Mock payloads shaped to satisfy lib/guards.ts (isOverview, isTaskList,
@@ -1156,5 +1167,346 @@ export async function mockWallet(page: Page): Promise<void> {
       signedTxXdr: mockSignedTxXdr,
       passphrase: "Test SDF Network ; September 2015",
     },
+  );
+}
+
+// ── Disputes on the trace / receipt view (story 4.05) ───────
+
+/** The workflow every dispute spec opens the trace page on, via `?task=`. */
+export const mockDisputeTaskId = "task_e2e_dispute";
+
+/** 16 bytes of hex: the `_JOB_ID_PATTERN` shape the dispute routes accept. */
+export const mockDisputeJobIdHex = "7c2e9b41d05a4f38a6e1b9c3d7f20a58";
+
+/**
+ * The terms in force. The backend defaults DISPUTE_CREDITED_FRACTION to 1.0;
+ * half is used here so a "50%" in the form can only have come from the policy
+ * it was served, never from copy that hard-codes a full refund.
+ */
+export const mockCreditPolicy: CreditPolicy = {
+  credited_fraction: 0.5,
+  funded_by: "platform",
+  adjudicated_by: "platform",
+};
+
+/**
+ * What the trace stream replays for that workflow. The receipt is read from
+ * the durable settlement, not from these lines, so they only have to look
+ * like a finished run: the spec asserts they still render beneath the panel.
+ */
+export const mockDisputeTrace: TraceLine[] = [
+  { t: "00.000", level: "input", msg: "intent received → 'audit brief'" },
+  { t: "00.412", level: "exec", msg: "seo.brief → outline drafted" },
+  { t: "00.430", level: "cost", msg: "x402 payment → seo.brief :: 0.009 USDC" },
+  { t: "01.870", level: "exec", msg: "code.gen → calculator app generated" },
+  { t: "01.905", level: "cost", msg: "x402 payment → code.gen :: 0.054 USDC" },
+  { t: "02.640", level: "error", msg: "vision.ocr failed — step not charged" },
+  { t: "02.700", level: "out", msg: "workflow settled" },
+];
+
+/**
+ * The steps as they settled: two that delivered and were charged, and one
+ * that failed. The failed step keeps its own price, as the backend's
+ * `SettlementStep` does, but credits nothing. `creditable_usdc` is price x
+ * `mockCreditPolicy.credited_fraction`, precomputed the way the backend
+ * serves it, because the UI is meant to print it rather than re-derive it.
+ */
+export const mockSettlementSteps: SettlementStepView[] = [
+  {
+    step_index: 0,
+    agent_id: "seo.brief",
+    agent_name: "seo.brief",
+    price_usdc: 0.009,
+    delivered: true,
+    creditable_usdc: 0.0045,
+    output_summary: "outline with 12 target keywords",
+  },
+  {
+    step_index: 1,
+    agent_id: "code.gen",
+    agent_name: "code.gen",
+    price_usdc: 0.054,
+    delivered: true,
+    creditable_usdc: 0.027,
+    output_summary: "calculator app, 3 files",
+  },
+  {
+    step_index: 2,
+    agent_id: "vision.ocr",
+    agent_name: "vision.ocr",
+    price_usdc: 0.012,
+    delivered: false,
+    creditable_usdc: 0,
+    output_summary: null,
+  },
+];
+
+/** The 24-hour window story 4.02 stamps at settlement. */
+export const DISPUTE_WINDOW_S = 24 * 60 * 60;
+
+/**
+ * A settlement that happened at `settledAtS` (epoch seconds). Built from an
+ * explicit instant rather than "an hour ago" so the window's closing time is
+ * fixed for the whole test, as the backend's is: it is stamped once at
+ * settlement and never moves, however long the page stays open.
+ */
+export function mockSettlementView(opts: {
+  settledAtS: number;
+  windowS?: number;
+  payer?: string;
+  /**
+   * The policy's credited fraction, when a spec needs another than
+   * `mockCreditPolicy`'s. Every step's `creditable_usdc` follows it, computed
+   * as `refund_svc.credited_amount_usdc` does — price x fraction, rounded to
+   * 7 places — so the terms and the amounts on screen cannot disagree.
+   */
+  creditedFraction?: number;
+}): SettlementView {
+  const fraction = opts.creditedFraction;
+  const credited =
+    fraction === undefined
+      ? { steps: mockSettlementSteps, policy: mockCreditPolicy }
+      : {
+          steps: mockSettlementSteps.map((step) => ({
+            ...step,
+            creditable_usdc: step.delivered
+              ? Math.round(step.price_usdc * fraction * 1e7) / 1e7
+              : 0,
+          })),
+          policy: { ...mockCreditPolicy, credited_fraction: fraction },
+        };
+  return {
+    job_id_hex: mockDisputeJobIdHex,
+    payer: opts.payer ?? mockWalletAddress,
+    settled_at: opts.settledAtS,
+    window_closes_at: opts.settledAtS + (opts.windowS ?? DISPUTE_WINDOW_S),
+    settled_usdc: 0.063,
+    charge_tx:
+      "a41c7e0d93b25f6817ce4a0b9d3f72e15c86a0d4b7e2f91c3a58d06e4b1f7c29",
+    proof_tx:
+      "0e9d4c71b3a85f2e6c1d07b94a3e8f52d6c10a7e9b4f38d2c5a16e0b7d93f4a8",
+    ...credited,
+  };
+}
+
+/** A dispute already on record against one settled step. */
+export function mockDispute(
+  step: SettlementStepView,
+  opts: {
+    openedAtS: number;
+    reason: string;
+    status?: DisputeStatus;
+    payer?: string;
+  },
+): Dispute {
+  return {
+    id: `dsp_e2e_${step.step_index}`,
+    job_id_hex: mockDisputeJobIdHex,
+    task_id: mockDisputeTaskId,
+    step_index: step.step_index,
+    agent_id: step.agent_id,
+    payer: opts.payer ?? mockWalletAddress,
+    reason: opts.reason,
+    status: opts.status ?? "open",
+    charged_usdc: step.price_usdc,
+    creditable_usdc: step.creditable_usdc,
+    opened_at: opts.openedAtS,
+    resolved_at: null,
+    refund_tx: null,
+    rating_tx: null,
+  };
+}
+
+/**
+ * The trace stream for one task, as a finished run: every line, then `done`.
+ *
+ * EventSource requests go through the same network stack as fetch, so a
+ * fulfilled `text/event-stream` body is parsed exactly like a live one. The
+ * connection closing after `done` is harmless — `openTraceStream` has already
+ * settled by then and ignores the error a closed stream fires.
+ */
+export async function mockTraceStream(
+  page: Page,
+  taskId: string,
+  lines: readonly TraceLine[] = mockDisputeTrace,
+): Promise<void> {
+  const body =
+    lines
+      .map((line) => `event: trace\ndata: ${JSON.stringify(line)}\n\n`)
+      .join("") + "event: done\ndata: {}\n\n";
+  await page.route(new RegExp(`/api/trace/${taskId}/stream(\\?|$)`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      headers: { "cache-control": "no-cache" },
+      body,
+    }),
+  );
+}
+
+export type MockDisputeApiOptions = {
+  /** The workflow's settlement; null while it has not settled. */
+  settlement: SettlementView | null;
+  /** Disputes already on record when the page first loads. */
+  disputes?: readonly Dispute[];
+  /**
+   * Answer as the backend that is live today does: `window_closes_at` and
+   * `disputes`, with no `settlement` and no `now` key at all. Vercel ships the
+   * frontend on every merge and Render does not, so this is the response the
+   * new page meets first.
+   */
+  legacy?: boolean;
+  /**
+   * The server's clock, in epoch ms. Defaults to Node's, which agrees with the
+   * page's own. A spec that fast-forwards the page's clock must pass the
+   * page's clock here instead, or any read after the jump would report a
+   * server time from before it and the correction would wind the page back.
+   */
+  clock?: () => number | Promise<number>;
+  /**
+   * How `POST /api/disputes` answers. `created` records the dispute and
+   * returns it. `duplicate` answers the backend's 409 `duplicate_dispute`,
+   * whose body carries the dispute that already exists — one raised from the
+   * buyer's other tab — and every later read includes it, as the server's
+   * would.
+   */
+  open?: "created" | "duplicate";
+};
+
+const DISPUTES_RE = /^\/api\/tasks\/([^/]+)\/disputes$/;
+const disputeNonce = "e2edisputenonce000000000000000000";
+
+/**
+ * The dispute surface: the task's settlement and disputes, the challenge, and
+ * opening a dispute. Stateful on purpose — a dispute opened here is returned
+ * by every later read, which is what lets a spec assert that the step "now
+ * shows its dispute" rather than that a success toast appeared.
+ *
+ * Register it AFTER `mockApi`: Playwright tries the most recently added
+ * route first, and every path this does not own falls back to `mockApi`.
+ */
+export async function mockDisputeApi(
+  page: Page,
+  options: MockDisputeApiOptions,
+): Promise<void> {
+  const recorded: Dispute[] = [...(options.disputes ?? [])];
+  const nowS = async () =>
+    Math.floor((await (options.clock ?? Date.now)()) / 1000);
+
+  await page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const { pathname } = new URL(request.url());
+    const method = request.method();
+
+    const disputesFor = DISPUTES_RE.exec(pathname);
+    if (method === "GET" && disputesFor) {
+      const settlement = options.settlement;
+      const legacy = {
+        task_id: decodeURIComponent(disputesFor[1]),
+        window_closes_at: settlement?.window_closes_at ?? null,
+        disputes: recorded,
+      };
+      if (options.legacy) return json(route, legacy);
+      const body: TaskDisputes = {
+        ...legacy,
+        now: await nowS(),
+        settlement,
+      };
+      return json(route, body);
+    }
+
+    if (method === "POST" && pathname === "/api/disputes/challenge") {
+      const body = request.postDataJSON() as {
+        job_id_hex: string;
+        step_index: number;
+      };
+      return json(route, {
+        // Composed exactly as `dispute_svc.dispute_message` does; the wallet
+        // signs this string verbatim.
+        message: `orizon-dispute:v1:${body.job_id_hex}:${body.step_index}:${disputeNonce}`,
+        nonce: disputeNonce,
+        expires_at: (await nowS()) + 120,
+      });
+    }
+
+    if (method === "POST" && pathname === "/api/disputes") {
+      const body = request.postDataJSON() as OpenDisputeReq;
+      const step = options.settlement?.steps.find(
+        (s) => s.step_index === body.step_index,
+      );
+      if (!step || !options.settlement) return route.fallback();
+      const opened = await nowS();
+      // The window is judged at open, on the server's clock, as
+      // `dispute_svc.open_dispute` judges it — so a spec that moves that
+      // clock past the close gets the refusal the real backend would give.
+      if (opened >= options.settlement.window_closes_at) {
+        return route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            detail: "dispute_window_closed",
+            error: {
+              code: "dispute_window_closed",
+              message: "the dispute window for this workflow has closed",
+              request_id: "e2e0000000000409",
+            },
+          }),
+        });
+      }
+      if (options.open === "duplicate") {
+        const existing = mockDispute(step, {
+          openedAtS: opened - 600,
+          reason: "raised from another tab",
+          payer: body.payer,
+        });
+        recorded.push(existing);
+        return route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            detail: "duplicate_dispute",
+            error: {
+              code: "duplicate_dispute",
+              message: "this step is already disputed",
+              request_id: "e2e0000000000405",
+            },
+            dispute: existing,
+          }),
+        });
+      }
+      const created = mockDispute(step, {
+        openedAtS: opened,
+        reason: body.reason,
+        payer: body.payer,
+      });
+      recorded.push(created);
+      return json(route, created);
+    }
+
+    return route.fallback();
+  });
+}
+
+/**
+ * A backend older than story 4.02, which has no disputes route at all: the
+ * read answers FastAPI's 404 in the shared error envelope. Register it AFTER
+ * `mockDisputeApi` so it wins for that one read.
+ */
+export async function mockDisputesRouteMissing(page: Page): Promise<void> {
+  await page.route(
+    (url) => DISPUTES_RE.test(url.pathname),
+    (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "Not Found",
+          error: {
+            code: "not_found",
+            message: "Not Found",
+            request_id: "e2e0000000000404",
+          },
+        }),
+      }),
   );
 }

@@ -1,0 +1,679 @@
+// @vitest-environment jsdom
+/**
+ * Unit tests for useDisputePanel (lib/use-dispute-panel.ts).
+ *
+ * The hook owns everything the receipt panel needs that is not a pure rule:
+ * the fetch, the server clock measured on arrival, the connected wallet, and
+ * the tick. `getTaskDisputes` is replaced with deferred promises the tests
+ * settle by hand, `useWallet` with a mutable address, and fake timers drive
+ * the tick — so each cadence, the close, and every timer's cleanup are
+ * observable exactly, down to the millisecond.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { act, cleanup, render, renderHook } from "@testing-library/react";
+import { ApiError } from "./api";
+import { getTaskDisputes } from "./disputes";
+import type { DisputePanelView, SettlementView, TaskDisputes } from "./types";
+import {
+  COARSE_TICK_MS,
+  FINAL_HOUR_TICK_MS,
+  disputeTickMs,
+  useDisputePanel,
+} from "./use-dispute-panel";
+
+const { wallet } = vi.hoisted(() => ({
+  wallet: { address: null as string | null },
+}));
+
+vi.mock("./wallet", () => ({
+  useWallet: () => ({ address: wallet.address }),
+}));
+
+vi.mock("./disputes", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./disputes")>()),
+  getTaskDisputes: vi.fn(),
+}));
+
+const fetchDisputes = vi.mocked(getTaskDisputes);
+
+// @testing-library/react's act() requires this flag in a bare jsdom env.
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
+const S = 1_000;
+const M = 60 * S;
+const H = 60 * M;
+
+/** The local clock when each test starts. */
+const T0 = 1_790_000_000_000;
+const PAYER = "GBPAYER".padEnd(56, "A");
+const OTHER = "GBOTHER".padEnd(56, "B");
+const JOB_A = "a".repeat(32);
+const JOB_B = "b".repeat(32);
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(T0);
+  wallet.address = PAYER;
+  fetchDisputes.mockReset();
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function settlement(closesAtMs: number, job = JOB_A): SettlementView {
+  return {
+    job_id_hex: job,
+    payer: PAYER,
+    settled_at: (T0 - M) / 1_000,
+    window_closes_at: closesAtMs / 1_000,
+    settled_usdc: 0.02,
+    charge_tx: "tx_charge",
+    proof_tx: null,
+    steps: [0, 1].map((i) => ({
+      step_index: i,
+      agent_id: `agt_${i}`,
+      agent_name: null,
+      price_usdc: 0.01,
+      delivered: true,
+      creditable_usdc: 0.005,
+      output_summary: null,
+    })),
+    policy: {
+      credited_fraction: 0.5,
+      funded_by: "platform",
+      adjudicated_by: "platform",
+    },
+  };
+}
+
+/**
+ * An answer whose window closes `closesInMs` after the server's `now`, with
+ * the server's clock `skewMs` ahead of the local one at T0.
+ */
+function answer(
+  closesInMs: number,
+  over: Partial<TaskDisputes> & { skewMs?: number; job?: string } = {},
+): TaskDisputes {
+  const { skewMs = 0, job, ...rest } = over;
+  const serverNowMs = T0 + skewMs;
+  return {
+    task_id: "task_a",
+    window_closes_at: (serverNowMs + closesInMs) / 1_000,
+    now: serverNowMs / 1_000,
+    settlement: settlement(serverNowMs + closesInMs, job),
+    disputes: [],
+    ...rest,
+  };
+}
+
+type Props = { taskId: string | null; workflowDone: boolean; demo: boolean };
+
+const DEFAULTS: Props = { taskId: "task_a", workflowDone: true, demo: false };
+
+function mount(props: Partial<Props> = {}) {
+  let renders = 0;
+  const hook = renderHook(
+    (p: Props) => {
+      renders += 1;
+      return useDisputePanel(p.taskId, {
+        workflowDone: p.workflowDone,
+        demo: p.demo,
+      });
+    },
+    { initialProps: { ...DEFAULTS, ...props } },
+  );
+  return { ...hook, renders: () => renders };
+}
+
+/** Settle a pending answer and let React commit what it causes. */
+async function land<T>(d: { resolve: (v: T) => void }, value: T) {
+  await act(async () => {
+    d.resolve(value);
+  });
+}
+
+/** Mount with an answer already landed. */
+async function mountWith(res: TaskDisputes, props: Partial<Props> = {}) {
+  const d = deferred<TaskDisputes>();
+  fetchDisputes.mockReturnValueOnce(d.promise);
+  const hook = mount(props);
+  await land(d, res);
+  return hook;
+}
+
+async function advance(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
+function settledOf(view: DisputePanelView) {
+  if (view.kind !== "settled")
+    throw new Error(`expected settled, got ${view.kind}`);
+  return view;
+}
+
+const stateKinds = (view: DisputePanelView) =>
+  settledOf(view).steps.map(({ state }) => state.kind);
+
+describe("disputeTickMs", () => {
+  const open = (remainingMs: number): DisputePanelView => ({
+    kind: "settled",
+    viewer: "payer",
+    window: { open: remainingMs > 0, closesAtMs: T0, remainingMs },
+    jobIdHex: JOB_A,
+    payer: PAYER,
+    settledAtMs: T0,
+    settledUsdc: 0.02,
+    chargeTx: null,
+    proofTx: null,
+    policy: settlement(T0).policy,
+    steps: [],
+  });
+
+  it("runs no timer when nothing on the panel can change with time", () => {
+    expect(disputeTickMs({ kind: "hidden" })).toBeNull();
+    expect(disputeTickMs({ kind: "not_settled", running: true })).toBeNull();
+    expect(disputeTickMs(open(0))).toBeNull();
+  });
+
+  it("ticks every 30 s while an hour or more is left", () => {
+    expect(disputeTickMs(open(23 * H))).toBe(COARSE_TICK_MS);
+    expect(disputeTickMs(open(H))).toBe(COARSE_TICK_MS);
+  });
+
+  it("ticks every second in the final hour", () => {
+    expect(disputeTickMs(open(H - 1))).toBe(FINAL_HOUR_TICK_MS);
+    expect(disputeTickMs(open(10 * M))).toBe(FINAL_HOUR_TICK_MS);
+  });
+
+  it("lands the last tick on the close itself, never before the clock can move", () => {
+    expect(disputeTickMs(open(400))).toBe(400);
+    expect(disputeTickMs(open(0.3))).toBe(1);
+  });
+});
+
+describe("useDisputePanel — what it fetches", () => {
+  it("fetches nothing and stays hidden in demo mode", () => {
+    const { result } = mount({ demo: true });
+
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: false,
+      error: null,
+    });
+    expect(fetchDisputes).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("fetches nothing and stays hidden without a task", () => {
+    const { result } = mount({ taskId: null });
+
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: false,
+      error: null,
+    });
+    expect(fetchDisputes).not.toHaveBeenCalled();
+  });
+
+  it("is loading until the answer lands, then draws it", async () => {
+    const d = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(d.promise);
+    const { result } = mount();
+
+    expect(fetchDisputes).toHaveBeenCalledWith("task_a");
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: true,
+      error: null,
+    });
+
+    await land(d, answer(23 * H));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(settledOf(result.current.view)).toMatchObject({
+      viewer: "payer",
+      jobIdHex: JOB_A,
+    });
+  });
+
+  it("reports a failure as an error — never as loading, never as not settled", async () => {
+    const d = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(d.promise);
+    const { result } = mount();
+
+    await act(async () => {
+      d.reject(new Error("GET /tasks/task_a/disputes → 500 — boom"));
+    });
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: false,
+      error: "GET /tasks/task_a/disputes → 500 — boom",
+    });
+  });
+
+  it("hides the panel without an error when the backend has no such route", async () => {
+    const d = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(d.promise);
+    const { result } = mount();
+
+    await act(async () => {
+      d.reject(new ApiError("GET /tasks/task_a/disputes → 404", 404));
+    });
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: false,
+      error: null,
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("hides the panel for a backend that predates the settlement field", async () => {
+    const { settlement: _omitted, now: _alsoOmitted, ...legacy } = answer(H);
+    const { result } = await mountWith(legacy);
+
+    expect(result.current.view).toEqual({ kind: "hidden" });
+    expect(result.current.error).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("says not settled while the run is going, with no timer", async () => {
+    const { result } = await mountWith(answer(H, { settlement: null }), {
+      workflowDone: false,
+    });
+
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("useDisputePanel — who is looking", () => {
+  it("follows the connected wallet: anonymous, someone else, the payer", async () => {
+    wallet.address = null;
+    const { result, rerender } = await mountWith(answer(23 * H));
+    expect(settledOf(result.current.view).viewer).toBe("anonymous");
+    expect(stateKinds(result.current.view)).toEqual(["view_only", "view_only"]);
+
+    wallet.address = OTHER;
+    rerender(DEFAULTS);
+    expect(settledOf(result.current.view).viewer).toBe("other");
+    expect(stateKinds(result.current.view)).toEqual(["view_only", "view_only"]);
+
+    wallet.address = PAYER;
+    rerender(DEFAULTS);
+    expect(settledOf(result.current.view).viewer).toBe("payer");
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useDisputePanel — the server's clock", () => {
+  it("judges the window on the server's clock when it runs ahead", async () => {
+    // Server says 10 minutes later than this laptop does; the window closes
+    // 20 minutes after the server's now.
+    const { result } = await mountWith(answer(20 * M, { skewMs: 10 * M }));
+
+    expect(settledOf(result.current.view).window).toMatchObject({
+      open: true,
+      remainingMs: 20 * M,
+    });
+  });
+
+  it("closes the window on the server's word even if this clock says there is time", async () => {
+    // The server's clock is past the close; this laptop is an hour behind.
+    const { result } = await mountWith(answer(-S, { skewMs: H }));
+
+    expect(settledOf(result.current.view).window).toMatchObject({
+      open: false,
+      remainingMs: 0,
+    });
+    expect(stateKinds(result.current.view)).toEqual([
+      "window_closed",
+      "window_closed",
+    ]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("measures the offset when the answer arrives, not when it was asked for", async () => {
+    // A cold backend: the answer takes 45 s, and the server's now is stamped
+    // when it leaves. Judged against the mount-time clock it would be 45 s off.
+    const d = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(d.promise);
+    const { result } = mount();
+
+    await advance(45 * S);
+    const leavesAtMs = T0 + 45 * S;
+    await land(d, {
+      ...answer(0),
+      now: leavesAtMs / 1_000,
+      settlement: settlement(leavesAtMs + 2 * H),
+    });
+    expect(settledOf(result.current.view).window.remainingMs).toBe(2 * H);
+  });
+});
+
+describe("useDisputePanel — the tick", () => {
+  it("ticks every 30 s while more than an hour is left, and not in between", async () => {
+    const { result, renders } = await mountWith(answer(3 * H));
+    const at = (): number => settledOf(result.current.view).window.remainingMs;
+    expect(at()).toBe(3 * H);
+
+    const before = renders();
+    await advance(COARSE_TICK_MS - 1);
+    expect(at()).toBe(3 * H);
+    expect(renders()).toBe(before);
+
+    await advance(1);
+    expect(at()).toBe(3 * H - COARSE_TICK_MS);
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("ticks every second in the final hour", async () => {
+    const { result } = await mountWith(answer(10 * M));
+    const at = (): number => settledOf(result.current.view).window.remainingMs;
+
+    await advance(FINAL_HOUR_TICK_MS - 1);
+    expect(at()).toBe(10 * M);
+    await advance(1);
+    expect(at()).toBe(10 * M - S);
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(at()).toBe(10 * M - 2 * S);
+  });
+
+  it("drops to the one-second tick once the final hour starts", async () => {
+    const { result } = await mountWith(answer(H + 10 * S));
+    const at = (): number => settledOf(result.current.view).window.remainingMs;
+
+    await advance(COARSE_TICK_MS);
+    expect(at()).toBe(H - 20 * S);
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(at()).toBe(H - 21 * S);
+  });
+
+  it("removes every action on the tick that reaches the close, then stops", async () => {
+    const { result } = await mountWith(answer(2 * S + 500));
+
+    await advance(2 * S);
+    expect(settledOf(result.current.view).window).toMatchObject({
+      open: true,
+      remainingMs: 500,
+    });
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+
+    await advance(500);
+    expect(settledOf(result.current.view).window).toMatchObject({
+      open: false,
+      remainingMs: 0,
+    });
+    expect(stateKinds(result.current.view)).toEqual([
+      "window_closed",
+      "window_closed",
+    ]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("clears the timer on unmount", async () => {
+    const { unmount } = await mountWith(answer(10 * M));
+    expect(vi.getTimerCount()).toBe(1);
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("re-renders only the component that calls it, never its parent", async () => {
+    const d = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(d.promise);
+    const counts = { page: 0, panel: 0 };
+    function Panel() {
+      counts.panel += 1;
+      useDisputePanel("task_a", { workflowDone: true, demo: false });
+      return null;
+    }
+    function Page() {
+      counts.page += 1;
+      return createElement(Panel);
+    }
+    render(createElement(Page));
+    await land(d, answer(10 * M));
+
+    const panelBefore = counts.panel;
+    // One act per tick: React flushes an act's updates when it exits, so a
+    // single long advance would only ever see the first tick re-arm.
+    for (let i = 0; i < 5; i += 1) await advance(FINAL_HOUR_TICK_MS);
+    expect(counts.panel).toBe(panelBefore + 5);
+    expect(counts.page).toBe(1);
+  });
+});
+
+describe("useDisputePanel — task changes", () => {
+  it("ignores the old task's answer when it lands after the switch", async () => {
+    const a = deferred<TaskDisputes>();
+    const b = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(a.promise).mockReturnValueOnce(b.promise);
+    const { result, rerender } = mount();
+
+    rerender({ ...DEFAULTS, taskId: "task_b" });
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_b");
+
+    await land(a, answer(10 * M, { job: JOB_A }));
+    expect(result.current.loading).toBe(true);
+    expect(result.current.view).toEqual({ kind: "hidden" });
+
+    await land(b, answer(10 * M, { job: JOB_B, task_id: "task_b" }));
+    expect(settledOf(result.current.view).jobIdHex).toBe(JOB_B);
+  });
+
+  it("ignores the old task's failure when it lands after the switch", async () => {
+    const a = deferred<TaskDisputes>();
+    const b = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(a.promise).mockReturnValueOnce(b.promise);
+    const { result, rerender } = mount();
+
+    rerender({ ...DEFAULTS, taskId: "task_b" });
+    await act(async () => {
+      a.reject(new Error("GET /tasks/task_a/disputes → 500"));
+    });
+    expect(result.current).toMatchObject({ loading: true, error: null });
+
+    await land(b, answer(10 * M, { job: JOB_B, task_id: "task_b" }));
+    expect(result.current.error).toBeNull();
+    expect(settledOf(result.current.view).jobIdHex).toBe(JOB_B);
+  });
+
+  it("drops the old task's view and timer the moment the task changes", async () => {
+    const { result, rerender } = await mountWith(answer(10 * M));
+    expect(vi.getTimerCount()).toBe(1);
+
+    fetchDisputes.mockReturnValueOnce(deferred<TaskDisputes>().promise);
+    rerender({ ...DEFAULTS, taskId: "task_b" });
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: true,
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("drops an answer that lands after unmount", async () => {
+    const d = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(d.promise);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { unmount } = mount();
+
+    unmount();
+    await act(async () => {
+      d.resolve(answer(10 * M));
+    });
+    expect(errors).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+    errors.mockRestore();
+  });
+});
+
+describe("useDisputePanel — refresh", () => {
+  it("refetches, keeps the view on screen meanwhile, and resolves once the answer is in", async () => {
+    const { result } = await mountWith(answer(10 * M));
+    const next = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(next.promise);
+
+    let done = false;
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.refresh().then(() => {
+        done = true;
+      });
+    });
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.loading).toBe(false);
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+    expect(done).toBe(false);
+
+    const withDispute = answer(10 * M, {
+      disputes: [
+        {
+          id: "dsp_1",
+          job_id_hex: JOB_A,
+          task_id: "task_a",
+          step_index: 1,
+          agent_id: "agt_1",
+          payer: PAYER,
+          reason: "empty summary",
+          status: "open",
+          charged_usdc: 0.01,
+          creditable_usdc: 0.005,
+          opened_at: T0 / 1_000,
+          resolved_at: null,
+          refund_tx: null,
+          rating_tx: null,
+        },
+      ],
+    });
+    await land(next, withDispute);
+    await act(() => pending);
+    expect(done).toBe(true);
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+  });
+
+  it("keeps the view when a refresh fails, says so, and clears it on the next success", async () => {
+    const { result } = await mountWith(answer(10 * M));
+    fetchDisputes.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    await act(() => result.current.refresh());
+    expect(result.current.error).toBe("Failed to fetch");
+    expect(result.current.loading).toBe(false);
+    expect(settledOf(result.current.view).jobIdHex).toBe(JOB_A);
+
+    fetchDisputes.mockResolvedValueOnce(answer(10 * M));
+    await act(() => result.current.refresh());
+    expect(result.current.error).toBeNull();
+  });
+
+  it("retries a failed first read as loading again — never loading and error at once", async () => {
+    fetchDisputes.mockRejectedValueOnce(new Error("timeout after 60s"));
+    const { result } = mount();
+    await act(async () => {});
+    expect(result.current).toMatchObject({
+      loading: false,
+      error: "timeout after 60s",
+    });
+
+    const retry = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(retry.promise);
+    act(() => {
+      void result.current.refresh();
+    });
+    expect(result.current).toMatchObject({ loading: true, error: null });
+
+    await land(retry, answer(10 * M));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("is a no-op without a task", async () => {
+    const { result } = mount({ taskId: null });
+
+    await act(() => result.current.refresh());
+    expect(fetchDisputes).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDisputePanel — the run finishing", () => {
+  it("refetches when the run finishes, and never flashes 'nothing charged' in between", async () => {
+    const { result, rerender } = await mountWith(
+      answer(H, { settlement: null }),
+      { workflowDone: false },
+    );
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    const after = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(after.promise);
+    rerender({ ...DEFAULTS, workflowDone: true });
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    // The answer on screen was asked for mid-run: it cannot say nothing was
+    // charged, so it still reads as running until the refetch lands.
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    await land(after, answer(23 * H));
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("says nothing was charged once a post-finish answer still has no settlement", async () => {
+    const { result, rerender } = await mountWith(
+      answer(H, { settlement: null }),
+      { workflowDone: false },
+    );
+
+    fetchDisputes.mockResolvedValueOnce(answer(H, { settlement: null }));
+    rerender({ ...DEFAULTS, workflowDone: true });
+    await act(async () => {});
+    expect(result.current.view).toEqual({
+      kind: "not_settled",
+      running: false,
+    });
+  });
+
+  it("does not refetch on the finish once a settlement is already held", async () => {
+    const { result, rerender } = await mountWith(answer(23 * H), {
+      workflowDone: false,
+    });
+
+    rerender({ ...DEFAULTS, workflowDone: true });
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("reads a task again when the page comes back to it", async () => {
+    const { rerender } = await mountWith(answer(23 * H));
+
+    rerender({ ...DEFAULTS, taskId: null });
+    fetchDisputes.mockResolvedValueOnce(answer(23 * H));
+    rerender(DEFAULTS);
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+});
