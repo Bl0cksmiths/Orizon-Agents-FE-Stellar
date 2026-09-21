@@ -529,3 +529,26 @@ describe("DisputeReceipt — the live announcement", () => {
     );
   });
 });
+
+describe("DisputeReceipt — accessibility", () => {
+  it("hides every decorative mark and labels every link", () => {
+    const { container } = renderReceipt(
+      receipt("credited", { rating: { txHash: RATING_TX, state: "pending" } }),
+    );
+    for (const mark of container.querySelectorAll("[aria-hidden='true']")) {
+      expect(mark.textContent ?? "").not.toMatch(/[A-Za-z]/);
+    }
+    for (const link of screen.getAllByRole("link")) {
+      expect((link.textContent ?? "").trim()).not.toBe("");
+    }
+  });
+
+  it("stills the pending pulse for anyone who asked for less motion", () => {
+    const { container } = renderReceipt(receipt("crediting"));
+    const pulses = container.querySelectorAll(".animate-pulse");
+    expect(pulses.length).toBeGreaterThan(0);
+    for (const pulse of pulses) {
+      expect(pulse.className).toContain("motion-reduce:animate-none");
+    }
+  });
+});
