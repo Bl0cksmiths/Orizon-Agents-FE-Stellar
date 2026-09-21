@@ -639,3 +639,23 @@ export type DisputeErrorCode =
   | "nothing_was_charged"
   | "duplicate_dispute"
   | "rate_limited";
+
+/**
+ * Who is looking at a settled workflow. The page cannot tell a payer from
+ * anyone else until a wallet connects, so `anonymous` is its own case: it is
+ * shown the receipt and a prompt to connect the paying wallet, never an action.
+ */
+export type DisputeViewer = "payer" | "other" | "anonymous";
+
+/**
+ * Why one settled step can or cannot be disputed by THIS viewer right now.
+ * Every rule story 4.05 states lives in how this is derived, in pure code:
+ * an undelivered step was never charged; a step has at most one dispute; a
+ * closed window offers nothing; and only the payer is ever offered an action.
+ */
+export type StepDisputeState =
+  | { kind: "disputable" }
+  | { kind: "disputed"; dispute: Dispute; showReason: boolean }
+  | { kind: "not_charged" }
+  | { kind: "window_closed" }
+  | { kind: "view_only" };
