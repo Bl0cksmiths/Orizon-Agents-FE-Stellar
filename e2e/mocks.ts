@@ -3,6 +3,7 @@ import type {
   CreditPolicy,
   DecomposeResponse,
   ReputationBatch,
+  TraceLine,
 } from "../lib/types";
 
 /**
@@ -1181,3 +1182,18 @@ export const mockCreditPolicy: CreditPolicy = {
   funded_by: "platform",
   adjudicated_by: "platform",
 };
+
+/**
+ * What the trace stream replays for that workflow. The receipt is read from
+ * the durable settlement, not from these lines, so they only have to look
+ * like a finished run: the spec asserts they still render beneath the panel.
+ */
+export const mockDisputeTrace: TraceLine[] = [
+  { t: "00.000", level: "input", msg: "intent received → 'audit brief'" },
+  { t: "00.412", level: "exec", msg: "seo.brief → outline drafted" },
+  { t: "00.430", level: "cost", msg: "x402 payment → seo.brief :: 0.009 USDC" },
+  { t: "01.870", level: "exec", msg: "code.gen → calculator app generated" },
+  { t: "01.905", level: "cost", msg: "x402 payment → code.gen :: 0.054 USDC" },
+  { t: "02.640", level: "error", msg: "vision.ocr failed — step not charged" },
+  { t: "02.700", level: "out", msg: "workflow settled" },
+];
