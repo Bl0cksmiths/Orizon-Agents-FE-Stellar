@@ -420,3 +420,16 @@ describe("DisputeReceipt — reasons", () => {
     expect(document.querySelectorAll("blockquote")).toHaveLength(0);
   });
 });
+
+describe("DisputeReceipt — who is reading", () => {
+  it.each(["other", "anonymous"] as const)(
+    "never tells a %s viewer the credit went to their wallet",
+    (viewer) => {
+      renderReceipt(receipt("credited", { reason: null }), { viewer });
+      expect(text()).not.toMatch(/\byour\b|\byou\b/i);
+      expect(text()).toContain("credited to the payer's wallet");
+      expect(text()).toContain("Done: the payer received");
+      expect(text()).toContain("what the payer received");
+    },
+  );
+});
