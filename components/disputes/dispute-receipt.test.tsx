@@ -18,6 +18,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
+import { formatUsdc } from "@/lib/disputes";
 import type {
   DisputeArtifact,
   DisputeReceiptView,
@@ -81,6 +82,16 @@ function receipt(
   return { ...base, ...over };
 }
 
+/**
+ * A dispute the backend marked credited with no refund transaction on record.
+ * The data layer reads that as a transfer still pending, never confirmed, and
+ * keeps the promise as the only figure.
+ */
+const UNRECONCILED: Partial<DisputeReceiptView> = {
+  amount: { usdc: 0.027, final: false },
+  refund: { txHash: null, state: "pending" },
+};
+
 function renderReceipt(
   view: DisputeReceiptView,
   props: { viewer?: "payer" | "other" | "anonymous" } = {},
@@ -88,6 +99,10 @@ function renderReceipt(
   return render(
     <DisputeReceipt view={view} agentName={AGENT} nowMs={NOW} {...props} />,
   );
+}
+
+function text(): string {
+  return document.body.textContent ?? "";
 }
 
 describe("DisputeReceipt — the header, in every state", () => {
@@ -135,5 +150,76 @@ describe("DisputeReceipt — the header, in every state", () => {
     renderReceipt(receipt("open"));
     const heading = screen.getByRole("heading", { level: 4 });
     expect(heading.textContent).toBe(`Dispute receipt, ${AGENT}`);
+  });
+});
+
+describe("DisputeReceipt — what happens next", () => {
+  it("open: the platform reviews it, and says what upholding would do", () => {
+    renderReceipt(receipt("open"));
+    expect(text()).toContain(
+      `The platform is reviewing this dispute; if it is upheld, the step's credit is paid to your wallet and ${AGENT}'s reputation records the dispute.`,
+    );
+  });
+
+  it("upheld: the credit is being sent", () => {
+    renderReceipt(receipt("upheld"));
+    expect(text()).toContain(
+      "The platform upheld this dispute; the credit is being sent to your wallet.",
+    );
+  });
+
+  it("crediting: waiting on Stellar, reconciled by hand, never twice", () => {
+    renderReceipt(receipt("crediting"));
+    expect(text()).toContain(
+      "The refund was submitted and is waiting for confirmation on Stellar; if it cannot be confirmed, the platform reconciles it by hand — you will not be paid twice, and will not be skipped.",
+    );
+  });
+
+  it("credited: says what was received and what it cost the agent", () => {
+    renderReceipt(receipt("credited"));
+    expect(text()).toContain(
+      `Done: you received ${formatUsdc(0.027)}, and it cost ${AGENT} a dispute rating on its reputation.`,
+    );
+  });
+
+  it("credited: does not claim a cost the rating has not confirmed", () => {
+    renderReceipt(
+      receipt("credited", { rating: { txHash: RATING_TX, state: "pending" } }),
+    );
+    expect(text()).toContain(
+      `Done: you received ${formatUsdc(0.027)}; the dispute rating it costs ${AGENT} is not confirmed yet.`,
+    );
+    expect(text()).not.toContain(`it cost ${AGENT}`);
+  });
+
+  it("credited without a settled figure: never restates the promise as paid", () => {
+    renderReceipt(
+      receipt("credited", { amount: { usdc: 0.027, final: false } }),
+    );
+    expect(text()).toContain("Done: you received the credit,");
+    expect(text()).not.toContain(`received ${formatUsdc(0.027)}`);
+  });
+
+  it("credited without a confirmed refund: never says the money arrived", () => {
+    renderReceipt(receipt("credited", UNRECONCILED));
+    expect(text()).toContain(
+      "The platform recorded this credit as paid, but the refund transfer is not confirmed on Stellar yet; the platform reconciles it by hand — you will not be paid twice, and will not be skipped.",
+    );
+    expect(text()).not.toContain("Done");
+    expect(text()).not.toContain(`received ${formatUsdc(0.027)}`);
+    expect(text()).not.toContain("received the credit");
+  });
+
+  it("rejected: no credit, reputation unchanged, reason below", () => {
+    renderReceipt(receipt("rejected"));
+    expect(text()).toContain(
+      `The platform did not uphold this dispute: no credit was issued, ${AGENT}'s reputation is unchanged, and the reason is below.`,
+    );
+  });
+
+  it("rejected without a reason to show: does not point below", () => {
+    renderReceipt(receipt("rejected", { rejectionReason: null }));
+    expect(text()).toContain(`${AGENT}'s reputation is unchanged.`);
+    expect(text()).not.toContain("below");
   });
 });
