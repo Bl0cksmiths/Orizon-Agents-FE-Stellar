@@ -19,6 +19,8 @@ import {
   useEffect,
   useId,
   useRef,
+  type MouseEvent,
+  type PointerEvent,
   type ReactNode,
   type RefObject,
   type SyntheticEvent,
@@ -30,8 +32,9 @@ export type DialogProps = {
   /** Whether the dialog is shown. The dialog never changes this itself. */
   open: boolean;
   /**
-   * The user asked to dismiss: Escape or the close button. The caller closes
-   * the dialog by setting `open` to false; ignoring the call keeps it open.
+   * The user asked to dismiss: Escape, the close button or a click on the
+   * backdrop. The caller closes the dialog by setting `open` to false;
+   * ignoring the call keeps it open.
    */
   onClose: () => void;
   /** The accessible name, rendered as the dialog's heading. */
@@ -72,6 +75,7 @@ export function Dialog({
 }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const pressedOnBackdrop = useRef(false);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -113,6 +117,22 @@ export function Dialog({
     onClose();
   }
 
+  // A click on `::backdrop` is dispatched to the <dialog> itself, and the
+  // panel fills the element edge to edge, so "target is the dialog" means
+  // "outside the panel". The press must START there too: selecting text in the
+  // form and releasing past its edge also yields a click on the dialog, and
+  // that must not throw away what the user was typing.
+  function handlePointerDown(event: PointerEvent<HTMLDialogElement>) {
+    pressedOnBackdrop.current = event.target === event.currentTarget;
+  }
+
+  function handleClick(event: MouseEvent<HTMLDialogElement>) {
+    const fromBackdrop =
+      pressedOnBackdrop.current && event.target === event.currentTarget;
+    pressedOnBackdrop.current = false;
+    if (fromBackdrop) onClose();
+  }
+
   return (
     <dialog
       ref={dialogRef}
@@ -120,6 +140,8 @@ export function Dialog({
       aria-describedby={description ? descriptionId : undefined}
       onCancel={handleCancel}
       onClose={handleNativeClose}
+      onPointerDown={handlePointerDown}
+      onClick={handleClick}
       className={cn(
         // Below `sm` the dialog is a full-width bottom sheet; from `sm` up it is
         // a centred panel. The UA sheet centres with `margin: auto`, so the
