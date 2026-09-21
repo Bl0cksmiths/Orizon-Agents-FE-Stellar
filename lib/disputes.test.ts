@@ -1,10 +1,11 @@
 /**
- * Unit tests for lib/disputes.ts — the buyer's side of story 4.05.
+ * Unit tests for lib/disputes.ts — the buyer's side of stories 4.05 and 4.06.
  *
  * Everything the receipt panel and the dispute dialog decide is decided here,
  * so this suite is where each product rule is pinned: who may act on which
  * step until when, what a shared-trace viewer may see, how an old backend is
- * tolerated, and the challenge → sign → open sequence with its single retry.
+ * tolerated, the challenge → sign → open sequence with its single retry, and
+ * what each dispute's receipt may claim about its refund and rating.
  *
  * `globalThis.fetch` is stubbed exactly as lib/api.test.ts stubs it — no
  * network, no DOM — and `window.sessionStorage` is a Map so the task read
@@ -17,6 +18,7 @@ import {
   DisputeRefusal,
   createDisputeChallenge,
   disputeErrorCode,
+  disputeReceipt,
   disputeView,
   formatRemaining,
   formatUsdc,
@@ -32,9 +34,11 @@ import { classifyError } from "./wallet-errors";
 import type {
   CreditPolicy,
   Dispute,
+  DisputeArtifact,
   DisputeChallenge,
   DisputeErrorCode,
   DisputePanelView,
+  DisputeViewer,
   SettlementStepView,
   SettlementView,
   TaskDisputes,
@@ -249,6 +253,72 @@ describe("getTaskDisputes", () => {
     await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
   });
 
+  it("accepts an older backend's dispute, which sends none of the receipt fields", async () => {
+    // dispute() is the 4.05 shape: not one of story 4.06's four keys.
+    const body = taskDisputes({
+      disputes: [dispute(1, { status: "credited" })],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    const res = await getTaskDisputes(TASK);
+    expect(res).toEqual(body);
+    for (const key of [
+      "credited_usdc",
+      "updated_at",
+      "rating_confirmed",
+      "rejection_reason",
+    ]) {
+      expect(key in (res.disputes[0] ?? {})).toBe(false);
+    }
+  });
+
+  it("accepts a newer backend's dispute carrying every receipt field", async () => {
+    const body = taskDisputes({
+      disputes: [
+        dispute(1, {
+          status: "credited",
+          resolved_at: SETTLED_AT + 600,
+          refund_tx: "tx_refund",
+          rating_tx: "tx_rating",
+          credited_usdc: 0.004,
+          updated_at: SETTLED_AT + 900,
+          rating_confirmed: true,
+        }),
+        dispute(2, {
+          status: "rejected",
+          resolved_at: SETTLED_AT + 600,
+          rejection_reason: "the output matched the brief",
+          rating_confirmed: false,
+        }),
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
+  });
+
+  it("accepts each receipt field as an explicit null", async () => {
+    const body = taskDisputes({
+      disputes: [
+        dispute(1, {
+          credited_usdc: null,
+          updated_at: null,
+          rating_confirmed: null,
+          rejection_reason: null,
+        }),
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
+  });
+
+  /** A dispute carrying `field` with a value of the wrong type. */
+  const mistyped = (field: string, value: unknown) =>
+    taskDisputes({
+      disputes: [{ ...dispute(0), [field]: value } as Dispute],
+    });
+
   const malformed: [string, unknown][] = [
     ["a non-object", "<html>bad gateway</html>"],
     ["a missing dispute list", { ...taskDisputes(), disputes: undefined }],
@@ -300,6 +370,18 @@ describe("getTaskDisputes", () => {
         ...taskDisputes(),
         disputes: [{ ...dispute(0), resolved_at: undefined }],
       },
+    ],
+    // Absent is an older backend; present and mistyped is a broken one.
+    ["a credited amount sent as a string", mistyped("credited_usdc", "0.004")],
+    ["an updated_at that is not a number", mistyped("updated_at", "later")],
+    [
+      "a rating confirmation of the truthy string 'false'",
+      mistyped("rating_confirmed", "false"),
+    ],
+    ["a rating confirmation sent as 1", mistyped("rating_confirmed", 1)],
+    [
+      "a rejection reason that is not a string",
+      mistyped("rejection_reason", 42),
     ],
   ];
 
@@ -432,6 +514,20 @@ describe("openDispute", () => {
       jsonResponse(200, { ...dispute(1), status: "closed" }),
     );
 
+    await expect(openDispute(req)).rejects.toThrow(
+      "malformed response from /disputes",
+    );
+  });
+
+  it("holds the stored dispute to the same receipt-field rules", async () => {
+    const newer = { ...dispute(1), updated_at: SETTLED_AT + 60 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, newer))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { ...dispute(1), updated_at: "now" }),
+      );
+
+    await expect(openDispute(req)).resolves.toEqual(newer);
     await expect(openDispute(req)).rejects.toThrow(
       "malformed response from /disputes",
     );
@@ -742,6 +838,7 @@ describe("disputeView — each step", () => {
       kind: "disputed",
       dispute: dispute(1),
       showReason: true,
+      receipt: disputeReceipt(dispute(1), "payer", policy),
     });
     expect(kinds(v)).toEqual({
       0: "disputable",
@@ -751,19 +848,68 @@ describe("disputeView — each step", () => {
   });
 
   it.each([
-    ["someone else", OTHER],
-    ["an anonymous viewer", null],
-  ])(
+    ["someone else", OTHER, "other"],
+    ["an anonymous viewer", null, "anonymous"],
+  ] as const)(
     "shows %s THAT a step is disputed, never the buyer's words",
-    (_, viewerAddress) => {
+    (_, viewerAddress, viewer) => {
       const v = settled({
         res: taskDisputes({ disputes: [dispute(1, { status: "upheld" })] }),
         viewerAddress,
       });
       expect(v.steps[1]?.state).toEqual({
         kind: "disputed",
-        dispute: { ...dispute(1, { status: "upheld" }), reason: "" },
+        dispute: {
+          ...dispute(1, { status: "upheld" }),
+          reason: "",
+          rejection_reason: null,
+        },
         showReason: false,
+        receipt: disputeReceipt(
+          dispute(1, { status: "upheld" }),
+          viewer,
+          policy,
+        ),
+      });
+    },
+  );
+
+  it("builds each disputed step's receipt under the settlement's own policy", () => {
+    const v = settled({
+      res: taskDisputes({
+        disputes: [dispute(0, { status: "credited", refund_tx: "tx_refund" })],
+      }),
+    });
+    const state = v.steps[0]?.state;
+    if (state?.kind !== "disputed") throw new Error("expected disputed");
+    expect(state.receipt).toMatchObject({
+      status: "credited",
+      fundedBy: policy.funded_by,
+      refund: { txHash: "tx_refund", state: "confirmed" },
+      reason: "the summary was empty",
+    });
+  });
+
+  it.each([
+    ["someone else", OTHER],
+    ["an anonymous viewer", null],
+  ])(
+    "hands %s no complaint text anywhere — not the reason, not the rejection",
+    (_, viewerAddress) => {
+      const rejected = dispute(1, {
+        status: "rejected",
+        resolved_at: SETTLED_AT + 600,
+        rejection_reason: "the summary covered the whole brief",
+      });
+      const v = settled({
+        res: taskDisputes({ disputes: [rejected] }),
+        viewerAddress,
+      });
+      const text = JSON.stringify(v);
+      expect(text).not.toContain(rejected.reason);
+      expect(text).not.toContain("the summary covered the whole brief");
+      expect(v.steps[1]?.state).toMatchObject({
+        receipt: { status: "rejected", reason: null, rejectionReason: null },
       });
     },
   );
@@ -873,6 +1019,257 @@ describe("disputeView — the window, on the server's clock", () => {
       "window_closed",
       "window_closed",
     ]);
+  });
+});
+
+// ── the receipt (story 4.06) ────────────────────────────────────
+
+describe("disputeReceipt", () => {
+  const RESOLVED_AT = SETTLED_AT + 600;
+  const UPDATED_AT = SETTLED_AT + 900;
+
+  function receipt(
+    over: Partial<Dispute> = {},
+    viewer: DisputeViewer = "payer",
+  ) {
+    return disputeReceipt(dispute(1, over), viewer, policy);
+  }
+
+  it("states a freshly opened dispute: when, how much it would credit, and nothing moved", () => {
+    expect(receipt()).toEqual({
+      status: "open",
+      openedAtMs: (SETTLED_AT + 60) * 1_000,
+      lastChangedAtMs: (SETTLED_AT + 60) * 1_000,
+      amount: { usdc: 0.005, final: false },
+      fundedBy: "platform",
+      refund: { txHash: null, state: "none" },
+      rating: { txHash: null, state: "none" },
+      reason: "the summary was empty",
+      rejectionReason: null,
+    });
+  });
+
+  it.each<Dispute["status"]>([
+    "open",
+    "upheld",
+    "crediting",
+    "credited",
+    "rejected",
+  ])("carries the %s status through unchanged", (status) => {
+    expect(receipt({ status }).status).toBe(status);
+  });
+
+  it("names who funds the credit from the policy in force", () => {
+    expect(receipt().fundedBy).toBe(policy.funded_by);
+  });
+
+  it("does not modify the dispute it was given", () => {
+    const d = dispute(1, { status: "rejected", rejection_reason: "fine" });
+    const before = structuredClone(d);
+    disputeReceipt(d, "other", policy);
+    expect(d).toEqual(before);
+  });
+
+  describe("the refund", () => {
+    it.each<[Dispute["status"], string | null, DisputeArtifact]>([
+      ["open", null, { txHash: null, state: "none" }],
+      ["open", "tx_stray", { txHash: null, state: "none" }],
+      // Decided, not yet sent. A hash left on an upheld record is a released
+      // attempt that moved nothing, so it is never linked.
+      ["upheld", null, { txHash: null, state: "pending" }],
+      ["upheld", "tx_released", { txHash: null, state: "pending" }],
+      // In flight: linked when there is a hash, so the buyer can watch it.
+      ["crediting", null, { txHash: null, state: "pending" }],
+      ["crediting", "tx_inflight", { txHash: "tx_inflight", state: "pending" }],
+      ["credited", "tx_refund", { txHash: "tx_refund", state: "confirmed" }],
+      ["rejected", null, { txHash: null, state: "none" }],
+      ["rejected", "tx_stray", { txHash: null, state: "none" }],
+    ])("reads %s with refund_tx %s as %o", (status, refund_tx, expected) => {
+      expect(receipt({ status, refund_tx }).refund).toEqual(expected);
+    });
+
+    it.each([
+      ["no refund_tx", null],
+      ["an empty refund_tx", ""],
+    ])(
+      "never confirms a credited dispute with %s — pending, with nothing to link",
+      (_, refund_tx) => {
+        const r = receipt({
+          status: "credited",
+          refund_tx,
+          credited_usdc: 0.004,
+        });
+        expect(r.refund).toEqual({ txHash: null, state: "pending" });
+        // Nor does its amount read as paid: no confirmed transfer, no payment.
+        expect(r.amount).toEqual({ usdc: 0.005, final: false });
+      },
+    );
+
+    it("never links an empty in-flight hash", () => {
+      expect(receipt({ status: "crediting", refund_tx: "" }).refund).toEqual({
+        txHash: null,
+        state: "pending",
+      });
+    });
+  });
+
+  describe("the rating", () => {
+    it.each<[string, Partial<Dispute>, DisputeArtifact]>([
+      ["no rating_tx", { rating_tx: null }, { txHash: null, state: "none" }],
+      [
+        "an empty rating_tx",
+        { rating_tx: "" },
+        { txHash: null, state: "none" },
+      ],
+      [
+        "no rating_tx, whatever the confirmation claims",
+        { rating_tx: null, rating_confirmed: true },
+        { txHash: null, state: "none" },
+      ],
+      [
+        "a confirmed rating_tx",
+        { rating_tx: "tx_rating", rating_confirmed: true },
+        { txHash: "tx_rating", state: "confirmed" },
+      ],
+      [
+        "a rating_tx still in flight",
+        { rating_tx: "tx_rating", rating_confirmed: false },
+        { txHash: "tx_rating", state: "pending" },
+      ],
+      [
+        "a rating_tx the backend cannot vouch for (null)",
+        { rating_tx: "tx_rating", rating_confirmed: null },
+        { txHash: "tx_rating", state: "pending" },
+      ],
+      [
+        "a rating_tx from an older backend with no confirmation at all",
+        { rating_tx: "tx_rating" },
+        { txHash: "tx_rating", state: "pending" },
+      ],
+    ])("reads %s", (_, over, expected) => {
+      expect(
+        receipt({ status: "credited", refund_tx: "tx_refund", ...over }).rating,
+      ).toEqual(expected);
+    });
+
+    it("never takes a hash alone as proof the agent was rated", () => {
+      // 4.04 records the hash on a timeout exactly as on a success.
+      const { rating_confirmed: _omitted, ...older } = dispute(1, {
+        status: "credited",
+        refund_tx: "tx_refund",
+        rating_tx: "tx_rating",
+      });
+      expect(disputeReceipt(older, "payer", policy).rating.state).toBe(
+        "pending",
+      );
+    });
+  });
+
+  describe("the amount", () => {
+    it("is what the refund transferred, and final, once credited with the amount on record", () => {
+      expect(
+        receipt({
+          status: "credited",
+          refund_tx: "tx_refund",
+          credited_usdc: 0.004,
+        }).amount,
+      ).toEqual({ usdc: 0.004, final: true });
+    });
+
+    it.each([
+      ["no credited_usdc, as an older backend sends", {}],
+      ["a null credited_usdc", { credited_usdc: null }],
+    ])(
+      "is the promise, not final, for a credited dispute with %s",
+      (_, over) => {
+        expect(
+          receipt({ status: "credited", refund_tx: "tx_refund", ...over })
+            .amount,
+        ).toEqual({ usdc: 0.005, final: false });
+      },
+    );
+
+    it.each<Dispute["status"]>(["open", "upheld", "crediting", "rejected"])(
+      "is the promise, not final, while %s — even beside a stray credited_usdc",
+      (status) => {
+        expect(
+          receipt({ status, refund_tx: "tx_x", credited_usdc: 0.004 }).amount,
+        ).toEqual({ usdc: 0.005, final: false });
+      },
+    );
+  });
+
+  describe("the times", () => {
+    it("puts the opening on epoch ms", () => {
+      expect(receipt().openedAtMs).toBe((SETTLED_AT + 60) * 1_000);
+    });
+
+    it.each<[string, Partial<Dispute>, number]>([
+      [
+        "updated_at when the backend stamps it",
+        { resolved_at: RESOLVED_AT, updated_at: UPDATED_AT },
+        UPDATED_AT,
+      ],
+      [
+        "resolved_at when updated_at is null",
+        { resolved_at: RESOLVED_AT, updated_at: null },
+        RESOLVED_AT,
+      ],
+      [
+        "resolved_at from an older backend with no updated_at",
+        { resolved_at: RESOLVED_AT },
+        RESOLVED_AT,
+      ],
+      [
+        "opened_at when nothing later was recorded",
+        { resolved_at: null, updated_at: null },
+        SETTLED_AT + 60,
+      ],
+    ])("dates the last change from %s", (_, over, seconds) => {
+      expect(receipt(over).lastChangedAtMs).toBe(seconds * 1_000);
+    });
+  });
+
+  describe("the words, for the payer alone", () => {
+    const rejected: Partial<Dispute> = {
+      status: "rejected",
+      resolved_at: RESOLVED_AT,
+      rejection_reason: "the summary covered the whole brief",
+    };
+
+    it("shows the payer their reason and why it was rejected", () => {
+      expect(receipt(rejected)).toMatchObject({
+        reason: "the summary was empty",
+        rejectionReason: "the summary covered the whole brief",
+      });
+    });
+
+    it.each<DisputeViewer>(["other", "anonymous"])(
+      "gives a viewer who is %s neither the reason nor the rejection",
+      (viewer) => {
+        expect(receipt(rejected, viewer)).toMatchObject({
+          reason: null,
+          rejectionReason: null,
+        });
+      },
+    );
+
+    it.each<[string, Partial<Dispute>]>([
+      ["no rejection_reason key", { rejection_reason: undefined }],
+      ["a null rejection_reason", { rejection_reason: null }],
+      ["a rejection_reason of only whitespace", { rejection_reason: " \n " }],
+    ])("reads a rejection with %s as no reason given", (_, over) => {
+      expect(receipt({ ...rejected, ...over }).rejectionReason).toBeNull();
+    });
+
+    it.each<Dispute["status"]>(["open", "upheld", "crediting", "credited"])(
+      "never shows a rejection reason while %s",
+      (status) => {
+        expect(
+          receipt({ status, rejection_reason: "left over" }).rejectionReason,
+        ).toBeNull();
+      },
+    );
   });
 });
 

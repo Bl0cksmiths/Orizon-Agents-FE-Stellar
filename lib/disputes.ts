@@ -1,11 +1,13 @@
 /**
- * Disputes (story 4.05): the buyer's side of a settled workflow, as pure code.
+ * Disputes (stories 4.05–4.06): the buyer's side of a settled workflow, as
+ * pure code.
  *
  * Every product rule of the receipt panel lives here — who may act, on which
- * step, until when, and what a stranger holding a shared trace link may see —
- * so the components that draw it decide nothing. The panel renders
- * `disputeView`'s answer; the dialog runs `raiseDispute` and switches on
- * `disputeErrorCode`.
+ * step, until when, what a stranger holding a shared trace link may see, and
+ * how far each dispute's receipt may vouch for its refund and rating — so the
+ * components that draw it decide nothing. The panel renders `disputeView`'s
+ * answer, each disputed step carrying `disputeReceipt`'s; the dialog runs
+ * `raiseDispute` and switches on `disputeErrorCode`.
  *
  * The wallet signature is the only credential for raising one. No account and
  * no task token authorizes it (the token only scopes the READ): the backend
@@ -26,10 +28,12 @@ import { STROOPS_PER_UNIT, formatSettled } from "./money";
 import type {
   CreditPolicy,
   Dispute,
+  DisputeArtifact,
   DisputeChallenge,
   DisputeChallengeReq,
   DisputeErrorCode,
   DisputePanelView,
+  DisputeReceiptView,
   DisputeViewer,
   OpenDisputeReq,
   SettlementStepView,
@@ -124,6 +128,20 @@ const isNullableStr = (v: unknown): v is string | null =>
 const isNullableNum = (v: unknown): v is number | null =>
   v === null || isNum(v);
 
+/** A boolean or an explicit null, on `isNullableStr`'s terms. */
+const isNullableBool = (v: unknown): v is boolean | null =>
+  v === null || typeof v === "boolean";
+
+/**
+ * The deliberate exception to the rule above, for fields a shape gained after
+ * it was born: this client deploys on merge and the backend does not, so it
+ * meets answers that predate them. ABSENT passes — it means "not known" — but
+ * a key that is present must still pass `guard`: `rating_confirmed: "false"`
+ * is truthy, and a string amount is not one the receipt can print as paid.
+ */
+const isAbsentOr = (v: unknown, guard: (x: unknown) => boolean): boolean =>
+  v === undefined || guard(v);
+
 /** A step index is sent back to the server in the challenge, so it must be
  * the integer the settlement record holds — never a float that rounds. */
 const isStepIndex = (v: unknown): v is number =>
@@ -201,7 +219,12 @@ function isDispute(v: unknown): v is Dispute {
     isNum(v.opened_at) &&
     isNullableNum(v.resolved_at) &&
     isNullableStr(v.refund_tx) &&
-    isNullableStr(v.rating_tx)
+    isNullableStr(v.rating_tx) &&
+    // Story 4.06's fields: optional, and typed whenever they are sent.
+    isAbsentOr(v.credited_usdc, isNullableNum) &&
+    isAbsentOr(v.updated_at, isNullableNum) &&
+    isAbsentOr(v.rating_confirmed, isNullableBool) &&
+    isAbsentOr(v.rejection_reason, isNullableStr)
   );
 }
 
@@ -384,6 +407,107 @@ function disputesByStep(disputes: Dispute[]): Map<number, Dispute> {
 }
 
 /**
+ * The refund transfer, stated only as far as the record can vouch for it.
+ *
+ * - `credited` with its `refund_tx` is the one confirmed case: the backend
+ *   writes `credited` only once the transfer has landed, alongside the hash
+ *   that proves it.
+ * - `credited` WITHOUT a `refund_tx` is pending, with no hash — never
+ *   confirmed. The backend's own operator tooling treats that record as
+ *   unreconciled and refuses to write anything against it until the payer's
+ *   account has been checked on-chain, so the status alone cannot say that
+ *   money moved, and "refunded" beside nothing to link is exactly the
+ *   premature success the receipt exists to avoid.
+ * - `crediting` is a transfer in flight: pending, carrying its hash when one
+ *   was recorded, so the buyer can watch it land.
+ * - `upheld` is decided but not yet sent: pending, and never a hash. One left
+ *   on an upheld record belongs to an attempt that was released because it
+ *   moved nothing.
+ * - `open` and `rejected` have no transfer to speak of.
+ *
+ * An empty hash is no hash: there would be nothing to link.
+ */
+function refundArtifact(d: Dispute): DisputeArtifact {
+  const txHash = d.refund_tx || null;
+  switch (d.status) {
+    case "credited":
+      return txHash
+        ? { txHash, state: "confirmed" }
+        : { txHash: null, state: "pending" };
+    case "crediting":
+      return { txHash, state: "pending" };
+    case "upheld":
+      return { txHash: null, state: "pending" };
+    case "open":
+    case "rejected":
+      return { txHash: null, state: "none" };
+  }
+}
+
+/**
+ * The dispute rating, on the same terms. A `rating_tx` is recorded when the
+ * rating lands and ALSO when its submission times out, so the hash alone
+ * proves nothing: only `rating_confirmed === true` — the ledger having vouched
+ * for it — reads as done. `false` is in flight, and absent or null is a
+ * backend that cannot say, which is not the same as yes.
+ */
+function ratingArtifact(d: Dispute): DisputeArtifact {
+  if (!d.rating_tx) return { txHash: null, state: "none" };
+  return {
+    txHash: d.rating_tx,
+    state: d.rating_confirmed === true ? "confirmed" : "pending",
+  };
+}
+
+/**
+ * Everything the receipt says about one dispute, for this viewer, under this
+ * policy: status, when it was raised and last changed, the amount and who
+ * funds it, the refund and the rating each with how far the record vouches
+ * for it, and — for the payer alone — the words on both sides.
+ *
+ * - The amount is FINAL only when the refund is confirmed and the backend
+ *   recorded what it transferred (`credited_usdc`). Anything short of that —
+ *   an upheld or in-flight credit, a `credited` record with no transfer to
+ *   link, a backend from before `credited_usdc` — prints the promise frozen
+ *   at opening, marked as such, so the copy never calls a promise a payment.
+ * - The last change falls back from `updated_at` to `resolved_at` to
+ *   `opened_at`: an older backend stamps no transitions, and the closest time
+ *   it did record is still true.
+ * - The buyer's reason and the adjudicator's rejection are both written for
+ *   the buyer. Anyone else — including a connected wallet that did not pay —
+ *   gets null for each, whatever the record holds, and a rejection reason
+ *   exists only on a rejected dispute. A reason of only whitespace is none.
+ */
+export function disputeReceipt(
+  dispute: Dispute,
+  viewer: DisputeViewer,
+  policy: CreditPolicy,
+): DisputeReceiptView {
+  const refund = refundArtifact(dispute);
+  const credited = dispute.credited_usdc;
+  const isPayer = viewer === "payer";
+  const rejection = dispute.rejection_reason;
+  return {
+    status: dispute.status,
+    openedAtMs: dispute.opened_at * 1_000,
+    lastChangedAtMs:
+      (dispute.updated_at ?? dispute.resolved_at ?? dispute.opened_at) * 1_000,
+    amount:
+      refund.state === "confirmed" && isNum(credited)
+        ? { usdc: credited, final: true }
+        : { usdc: dispute.creditable_usdc, final: false },
+    fundedBy: policy.funded_by,
+    refund,
+    rating: ratingArtifact(dispute),
+    reason: isPayer ? dispute.reason : null,
+    rejectionReason:
+      isPayer && dispute.status === "rejected" && rejection?.trim()
+        ? rejection
+        : null,
+  };
+}
+
+/**
  * One step's state for this viewer. The order is the product's: a step that
  * cost nothing says so whatever else is true, a dispute outlives the window
  * it was raised in, and only then do the window and the viewer decide.
@@ -394,8 +518,9 @@ function disputesByStep(disputes: Dispute[]): Map<number, Dispute> {
  * would only walk the buyer through a signature to be told so.
  *
  * A disputed step is visible to everyone — a shared trace may show THAT a step
- * was disputed — but the buyer's own words are for the buyer. For anyone else
- * the reason is blanked out of the view as well as flagged: the panel cannot
+ * was disputed — but the buyer's own words are for the buyer, and so is the
+ * adjudicator's answer to them. For anyone else both are blanked out of the
+ * view as well as flagged, and the receipt carries neither: the panel cannot
  * leak what it was never handed.
  */
 function stepState(
@@ -409,12 +534,14 @@ function stepState(
     step.delivered && step.price_usdc > 0 && settlement.settled_usdc > 0;
   if (!charged) return { kind: "not_charged" };
   if (dispute !== undefined) {
+    const receipt = disputeReceipt(dispute, viewer, settlement.policy);
     return viewer === "payer"
-      ? { kind: "disputed", dispute, showReason: true }
+      ? { kind: "disputed", dispute, showReason: true, receipt }
       : {
           kind: "disputed",
-          dispute: { ...dispute, reason: "" },
+          dispute: { ...dispute, reason: "", rejection_reason: null },
           showReason: false,
+          receipt,
         };
   }
   if (!open) return { kind: "window_closed" };

@@ -3,11 +3,13 @@
  * Unit tests for useDisputePanel (lib/use-dispute-panel.ts).
  *
  * The hook owns everything the receipt panel needs that is not a pure rule:
- * the fetch, the server clock measured on arrival, the connected wallet, and
- * the tick. `getTaskDisputes` is replaced with deferred promises the tests
- * settle by hand, `useWallet` with a mutable address, and fake timers drive
- * the tick — so each cadence, the close, and every timer's cleanup are
- * observable exactly, down to the millisecond.
+ * the fetch, the server clock measured on arrival, the connected wallet, the
+ * tick, and (story 4.06) the poll that keeps an unresolved dispute live.
+ * `getTaskDisputes` is replaced with deferred promises the tests settle by
+ * hand, `useWallet` with a mutable address, `document.visibilityState` with
+ * an override, and fake timers drive the tick and the poll — so each cadence,
+ * the close, and every timer's and listener's cleanup are observable exactly,
+ * down to the millisecond.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,10 +17,19 @@ import { createElement } from "react";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
 import { ApiError } from "./api";
 import { getTaskDisputes } from "./disputes";
-import type { DisputePanelView, SettlementView, TaskDisputes } from "./types";
+import type {
+  Dispute,
+  DisputePanelView,
+  DisputeStatus,
+  SettlementView,
+  TaskDisputes,
+} from "./types";
 import {
+  ADJUDICATION_POLL_MS,
   COARSE_TICK_MS,
+  CREDIT_POLL_MS,
   FINAL_HOUR_TICK_MS,
+  disputePollMs,
   disputeTickMs,
   useDisputePanel,
 } from "./use-dispute-panel";
@@ -99,6 +110,31 @@ function settlement(closesAtMs: number, job = JOB_A): SettlementView {
       funded_by: "platform",
       adjudicated_by: "platform",
     },
+  };
+}
+
+/** A dispute of `step` on task_a, in `status`. */
+function dsp(
+  step: number,
+  status: DisputeStatus,
+  over: Partial<Dispute> = {},
+): Dispute {
+  return {
+    id: `dsp_${step}`,
+    job_id_hex: JOB_A,
+    task_id: "task_a",
+    step_index: step,
+    agent_id: `agt_${step}`,
+    payer: PAYER,
+    reason: "empty summary",
+    status,
+    charged_usdc: 0.01,
+    creditable_usdc: 0.005,
+    opened_at: T0 / 1_000,
+    resolved_at: null,
+    refund_tx: null,
+    rating_tx: null,
+    ...over,
   };
 }
 
@@ -207,6 +243,71 @@ describe("disputeTickMs", () => {
     expect(disputeTickMs(open(400))).toBe(400);
     expect(disputeTickMs(open(0.3))).toBe(1);
   });
+});
+
+describe("disputePollMs", () => {
+  const withStatuses = (...statuses: DisputeStatus[]) =>
+    answer(H, { disputes: statuses.map((s, i) => dsp(i, s)) });
+
+  it("keeps the two cadences where the story sets them", () => {
+    expect(ADJUDICATION_POLL_MS).toBe(30 * S);
+    expect(CREDIT_POLL_MS).toBe(5 * S);
+  });
+
+  it("polls nothing without an answer, or with no dispute on the task", () => {
+    expect(disputePollMs(null)).toBeNull();
+    expect(disputePollMs(withStatuses())).toBeNull();
+  });
+
+  it("polls nothing for a panel that draws no receipt, whatever is unresolved", () => {
+    const { settlement: _omitted, ...legacy } = withStatuses("open");
+    expect(disputePollMs(legacy)).toBeNull();
+    expect(
+      disputePollMs({ ...withStatuses("crediting"), settlement: null }),
+    ).toBeNull();
+  });
+
+  /** One case per status mix, labelled with the whole mix. */
+  const mixes = (...cases: DisputeStatus[][]) =>
+    cases.map((statuses) => ({ mix: statuses.join(" + "), statuses }));
+
+  it.each(mixes(["credited"], ["rejected"], ["credited", "rejected"]))(
+    "stops once every dispute is final: $mix",
+    ({ statuses }) => {
+      expect(disputePollMs(withStatuses(...statuses))).toBeNull();
+    },
+  );
+
+  it.each(
+    mixes(
+      ["open"],
+      ["open", "open"],
+      ["credited", "open"],
+      ["open", "rejected"],
+    ),
+  )(
+    "re-reads every 30 s while the only unresolved disputes are open: $mix",
+    ({ statuses }) => {
+      expect(disputePollMs(withStatuses(...statuses))).toBe(
+        ADJUDICATION_POLL_MS,
+      );
+    },
+  );
+
+  it.each(
+    mixes(
+      ["upheld"],
+      ["crediting"],
+      ["open", "upheld"],
+      ["crediting", "open"],
+      ["credited", "rejected", "crediting"],
+    ),
+  )(
+    "re-reads every 5 s while any credit is decided or in flight: $mix",
+    ({ statuses }) => {
+      expect(disputePollMs(withStatuses(...statuses))).toBe(CREDIT_POLL_MS);
+    },
+  );
 });
 
 describe("useDisputePanel — what it fetches", () => {
@@ -675,5 +776,436 @@ describe("useDisputePanel — the run finishing", () => {
     rerender(DEFAULTS);
     await act(async () => {});
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── live updates (story 4.06) ───────────────────────────────────
+
+/** An answer carrying `disputes`, its window long closed — so no countdown
+ * runs, and every timer left is the poll's. */
+const closedWith = (...disputes: Dispute[]) => answer(-H, { disputes });
+
+/** Queue the next read as a promise the test settles by hand. */
+function nextRead() {
+  const d = deferred<TaskDisputes>();
+  fetchDisputes.mockReturnValueOnce(d.promise);
+  return d;
+}
+
+/** The receipt on step `i` of a settled view. */
+function receiptOf(view: DisputePanelView, i = 1) {
+  const state = settledOf(view).steps[i]?.state;
+  if (state?.kind !== "disputed")
+    throw new Error(`expected step ${i} disputed, got ${state?.kind}`);
+  return state.receipt;
+}
+
+describe("useDisputePanel — live updates", () => {
+  it("re-reads every 30 s while the only unresolved dispute is open", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    expect(vi.getTimerCount()).toBe(1);
+
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a");
+
+    await land(poll, closedWith(dsp(1, "open")));
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("re-reads every 5 s while any credit is in flight, whatever else is open", async () => {
+    await mountWith(closedWith(dsp(0, "open"), dsp(1, "crediting")));
+
+    nextRead();
+    await advance(CREDIT_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("follows a dispute live from open to credited, then stops", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    expect(receiptOf(result.current.view).status).toBe("open");
+
+    // Upheld after a 30 s wait: the credit is decided, not yet sent.
+    let poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    await land(poll, closedWith(dsp(1, "upheld", { resolved_at: T0 / 1_000 })));
+    expect(receiptOf(result.current.view)).toMatchObject({
+      status: "upheld",
+      refund: { txHash: null, state: "pending" },
+    });
+
+    // In flight, on the 5 s cadence now.
+    poll = nextRead();
+    await advance(CREDIT_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    await land(
+      poll,
+      closedWith(dsp(1, "crediting", { refund_tx: "tx_refund" })),
+    );
+    expect(receiptOf(result.current.view).refund).toEqual({
+      txHash: "tx_refund",
+      state: "pending",
+    });
+
+    // Landed: final, and nothing left to poll for.
+    poll = nextRead();
+    await advance(CREDIT_POLL_MS);
+    await land(
+      poll,
+      closedWith(
+        dsp(1, "credited", { refund_tx: "tx_refund", credited_usdc: 0.004 }),
+      ),
+    );
+    expect(receiptOf(result.current.view)).toMatchObject({
+      status: "credited",
+      refund: { txHash: "tx_refund", state: "confirmed" },
+      amount: { usdc: 0.004, final: true },
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([
+    ["no dispute", []],
+    ["only final disputes", [dsp(0, "credited"), dsp(1, "rejected")]],
+  ])("never polls a task with %s", async (_, disputes) => {
+    await mountWith(closedWith(...disputes));
+
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("never flashes loading or clears the view while a poll is out", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    const onScreen = result.current.view;
+
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current).toMatchObject({ loading: false, error: null });
+    expect(result.current.view).toBe(onScreen);
+
+    await land(poll, closedWith(dsp(1, "upheld")));
+    expect(result.current.loading).toBe(false);
+    expect(receiptOf(result.current.view).status).toBe("upheld");
+  });
+
+  it("keeps the view when a poll fails, says so, and keeps polling until one lands", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    const onScreen = result.current.view;
+
+    fetchDisputes.mockRejectedValueOnce(new Error("Failed to fetch"));
+    await advance(ADJUDICATION_POLL_MS);
+    expect(result.current).toMatchObject({
+      loading: false,
+      error: "Failed to fetch",
+    });
+    expect(result.current.view).toBe(onScreen);
+
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    await land(poll, closedWith(dsp(1, "upheld")));
+    expect(result.current.error).toBeNull();
+    expect(receiptOf(result.current.view).status).toBe("upheld");
+  });
+
+  it("skips a poll that falls due while a refresh is out, and re-arms from the refresh's answer", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    await advance(ADJUDICATION_POLL_MS - S);
+
+    const refreshed = nextRead();
+    let done = false;
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.refresh().then(() => {
+        done = true;
+      });
+    });
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    // The poll falls due with the refresh still out: no second read.
+    await advance(S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    await land(refreshed, closedWith(dsp(1, "upheld")));
+    await act(() => pending);
+    expect(done).toBe(true);
+    expect(receiptOf(result.current.view).status).toBe("upheld");
+
+    // The next poll counts from the refresh's answer, on its new cadence.
+    nextRead();
+    await advance(CREDIT_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("useDisputePanel — the poll and the countdown", () => {
+  const remaining = (view: DisputePanelView) =>
+    settledOf(view).window.remainingMs;
+
+  it("re-measures the server's clock from a poll's own answer", async () => {
+    const { result } = await mountWith(
+      answer(2 * H, { disputes: [dsp(1, "open")] }),
+    );
+
+    // The coarse tick and the poll fall due together.
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(remaining(result.current.view)).toBe(2 * H - 30 * S);
+
+    // The poll's answer finds the server 5 s ahead of this laptop, and the
+    // window is judged on that from now on.
+    await land(
+      poll,
+      answer(2 * H - 35 * S, { skewMs: 35 * S, disputes: [dsp(1, "open")] }),
+    );
+    expect(remaining(result.current.view)).toBe(2 * H - 35 * S);
+  });
+
+  it("keeps the offset it had when a poll fails", async () => {
+    // The server runs 10 minutes ahead.
+    const { result } = await mountWith(
+      answer(2 * H, { skewMs: 10 * M, disputes: [dsp(1, "open")] }),
+    );
+
+    fetchDisputes.mockRejectedValueOnce(new Error("Failed to fetch"));
+    await advance(ADJUDICATION_POLL_MS);
+    expect(result.current.error).toBe("Failed to fetch");
+    // Only the tick moved: still on the server's clock, 10 minutes ahead.
+    expect(remaining(result.current.view)).toBe(2 * H - 30 * S);
+  });
+
+  it("leaves the countdown ticking every second while a poll is out and after it lands", async () => {
+    const { result } = await mountWith(
+      answer(10 * M, { disputes: [dsp(1, "open")] }),
+    );
+
+    const poll = nextRead();
+    for (let i = 0; i < 30; i += 1) await advance(FINAL_HOUR_TICK_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(remaining(result.current.view)).toBe(10 * M - 30 * S);
+
+    // The tick does not wait on the poll.
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(remaining(result.current.view)).toBe(10 * M - 31 * S);
+
+    await land(
+      poll,
+      answer(10 * M - 31 * S, { skewMs: 31 * S, disputes: [dsp(1, "open")] }),
+    );
+    expect(remaining(result.current.view)).toBe(10 * M - 31 * S);
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(remaining(result.current.view)).toBe(10 * M - 32 * S);
+    // One countdown, one poll — never a second of either.
+    expect(vi.getTimerCount()).toBe(2);
+  });
+
+  it("keeps polling once the window closes: a dispute outlives it", async () => {
+    const { result } = await mountWith(
+      answer(2 * S, { disputes: [dsp(1, "open")] }),
+    );
+
+    await advance(S);
+    await advance(S);
+    expect(settledOf(result.current.view).window.open).toBe(false);
+    expect(vi.getTimerCount()).toBe(1);
+
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS - 2 * S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useDisputePanel — the poll and a hidden tab", () => {
+  /** Show or hide the tab the way a browser does: the state, then the event. */
+  function setVisibility(state: DocumentVisibilityState) {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => state,
+    });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  }
+
+  afterEach(() => {
+    // Drops the override, back to jsdom's own (visible) getter.
+    Reflect.deleteProperty(document, "visibilityState");
+  });
+
+  it("pauses while the tab is hidden, and re-reads the moment it is back", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+
+    setVisibility("hidden");
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    const poll = nextRead();
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    // And the cadence resumes from that answer.
+    await land(poll, closedWith(dsp(1, "open")));
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not re-read early when the tab was never hidden", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    await advance(10 * S);
+
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS - 10 * S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("arms nothing for an answer that lands in a hidden tab, until the tab is back", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+
+    setVisibility("hidden");
+    await land(poll, closedWith(dsp(1, "crediting")));
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    nextRead();
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("sends no second read when the tab comes back while one is still out", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+
+    setVisibility("hidden");
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    await land(poll, closedWith(dsp(1, "open")));
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("never starts polling while the tab is hidden", async () => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    await mountWith(closedWith(dsp(1, "upheld")));
+
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useDisputePanel — the poll across task changes and unmount", () => {
+  const spies: { mockRestore: () => void }[] = [];
+
+  /** Live `visibilitychange` listeners on the document, added minus removed. */
+  function trackVisibilityListeners() {
+    const add = vi.spyOn(document, "addEventListener");
+    const remove = vi.spyOn(document, "removeEventListener");
+    spies.push(add, remove);
+    const count = (spy: typeof add | typeof remove) =>
+      spy.mock.calls.filter(([type]) => type === "visibilitychange").length;
+    return () => count(add) - count(remove);
+  }
+
+  afterEach(() => {
+    for (const spy of spies.splice(0)) spy.mockRestore();
+  });
+
+  it("drops the old task's poll and listener on a switch, ignores its late answer, and polls the new one", async () => {
+    const live = trackVisibilityListeners();
+    const { result, rerender } = await mountWith(closedWith(dsp(1, "open")));
+    expect(live()).toBe(1);
+
+    // task_a's poll is out when the page moves to task_b.
+    const stale = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    const b = nextRead();
+    rerender({ ...DEFAULTS, taskId: "task_b" });
+    expect(vi.getTimerCount()).toBe(0);
+    expect(live()).toBe(0);
+
+    await land(stale, closedWith(dsp(1, "crediting")));
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: true,
+    });
+
+    await land(
+      b,
+      answer(-H, {
+        job: JOB_B,
+        task_id: "task_b",
+        disputes: [dsp(0, "open", { task_id: "task_b", job_id_hex: JOB_B })],
+      }),
+    );
+    expect(settledOf(result.current.view).jobIdHex).toBe(JOB_B);
+    expect(live()).toBe(1);
+
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes.mock.calls.map(([id]) => id)).toEqual([
+      "task_a",
+      "task_a",
+      "task_b",
+      "task_b",
+    ]);
+    // Re-armed on every answer, and still exactly one listener.
+    expect(live()).toBe(1);
+  });
+
+  it("clears an armed poll and its listener on unmount", async () => {
+    const live = trackVisibilityListeners();
+    const { unmount } = await mountWith(closedWith(dsp(1, "open")));
+    expect(vi.getTimerCount()).toBe(1);
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(live()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a poll that lands after unmount", async () => {
+    const live = trackVisibilityListeners();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    spies.push(errors);
+    const { unmount } = await mountWith(closedWith(dsp(1, "open")));
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+
+    unmount();
+    expect(live()).toBe(0);
+    await land(poll, closedWith(dsp(1, "crediting")));
+    expect(vi.getTimerCount()).toBe(0);
+    expect(errors).not.toHaveBeenCalled();
   });
 });

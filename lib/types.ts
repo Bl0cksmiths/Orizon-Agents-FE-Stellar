@@ -674,7 +674,12 @@ export type DisputeViewer = "payer" | "other" | "anonymous";
  */
 export type StepDisputeState =
   | { kind: "disputable" }
-  | { kind: "disputed"; dispute: Dispute; showReason: boolean }
+  | {
+      kind: "disputed";
+      dispute: Dispute;
+      showReason: boolean;
+      receipt: DisputeReceiptView;
+    }
   | { kind: "not_charged" }
   | { kind: "window_closed" }
   | { kind: "view_only" };
