@@ -58,6 +58,8 @@ vi.mock("@/lib/disputes", async (importOriginal) => ({
   raiseDispute,
 }));
 
+import { ApiError } from "@/lib/api";
+import { DisputeRefusal } from "@/lib/disputes";
 import { DisputeDialog, type DisputeDialogProps } from "./dispute-dialog";
 
 // ── jsdom has no modal dialogs ──────────────────────────────────────────────
@@ -599,5 +601,157 @@ describe("DisputeDialog — submitting", () => {
       ),
     ).toBeTruthy();
     expect(submitButton().disabled).toBe(true);
+  });
+});
+
+describe("DisputeDialog — refusals, in plain words", () => {
+  const GENERIC =
+    "Your dispute couldn't be submitted. Your reason is still here — try again.";
+
+  /** A refusal in the backend's envelope, as lib/api turns it into an error. */
+  const refused = (code: string, status: number, retryAfterMs?: number) =>
+    new ApiError(`refused: ${code}`, status, retryAfterMs, code);
+
+  const alertText = () => screen.getByRole("alert").textContent;
+
+  it.each([
+    [
+      "dispute_window_closed",
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+      "stale",
+    ],
+    [
+      "step_not_settled",
+      "This step was never settled, so there is nothing to dispute on it.",
+      "stale",
+    ],
+    [
+      "nothing_was_charged",
+      "Nothing was charged for this step, so there is nothing to dispute on it.",
+      "stale",
+    ],
+    [
+      "not_the_payer",
+      "The connected wallet isn't the one that paid for this workflow. Close this, connect GBPA…QQQQ, and try again.",
+      // The receipt is right; only the connected wallet is wrong.
+      "dismissed",
+    ],
+  ])(
+    "%s: says so, keeps the reason, and offers only a way out",
+    async (code, message, closeReason) => {
+      raiseThen(async () => {
+        throw refused(code, 409);
+      });
+      const { props } = renderDialog();
+
+      await submitWith();
+
+      expect(alertText()).toBe(message);
+      expect(reasonBox().value).toBe(REASON);
+      // Nothing in the dialog can change this answer, so no retry is offered.
+      expect(screen.queryByRole("button", { name: /sign|submit/i })).toBeNull();
+      const back = screen.getByRole("button", { name: "Back to the receipt" });
+      expect(document.activeElement).toBe(back);
+
+      fireEvent.click(back);
+
+      expect(props.onClose).toHaveBeenCalledWith(closeReason);
+      expect(props.onSubmitted).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refuses a wallet that did not pay before it is ever asked to sign", async () => {
+    raiseDispute.mockRejectedValue(
+      new DisputeRefusal(
+        "not_the_payer",
+        "Only the wallet that paid for this workflow can dispute it.",
+      ),
+    );
+    renderDialog();
+
+    await submitWith();
+
+    expect(alertText()).toBe(
+      "The connected wallet isn't the one that paid for this workflow. Close this, connect GBPA…QQQQ, and try again.",
+    );
+    expect(wallet.signMessage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "rate_limited, with a Retry-After",
+      refused("rate_limited", 429, 30_000),
+      "Too many requests — wait 30s and try again. Nothing was lost.",
+    ],
+    [
+      "a bare 429 from a proxy",
+      new ApiError("Too Many Requests", 429),
+      "Too many requests — wait a moment and try again. Nothing was lost.",
+    ],
+    ["unknown_job", refused("unknown_job", 404), GENERIC],
+    ["signature_malformed", refused("signature_malformed", 400), GENERIC],
+    ["a second expired challenge", refused("challenge_expired", 409), GENERIC],
+    ["a code newer than this build", refused("dispute_frozen", 409), GENERIC],
+    ["a dropped connection", new Error("Failed to fetch"), GENERIC],
+  ])(
+    "%s: says so, keeps the reason, and lets the buyer try again",
+    async (_label, error, message) => {
+      raiseThen(async () => {
+        throw error;
+      });
+      const { props } = renderDialog();
+
+      await submitWith();
+
+      expect(alertText()).toBe(message);
+      expect(reasonBox().value).toBe(REASON);
+      expect(reasonBox().readOnly).toBe(false);
+      const retry = screen.getByRole<HTMLButtonElement>("button", {
+        name: "Sign and submit again",
+      });
+      expect(retry.disabled).toBe(false);
+      expect(document.activeElement).toBe(retry);
+      expect(props.onSubmitted).not.toHaveBeenCalled();
+
+      raiseThen();
+      await act(async () => {
+        fireEvent.click(retry);
+      });
+
+      expect(raiseDispute).toHaveBeenCalledTimes(2);
+      expect(raiseDispute.mock.calls[1][0]).toMatchObject({ reason: REASON });
+      expect(props.onSubmitted).toHaveBeenCalledWith(DISPUTE);
+    },
+  );
+
+  it("sends the buyer back to the reason when it is the reason that was refused", async () => {
+    raiseThen(async () => {
+      throw refused("reason_required", 422);
+    });
+    renderDialog();
+
+    await submitWith();
+
+    expect(alertText()).toBe(
+      "Say what went wrong with this step, in words, before submitting.",
+    );
+    expect(reasonBox().getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(reasonBox());
+  });
+
+  it("retires the error once the reason is edited", async () => {
+    raiseThen(async () => {
+      throw new Error("Failed to fetch");
+    });
+    renderDialog();
+    await submitWith();
+    expect(screen.getByRole("alert")).toBeTruthy();
+
+    typeReason(`${REASON}, at all`);
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Sign and submit" }),
+    ).toBeTruthy();
   });
 });
