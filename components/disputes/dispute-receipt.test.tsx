@@ -141,6 +141,16 @@ describe("DisputeReceipt — the header, in every state", () => {
     expect(group.textContent).toContain("Dispute status:");
   });
 
+  it("never wears the Refunded badge for a credit whose transfer is unconfirmed", () => {
+    // The badge is what a screenshot is read by first. A record marked
+    // credited with no transfer on record reads as a refund in progress, and
+    // the sentence below it says why — the two must not disagree.
+    renderReceipt(receipt("credited", UNRECONCILED));
+    const group = screen.getByRole("group", { name: /dispute receipt/i });
+    expect(group.textContent).toContain("Refund in progress");
+    expect(group.textContent).not.toContain("Refunded");
+  });
+
   it("says when it was raised and last updated, in local time and age", () => {
     const { container } = renderReceipt(receipt("upheld"));
     const times = [...container.querySelectorAll("time")];
