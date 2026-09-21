@@ -566,3 +566,128 @@ test.describe("dispute action on the trace / receipt view", () => {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 });
+
+/**
+ * Counts, by component name, the commits that re-rendered each component —
+ * read off the React DevTools global hook, the seam the React Profiler reads.
+ * Installed before any page script so React injects into it on boot.
+ *
+ * A fiber rendered in a commit when it went through the work loop and did
+ * work: its parent's child list was rebuilt (a subtree React skipped keeps
+ * the very same child pointer) and the PerformedWork flag is set on it.
+ */
+function installRenderCounter(): void {
+  type Fiber = {
+    tag: number;
+    flags: number;
+    type: unknown;
+    child: Fiber | null;
+    sibling: Fiber | null;
+    alternate: Fiber | null;
+  };
+  const PERFORMED_WORK = 1;
+  // Function, class, forwardRef, memo and simple-memo components.
+  const COMPONENT_TAGS = new Set([0, 1, 11, 14, 15]);
+  const counts: Record<string, number> = {};
+
+  const nameOf = (type: unknown): string | null => {
+    if (typeof type === "function") {
+      const fn = type as { displayName?: string; name?: string };
+      return fn.displayName ?? fn.name ?? null;
+    }
+    if (typeof type === "object" && type !== null) {
+      const wrapper = type as { type?: unknown; render?: unknown };
+      return nameOf(wrapper.type ?? wrapper.render);
+    }
+    return null;
+  };
+
+  const visit = (next: Fiber, prev: Fiber | null): void => {
+    if (COMPONENT_TAGS.has(next.tag)) {
+      const rendered =
+        prev === null || (next.flags & PERFORMED_WORK) === PERFORMED_WORK;
+      const name = rendered ? nameOf(next.type) : null;
+      if (name) counts[name] = (counts[name] ?? 0) + 1;
+    }
+    if (prev !== null && next.child === prev.child) return;
+    for (let child = next.child; child; child = child.sibling) {
+      visit(child, child.alternate);
+    }
+  };
+
+  const renderers = new Map<number, unknown>();
+  Object.assign(window, {
+    __REACT_DEVTOOLS_GLOBAL_HOOK__: {
+      renderers,
+      supportsFiber: true,
+      inject(renderer: unknown) {
+        const id = renderers.size + 1;
+        renderers.set(id, renderer);
+        return id;
+      },
+      onScheduleFiberRoot() {},
+      onCommitFiberRoot(_id: number, root: { current: Fiber }) {
+        visit(root.current, root.current.alternate);
+      },
+      onPostCommitFiberRoot() {},
+      onCommitFiberUnmount() {},
+      checkDCE() {},
+    },
+    __renderCounts: {
+      read: () => ({ ...counts }),
+      reset: () => {
+        for (const key of Object.keys(counts)) delete counts[key];
+      },
+    },
+  });
+}
+
+type RenderCounts = {
+  read: () => Record<string, number>;
+  reset: () => void;
+};
+
+test.describe("the countdown's re-renders stay inside the receipt", () => {
+  test("a window ticking every second re-renders the receipt and never the trace page", async ({
+    page,
+  }) => {
+    await page.addInitScript(installRenderCounter);
+    // Half an hour left: the final hour, where the window ticks every second.
+    await openTrace(page, {
+      settlement: mockSettlementView({
+        settledAtS: nowS() - DISPUTE_WINDOW_S + 30 * 60,
+      }),
+    });
+    await expect(disputeButtons(page)).toHaveCount(2);
+    const countdown = receipt(page).getByText(/^\d+m( \d+s)? left$/);
+    const before = await countdown.textContent();
+
+    const counts = () =>
+      page.evaluate(() =>
+        (
+          window as unknown as { __renderCounts: RenderCounts }
+        ).__renderCounts.read(),
+      );
+    await page.evaluate(() =>
+      (
+        window as unknown as { __renderCounts: RenderCounts }
+      ).__renderCounts.reset(),
+    );
+
+    // Three of the window's own ticks, in real time. They are the positive
+    // control: the section demonstrably re-rendered, so the zeros below are
+    // a measurement and not a counter that saw nothing.
+    await expect
+      .poll(async () => (await counts()).DisputeSection ?? 0, {
+        timeout: 15_000,
+      })
+      .toBeGreaterThanOrEqual(3);
+    await expect(countdown).not.toHaveText(before ?? "");
+
+    const seen = await counts();
+    expect(seen.ReceiptPanel ?? 0).toBeGreaterThanOrEqual(3);
+    // None of it reached the page, or the trace log it renders.
+    expect(seen.TracePageInner ?? 0).toBe(0);
+    expect(seen.TraceRow ?? 0).toBe(0);
+  });
+});
