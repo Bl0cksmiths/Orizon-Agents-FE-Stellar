@@ -22,6 +22,7 @@ import { formatUsdc } from "@/lib/disputes";
 import type {
   Dispute,
   DisputePanelView,
+  DisputeViewer,
   SettlementStepView,
   StepDisputeState,
 } from "@/lib/types";
@@ -324,5 +325,122 @@ describe("ReceiptPanel — the step list", () => {
     const item = screen.getByRole("listitem");
     expect(item.querySelectorAll("button")).toHaveLength(0);
     expect(item.textContent ?? "").not.toMatch(/dispute/i);
+  });
+});
+
+describe("ReceiptPanel — who is looking", () => {
+  const rows = [{ step: step(0), state: { kind: "view_only" } as const }];
+  const PROMPT =
+    "If you paid for this workflow, connect that wallet to dispute a step.";
+
+  it("asks an anonymous viewer to connect the paying wallet", () => {
+    const { onConnect } = renderPanel(settled(rows, { viewer: "anonymous" }));
+    expect(text()).toContain(PROMPT);
+
+    fireEvent.click(screen.getByRole("button", { name: /connect wallet/i }));
+    expect(onConnect).toHaveBeenCalledTimes(1);
+    // Connecting is the only thing on offer: no step can be disputed yet.
+    expect(screen.queryAllByRole("button", { name: /dispute/i })).toHaveLength(
+      0,
+    );
+  });
+
+  it("does not prompt an anonymous viewer once the window has closed", () => {
+    renderPanel(
+      settled([{ step: step(0), state: { kind: "window_closed" } }], {
+        viewer: "anonymous",
+        window: CLOSED,
+      }),
+    );
+    expect(text()).not.toContain(PROMPT);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("never shows the connect prompt to the payer", () => {
+    renderPanel(settled([{ step: step(0), state: { kind: "disputable" } }]));
+    expect(text()).not.toContain(PROMPT);
+    expect(screen.queryAllByRole("button", { name: /connect/i })).toHaveLength(
+      0,
+    );
+  });
+
+  // The rule the story is built around: a wallet that did not pay sees the
+  // receipt and nothing else — no button, no disabled button, no prompt.
+  it("gives a connected non-payer no dispute or connect affordance", () => {
+    renderPanel(
+      settled(
+        [
+          { step: step(0), state: { kind: "view_only" } },
+          {
+            step: step(1),
+            state: {
+              kind: "disputed",
+              dispute: dispute({ step_index: 1 }),
+              showReason: false,
+            },
+          },
+          {
+            step: step(2, { delivered: false }),
+            state: { kind: "not_charged" },
+          },
+        ],
+        { viewer: "other" },
+      ),
+    );
+    expect(actionButtons()).toHaveLength(0);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(document.querySelectorAll("button, [role='button']")).toHaveLength(
+      0,
+    );
+    expect(text()).not.toContain(PROMPT);
+    expect(text()).not.toContain("terms");
+  });
+
+  it.each<DisputeViewer>(["other", "anonymous"])(
+    "offers a %s viewer no Dispute button",
+    (viewer) => {
+      renderPanel(settled(rows, { viewer }));
+      expect(
+        screen.queryAllByRole("button", { name: /dispute/i }),
+      ).toHaveLength(0);
+    },
+  );
+});
+
+describe("ReceiptPanel — the terms", () => {
+  it("states the policy in force beside the action", () => {
+    renderPanel(
+      settled([{ step: step(0), state: { kind: "disputable" } }], {
+        policy: {
+          credited_fraction: 0.25,
+          funded_by: "platform",
+          adjudicated_by: "platform",
+        },
+      }),
+    );
+    expect(text()).toContain("credits 25% of that step's charge");
+    expect(text()).toContain("never clawed back from the agent");
+    expect(text()).toContain("The platform decides each dispute");
+  });
+
+  it("leaves the terms out when there is nothing to act on", () => {
+    renderPanel(
+      settled([
+        {
+          step: step(0),
+          state: { kind: "disputed", dispute: dispute(), showReason: true },
+        },
+      ]),
+    );
+    expect(text()).not.toContain("upheld dispute credits");
+  });
+});
+
+describe("ReceiptPanel — structure", () => {
+  it("is a region named by its heading", () => {
+    renderPanel(settled([{ step: step(0), state: { kind: "view_only" } }]));
+    const region = screen.getByRole("region", { name: "Receipt" });
+    expect(region.querySelector("h2")?.textContent).toBe("Receipt");
+    expect(region.querySelector("ol")).not.toBeNull();
   });
 });
