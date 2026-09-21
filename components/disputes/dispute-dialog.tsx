@@ -425,6 +425,22 @@ function DisputeForm({
     wasBusy.current = busy;
   }, [busy, state]);
 
+  // Closing retires the last attempt's message. A reopened dialog opens on
+  // the reason as it was left, not on an error from before — which may no
+  // longer be true (the buyer has since connected the wallet that paid). A
+  // raised dispute stays raised, and a sequence still running keeps its state
+  // until it settles.
+  useEffect(() => {
+    if (shown) return;
+    setState((current) =>
+      current.kind === "done" ||
+      current.kind === "signing" ||
+      current.kind === "submitting"
+        ? current
+        : IDLE,
+    );
+  }, [shown]);
+
   async function submit() {
     if (!canSubmit || inFlight.current) return;
     if (!step || !settlement || !wallet.address) return;
