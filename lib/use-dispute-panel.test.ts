@@ -1120,3 +1120,90 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("useDisputePanel — the poll across task changes and unmount", () => {
+  const spies: { mockRestore: () => void }[] = [];
+
+  /** Live `visibilitychange` listeners on the document, added minus removed. */
+  function trackVisibilityListeners() {
+    const add = vi.spyOn(document, "addEventListener");
+    const remove = vi.spyOn(document, "removeEventListener");
+    spies.push(add, remove);
+    const count = (spy: typeof add | typeof remove) =>
+      spy.mock.calls.filter(([type]) => type === "visibilitychange").length;
+    return () => count(add) - count(remove);
+  }
+
+  afterEach(() => {
+    for (const spy of spies.splice(0)) spy.mockRestore();
+  });
+
+  it("drops the old task's poll and listener on a switch, ignores its late answer, and polls the new one", async () => {
+    const live = trackVisibilityListeners();
+    const { result, rerender } = await mountWith(closedWith(dsp(1, "open")));
+    expect(live()).toBe(1);
+
+    // task_a's poll is out when the page moves to task_b.
+    const stale = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    const b = nextRead();
+    rerender({ ...DEFAULTS, taskId: "task_b" });
+    expect(vi.getTimerCount()).toBe(0);
+    expect(live()).toBe(0);
+
+    await land(stale, closedWith(dsp(1, "crediting")));
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: true,
+    });
+
+    await land(
+      b,
+      answer(-H, {
+        job: JOB_B,
+        task_id: "task_b",
+        disputes: [dsp(0, "open", { task_id: "task_b", job_id_hex: JOB_B })],
+      }),
+    );
+    expect(settledOf(result.current.view).jobIdHex).toBe(JOB_B);
+    expect(live()).toBe(1);
+
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes.mock.calls.map(([id]) => id)).toEqual([
+      "task_a",
+      "task_a",
+      "task_b",
+      "task_b",
+    ]);
+    // Re-armed on every answer, and still exactly one listener.
+    expect(live()).toBe(1);
+  });
+
+  it("clears an armed poll and its listener on unmount", async () => {
+    const live = trackVisibilityListeners();
+    const { unmount } = await mountWith(closedWith(dsp(1, "open")));
+    expect(vi.getTimerCount()).toBe(1);
+
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(live()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a poll that lands after unmount", async () => {
+    const live = trackVisibilityListeners();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    spies.push(errors);
+    const { unmount } = await mountWith(closedWith(dsp(1, "open")));
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+
+    unmount();
+    expect(live()).toBe(0);
+    await land(poll, closedWith(dsp(1, "crediting")));
+    expect(vi.getTimerCount()).toBe(0);
+    expect(errors).not.toHaveBeenCalled();
+  });
+});
