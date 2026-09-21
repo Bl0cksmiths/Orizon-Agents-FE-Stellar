@@ -20,6 +20,7 @@ import {
   mockDisputeApi,
   mockDisputeJobIdHex,
   mockDisputeTaskId,
+  mockDisputesRouteMissing,
   mockOtherOwnerAddress,
   mockSettlementSteps,
   mockSettlementView,
@@ -396,4 +397,39 @@ test.describe("dispute action on the trace / receipt view", () => {
     ).toBeVisible();
     await expect(disputeButtons(page)).toHaveCount(0);
   });
+
+  // Vercel ships this page on every merge; Render ships the backend by hand.
+  // Until it does, the page meets one of two older answers, and both must
+  // read as "no receipt here" — never an error across every trace.
+  for (const [backend, missingRoute] of [
+    ["answers without a settlement key", false],
+    ["has no disputes route at all", true],
+  ] as const) {
+    test(`an older backend that ${backend} renders the trace and no receipt`, async ({
+      page,
+    }) => {
+      const read = page.waitForResponse((response) =>
+        /\/api\/tasks\/[^/]+\/disputes$/.test(new URL(response.url()).pathname),
+      );
+      await openTrace(
+        page,
+        {
+          settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+          legacy: true,
+        },
+        missingRoute ? { routes: mockDisputesRouteMissing } : {},
+      );
+      expect((await read).status()).toBe(missingRoute ? 404 : 200);
+
+      await expect(page.getByText("seo.brief → outline drafted")).toBeVisible();
+      await expect(page.getByText("sealed", { exact: true })).toBeVisible();
+      // Answered, not still loading: the skeleton is gone too.
+      await expect(page.getByText("Loading the receipt…")).toHaveCount(0);
+      await expect(receipt(page)).toHaveCount(0);
+      await expect(disputeButtons(page)).toHaveCount(0);
+      // Scoped to <main>: Next's route announcer is a permanent, empty
+      // role="alert" outside it.
+      await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+    });
+  }
 });
