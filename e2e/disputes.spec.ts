@@ -19,10 +19,12 @@ import {
   mockDispute,
   mockDisputeApi,
   mockDisputeTaskId,
+  mockOtherOwnerAddress,
   mockSettlementSteps,
   mockSettlementView,
   mockTraceStream,
   mockWallet,
+  mockWalletAddress,
   type MockDisputeApiOptions,
 } from "./mocks";
 
@@ -242,5 +244,33 @@ test.describe("dispute action on the trace / receipt view", () => {
         name: /dispute/i,
       }),
     ).toBeVisible();
+  });
+
+  test("a wallet that did not pay sees no dispute affordance anywhere on the page", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({
+        settledAtS: nowS() - HOUR_S,
+        payer: mockOtherOwnerAddress,
+      }),
+    });
+
+    // The connected wallet is `mockWalletAddress`; the payer is another.
+    await expect(
+      page
+        .getByRole("button", {
+          name: new RegExp(mockWalletAddress.slice(0, 4)),
+        })
+        .first(),
+    ).toBeVisible();
+    await expect(receipt(page)).toBeVisible();
+    // Placed as a stranger, not merely not placed yet: the prompt an
+    // unconnected viewer gets is gone too.
+    await expect(
+      receipt(page).getByRole("button", { name: /connect/i }),
+    ).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 });
