@@ -23,11 +23,12 @@ import { formatUsdc } from "@/lib/disputes";
 import type {
   CreditPolicy,
   DisputePanelView,
+  DisputeViewer,
   SettlementStepView,
   StepDisputeState,
 } from "@/lib/types";
 
-import { DisputeStatusBadge } from "./dispute-status-badge";
+import { DisputeReceipt } from "./dispute-receipt";
 import { WindowState, formatLocalTime } from "./window-state";
 
 type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
@@ -231,6 +232,8 @@ function SettledReceipt({
                     key={step.step_index}
                     step={step}
                     state={state}
+                    viewer={view.viewer}
+                    nowMs={nowMs}
                     onDispute={onDispute}
                   />
                 ))}
@@ -321,10 +324,15 @@ function agentLabel(step: SettlementStepView): string {
 function StepItem({
   step,
   state,
+  viewer,
+  nowMs,
   onDispute,
 }: {
   step: SettlementStepView;
   state: StepDisputeState;
+  viewer: DisputeViewer;
+  /** The receipt's clock, on the server's time where the view carries it. */
+  nowMs: number;
   onDispute: (step: SettlementStepView) => void;
 }) {
   const n = stepNumber(step);
@@ -361,7 +369,7 @@ function StepItem({
           <StepAction step={step} state={state} onDispute={onDispute} />
         </div>
       </div>
-      <StepDetail state={state} />
+      <StepDetail step={step} state={state} viewer={viewer} nowMs={nowMs} />
     </li>
   );
 }
@@ -430,8 +438,6 @@ function StepAction({
           )}
         </div>
       );
-    case "disputed":
-      return <DisputeStatusBadge status={state.dispute.status} />;
     // The price beside this already tells a screen reader "not charged";
     // the badge is the same fact for the eye, so it is not read twice.
     case "not_charged":
@@ -446,12 +452,28 @@ function StepAction({
     // Someone who did not pay is shown the receipt and nothing else — no
     // control, no hint, no disabled button.
     case "view_only":
+    // The dispute's receipt under the row opens with its status badge; a
+    // second badge up here would say the same thing twice in one step.
+    case "disputed":
       return null;
   }
 }
 
-/** A full-width line under the step, for the states that owe an explanation. */
-function StepDetail({ state }: { state: StepDisputeState }) {
+/**
+ * A full-width block under the step, for the states that owe an explanation:
+ * why an uncharged step offers nothing, and a disputed step's whole receipt.
+ */
+function StepDetail({
+  step,
+  state,
+  viewer,
+  nowMs,
+}: {
+  step: SettlementStepView;
+  state: StepDisputeState;
+  viewer: DisputeViewer;
+  nowMs: number;
+}) {
   if (state.kind === "not_charged") {
     return (
       <p className="mt-3 border-t border-border/40 pt-3 text-xs leading-relaxed text-muted">
@@ -463,33 +485,17 @@ function StepDetail({ state }: { state: StepDisputeState }) {
     );
   }
   if (state.kind !== "disputed") return null;
-
-  const { dispute, showReason } = state;
-  // The reason is one buyer's own words, shown only where the view says so —
-  // never inferred here from who happens to be looking. A refund, by
-  // contrast, is a public transaction, so its link is evidence for anyone.
-  if (!showReason && !dispute.refund_tx) return null;
+  // Drawn from the receipt the view derived, never from the raw dispute:
+  // which reasons this viewer may read and how far each transaction is
+  // confirmed were decided there, and re-deciding them here is how a
+  // non-payer would come to read a buyer's words.
   return (
-    <div className="mt-3 space-y-2 border-t border-border/40 pt-3">
-      {showReason && (
-        <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-muted">
-            your reason
-          </p>
-          <blockquote className="mt-1 whitespace-pre-line break-words border-l-2 border-violet/40 pl-3 text-xs leading-relaxed text-text/90">
-            {dispute.reason}
-          </blockquote>
-        </div>
-      )}
-      {dispute.refund_tx && (
-        <StellarExpertLink
-          kind="tx"
-          id={dispute.refund_tx}
-          className="inline-block"
-        >
-          view refund on stellar.expert ▸
-        </StellarExpertLink>
-      )}
-    </div>
+    <DisputeReceipt
+      view={state.receipt}
+      agentName={agentLabel(step)}
+      viewer={viewer}
+      nowMs={nowMs}
+      className="mt-3 border-t border-border/40 pt-3"
+    />
   );
 }
