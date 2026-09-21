@@ -20,6 +20,7 @@ import {
   useId,
   useRef,
   type ReactNode,
+  type RefObject,
   type SyntheticEvent,
 } from "react";
 import { focusRing } from "@/lib/ui";
@@ -46,6 +47,12 @@ export type DialogProps = {
    * reachable on a short phone screen however long the body grows.
    */
   footer?: ReactNode;
+  /**
+   * Where focus lands on open. Defaults to the title: the APG's advice for a
+   * dialog whose body must be read before acting, since landing on the first
+   * control would scroll the explanation above it out of view.
+   */
+  initialFocusRef?: RefObject<HTMLElement>;
   /** Accessible name of the visible close button. */
   closeLabel?: string;
   className?: string;
@@ -59,10 +66,12 @@ export function Dialog({
   eyebrow,
   children,
   footer,
+  initialFocusRef,
   closeLabel = "Close",
   className,
 }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -70,11 +79,23 @@ export function Dialog({
     if (!open) return;
     const dialog = dialogRef.current;
     if (!dialog) return;
+    // Captured before showModal() moves focus inside. Browsers disagree on
+    // whether closing restores it (and jsdom does nothing), so it is returned
+    // explicitly: a keyboard user must land back on the control they used.
+    const opener =
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement !== document.body
+        ? document.activeElement
+        : null;
     if (!dialog.open) dialog.showModal();
+    (initialFocusRef?.current ?? titleRef.current)?.focus();
     return () => {
       if (dialog.open) dialog.close();
+      // An opener the page has since removed (a button swapped for a result)
+      // cannot take focus; leave it to the page rather than guess a target.
+      if (opener?.isConnected) opener.focus();
     };
-  }, [open]);
+  }, [open, initialFocusRef]);
 
   // Escape (and the Android back gesture) arrive as `cancel`. The native
   // default would close the element behind React's back, leaving `open` true
@@ -124,9 +145,13 @@ export function Dialog({
                   {eyebrow}
                 </p>
               )}
+              {/* tabIndex -1: focusable by script as the landing point on
+                  open, never a Tab stop. */}
               <h2
                 id={titleId}
-                className="mt-1 text-lg font-semibold tracking-tight"
+                ref={titleRef}
+                tabIndex={-1}
+                className="mt-1 text-lg font-semibold tracking-tight focus:outline-none"
               >
                 {title}
               </h2>
