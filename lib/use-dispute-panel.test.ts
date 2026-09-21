@@ -776,3 +776,177 @@ describe("useDisputePanel — the run finishing", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
   });
 });
+
+// ── live updates (story 4.06) ───────────────────────────────────
+
+/** An answer carrying `disputes`, its window long closed — so no countdown
+ * runs, and every timer left is the poll's. */
+const closedWith = (...disputes: Dispute[]) => answer(-H, { disputes });
+
+/** Queue the next read as a promise the test settles by hand. */
+function nextRead() {
+  const d = deferred<TaskDisputes>();
+  fetchDisputes.mockReturnValueOnce(d.promise);
+  return d;
+}
+
+/** The receipt on step `i` of a settled view. */
+function receiptOf(view: DisputePanelView, i = 1) {
+  const state = settledOf(view).steps[i]?.state;
+  if (state?.kind !== "disputed")
+    throw new Error(`expected step ${i} disputed, got ${state?.kind}`);
+  return state.receipt;
+}
+
+describe("useDisputePanel — live updates", () => {
+  it("re-reads every 30 s while the only unresolved dispute is open", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    expect(vi.getTimerCount()).toBe(1);
+
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a");
+
+    await land(poll, closedWith(dsp(1, "open")));
+    nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("re-reads every 5 s while any credit is in flight, whatever else is open", async () => {
+    await mountWith(closedWith(dsp(0, "open"), dsp(1, "crediting")));
+
+    nextRead();
+    await advance(CREDIT_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("follows a dispute live from open to credited, then stops", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    expect(receiptOf(result.current.view).status).toBe("open");
+
+    // Upheld after a 30 s wait: the credit is decided, not yet sent.
+    let poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    await land(poll, closedWith(dsp(1, "upheld", { resolved_at: T0 / 1_000 })));
+    expect(receiptOf(result.current.view)).toMatchObject({
+      status: "upheld",
+      refund: { txHash: null, state: "pending" },
+    });
+
+    // In flight, on the 5 s cadence now.
+    poll = nextRead();
+    await advance(CREDIT_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    await land(
+      poll,
+      closedWith(dsp(1, "crediting", { refund_tx: "tx_refund" })),
+    );
+    expect(receiptOf(result.current.view).refund).toEqual({
+      txHash: "tx_refund",
+      state: "pending",
+    });
+
+    // Landed: final, and nothing left to poll for.
+    poll = nextRead();
+    await advance(CREDIT_POLL_MS);
+    await land(
+      poll,
+      closedWith(
+        dsp(1, "credited", { refund_tx: "tx_refund", credited_usdc: 0.004 }),
+      ),
+    );
+    expect(receiptOf(result.current.view)).toMatchObject({
+      status: "credited",
+      refund: { txHash: "tx_refund", state: "confirmed" },
+      amount: { usdc: 0.004, final: true },
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([
+    ["no dispute", []],
+    ["only final disputes", [dsp(0, "credited"), dsp(1, "rejected")]],
+  ])("never polls a task with %s", async (_, disputes) => {
+    await mountWith(closedWith(...disputes));
+
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("never flashes loading or clears the view while a poll is out", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    const onScreen = result.current.view;
+
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current).toMatchObject({ loading: false, error: null });
+    expect(result.current.view).toBe(onScreen);
+
+    await land(poll, closedWith(dsp(1, "upheld")));
+    expect(result.current.loading).toBe(false);
+    expect(receiptOf(result.current.view).status).toBe("upheld");
+  });
+
+  it("keeps the view when a poll fails, says so, and keeps polling until one lands", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    const onScreen = result.current.view;
+
+    fetchDisputes.mockRejectedValueOnce(new Error("Failed to fetch"));
+    await advance(ADJUDICATION_POLL_MS);
+    expect(result.current).toMatchObject({
+      loading: false,
+      error: "Failed to fetch",
+    });
+    expect(result.current.view).toBe(onScreen);
+
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    await land(poll, closedWith(dsp(1, "upheld")));
+    expect(result.current.error).toBeNull();
+    expect(receiptOf(result.current.view).status).toBe("upheld");
+  });
+
+  it("skips a poll that falls due while a refresh is out, and re-arms from the refresh's answer", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    await advance(ADJUDICATION_POLL_MS - S);
+
+    const refreshed = nextRead();
+    let done = false;
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.refresh().then(() => {
+        done = true;
+      });
+    });
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    // The poll falls due with the refresh still out: no second read.
+    await advance(S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+
+    await land(refreshed, closedWith(dsp(1, "upheld")));
+    await act(() => pending);
+    expect(done).toBe(true);
+    expect(receiptOf(result.current.view).status).toBe("upheld");
+
+    // The next poll counts from the refresh's answer, on its new cadence.
+    nextRead();
+    await advance(CREDIT_POLL_MS - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+});
