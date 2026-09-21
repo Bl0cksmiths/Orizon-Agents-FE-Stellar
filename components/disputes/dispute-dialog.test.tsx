@@ -755,3 +755,124 @@ describe("DisputeDialog — refusals, in plain words", () => {
     ).toBeTruthy();
   });
 });
+
+describe("DisputeDialog — the wallet says no", () => {
+  const CANCELLED = "You cancelled the signature. Nothing was sent.";
+
+  it("goes back to idle when the buyer declines, reason intact", async () => {
+    // The kit's own wording for a closed prompt, as lib/wallet rethrows it.
+    wallet.signMessage.mockRejectedValue(new Error("User declined access"));
+    raiseThen();
+    const { props } = renderDialog();
+
+    await submitWith();
+
+    expect(status()).toBe(CANCELLED);
+    // A change of mind, not a failure: nothing is announced as an error.
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(reasonBox().value).toBe(REASON);
+    expect(reasonBox().readOnly).toBe(false);
+    const submit = screen.getByRole<HTMLButtonElement>("button", {
+      name: "Sign and submit",
+    });
+    expect(submit.disabled).toBe(false);
+    expect(document.activeElement).toBe(submit);
+    expect(props.onSubmitted).not.toHaveBeenCalled();
+    expect(props.onClose).not.toHaveBeenCalled();
+  });
+
+  it("can be dismissed again once the buyer has declined", async () => {
+    wallet.signMessage.mockRejectedValue(new Error("User declined access"));
+    raiseThen();
+    const { props } = renderDialog();
+    await submitWith();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(props.onClose).toHaveBeenCalledWith("dismissed");
+  });
+
+  it("reads a decline on the re-sign after an expired challenge the same way", async () => {
+    wallet.signMessage
+      .mockResolvedValueOnce("Zmlyc3Q=")
+      .mockRejectedValueOnce(new Error("User declined access"));
+    raiseDispute.mockImplementation(async ({ signMessage }: RaiseArgs) => {
+      await signMessage(CHALLENGE);
+      await signMessage(`${CHALLENGE}-2`);
+      return DISPUTE;
+    });
+    renderDialog();
+
+    await submitWith();
+
+    expect(status()).toBe(CANCELLED);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("retires the cancelled notice once the reason is edited", async () => {
+    wallet.signMessage.mockRejectedValue(new Error("User declined access"));
+    raiseThen();
+    renderDialog();
+    await submitWith();
+
+    typeReason(`${REASON}, at all`);
+
+    expect(status()).toBe("");
+  });
+
+  it.each([
+    [
+      "a locked wallet",
+      new Error("Wallet is locked"),
+      "Your wallet is locked. Unlock it and try again — nothing was sent.",
+    ],
+    [
+      "no wallet in the browser",
+      new Error("Freighter is not installed"),
+      "No Stellar wallet answered in this browser. Check that the wallet that paid is installed and enabled, then try again.",
+    ],
+    [
+      "a prompt that never answered",
+      // lib/wallet throws this one already classified.
+      {
+        kind: "unknown",
+        title: "Wallet timed out",
+        detail: "The wallet didn't respond within 2 minutes.",
+        raw: "wallet did not settle within 120s",
+      },
+      "Your wallet couldn't sign the message, so nothing was sent. Check your wallet and try again.",
+    ],
+  ])(
+    "%s: says so and lets the buyer try again",
+    async (_label, error, message) => {
+      wallet.signMessage.mockRejectedValue(error);
+      raiseThen();
+      renderDialog();
+
+      await submitWith();
+
+      expect(screen.getByRole("alert").textContent).toBe(message);
+      expect(reasonBox().value).toBe(REASON);
+      expect(
+        screen.getByRole("button", { name: "Sign and submit again" }),
+      ).toBeTruthy();
+    },
+  );
+
+  it("never reads a backend refusal worded like a decline as the buyer's decline", async () => {
+    // "denied" is one of the classifier's decline phrases. The wallet signed;
+    // it was the server that refused, so this is a failure, not a change of
+    // mind — the classifier is only ever shown what the wallet threw.
+    raiseThen(async () => {
+      throw new ApiError("Access denied", 403);
+    });
+    renderDialog();
+
+    await submitWith();
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Your dispute couldn't be submitted. Your reason is still here — try again.",
+    );
+    expect(status()).not.toBe(CANCELLED);
+  });
+});
