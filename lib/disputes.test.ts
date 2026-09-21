@@ -1,10 +1,11 @@
 /**
- * Unit tests for lib/disputes.ts — the buyer's side of story 4.05.
+ * Unit tests for lib/disputes.ts — the buyer's side of stories 4.05 and 4.06.
  *
  * Everything the receipt panel and the dispute dialog decide is decided here,
  * so this suite is where each product rule is pinned: who may act on which
  * step until when, what a shared-trace viewer may see, how an old backend is
- * tolerated, and the challenge → sign → open sequence with its single retry.
+ * tolerated, the challenge → sign → open sequence with its single retry, and
+ * what each dispute's receipt may claim about its refund and rating.
  *
  * `globalThis.fetch` is stubbed exactly as lib/api.test.ts stubs it — no
  * network, no DOM — and `window.sessionStorage` is a Map so the task read
