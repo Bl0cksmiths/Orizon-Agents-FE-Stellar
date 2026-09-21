@@ -1510,3 +1510,157 @@ export async function mockDisputesRouteMissing(page: Page): Promise<void> {
       }),
   );
 }
+
+// ── Dispute receipts (story 4.06) ───────────────────────────
+
+/**
+ * The two transactions an upheld dispute leaves on chain: the platform's
+ * refund to the payer, and the dispute rating recorded against the agent.
+ * Full 64-character hashes, as the backend stores them, so a phone-width
+ * receipt carrying both is measured against the width the real ones take.
+ */
+export const mockRefundTx =
+  "63e658669328e993706eedab30602d3da9e1538cbb008c9a6515333750984327";
+export const mockRatingTx =
+  "e46d4a71165f437fd4cfaa402be58dcd63163ef1cfbac4772494a27b40136b30";
+
+/**
+ * The platform's reason for rejecting a dispute. Distinctive on purpose: a
+ * spec proves where it is shown — to the payer — and where it must never be,
+ * to anyone else holding a shared trace link.
+ */
+export const mockRejectionReason =
+  "the calculator handles every operation the brief asked for; a scientific mode was never in scope";
+
+/** The four fields story 4.06 added, and the two hashes they qualify. */
+type ReceiptFields = Pick<
+  Dispute,
+  | "refund_tx"
+  | "rating_tx"
+  | "credited_usdc"
+  | "rating_confirmed"
+  | "rejection_reason"
+>;
+
+/**
+ * A dispute as the story 4.06 backend reports it: the 4.05 record plus what
+ * actually happened to it — what the refund moved, when the record last
+ * changed, whether the rating landed, and why a rejection was made.
+ *
+ * Each status carries what the backend has written by the time it reports
+ * that status, so `{ status: "credited" }` is a whole credited dispute: both
+ * hashes, the rating confirmed, the amount paid. Any of those can be
+ * overridden — `null` included — which is how a spec builds the in-between
+ * records the receipt must not overstate: a refund hash still in flight, a
+ * rating recorded but not yet confirmed.
+ *
+ * For a record from a backend that predates the four fields, use
+ * `mockDispute`, which sends none of them.
+ */
+export function mockReceiptDispute(
+  step: SettlementStepView,
+  opts: {
+    status: DisputeStatus;
+    openedAtS: number;
+    /** The last state change; ten minutes after opening unless given. */
+    updatedAtS?: number;
+    reason?: string;
+    payer?: string;
+  } & Partial<ReceiptFields>,
+): Dispute {
+  const { status, openedAtS } = opts;
+  const updatedAtS = opts.updatedAtS ?? openedAtS + 600;
+  const credited = status === "credited";
+  // `undefined` means "what this status implies"; an explicit null is kept,
+  // because a spec passing one is stating that the backend recorded nothing.
+  const overrides: Partial<ReceiptFields> = opts;
+  const given = <K extends keyof ReceiptFields>(
+    key: K,
+    implied: ReceiptFields[K],
+  ): ReceiptFields[K] => {
+    const value: ReceiptFields[K] | undefined = overrides[key];
+    return value === undefined ? implied : value;
+  };
+  return {
+    ...mockDispute(step, {
+      openedAtS,
+      status,
+      reason: opts.reason ?? "the calculator app does not compute anything",
+      payer: opts.payer,
+    }),
+    resolved_at: status === "open" ? null : updatedAtS,
+    refund_tx: given("refund_tx", credited ? mockRefundTx : null),
+    rating_tx: given("rating_tx", credited ? mockRatingTx : null),
+    // The backend pays exactly what was promised at open: `creditable_usdc`.
+    credited_usdc: given(
+      "credited_usdc",
+      credited ? step.creditable_usdc : null,
+    ),
+    updated_at: updatedAtS,
+    rating_confirmed: given("rating_confirmed", credited),
+    rejection_reason: given(
+      "rejection_reason",
+      status === "rejected" ? mockRejectionReason : null,
+    ),
+  };
+}
+
+/** A scripted disputes read, as `mockDisputeReads` hands it to a spec. */
+export type MockDisputeReads = {
+  /** How many times the page has read the task's disputes so far. */
+  count: () => number;
+  /** What every read from now on answers with. */
+  answer: (disputes: readonly Dispute[]) => void;
+};
+
+/**
+ * The task's disputes read, answered with whatever the spec last set, and
+ * counted. The answer moving is the platform adjudicating and paying while the
+ * buyer watches; the count is the one honest measure of the page's polling —
+ * a spec proves reads start, speed up, pause and stop by how many arrived,
+ * never by how long something took.
+ *
+ * Register it AFTER `mockApi` (and after `mockDisputeApi`, when a spec also
+ * needs the challenge and open routes): Playwright tries the newest route
+ * first, so this one wins for the read and nothing else.
+ */
+export async function mockDisputeReads(
+  page: Page,
+  options: {
+    settlement: SettlementView;
+    disputes: readonly Dispute[];
+    /** The server's clock, in epoch ms; see `MockDisputeApiOptions.clock`. */
+    clock?: () => number | Promise<number>;
+  },
+): Promise<MockDisputeReads> {
+  let current = options.disputes;
+  let reads = 0;
+  await page.route(
+    (url) => DISPUTES_RE.test(url.pathname),
+    async (route) => {
+      const request = route.request();
+      if (request.method() !== "GET") return route.fallback();
+      reads += 1;
+      // Taken as the request arrives, before the clock is awaited: a spec
+      // that moves the answer on right after this read must not change it.
+      const disputes = [...current];
+      const { pathname } = new URL(request.url());
+      const taskId = decodeURIComponent(DISPUTES_RE.exec(pathname)?.[1] ?? "");
+      const nowMs = await (options.clock ?? Date.now)();
+      const body: TaskDisputes = {
+        task_id: taskId,
+        window_closes_at: options.settlement.window_closes_at,
+        now: Math.floor(nowMs / 1000),
+        settlement: options.settlement,
+        disputes,
+      };
+      return json(route, body);
+    },
+  );
+  return {
+    count: () => reads,
+    answer: (disputes) => {
+      current = disputes;
+    },
+  };
+}
