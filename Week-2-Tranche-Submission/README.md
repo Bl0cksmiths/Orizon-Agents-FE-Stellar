@@ -1,6 +1,6 @@
 # Orizon Agents — Week 2 Tranche Submission
 
-**Programme:** Stellar Community Fund — Blue Belt Instawards (Cohort 2026)
+**Programme:** Stellar Instawards (Cohort 2026)
 **Project:** Orizon Agents — Blue Belt Instaward Sprint
 **Milestone:** M2 · Week 2 — Reputation-Gated Routing (Deliverable **D2**) + the External Agent Execution Path (Epic 2)
 **Sprint week:** Mon 2026-09-14 → Fri 2026-09-18 (evidence assembled 2026-09-19)
@@ -27,7 +27,7 @@ This is the Week-2 evidence package for the tranche gate (story 7.01). Every cla
 | [`04-external-execution-path.md`](./04-external-execution-path.md)                     | Epic 2 — how an externally operated agent receives, verifies and answers a signed workflow step; its security properties and QA                                             |
 | [`05-pull-requests.md`](./05-pull-requests.md)                                         | **GitHub PR / weekly branch evidence** — all 27 Week-2 PRs across five public repos, with branch, commits, changes and contributor                                          |
 | [`06-compliance-cadence.md`](./06-compliance-cadence.md)                               | Weekly cadence: X post (7.02), commit visibility (7.04) and this evidence bundle (7.01)                                                                          |
-| [`Proof-of-Deliverables.pdf`](./Proof-of-Deliverables.pdf)                             | **Proof of deliverables** — one PDF: the live plan card, marketplace, operator surfaces, readiness, the week's PRs and the on-chain fix, each captioned with what it proves |
+| [`Proof-of-Deliverables.pdf`](./Proof-of-Deliverables.pdf)                             | **Proof of deliverables** — one PDF: a summary of what shipped and of the Stellar integration, then the live plan card, marketplace, operator surfaces, readiness, the week's PRs and the on-chain scorer authorization, each captioned with what it proves |
 | [`screenshots/`](./screenshots/)                                                       | Captured evidence images + manifest + the capture script                                                                                                                    |
 
 ## The five public repositories

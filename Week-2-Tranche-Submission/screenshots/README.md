@@ -4,7 +4,7 @@
 full-page PNGs of public pages taken in a 1440×900 viewport; #14 is an element
 capture (see its note). Every PNG was opened and checked by eye after capture. The underlying artifact is also linked by URL
 below so a reviewer can verify it live. The same images, captioned, are in
-[`../Proof-of-Deliverables.pdf`](../Proof-of-Deliverables.pdf) (cover + one page each).
+[`../Proof-of-Deliverables.pdf`](../Proof-of-Deliverables.pdf) (cover, two summary pages, then one page per screenshot).
 
 All shots were captured on 2026-09-19 from the live testnet deployment and public
 GitHub / Stellar Expert pages.
