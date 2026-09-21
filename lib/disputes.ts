@@ -27,9 +27,12 @@ import type {
   DisputeChallenge,
   DisputeChallengeReq,
   DisputeErrorCode,
+  DisputePanelView,
+  DisputeViewer,
   OpenDisputeReq,
   SettlementStepView,
   SettlementView,
+  StepDisputeState,
   TaskDisputes,
 } from "./types";
 
@@ -335,4 +338,146 @@ export function serverClockOffsetMs(
 ): number {
   if (!isNum(res.now) || !isNum(receivedAtMs)) return 0;
   return Math.round(res.now * 1_000 - receivedAtMs);
+}
+
+// ── the panel, derived ──────────────────────────────────────────
+
+const HIDDEN: DisputePanelView = { kind: "hidden" };
+
+/**
+ * Who is looking, judged against the payer the settlement recorded.
+ *
+ * The comparison is EXACT, not case-folded. A Stellar G-address has one
+ * spelling — StrKey is upper-case base32, and a lower-cased one is not a valid
+ * key at all — so there is nothing to normalise; and the backend compares the
+ * claimed payer with `!=` before it verifies a thing. Folding case here could
+ * only ever offer an action to an address the server is going to refuse.
+ */
+function viewerOf(payer: string, address: string | null): DisputeViewer {
+  if (!address) return "anonymous";
+  return address === payer ? "payer" : "other";
+}
+
+/**
+ * Whether `a` was raised before `b`: earlier `opened_at` first, then the lower
+ * id, so the answer never depends on the order the list arrived in.
+ */
+const openedBefore = (a: Dispute, b: Dispute): boolean =>
+  a.opened_at < b.opened_at || (a.opened_at === b.opened_at && a.id < b.id);
+
+/**
+ * Each step's dispute. A step has at most one — the backend answers a second
+ * attempt with the first, unchanged — so should the data ever hold two, the
+ * EARLIEST is the one kept: it is the dispute the server itself treats as the
+ * step's, and the one a `duplicate_dispute` refusal hands back.
+ */
+function disputesByStep(disputes: Dispute[]): Map<number, Dispute> {
+  const byStep = new Map<number, Dispute>();
+  for (const d of disputes) {
+    const held = byStep.get(d.step_index);
+    if (held === undefined || openedBefore(d, held))
+      byStep.set(d.step_index, d);
+  }
+  return byStep;
+}
+
+/**
+ * One step's state for this viewer. The order is the product's: a step that
+ * cost nothing says so whatever else is true, a dispute outlives the window
+ * it was raised in, and only then do the window and the viewer decide.
+ *
+ * "Not charged" covers more than an undelivered step: a free step, or a
+ * workflow whose charge moved nothing, has no money a credit could return, and
+ * the backend refuses those as `nothing_was_charged`. Offering the button
+ * would only walk the buyer through a signature to be told so.
+ *
+ * A disputed step is visible to everyone — a shared trace may show THAT a step
+ * was disputed — but the buyer's own words are for the buyer. For anyone else
+ * the reason is blanked out of the view as well as flagged: the panel cannot
+ * leak what it was never handed.
+ */
+function stepState(
+  step: SettlementStepView,
+  dispute: Dispute | undefined,
+  settlement: SettlementView,
+  open: boolean,
+  viewer: DisputeViewer,
+): StepDisputeState {
+  const charged =
+    step.delivered && step.price_usdc > 0 && settlement.settled_usdc > 0;
+  if (!charged) return { kind: "not_charged" };
+  if (dispute !== undefined) {
+    return viewer === "payer"
+      ? { kind: "disputed", dispute, showReason: true }
+      : {
+          kind: "disputed",
+          dispute: { ...dispute, reason: "" },
+          showReason: false,
+        };
+  }
+  if (!open) return { kind: "window_closed" };
+  return viewer === "payer" ? { kind: "disputable" } : { kind: "view_only" };
+}
+
+/**
+ * The whole receipt panel from the backend's answer, the connected wallet,
+ * whether the run has finished, and the clock — the panel renders this and
+ * decides nothing. `nowMs` must already be on the SERVER's clock (see
+ * `serverClockOffsetMs`); this function trusts it as given.
+ *
+ * - demo mode, or no answer yet → hidden. Loading and failure are the hook's
+ *   to report; neither may read as "not settled".
+ * - an answer without a `settlement` key → hidden: a backend that predates
+ *   receipts, which is not an error the buyer can do anything about.
+ * - `settlement: null` → not settled, and whether the run is still going says
+ *   which of "not yet" and "nothing was charged" it is.
+ * - otherwise the receipt, with the window open strictly before its close on
+ *   the server's clock. A `nowMs` that is not a number closes it: failing
+ *   shut hides a button, failing open offers one the server will refuse.
+ */
+export function disputeView(input: {
+  res: TaskDisputes | null;
+  viewerAddress: string | null;
+  workflowDone: boolean;
+  nowMs: number;
+  demo: boolean;
+}): DisputePanelView {
+  const { res, viewerAddress, workflowDone, nowMs, demo } = input;
+  if (demo || res === null) return HIDDEN;
+  const settlement = res.settlement;
+  if (settlement === undefined) return HIDDEN;
+  if (settlement === null)
+    return { kind: "not_settled", running: !workflowDone };
+
+  const viewer = viewerOf(settlement.payer, viewerAddress);
+  const closesAtMs = settlement.window_closes_at * 1_000;
+  const leftMs = closesAtMs - nowMs;
+  const open = leftMs > 0;
+  const byStep = disputesByStep(res.disputes);
+  const steps = [...settlement.steps]
+    .sort((a, b) => a.step_index - b.step_index)
+    .map((step) => ({
+      step,
+      state: stepState(
+        step,
+        byStep.get(step.step_index),
+        settlement,
+        open,
+        viewer,
+      ),
+    }));
+
+  return {
+    kind: "settled",
+    viewer,
+    window: { open, closesAtMs, remainingMs: open ? leftMs : 0 },
+    jobIdHex: settlement.job_id_hex,
+    payer: settlement.payer,
+    settledAtMs: settlement.settled_at * 1_000,
+    settledUsdc: settlement.settled_usdc,
+    chargeTx: settlement.charge_tx,
+    proofTx: settlement.proof_tx,
+    policy: settlement.policy,
+    steps,
+  };
 }
