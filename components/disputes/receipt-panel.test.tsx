@@ -463,6 +463,18 @@ describe("ReceiptPanel — a disputed step's receipt", () => {
       formatAge(HOUR - 60_000),
     );
   });
+
+  it("speaks to a non-payer as an onlooker, and never with the buyer's words", () => {
+    renderPanel(
+      settled([{ step: step(0), state: disputed(credited, "other") }], {
+        viewer: "other",
+      }),
+    );
+    const receipt = screen.getByRole("group", { name: /dispute receipt/i });
+    expect(receipt.textContent).toContain("credited to the payer's wallet");
+    expect(receipt.textContent).not.toMatch(/\byour?\b/i);
+    expect(text()).not.toContain(credited.reason);
+  });
 });
 
 describe("ReceiptPanel — who is looking", () => {
