@@ -143,7 +143,9 @@ function SettledReceipt({
   return (
     <section aria-labelledby={headingId}>
       <Card className="space-y-6 p-4 sm:p-6">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        {/* A plain div, not <header>: some engines expose a header inside a
+            section as a page banner landmark, and this is not one. */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2
@@ -169,7 +171,7 @@ function SettledReceipt({
             value={formatUsdc(view.settledUsdc)}
             className="sm:text-right"
           />
-        </header>
+        </div>
 
         <dl className="space-y-3 font-mono text-sm">
           <KVRow k="paid by">
