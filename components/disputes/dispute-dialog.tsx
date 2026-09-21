@@ -42,6 +42,25 @@ import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 import { classifyError } from "@/lib/wallet-errors";
 
+/**
+ * Why the dialog asked to be closed, passed to `onClose`. The page closes it
+ * for every reason alike; the reason says whether its receipt is still true.
+ *
+ * - `"dismissed"` — the buyer closed it: Cancel, ✕, Escape, the backdrop, or
+ *   Done after a dispute was raised (which `onSubmitted` already reported).
+ *   Nothing changed that the page does not know about.
+ * - `"duplicate_dispute"` — the step already had a dispute: raised from
+ *   another tab, or by a submit that raced this one. Not a failure, and there
+ *   is no `Dispute` to hand to `onSubmitted` (the 409's body is not kept), so
+ *   the dialog closes ITSELF at once with this reason. The page must refetch
+ *   the task's disputes; the step then shows the dispute it already has.
+ * - `"stale"` — the buyer closed it after a refusal that proves the page's
+ *   picture of this step is out of date: the window has closed, or the step
+ *   was never settled or never charged. The page should refetch.
+ */
+export type DisputeDialogCloseReason =
+  "dismissed" | "duplicate_dispute" | "stale";
+
 export type DisputeDialogProps = {
   /** Shown only while this is true AND both `step` and `settlement` are set. */
   open: boolean;
@@ -49,8 +68,12 @@ export type DisputeDialogProps = {
   step: SettlementStepView | null;
   /** The settlement the step was charged under; its `policy` is the terms. */
   settlement: SettlementView | null;
-  /** The buyer dismissed the dialog. The page closes it by clearing `open`. */
-  onClose: () => void;
+  /**
+   * The dialog asks to be closed; the page closes it by clearing `open`. Refetch
+   * on any reason but `"dismissed"` (see DisputeDialogCloseReason). A handler
+   * that takes no argument still type-checks — it just cannot refetch.
+   */
+  onClose: (reason: DisputeDialogCloseReason) => void;
   /** Called once, with the stored dispute, when the backend accepts it. */
   onSubmitted: (dispute: Dispute) => void;
 };
@@ -93,6 +116,8 @@ type Failure = {
   next: "retry" | "close";
   /** The reason itself is what has to change. */
   field: boolean;
+  /** Proves the page's view of this step is out of date. */
+  stale: boolean;
 };
 
 /**
@@ -121,6 +146,7 @@ const GENERIC_FAILURE: Failure = {
     "Your dispute couldn't be submitted. Your reason is still here — try again.",
   next: "retry",
   field: false,
+  stale: false,
 };
 
 /** The same submit can succeed on a second press. */
@@ -128,13 +154,15 @@ const retryable = (message: string): Failure => ({
   message,
   next: "retry",
   field: false,
+  stale: false,
 });
 
 /** Nothing in this dialog can change the answer; only closing is offered. */
-const closeOnly = (message: string): Failure => ({
+const closeOnly = (message: string, stale: boolean): Failure => ({
   message,
   next: "close",
   field: false,
+  stale,
 });
 
 const CANCELLED_NOTICE = "You cancelled the signature. Nothing was sent.";
@@ -178,20 +206,25 @@ function walletFailure(err: unknown): Failure | null {
 function refusalFailure(err: unknown, payer: string): Failure {
   switch (disputeErrorCode(err)) {
     case "not_the_payer":
+      // Not stale: the receipt is right, the wrong wallet is connected.
       return closeOnly(
         `The connected wallet isn't the one that paid for this workflow. Close this, connect ${shortAddress(payer)}, and try again.`,
+        false,
       );
     case "dispute_window_closed":
       return closeOnly(
         "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+        true,
       );
     case "step_not_settled":
       return closeOnly(
         "This step was never settled, so there is nothing to dispute on it.",
+        true,
       );
     case "nothing_was_charged":
       return closeOnly(
         "Nothing was charged for this step, so there is nothing to dispute on it.",
+        true,
       );
     case "rate_limited":
       return retryable(
@@ -204,6 +237,7 @@ function refusalFailure(err: unknown, payer: string): Failure {
           "Say what went wrong with this step, in words, before submitting.",
         next: "retry",
         field: true,
+        stale: false,
       };
     default:
       return GENERIC_FAILURE;
@@ -427,6 +461,11 @@ function DisputeForm({
             ? { kind: "error", failure }
             : { kind: "idle", notice: CANCELLED_NOTICE },
         );
+      } else if (disputeErrorCode(err) === "duplicate_dispute") {
+        // The step already has its dispute: an answer, not an error. The
+        // page refetches on this reason and shows the dispute on the receipt.
+        setState(IDLE);
+        onClose("duplicate_dispute");
       } else {
         setState({
           kind: "error",
@@ -464,6 +503,14 @@ function DisputeForm({
     }
   }
 
+  // Every way the buyer can close the dialog goes through here, so a stale
+  // receipt is reported however they leave.
+  function requestClose() {
+    onClose(
+      state.kind === "error" && state.failure.stale ? "stale" : "dismissed",
+    );
+  }
+
   const status = statusLine(state, wallet.walletName);
 
   const footer = (
@@ -492,7 +539,7 @@ function DisputeForm({
             <Button
               type="button"
               variant={state.kind === "done" ? "primary" : "outline"}
-              onClick={onClose}
+              onClick={requestClose}
               className="flex-1 sm:flex-none"
             >
               {state.kind === "done" ? "Done" : "Close"}
@@ -502,7 +549,7 @@ function DisputeForm({
               <Button
                 type="button"
                 variant="ghost"
-                onClick={onClose}
+                onClick={requestClose}
                 disabled={busy}
               >
                 Cancel
@@ -532,7 +579,7 @@ function DisputeForm({
   return (
     <Dialog
       open={shown}
-      onClose={onClose}
+      onClose={requestClose}
       // Nothing dismisses the dialog mid-sequence: closing it would not stop
       // the wallet prompt or the request, only hide their outcome.
       dismissible={!busy}
