@@ -1523,3 +1523,11 @@ export const mockRefundTx =
   "63e658669328e993706eedab30602d3da9e1538cbb008c9a6515333750984327";
 export const mockRatingTx =
   "e46d4a71165f437fd4cfaa402be58dcd63163ef1cfbac4772494a27b40136b30";
+
+/**
+ * The platform's reason for rejecting a dispute. Distinctive on purpose: a
+ * spec proves where it is shown — to the payer — and where it must never be,
+ * to anyone else holding a shared trace link.
+ */
+export const mockRejectionReason =
+  "the calculator handles every operation the brief asked for; a scientific mode was never in scope";
