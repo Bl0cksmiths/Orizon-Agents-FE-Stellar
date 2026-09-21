@@ -497,3 +497,67 @@ describe("Dialog — the dismissal veto", () => {
     expect(dialogEl().open).toBe(false);
   });
 });
+
+describe("Dialog — page scroll", () => {
+  afterEach(() => {
+    document.documentElement.style.overflow = "";
+    document.body.style.overflow = "";
+  });
+
+  it("locks the root scroller and the body while open", () => {
+    render(<Harness />);
+    openDialog();
+
+    // The global stylesheet makes the root, not the body, the scroller.
+    expect(document.documentElement.style.overflow).toBe("hidden");
+    expect(document.body.style.overflow).toBe("hidden");
+  });
+
+  it("puts back whatever inline overflow the page had on close", () => {
+    document.body.style.overflow = "clip";
+    render(<Harness />);
+    openDialog();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(document.body.style.overflow).toBe("clip");
+    expect(document.documentElement.style.overflow).toBe("");
+  });
+
+  it("keeps the page locked until the last of two dialogs closes", () => {
+    function Stack({ first, second }: { first: boolean; second: boolean }) {
+      return (
+        <>
+          <Dialog open={first} onClose={() => {}} title="First">
+            <p>one</p>
+          </Dialog>
+          <Dialog open={second} onClose={() => {}} title="Second">
+            <p>two</p>
+          </Dialog>
+        </>
+      );
+    }
+    const { rerender } = render(<Stack first second />);
+
+    rerender(<Stack first={false} second />);
+    expect(document.documentElement.style.overflow).toBe("hidden");
+
+    rerender(<Stack first={false} second={false} />);
+    expect(document.documentElement.style.overflow).toBe("");
+  });
+
+  it("releases the lock when it unmounts while open", () => {
+    const { unmount } = render(
+      <Dialog open onClose={() => {}} title="Receipt">
+        <p>Body copy</p>
+      </Dialog>,
+    );
+    expect(document.documentElement.style.overflow).toBe("hidden");
+
+    unmount();
+
+    expect(document.documentElement.style.overflow).toBe("");
+    expect(document.body.style.overflow).toBe("");
+  });
+});
