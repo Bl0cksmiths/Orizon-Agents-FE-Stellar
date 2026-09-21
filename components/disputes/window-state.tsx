@@ -1,6 +1,3 @@
-"use client";
-import { useEffect, useState } from "react";
-
 import { formatRemaining } from "@/lib/disputes";
 import type { DisputePanelView } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -27,45 +24,16 @@ export function formatLocalTime(ms: number): string {
   return new Intl.DateTimeFormat(undefined, LOCAL_TIME).format(ms);
 }
 
-const TICK_MS = 1_000;
-
-/**
- * `remainingMs`, counting down between renders.
- *
- * The view is a snapshot: whether the page re-derives it every second is the
- * page's business, and a countdown that only moves when its parent happens to
- * re-render looks broken. So the figure ticks here from the last value it was
- * handed, and every new value re-anchors it — the server-corrected clock
- * upstream stays the authority, this only fills the gaps between its answers.
- *
- * It never decides the window has closed. At zero it holds at zero until the
- * view says `open: false`; flipping the state is disputeView()'s call.
- */
-function useCountdown(remainingMs: number, running: boolean): number {
-  const [base, setBase] = useState(remainingMs);
-  const [elapsed, setElapsed] = useState(0);
-
-  // Re-anchor during render rather than in an effect, so a fresh value is
-  // never painted with the previous anchor's elapsed time subtracted from it.
-  if (base !== remainingMs) {
-    setBase(remainingMs);
-    setElapsed(0);
-  }
-
-  useEffect(() => {
-    if (!running) return;
-    const startedAt = Date.now();
-    const id = setInterval(() => setElapsed(Date.now() - startedAt), TICK_MS);
-    return () => clearInterval(id);
-  }, [base, running]);
-
-  return Math.max(0, base - elapsed);
-}
-
 /**
  * Whether the dispute window is open, and until when.
  *
- * Screen readers: the ticking countdown sits in an `aria-live="off"` span, so
+ * Pure: it renders the `remainingMs` it is handed and keeps no clock of its
+ * own. The page's dispute hook owns the one clock — server-corrected, and
+ * ticking as fast as the label can change — so a second timer here would only
+ * give the countdown two opinions of what time it is. It follows that this
+ * never decides the window has closed: that flips when the view says so.
+ *
+ * Screen readers: the countdown sits in an `aria-live="off"` span, so
  * it is readable on demand but never announced — which also holds if the page
  * ever wraps this panel in a live region, since the nearest `aria-live` wins.
  * What IS announced is the one-sentence summary above it: a polite status
@@ -83,7 +51,7 @@ export function WindowState({
   settledAtMs: number;
   className?: string;
 }) {
-  const remainingMs = useCountdown(win.remainingMs, win.open);
+  const { remainingMs } = win;
   const closesAt = formatLocalTime(win.closesAtMs);
   const closesAtIso = new Date(win.closesAtMs).toISOString();
 

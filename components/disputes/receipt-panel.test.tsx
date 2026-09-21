@@ -483,12 +483,11 @@ describe("WindowState", () => {
     expect(container.textContent).not.toContain("left");
   });
 
-  // A screen reader must not hear the countdown every second. It sits in an
+  // A screen reader must not hear the countdown on every tick. It sits in an
   // aria-live="off" span; what is announced is a summary naming the absolute
-  // time, which does not change as the seconds go by.
-  it("keeps the countdown out of the announced summary", async () => {
-    vi.useFakeTimers();
-    const { container } = render(
+  // time, which does not change as the page's clock re-derives the view.
+  it("keeps the countdown out of the announced summary", () => {
+    const { container, rerender } = render(
       <WindowState window={open(FOUR_MIN)} settledAtMs={SETTLED_AT} />,
     );
 
@@ -501,32 +500,27 @@ describe("WindowState", () => {
     expect(summary).not.toContain(formatRemaining(FOUR_MIN));
     expect(status.contains(countdown)).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(5_000);
+    // The page's clock ticks: a new view, five seconds on.
+    rerender(
+      <WindowState window={open(FOUR_MIN - 5_000)} settledAtMs={SETTLED_AT} />,
+    );
     expect(countdown?.textContent).toBe(formatRemaining(FOUR_MIN - 5_000));
     expect(screen.getByRole("status").textContent).toBe(summary);
   });
 
-  it("re-anchors on every fresh value it is handed", () => {
-    const { container, rerender } = render(
-      <WindowState window={open(FOUR_MIN)} settledAtMs={SETTLED_AT} />,
-    );
-    rerender(<WindowState window={open(90_000)} settledAtMs={SETTLED_AT} />);
-    expect(container.querySelector("[aria-live='off']")?.textContent).toBe(
-      formatRemaining(90_000),
-    );
-  });
-
-  // Closing is disputeView()'s decision. Run out locally and the countdown
-  // holds at zero until the view itself says the window has closed.
-  it("never closes the window on its own", async () => {
+  // One clock, and it is the page's. Time passing changes nothing here until
+  // the view does — including the window closing, which is disputeView()'s
+  // call and never this component's.
+  it("renders the time it is given and keeps no clock of its own", async () => {
     vi.useFakeTimers();
     const { container } = render(
       <WindowState window={open(2_000)} settledAtMs={SETTLED_AT} />,
     );
+    expect(vi.getTimerCount()).toBe(0);
     await vi.advanceTimersByTimeAsync(10_000);
     expect(container.textContent).toContain("Dispute window open");
     expect(container.querySelector("[aria-live='off']")?.textContent).toBe(
-      formatRemaining(0),
+      formatRemaining(2_000),
     );
   });
 
