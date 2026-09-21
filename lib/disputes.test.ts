@@ -17,6 +17,7 @@ import {
   DisputeRefusal,
   createDisputeChallenge,
   disputeErrorCode,
+  disputeReceipt,
   disputeView,
   formatRemaining,
   formatUsdc,
@@ -742,6 +743,7 @@ describe("disputeView — each step", () => {
       kind: "disputed",
       dispute: dispute(1),
       showReason: true,
+      receipt: disputeReceipt(dispute(1), "payer", policy),
     });
     expect(kinds(v)).toEqual({
       0: "disputable",
@@ -751,19 +753,68 @@ describe("disputeView — each step", () => {
   });
 
   it.each([
-    ["someone else", OTHER],
-    ["an anonymous viewer", null],
-  ])(
+    ["someone else", OTHER, "other"],
+    ["an anonymous viewer", null, "anonymous"],
+  ] as const)(
     "shows %s THAT a step is disputed, never the buyer's words",
-    (_, viewerAddress) => {
+    (_, viewerAddress, viewer) => {
       const v = settled({
         res: taskDisputes({ disputes: [dispute(1, { status: "upheld" })] }),
         viewerAddress,
       });
       expect(v.steps[1]?.state).toEqual({
         kind: "disputed",
-        dispute: { ...dispute(1, { status: "upheld" }), reason: "" },
+        dispute: {
+          ...dispute(1, { status: "upheld" }),
+          reason: "",
+          rejection_reason: null,
+        },
         showReason: false,
+        receipt: disputeReceipt(
+          dispute(1, { status: "upheld" }),
+          viewer,
+          policy,
+        ),
+      });
+    },
+  );
+
+  it("builds each disputed step's receipt under the settlement's own policy", () => {
+    const v = settled({
+      res: taskDisputes({
+        disputes: [dispute(0, { status: "credited", refund_tx: "tx_refund" })],
+      }),
+    });
+    const state = v.steps[0]?.state;
+    if (state?.kind !== "disputed") throw new Error("expected disputed");
+    expect(state.receipt).toMatchObject({
+      status: "credited",
+      fundedBy: policy.funded_by,
+      refund: { txHash: "tx_refund", state: "confirmed" },
+      reason: "the summary was empty",
+    });
+  });
+
+  it.each([
+    ["someone else", OTHER],
+    ["an anonymous viewer", null],
+  ])(
+    "hands %s no complaint text anywhere — not the reason, not the rejection",
+    (_, viewerAddress) => {
+      const rejected = dispute(1, {
+        status: "rejected",
+        resolved_at: SETTLED_AT + 600,
+        rejection_reason: "the summary covered the whole brief",
+      });
+      const v = settled({
+        res: taskDisputes({ disputes: [rejected] }),
+        viewerAddress,
+      });
+      const text = JSON.stringify(v);
+      expect(text).not.toContain(rejected.reason);
+      expect(text).not.toContain("the summary covered the whole brief");
+      expect(v.steps[1]?.state).toMatchObject({
+        receipt: { status: "rejected", reason: null, rejectionReason: null },
       });
     },
   );
