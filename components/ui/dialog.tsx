@@ -13,12 +13,17 @@
  * on its own authority here: Escape becomes a request (`onClose`) that the
  * caller answers by flipping `open`, and a close the browser forces anyway is
  * reconciled back to the prop.
+ *
+ * `dismissible={false}` vetoes every dismissal path at once — Escape, the
+ * close button, the backdrop and a close the browser forces — for the moments
+ * a dialog must not be abandoned, such as a wallet signature in flight.
  */
 
 import {
   useEffect,
   useId,
   useRef,
+  type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -56,6 +61,12 @@ export type DialogProps = {
    * control would scroll the explanation above it out of view.
    */
   initialFocusRef?: RefObject<HTMLElement>;
+  /**
+   * The veto. While false, nothing the user does dismisses the dialog: Escape
+   * and backdrop clicks are ignored, the close button is disabled, and a close
+   * the browser forces anyway is undone. Defaults to true.
+   */
+  dismissible?: boolean;
   /** Accessible name of the visible close button. */
   closeLabel?: string;
   className?: string;
@@ -123,6 +134,7 @@ export function Dialog({
   children,
   footer,
   initialFocusRef,
+  dismissible = true,
   closeLabel = "Close",
   className,
 }: DialogProps) {
@@ -161,15 +173,29 @@ export function Dialog({
   // with nothing on screen; turning it into a request keeps the prop in charge.
   function handleCancel(event: SyntheticEvent<HTMLDialogElement>) {
     event.preventDefault();
-    onClose();
+    if (dismissible) onClose();
+  }
+
+  // Cancelling the keydown stops Escape before it becomes a close request at
+  // all. `cancel` alone is not enough for the veto: Chrome lets a page refuse
+  // one close request, then closes regardless on the next Escape unless the
+  // user has interacted in between.
+  function handleKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
+    if (event.key === "Escape" && !dismissible) event.preventDefault();
   }
 
   // `close` fires for our own close() too — that one is already in sync. Only
-  // a close the browser made while the prop still says open needs reporting.
+  // a close the browser made while the prop still says open needs handling:
+  // reported as a dismissal when that is allowed, undone when it is vetoed.
   function handleNativeClose() {
     const dialog = dialogRef.current;
     if (!open || !dialog || dialog.open) return;
-    onClose();
+    if (dismissible) {
+      onClose();
+      return;
+    }
+    dialog.showModal();
+    (initialFocusRef?.current ?? titleRef.current)?.focus();
   }
 
   // A click on `::backdrop` is dispatched to the <dialog> itself, and the
@@ -185,7 +211,7 @@ export function Dialog({
     const fromBackdrop =
       pressedOnBackdrop.current && event.target === event.currentTarget;
     pressedOnBackdrop.current = false;
-    if (fromBackdrop) onClose();
+    if (fromBackdrop && dismissible) onClose();
   }
 
   return (
@@ -195,6 +221,7 @@ export function Dialog({
       aria-describedby={description ? descriptionId : undefined}
       onCancel={handleCancel}
       onClose={handleNativeClose}
+      onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
       onClick={handleClick}
       className={cn(
@@ -241,9 +268,10 @@ export function Dialog({
             <button
               type="button"
               onClick={onClose}
+              disabled={!dismissible}
               aria-label={closeLabel}
               className={cn(
-                "clip-cyber-sm grid h-9 w-9 shrink-0 place-items-center border border-border font-mono text-sm text-muted transition hover:border-violet/60 hover:text-text",
+                "clip-cyber-sm grid h-9 w-9 shrink-0 place-items-center border border-border font-mono text-sm text-muted transition hover:border-violet/60 hover:text-text disabled:pointer-events-none disabled:opacity-40",
                 focusRing,
               )}
             >
