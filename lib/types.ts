@@ -659,3 +659,36 @@ export type StepDisputeState =
   | { kind: "not_charged" }
   | { kind: "window_closed" }
   | { kind: "view_only" };
+
+/**
+ * The whole receipt panel, derived purely from the backend's answer, the
+ * connected wallet, whether the workflow has finished, and the server-corrected
+ * clock. The panel renders this and decides nothing.
+ *
+ * `hidden` covers the trace page's demo mode and a backend too old to send a
+ * settlement at all. `not_settled` is a real answer — nothing was charged, or
+ * not yet — and the panel says why rather than showing nothing.
+ */
+export type DisputePanelView =
+  | { kind: "hidden" }
+  | { kind: "not_settled"; running: boolean }
+  | {
+      kind: "settled";
+      viewer: DisputeViewer;
+      window: {
+        open: boolean;
+        /** Epoch milliseconds, server clock. */
+        closesAtMs: number;
+        /** Milliseconds left on the server's clock; 0 once closed. */
+        remainingMs: number;
+      };
+      jobIdHex: string;
+      payer: string;
+      /** Epoch milliseconds, server clock. */
+      settledAtMs: number;
+      settledUsdc: number;
+      chargeTx: string | null;
+      proofTx: string | null;
+      policy: CreditPolicy;
+      steps: { step: SettlementStepView; state: StepDisputeState }[];
+    };
