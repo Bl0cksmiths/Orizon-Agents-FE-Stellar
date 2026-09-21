@@ -105,6 +105,19 @@ function text(): string {
   return document.body.textContent ?? "";
 }
 
+/** The on-chain row for one artifact, found by its visible name. */
+function artifactRow(name: RegExp): HTMLElement {
+  const term = screen.getByText(name, { selector: "dt" });
+  return term.parentElement as HTMLElement;
+}
+
+function txHrefs(): string[] {
+  return screen
+    .queryAllByRole("link")
+    .map((a) => a.getAttribute("href") ?? "")
+    .filter((h) => h.includes("/tx/"));
+}
+
 describe("DisputeReceipt — the header, in every state", () => {
   const STATUSES: DisputeStatus[] = [
     "open",
@@ -279,5 +292,102 @@ describe("DisputeReceipt — the credit line", () => {
     renderReceipt(receipt("rejected"));
     expect(screen.queryByText(formatUsdc(0.027))).toBeNull();
     expect(text()).not.toContain("funded by");
+  });
+});
+
+describe("DisputeReceipt — the on-chain artifacts", () => {
+  it("shows both confirmed transactions in full, each with its link", () => {
+    renderReceipt(receipt("credited"));
+
+    const refund = artifactRow(/^Refund transfer/);
+    expect(refund.textContent).toContain("what you received");
+    expect(refund.textContent).toContain("Confirmed on Stellar");
+    expect(refund.textContent).toContain(REFUND_TX);
+
+    const rating = artifactRow(new RegExp(`^Dispute rating against ${AGENT}`));
+    expect(rating.textContent).toContain("what it cost the agent");
+    expect(rating.textContent).toContain("Confirmed on Stellar");
+    expect(rating.textContent).toContain(RATING_TX);
+
+    expect(txHrefs()).toEqual([
+      expect.stringMatching(new RegExp(`/tx/${REFUND_TX}$`)),
+      expect.stringMatching(new RegExp(`/tx/${RATING_TX}$`)),
+    ]);
+    // Distinct names: a links list reading "view on stellar.expert" twice
+    // cannot tell a screen reader which transaction is which.
+    expect(
+      screen.getByRole("link", { name: "view refund on stellar.expert" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "view rating on stellar.expert" }),
+    ).toBeTruthy();
+  });
+
+  it("never shows a pending transaction with the confirmed mark", () => {
+    renderReceipt(receipt("crediting"));
+    const refund = artifactRow(/^Refund transfer/);
+    expect(refund.textContent).toContain("Submitted, waiting for confirmation");
+    expect(refund.textContent).not.toMatch(/confirmed/i);
+    expect(refund.textContent).not.toContain("✓");
+    expect(refund.querySelector(".text-cyan:not(a)")).toBeNull();
+    // Submitted is still evidence: the hash and its link are shown.
+    expect(refund.textContent).toContain(REFUND_TX);
+    expect(txHrefs()).toEqual([
+      expect.stringMatching(new RegExp(`/tx/${REFUND_TX}$`)),
+    ]);
+  });
+
+  it("says a refund with no hash yet is being sent, and links nothing", () => {
+    renderReceipt(receipt("upheld"));
+    const refund = artifactRow(/^Refund transfer/);
+    expect(refund.textContent).toContain("Being sent");
+    expect(refund.textContent).not.toMatch(/confirmed/i);
+    expect(refund.textContent).not.toContain("✓");
+    expect(txHrefs()).toHaveLength(0);
+  });
+
+  it("draws a credited dispute's unrecorded refund as pending, not done", () => {
+    renderReceipt(receipt("credited", UNRECONCILED));
+    const refund = artifactRow(/^Refund transfer/);
+    expect(refund.textContent).toContain("Being sent");
+    expect(refund.textContent).not.toMatch(/confirmed/i);
+    expect(refund.textContent).not.toContain("✓");
+    expect(screen.queryByRole("link", { name: /refund/i })).toBeNull();
+  });
+
+  it("marks each artifact by its own state", () => {
+    renderReceipt(
+      receipt("credited", { rating: { txHash: RATING_TX, state: "pending" } }),
+    );
+    expect(artifactRow(/^Refund transfer/).textContent).toContain(
+      "Confirmed on Stellar",
+    );
+    const rating = artifactRow(/^Dispute rating/);
+    expect(rating.textContent).toContain("Submitted, waiting for confirmation");
+    expect(rating.textContent).not.toContain("✓");
+  });
+
+  it.each<DisputeStatus>(["open", "rejected"])(
+    "%s: renders no on-chain record at all",
+    (status) => {
+      renderReceipt(receipt(status));
+      expect(text()).not.toContain("On-chain record");
+      expect(text()).not.toContain("Refund transfer");
+      expect(txHrefs()).toHaveLength(0);
+    },
+  );
+
+  it("explains a credited dispute's rating that has not landed", () => {
+    renderReceipt(receipt("credited", { rating: NONE }));
+    const rating = artifactRow(/^Dispute rating/);
+    expect(rating.textContent).toBe(
+      `Dispute rating against ${AGENT} — not recorded on-chain yet.`,
+    );
+    expect(txHrefs()).toHaveLength(1);
+  });
+
+  it("leaves out an absent rating while the dispute is still moving", () => {
+    renderReceipt(receipt("crediting"));
+    expect(text()).not.toContain("Dispute rating");
   });
 });
