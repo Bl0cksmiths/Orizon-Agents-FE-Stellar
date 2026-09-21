@@ -1,9 +1,7 @@
 "use client";
-import { memo, useCallback, useState } from "react";
-import {
-  DisputeDialog,
-  type DisputeDialogCloseReason,
-} from "@/components/disputes/dispute-dialog";
+import dynamic from "next/dynamic";
+import { memo, useCallback, useEffect, useState } from "react";
+import type { DisputeDialogCloseReason } from "@/components/disputes/dispute-dialog";
 import { ReceiptPanel } from "@/components/disputes/receipt-panel";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
@@ -18,6 +16,16 @@ import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 
 type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
+
+// The form and its entrance motion are 34 KB of the trace page's first load
+// (445 KB → 411 KB) that only a payer inside an open window can ever use — not
+// a stranger on a shared link, not anyone once the window has closed — so
+// they are fetched the moment such a payer is on the page, and not before.
+const loadDisputeDialog = () => import("@/components/disputes/dispute-dialog");
+const DisputeDialog = dynamic(
+  () => loadDisputeDialog().then((m) => m.DisputeDialog),
+  { ssr: false },
+);
 
 /**
  * The settlement a dispute is raised against, rebuilt from the panel's view.
@@ -224,6 +232,15 @@ export const DisputeSection = memo(function DisputeSection({
   // and the dialog is not handed a new object on every tick of the countdown.
   const [target, setTarget] = useState<DisputeTarget | null>(null);
 
+  const canDispute =
+    view.kind === "settled" &&
+    view.steps.some(({ state }) => state.kind === "disputable");
+  // Fetched as soon as there is a Dispute button, so the form is ready by the
+  // time it is pressed.
+  useEffect(() => {
+    if (canDispute) void loadDisputeDialog();
+  }, [canDispute]);
+
   const onDispute = (step: SettlementStepView) => {
     if (view.kind !== "settled") return;
     setTarget({ step, settlement: settlementOf(view) });
@@ -281,13 +298,18 @@ export const DisputeSection = memo(function DisputeSection({
         </ErrorNote>
       )}
       <ReceiptPanel view={view} onDispute={onDispute} onConnect={onConnect} />
-      <DisputeDialog
-        open={target !== null}
-        step={target?.step ?? null}
-        settlement={target?.settlement ?? null}
-        onClose={onClose}
-        onSubmitted={onSubmitted}
-      />
+      {/* Mounted while a step can be disputed — which keeps a half-typed
+          reason across an accidental close — or while its dialog is still
+          open after the last step stopped being disputable. */}
+      {(canDispute || target !== null) && (
+        <DisputeDialog
+          open={target !== null}
+          step={target?.step ?? null}
+          settlement={target?.settlement ?? null}
+          onClose={onClose}
+          onSubmitted={onSubmitted}
+        />
+      )}
     </div>
   );
 });
