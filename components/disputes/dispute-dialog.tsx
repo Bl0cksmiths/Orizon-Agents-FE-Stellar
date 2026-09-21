@@ -16,7 +16,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { KVRow } from "@/components/ui/kv-row";
 import { formatUsdc } from "@/lib/disputes";
-import type { Dispute, SettlementStepView, SettlementView } from "@/lib/types";
+import type {
+  CreditPolicy,
+  Dispute,
+  SettlementStepView,
+  SettlementView,
+} from "@/lib/types";
 
 export type DisputeDialogProps = {
   /** Shown only while this is true AND both `step` and `settlement` are set. */
@@ -47,6 +52,51 @@ function SectionLabel({ id, children }: { id: string; children: ReactNode }) {
 /** Steps count from 0 on the wire, as the backend enumerates the plan. */
 const stepNumber = (step: SettlementStepView) => step.step_index + 1;
 
+/** 0.5 → "50%", 0.125 → "12.5%": as exact as the policy, never "50.00%". */
+const formatPercent = (fraction: number) =>
+  `${Number((fraction * 100).toFixed(2))}%`;
+
+// The two literal fields are switched on exhaustively: widen either type and
+// this stops compiling, rather than describing a new funder or adjudicator
+// with the old sentence.
+function fundedByLine(funder: CreditPolicy["funded_by"]): string {
+  switch (funder) {
+    case "platform":
+      return "The platform pays the credit. Nothing is clawed back from the agent.";
+    default: {
+      const unhandled: never = funder;
+      return unhandled;
+    }
+  }
+}
+
+function adjudicatedByLine(judge: CreditPolicy["adjudicated_by"]): string {
+  switch (judge) {
+    case "platform":
+      return "The platform reviews the dispute and decides. There is no on-chain arbitration.";
+    default: {
+      const unhandled: never = judge;
+      return unhandled;
+    }
+  }
+}
+
+/**
+ * The terms in the buyer's words, read off the policy the backend served and
+ * never written into the UI: what the buyer reads is what is in force.
+ */
+function creditTerms(policy: CreditPolicy): string[] {
+  const credit =
+    policy.credited_fraction > 0
+      ? `An upheld dispute credits ${formatPercent(policy.credited_fraction)} of this step's charge back to the wallet that paid.`
+      : "Under the current terms an upheld dispute credits nothing back.";
+  return [
+    credit,
+    fundedByLine(policy.funded_by),
+    adjudicatedByLine(policy.adjudicated_by),
+  ];
+}
+
 /**
  * One draft per step. The page may hand back `null` between opens, so the key
  * only moves when a DIFFERENT step arrives: closing by accident and reopening
@@ -64,7 +114,11 @@ export function DisputeDialog(props: DisputeDialogProps) {
 function DisputeForm({ open, step, settlement, onClose }: DisputeDialogProps) {
   const shown = open && step !== null && settlement !== null;
   const uid = useId();
-  const ids = { step: `${uid}-step`, amounts: `${uid}-amounts` };
+  const ids = {
+    step: `${uid}-step`,
+    amounts: `${uid}-amounts`,
+    terms: `${uid}-terms`,
+  };
 
   return (
     <Dialog
@@ -122,6 +176,21 @@ function DisputeForm({ open, step, settlement, onClose }: DisputeDialogProps) {
                 valueClassName="text-cyan"
               />
             </dl>
+          </section>
+
+          <section aria-labelledby={ids.terms} className="space-y-2">
+            <SectionLabel id={ids.terms}>The terms</SectionLabel>
+            <ul className="space-y-1.5 text-sm text-text">
+              {creditTerms(settlement.policy).map((line) => (
+                <li key={line} className="flex gap-2.5">
+                  <span
+                    aria-hidden
+                    className="mt-[0.45rem] h-1 w-1 shrink-0 bg-violet"
+                  />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
       )}
