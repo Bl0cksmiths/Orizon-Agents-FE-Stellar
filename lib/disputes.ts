@@ -126,6 +126,20 @@ const isNullableStr = (v: unknown): v is string | null =>
 const isNullableNum = (v: unknown): v is number | null =>
   v === null || isNum(v);
 
+/** A boolean or an explicit null, on `isNullableStr`'s terms. */
+const isNullableBool = (v: unknown): v is boolean | null =>
+  v === null || typeof v === "boolean";
+
+/**
+ * The deliberate exception to the rule above, for fields a shape gained after
+ * it was born: this client deploys on merge and the backend does not, so it
+ * meets answers that predate them. ABSENT passes — it means "not known" — but
+ * a key that is present must still pass `guard`: `rating_confirmed: "false"`
+ * is truthy, and a string amount is not one the receipt can print as paid.
+ */
+const isAbsentOr = (v: unknown, guard: (x: unknown) => boolean): boolean =>
+  v === undefined || guard(v);
+
 /** A step index is sent back to the server in the challenge, so it must be
  * the integer the settlement record holds — never a float that rounds. */
 const isStepIndex = (v: unknown): v is number =>
@@ -203,7 +217,12 @@ function isDispute(v: unknown): v is Dispute {
     isNum(v.opened_at) &&
     isNullableNum(v.resolved_at) &&
     isNullableStr(v.refund_tx) &&
-    isNullableStr(v.rating_tx)
+    isNullableStr(v.rating_tx) &&
+    // Story 4.06's fields: optional, and typed whenever they are sent.
+    isAbsentOr(v.credited_usdc, isNullableNum) &&
+    isAbsentOr(v.updated_at, isNullableNum) &&
+    isAbsentOr(v.rating_confirmed, isNullableBool) &&
+    isAbsentOr(v.rejection_reason, isNullableStr)
   );
 }
 
