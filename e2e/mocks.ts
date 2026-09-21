@@ -1254,7 +1254,27 @@ export function mockSettlementView(opts: {
   settledAtS: number;
   windowS?: number;
   payer?: string;
+  /**
+   * The policy's credited fraction, when a spec needs another than
+   * `mockCreditPolicy`'s. Every step's `creditable_usdc` follows it, computed
+   * as `refund_svc.credited_amount_usdc` does — price x fraction, rounded to
+   * 7 places — so the terms and the amounts on screen cannot disagree.
+   */
+  creditedFraction?: number;
 }): SettlementView {
+  const fraction = opts.creditedFraction;
+  const credited =
+    fraction === undefined
+      ? { steps: mockSettlementSteps, policy: mockCreditPolicy }
+      : {
+          steps: mockSettlementSteps.map((step) => ({
+            ...step,
+            creditable_usdc: step.delivered
+              ? Math.round(step.price_usdc * fraction * 1e7) / 1e7
+              : 0,
+          })),
+          policy: { ...mockCreditPolicy, credited_fraction: fraction },
+        };
   return {
     job_id_hex: mockDisputeJobIdHex,
     payer: opts.payer ?? mockWalletAddress,
@@ -1265,8 +1285,7 @@ export function mockSettlementView(opts: {
       "a41c7e0d93b25f6817ce4a0b9d3f72e15c86a0d4b7e2f91c3a58d06e4b1f7c29",
     proof_tx:
       "0e9d4c71b3a85f2e6c1d07b94a3e8f52d6c10a7e9b4f38d2c5a16e0b7d93f4a8",
-    steps: mockSettlementSteps,
-    policy: mockCreditPolicy,
+    ...credited,
   };
 }
 
