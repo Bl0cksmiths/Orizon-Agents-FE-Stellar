@@ -14,6 +14,7 @@ import type {
   SettlementView,
 } from "@/lib/types";
 import { useDisputePanel } from "@/lib/use-dispute-panel";
+import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 
 type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
@@ -40,73 +41,150 @@ function settlementOf(view: SettledView): SettlementView {
 /** The step a dialog is about, and the settlement it was charged under. */
 type DisputeTarget = { step: SettlementStepView; settlement: SettlementView };
 
-/** The receipt's four facts: payer, settled time, charge and seal. */
-const FACT_LINES = [2, 1, 2, 2] as const;
+/**
+ * A skeleton bar centred in a line box of the text it stands in for, so each
+ * placeholder takes the height its real line will: the bar is the shimmer,
+ * the box is the layout.
+ */
+function Line({
+  box,
+  bar,
+  className,
+}: {
+  box: string;
+  bar: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center", box, className)}>
+      <Skeleton className={bar} />
+    </div>
+  );
+}
 
 /**
- * The receipt's own frame, drawn empty while it loads: the same card, header,
- * facts, window line and step rows the panel renders, at their heights. A
- * one-line placeholder reserved none of it, so the settlement arriving pushed
- * the whole trace log half a screen down under the reader.
+ * An invisible stand-in exactly as long as the value it holds a place for, in
+ * that value's font, under a shimmer: it wraps wherever the real value will,
+ * at every width, where a count of skeleton lines could only be tuned for
+ * one or two.
+ */
+function Ghost({ text }: { text: string }) {
+  return (
+    <div className="relative">
+      <span className="invisible">{text}</span>
+      <Skeleton className="absolute inset-x-0 inset-y-0.5" />
+    </div>
+  );
+}
+
+/**
+ * The receipt's facts as the panel lists them, with values as long as the
+ * real ones: a G-address is 56 characters and a transaction hash 64, set in
+ * the same monospace, so they break onto as many lines as the real ones do.
+ */
+const FACTS = [
+  { label: "payer", value: "G".repeat(56), link: true },
+  { label: "settled", value: "Sep 30, 2026, 12:00 PM GMT+8", link: false },
+  { label: "charge", value: "0".repeat(64), link: true },
+  { label: "seal", value: "0".repeat(64), link: true },
+] as const;
+
+/** As long as the credit terms line the panel shows beside its actions. */
+const TERMS_GHOST =
+  "terms · An upheld dispute credits a share of that step's charge back to you, paid by the platform and never clawed back from the agent. The platform decides each dispute; there is no on-chain arbitration.";
+
+/**
+ * The receipt's own frame, drawn empty while it loads: the card, header,
+ * facts, window, terms and step rows of a settled receipt, each in the line
+ * boxes the panel's text occupies at a phone's width and a desktop's.
+ *
+ * A short placeholder reserved none of it, and the settlement arriving then
+ * shoved the trace log most of a screen down under the reader. Measured
+ * against the rendered panel by the dispute e2e spec, which fails the build if
+ * the log moves by more than a line when the receipt lands.
  */
 function ReceiptSkeleton() {
   return (
     <div aria-busy="true">
       <LoadingStatus label="Loading the receipt…" />
-      <Card className="space-y-6 p-4 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-7 w-24" />
-              <Skeleton className="h-5 w-20" />
+      <Card className="p-4 sm:p-6">
+        {/* Card wraps its children in one div, so the stack's spacing has to
+            live on a div of its own inside it. */}
+        <div className="space-y-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex h-7 items-center gap-2">
+                <Skeleton className="h-5 w-20" />
+                <Skeleton className="h-5 w-20" />
+              </div>
+              <Line box="mt-1 h-5" bar="h-3.5 w-36" />
             </div>
-            <Skeleton className="mt-2 h-4 w-40" />
+            <div className="flex flex-col sm:items-end">
+              <Line box="h-[15px]" bar="h-2.5 w-24" />
+              <Line box="mt-3 h-9" bar="h-7 w-40" />
+            </div>
           </div>
-          <div className="flex flex-col gap-3 sm:items-end">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-9 w-36" />
-          </div>
-        </div>
 
-        <div className="space-y-3">
-          {FACT_LINES.map((lines, i) => (
-            <div
-              key={i}
-              className="flex items-start justify-between gap-4 border-b border-border/40 pb-2 last:border-0"
-            >
-              <Skeleton className="mt-1 h-3 w-14 shrink-0" />
-              <div className="flex min-w-0 flex-1 flex-col items-end gap-2">
-                <Skeleton className="h-4 w-full max-w-[26rem]" />
-                {lines === 2 && <Skeleton className="h-3 w-28" />}
+          <div className="space-y-3 font-mono text-sm">
+            {FACTS.map(({ label, value, link }) => (
+              <div
+                key={label}
+                className="flex items-start justify-between gap-4 border-b border-border/40 pb-2 last:border-0"
+              >
+                <div className="pt-1 text-[10px] uppercase tracking-widest">
+                  <Ghost text={label} />
+                </div>
+                <div className="break-all text-right">
+                  <Ghost text={value} />
+                  {link && <Line box="mt-1 h-5 justify-end" bar="h-2.5 w-36" />}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="clip-cyber-sm border border-border/60 px-4 py-3">
+            {/* Label and countdown, in their own fonts: they share a line or
+                wrap onto two exactly where the real pair does. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <div className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em]">
+                <div className="h-2 w-2 shrink-0" />
+                <Ghost text="Dispute window open" />
+              </div>
+              <div className="font-mono text-sm tabular-nums">
+                <Ghost text="22h 59m left" />
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className="clip-cyber-sm space-y-3 border border-border/60 px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <Skeleton className="h-3 w-40" />
-            <Skeleton className="h-4 w-24" />
-          </div>
-          <Skeleton className="h-1 w-full" />
-          <Skeleton className="h-3 w-48 max-w-full" />
-        </div>
-
-        <div className="space-y-3 border-t border-border/60 pt-5">
-          <Skeleton className="h-3 w-12" />
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div
-              key={i}
-              className="clip-cyber-sm flex gap-3 border border-border/60 p-4"
-            >
-              <Skeleton className="h-7 w-7 shrink-0" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-4 w-32 max-w-full" />
-                <Skeleton className="h-3 w-48 max-w-full" />
-              </div>
-              <Skeleton className="h-8 w-20 shrink-0" />
+            <Skeleton className="mt-3 h-1 w-full" />
+            <div className="mt-2 font-mono text-[11px]">
+              <Ghost text="closes Sep 30, 2026, 12:00 PM GMT+8" />
             </div>
-          ))}
+          </div>
+
+          <div className="max-w-2xl text-xs leading-relaxed">
+            <Ghost text={TERMS_GHOST} />
+          </div>
+
+          <div className="space-y-3 border-t border-border/60 pt-5">
+            <Line box="h-[16.5px]" bar="h-2.5 w-12" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="clip-cyber-sm flex h-[180px] flex-col gap-3 border border-border/60 p-4 sm:h-[115px] sm:flex-row sm:justify-between"
+              >
+                <div className="flex min-w-0 gap-3">
+                  <Skeleton className="h-7 w-7 shrink-0" />
+                  <div className="min-w-0 space-y-3">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-44 max-w-full" />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 pl-10 sm:items-end sm:pl-0">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-8 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
     </div>
