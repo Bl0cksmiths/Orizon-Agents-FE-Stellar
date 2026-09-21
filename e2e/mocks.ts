@@ -1,5 +1,9 @@
 import type { Page, Route } from "@playwright/test";
-import type { DecomposeResponse, ReputationBatch } from "../lib/types";
+import type {
+  CreditPolicy,
+  DecomposeResponse,
+  ReputationBatch,
+} from "../lib/types";
 
 /**
  * Mock payloads shaped to satisfy lib/guards.ts (isOverview, isTaskList,
@@ -1158,3 +1162,22 @@ export async function mockWallet(page: Page): Promise<void> {
     },
   );
 }
+
+// ── Disputes on the trace / receipt view (story 4.05) ───────
+
+/** The workflow every dispute spec opens the trace page on, via `?task=`. */
+export const mockDisputeTaskId = "task_e2e_dispute";
+
+/** 16 bytes of hex: the `_JOB_ID_PATTERN` shape the dispute routes accept. */
+export const mockDisputeJobIdHex = "7c2e9b41d05a4f38a6e1b9c3d7f20a58";
+
+/**
+ * The terms in force. The backend defaults DISPUTE_CREDITED_FRACTION to 1.0;
+ * half is used here so a "50%" in the form can only have come from the policy
+ * it was served, never from copy that hard-codes a full refund.
+ */
+export const mockCreditPolicy: CreditPolicy = {
+  credited_fraction: 0.5,
+  funded_by: "platform",
+  adjudicated_by: "platform",
+};
