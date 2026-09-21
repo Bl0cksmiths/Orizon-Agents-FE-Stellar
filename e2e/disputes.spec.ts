@@ -85,6 +85,34 @@ async function openDialog(page: Page, agent: string): Promise<Locator> {
   return dialog(page);
 }
 
+/**
+ * Sideways overflow inside `root`, as the offending elements' own
+ * descriptions. Width is the direction a phone cannot recover: the console
+ * hides horizontal overflow on html and body, so content past the right edge
+ * is not scrolled to — it is cut off.
+ */
+async function horizontalOverflow(root: Locator): Promise<string[]> {
+  return root.evaluate((el) => {
+    const limit = document.documentElement.clientWidth + 1;
+    const offenders: string[] = [];
+    for (const node of [el, ...Array.from(el.querySelectorAll("*"))]) {
+      const box = node.getBoundingClientRect();
+      if (box.width === 0) continue;
+      const scrolls = node.scrollWidth > node.clientWidth + 1;
+      const style = getComputedStyle(node);
+      const scrollable =
+        scrolls && (style.overflowX === "auto" || style.overflowX === "scroll");
+      if (box.left < -1 || box.right > limit || scrollable) {
+        const text = (node.textContent ?? "").trim().slice(0, 40);
+        offenders.push(
+          `<${node.tagName.toLowerCase()}> ${Math.round(box.left)}–${Math.round(box.right)}px "${text}"`,
+        );
+      }
+    }
+    return offenders;
+  });
+}
+
 test.describe("dispute action on the trace / receipt view", () => {
   test("the payer, an hour after settling, is offered a dispute on every settled step and sees the time left", async ({
     page,
@@ -505,5 +533,36 @@ test.describe("dispute action on the trace / receipt view", () => {
       receipt(page).getByText("Dispute window closed", { exact: true }),
     ).toBeVisible();
     await expect(disputeButtons(page)).toHaveCount(0);
+  });
+
+  test("at 360px the receipt and the dispute form fit without sideways scroll", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      disputes: [
+        mockDispute(briefStep, {
+          openedAtS: nowS() - 600,
+          reason: "the outline misses half of the brief",
+        }),
+      ],
+    });
+
+    await expect(receipt(page)).toBeVisible();
+    expect(await horizontalOverflow(receipt(page))).toEqual([]);
+
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    expect(await horizontalOverflow(form)).toEqual([]);
+
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
   });
 });
