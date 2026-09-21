@@ -432,4 +432,55 @@ test.describe("dispute action on the trace / receipt view", () => {
       await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
     });
   }
+
+  // The skeleton is drawn in the panel's own line boxes, so the receipt
+  // landing moves the trace below it by less than a line — the one step row
+  // whose height the skeleton cannot know in advance (a failed step's
+  // explanation) is all that is left. A one-line placeholder moved it by most
+  // of a screen.
+  const MAX_SHIFT_PX = 24;
+  for (const width of [1280, 360]) {
+    test(`at ${width}px the receipt lands in the skeleton's place without moving the trace`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      let answer!: () => void;
+      const answered = new Promise<void>((resolve) => (answer = resolve));
+      await openTrace(
+        page,
+        {
+          // 22h 43m left. A countdown on a whole hour reads "23h left", short
+          // enough to share a phone line with its label where the usual
+          // "22h 43m left" wraps; the skeleton reserves the usual.
+          settlement: mockSettlementView({
+            settledAtS: nowS() - HOUR_S - 17 * 60,
+          }),
+        },
+        {
+          // Holds the read until the skeleton has been measured.
+          routes: async (p) => {
+            await p.route(
+              (url) => /\/api\/tasks\/[^/]+\/disputes$/.test(url.pathname),
+              async (route) => {
+                await answered;
+                await route.fallback();
+              },
+            );
+          },
+        },
+      );
+      await expect(page.getByText("Loading the receipt…")).toBeAttached();
+      const logBar = page.locator("main").getByText("sealed", { exact: true });
+      const before = await logBar.boundingBox();
+
+      answer();
+      await expect(disputeButtons(page)).toHaveCount(2);
+      const after = await logBar.boundingBox();
+
+      if (before === null || after === null) {
+        throw new Error("expected the trace log's status bar to be laid out");
+      }
+      expect(Math.abs(after.y - before.y)).toBeLessThanOrEqual(MAX_SHIFT_PX);
+    });
+  }
 });
