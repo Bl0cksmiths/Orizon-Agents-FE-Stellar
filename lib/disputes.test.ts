@@ -250,6 +250,72 @@ describe("getTaskDisputes", () => {
     await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
   });
 
+  it("accepts an older backend's dispute, which sends none of the receipt fields", async () => {
+    // dispute() is the 4.05 shape: not one of story 4.06's four keys.
+    const body = taskDisputes({
+      disputes: [dispute(1, { status: "credited" })],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    const res = await getTaskDisputes(TASK);
+    expect(res).toEqual(body);
+    for (const key of [
+      "credited_usdc",
+      "updated_at",
+      "rating_confirmed",
+      "rejection_reason",
+    ]) {
+      expect(key in (res.disputes[0] ?? {})).toBe(false);
+    }
+  });
+
+  it("accepts a newer backend's dispute carrying every receipt field", async () => {
+    const body = taskDisputes({
+      disputes: [
+        dispute(1, {
+          status: "credited",
+          resolved_at: SETTLED_AT + 600,
+          refund_tx: "tx_refund",
+          rating_tx: "tx_rating",
+          credited_usdc: 0.004,
+          updated_at: SETTLED_AT + 900,
+          rating_confirmed: true,
+        }),
+        dispute(2, {
+          status: "rejected",
+          resolved_at: SETTLED_AT + 600,
+          rejection_reason: "the output matched the brief",
+          rating_confirmed: false,
+        }),
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
+  });
+
+  it("accepts each receipt field as an explicit null", async () => {
+    const body = taskDisputes({
+      disputes: [
+        dispute(1, {
+          credited_usdc: null,
+          updated_at: null,
+          rating_confirmed: null,
+          rejection_reason: null,
+        }),
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
+  });
+
+  /** A dispute carrying `field` with a value of the wrong type. */
+  const mistyped = (field: string, value: unknown) =>
+    taskDisputes({
+      disputes: [{ ...dispute(0), [field]: value } as Dispute],
+    });
+
   const malformed: [string, unknown][] = [
     ["a non-object", "<html>bad gateway</html>"],
     ["a missing dispute list", { ...taskDisputes(), disputes: undefined }],
@@ -301,6 +367,18 @@ describe("getTaskDisputes", () => {
         ...taskDisputes(),
         disputes: [{ ...dispute(0), resolved_at: undefined }],
       },
+    ],
+    // Absent is an older backend; present and mistyped is a broken one.
+    ["a credited amount sent as a string", mistyped("credited_usdc", "0.004")],
+    ["an updated_at that is not a number", mistyped("updated_at", "later")],
+    [
+      "a rating confirmation of the truthy string 'false'",
+      mistyped("rating_confirmed", "false"),
+    ],
+    ["a rating confirmation sent as 1", mistyped("rating_confirmed", 1)],
+    [
+      "a rejection reason that is not a string",
+      mistyped("rejection_reason", 42),
     ],
   ];
 
@@ -433,6 +511,20 @@ describe("openDispute", () => {
       jsonResponse(200, { ...dispute(1), status: "closed" }),
     );
 
+    await expect(openDispute(req)).rejects.toThrow(
+      "malformed response from /disputes",
+    );
+  });
+
+  it("holds the stored dispute to the same receipt-field rules", async () => {
+    const newer = { ...dispute(1), updated_at: SETTLED_AT + 60 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, newer))
+      .mockResolvedValueOnce(
+        jsonResponse(200, { ...dispute(1), updated_at: "now" }),
+      );
+
+    await expect(openDispute(req)).resolves.toEqual(newer);
     await expect(openDispute(req)).rejects.toThrow(
       "malformed response from /disputes",
     );
