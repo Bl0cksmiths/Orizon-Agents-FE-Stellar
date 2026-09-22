@@ -24,6 +24,9 @@
  *   rejects: a failure lands in `error`. The page calls it after a submit and
  *   on `duplicate_dispute`, whose original dispute must be re-read because
  *   the error carries no body.
+ * - While a dispute is unresolved the hook re-reads on its own (story 4.06,
+ *   see `disputePollMs`), on the same terms as `refresh()`: the view stays up,
+ *   and a failure lands in `error`.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -54,6 +57,38 @@ export function disputeTickMs(view: DisputePanelView): number | null {
   const leftMs = view.window.remainingMs;
   if (leftMs >= HOUR_MS) return COARSE_TICK_MS;
   return Math.ceil(Math.min(FINAL_HOUR_TICK_MS, leftMs));
+}
+
+/** Re-read cadence while every unresolved dispute awaits the platform's
+ * decision — adjudication takes hours, so a faster poll would only add load. */
+export const ADJUDICATION_POLL_MS = 30_000;
+/** Re-read cadence while any credit is decided or in flight — a transfer lands
+ * in seconds, and the buyer is watching for it. */
+export const CREDIT_POLL_MS = 5_000;
+
+/**
+ * How long until the receipt should be re-read, or null for "never" (story
+ * 4.06). Between raising a dispute and its credit landing, nothing the buyer
+ * does would fetch again, so without this the receipt would sit on the state
+ * it was raised in while the dispute moved underneath it.
+ *
+ * Only an unresolved dispute can change on its own, so only one keeps a poll
+ * alive: `CREDIT_POLL_MS` while any is `upheld` or `crediting`, else
+ * `ADJUDICATION_POLL_MS` while any is `open`. `credited` and `rejected` are
+ * final, so a task whose disputes are all one or the other — or that has none
+ * — is not polled at all.
+ *
+ * Nor is an answer with no settlement: that panel draws no receipt, so there
+ * is nothing on screen a re-read could change.
+ */
+export function disputePollMs(res: TaskDisputes | null): number | null {
+  if (!res?.settlement) return null;
+  let ms: number | null = null;
+  for (const { status } of res.disputes) {
+    if (status === "upheld" || status === "crediting") return CREDIT_POLL_MS;
+    if (status === "open") ms = ADJUDICATION_POLL_MS;
+  }
+  return ms;
 }
 
 /**
@@ -122,6 +157,11 @@ export function useDisputePanel(
   // The latest request wins: an older one settling later — for this task or
   // the one before it — is dropped, as is anything landing after unmount.
   const epochRef = useRef(0);
+  // Whether the latest read is still on its way. A poll that falls due
+  // meanwhile is skipped rather than sent: the answer coming is at least as
+  // fresh as the one it would ask for, and a second read would supersede it —
+  // turning a `refresh()` into one that resolves before its answer is shown.
+  const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -133,6 +173,7 @@ export function useDisputePanel(
   const load = useCallback(
     async (id: string, doneAtRequest: boolean): Promise<void> => {
       const epoch = ++epochRef.current;
+      inFlightRef.current = true;
       const isLatest = () =>
         mountedRef.current &&
         epochRef.current === epoch &&
@@ -161,6 +202,10 @@ export function useDisputePanel(
           setState((s) => ({ ...s, error }));
           return;
         }
+      } finally {
+        // Only the latest read speaks for the flag: an older one settling
+        // late must not clear it while a newer one is still out.
+        if (epochRef.current === epoch) inFlightRef.current = false;
       }
       // Measured before anything else runs: the offset is only as good as
       // the moment it is taken.
@@ -239,6 +284,54 @@ export function useDisputePanel(
     }, tickMs);
     return () => clearTimeout(timer);
   }, [tickMs, clockMs]);
+
+  // The live receipt (story 4.06): re-read on `disputePollMs`'s cadence while
+  // a dispute is unresolved, so the buyer watches it move instead of sitting
+  // on the state it was raised in.
+  //
+  // Separate from the tick on purpose. The window can close while a dispute
+  // is still open, so neither timer may depend on the other; and a poll is an
+  // ordinary `load`, so it re-measures the server's clock from its own fresh
+  // answer — and only from that: a failed or superseded poll leaves the offset
+  // and the view exactly as they were, and surfaces its error the way
+  // `refresh()` does. It never shows `loading` either, because a poll only
+  // runs with a view on screen, which `load` keeps.
+  //
+  // `state` is a dependency only to re-arm: each answer that lands — a
+  // poll's, a refresh's, a failure — schedules the next poll a full interval
+  // after it, so a refresh is never followed by a redundant read.
+  //
+  // Paused while the tab is hidden: nobody is watching, and a background tab
+  // left on a receipt should not poll the backend for hours. Coming back is
+  // the moment the view is most likely stale, so it re-reads at once rather
+  // than waiting out an interval, and the cadence resumes from that answer.
+  const pollMs = disputePollMs(snapshot?.res ?? null);
+  useEffect(() => {
+    if (target === null || pollMs === null) return;
+    const id = target;
+    // Undefined while paused, and between a poll firing and its answer
+    // landing — which re-runs this effect and arms the next one.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = () => {
+      timer = undefined;
+      if (!inFlightRef.current) void load(id, doneRef.current);
+    };
+    const hidden = () => document.visibilityState === "hidden";
+    const onVisibilityChange = () => {
+      if (hidden()) {
+        clearTimeout(timer);
+        timer = undefined;
+      } else if (timer === undefined) {
+        poll();
+      }
+    };
+    if (!hidden()) timer = setTimeout(poll, pollMs);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [target, pollMs, state, load]);
 
   return { view, loading, error, refresh };
 }
