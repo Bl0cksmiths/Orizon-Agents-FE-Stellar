@@ -718,6 +718,24 @@ export function disputeView(input: {
 // ── raising one ─────────────────────────────────────────────────
 
 /**
+ * A challenge to put in front of the wallet: the one the server issued, or a
+ * replacement when that one was dead on arrival.
+ *
+ * Exactly one replacement is ever asked for. Both requests are cheap and
+ * silent; a wallet prompt is neither, which is the whole point of checking
+ * before one is raised.
+ */
+async function liveChallenge(
+  target: DisputeChallengeReq,
+  clockOffsetMs: number,
+): Promise<DisputeChallenge> {
+  const challenge = await createDisputeChallenge(target);
+  const serverNowMs = Date.now() + clockOffsetMs;
+  if (challenge.expires_at * 1_000 > serverNowMs) return challenge;
+  return createDisputeChallenge(target);
+}
+
+/**
  * Challenge → wallet signature → open, for one step.
  *
  * Refused before any network call, as a `DisputeRefusal` the dialog reads
@@ -730,6 +748,14 @@ export function disputeView(input: {
  * with its own error, untouched, so the dialog can run it through
  * `classifyError` and tell "you cancelled" from "it failed", exactly as the
  * bind page does.
+ *
+ * A challenge that arrives ALREADY dead is replaced before the wallet is
+ * asked for anything. `expires_at` says when the nonce dies, and a buyer who
+ * came back to a page that had been open a while used to be prompted, sent
+ * round trip, refused `challenge_expired`, and prompted a SECOND time for the
+ * retry below — two wallet popups for one dispute. One re-request, not a
+ * loop: if the replacement is dead too, the clocks disagree about more than
+ * latency, and the server's own refusal is a better answer than spinning.
  *
  * One retry, on `challenge_expired` only: the nonce lives five minutes and a
  * wallet popup can sit open for longer, which is nobody's fault and is cured
@@ -745,8 +771,15 @@ export async function raiseDispute(args: {
   reason: string;
   payer: string;
   signMessage: (m: string) => Promise<string>;
+  /**
+   * The server's clock minus this browser's, from `serverClockOffsetMs`. The
+   * nonce dies on the server's clock, so that is the one it is judged on; 0 —
+   * trust the local clock — when the caller holds no measurement.
+   */
+  serverClockOffsetMs?: number;
 }): Promise<Dispute> {
   const { settlement, step, payer, signMessage } = args;
+  const clockOffsetMs = args.serverClockOffsetMs ?? 0;
   const reason = args.reason.trim();
   if (reason.length === 0) {
     throw new DisputeRefusal(
@@ -772,7 +805,7 @@ export async function raiseDispute(args: {
     step_index: step.step_index,
   };
   for (let attempt = 1; ; attempt += 1) {
-    const challenge = await createDisputeChallenge(target);
+    const challenge = await liveChallenge(target, clockOffsetMs);
     const signature_b64 = await signMessage(challenge.message);
     try {
       return await openDispute({

@@ -12,7 +12,7 @@
  * token wiring is observable.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api";
 import {
   DisputeRefusal,
@@ -1449,6 +1449,18 @@ describe("disputeReceipt", () => {
 // ── raising one ─────────────────────────────────────────────────
 
 describe("raiseDispute", () => {
+  // Only Date is faked, and pinned to the fixture's own epoch: every
+  // challenge here carries an `expires_at`, and a suite whose nonces are
+  // alive or dead depending on the day it runs is no suite at all.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(SETTLED_AT * 1_000);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   /** A wallet that signs whatever it is shown, and remembers what that was. */
   const wallet = () =>
     vi.fn<(m: string) => Promise<string>>(async (m) => `sig(${m})`);
@@ -1499,6 +1511,80 @@ describe("raiseDispute", () => {
       nonce: issued.nonce,
       signature_b64: `sig(${issued.message})`,
     });
+  });
+
+  it("re-requests a nonce that arrives already dead, before any wallet prompt", async () => {
+    // Signing a dead nonce costs the buyer a wallet popup, a round trip and
+    // `challenge_expired`, then a SECOND popup for the retry. The challenge
+    // says when it dies; reading it spends one cheap request instead.
+    const dead = { ...challenge(1, "dead"), expires_at: SETTLED_AT - 1 };
+    const alive = { ...challenge(1, "alive"), expires_at: SETTLED_AT + 400 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, dead))
+      .mockResolvedValueOnce(jsonResponse(200, alive))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await expect(raise({ signMessage })).resolves.toEqual(dispute(1));
+
+    expect(paths()).toEqual([
+      "/api/disputes/challenge",
+      "/api/disputes/challenge",
+      "/api/disputes",
+    ]);
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(alive.message);
+  });
+
+  it("judges the nonce on the server's clock, not on this laptop's", async () => {
+    // The laptop is an hour behind. On its own clock the nonce has five
+    // minutes left; on the server's it died fifty-five minutes ago.
+    const stale = { ...challenge(1, "stale"), expires_at: SETTLED_AT + 300 };
+    const alive = { ...challenge(1, "alive"), expires_at: SETTLED_AT + 4_000 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, stale))
+      .mockResolvedValueOnce(jsonResponse(200, alive))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await raise({ signMessage, serverClockOffsetMs: 3_600_000 });
+
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(alive.message);
+  });
+
+  it("asks once and then signs: a dead second nonce is the server's to refuse", async () => {
+    const dead = (n: string) => ({
+      ...challenge(1, n),
+      expires_at: SETTLED_AT - 1,
+    });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, dead("first")))
+      .mockResolvedValueOnce(jsonResponse(200, dead("second")))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await raise({ signMessage });
+
+    // Two challenges, never three: a third would mean the clocks disagree
+    // about more than latency, and looping on it would hang the dialog.
+    expect(paths()).toEqual([
+      "/api/disputes/challenge",
+      "/api/disputes/challenge",
+      "/api/disputes",
+    ]);
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(dead("second").message);
+  });
+
+  it("asks for nothing extra when the nonce is alive", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1)))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+
+    await raise();
+
+    expect(paths()).toEqual(["/api/disputes/challenge", "/api/disputes"]);
   });
 
   it.each([
