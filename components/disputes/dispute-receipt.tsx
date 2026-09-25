@@ -316,8 +316,15 @@ function CreditLine({
 
 type ArtifactCopy = {
   title: string;
-  /** What the transaction means for the reader, beside its name. */
-  caption: string;
+  /**
+   * What the transaction means for the reader, beside its name — in the tense
+   * the record has earned. A caption is a claim like any other sentence here:
+   * "what you received" over a transfer that has not confirmed states a
+   * settlement the chain has not made, and on a screen recording it is the
+   * line a reviewer reads before the mark under it. So it is asked for the
+   * artifact's own state rather than written once per row.
+   */
+  caption: (confirmed: boolean) => string;
   /** Visible link text, distinct per artifact so a link list is legible. */
   link: string;
 };
@@ -347,7 +354,10 @@ function Artifacts({
       artifact: view.refund,
       copy: {
         title: "Refund transfer",
-        caption: `what ${voice.who} received`,
+        caption: (confirmed) =>
+          confirmed
+            ? `what ${voice.who} received`
+            : `what is owed to ${voice.who}`,
         link: "view refund on stellar.expert",
       },
     },
@@ -356,7 +366,8 @@ function Artifacts({
       artifact: view.rating,
       copy: {
         title: `Dispute rating against ${agentName}`,
-        caption: "what it cost the agent",
+        caption: (confirmed) =>
+          confirmed ? "what it cost the agent" : "what it will cost the agent",
         link: "view rating on stellar.expert",
       },
     },
@@ -407,7 +418,7 @@ function ArtifactRow({
       <dt className="text-xs leading-snug text-text">
         {copy.title}
         <span className="block font-mono text-[10px] uppercase tracking-widest text-muted">
-          {copy.caption}
+          {copy.caption(confirmed)}
         </span>
       </dt>
       <dd className="mt-2 space-y-1.5">
