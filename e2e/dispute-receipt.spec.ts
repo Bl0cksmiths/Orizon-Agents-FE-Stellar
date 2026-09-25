@@ -317,7 +317,12 @@ test.describe("dispute status and refund receipt", () => {
     await expect(row).toContainText("Refund in progress");
     await expect(row).not.toContainText("Refunded");
     const refund = artifact(row, "Refund transfer");
-    await expect(refund).toContainText("Being sent");
+    // The mark is the shortest line on the row and the one a reviewer reads
+    // off a recording, so it says only what the record holds: no hash means
+    // no transaction, never a transfer under way.
+    await expect(refund).toContainText("No transaction on record");
+    await expect(refund).not.toContainText("Being sent");
+    await expect(refund).not.toContainText("Submitted");
     await expect(refund).not.toContainText("Confirmed on Stellar");
     // Nothing to link: there is no transaction to prove it.
     await expect(row.getByRole("link", { name: /refund/i })).toHaveCount(0);
