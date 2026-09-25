@@ -241,8 +241,17 @@ function nextStep(
       // saying the credit "is being sent" sends a buyer to Stellar Expert
       // looking for a transaction that does not exist and was never made.
       return `The platform upheld this dispute; the credit has not been sent yet — the transfer to ${voice.wallet} is queued, and there is no transaction to look up until the platform submits it.`;
-    case "crediting":
-      return `The refund was submitted and is waiting for confirmation on Stellar; if it cannot be confirmed, the platform reconciles it by hand — ${voice.who} will not be paid twice, and will not be skipped.`;
+    case "crediting": {
+      // `refund_tx` is nullable on a crediting record: the platform can be
+      // holding the payout before it has a transaction to show for it. The
+      // row underneath reads "Being sent" in exactly that case, so claiming a
+      // submission here would contradict it two lines later — and point the
+      // buyer at an explorer with nothing to look up.
+      const reconciled = `if it cannot be confirmed, the platform reconciles it by hand — ${voice.who} will not be paid twice, and will not be skipped.`;
+      return view.refund.txHash
+        ? `The refund was submitted and is waiting for confirmation on Stellar; ${reconciled}`
+        : `The refund is being sent and has no transaction on record yet; ${reconciled}`;
+    }
     case "credited": {
       // The backend can mark a dispute credited with no transfer on record to
       // prove it — its own tooling treats that as unreconciled. The badge

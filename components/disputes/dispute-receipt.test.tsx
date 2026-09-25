@@ -202,6 +202,19 @@ describe("DisputeReceipt — what happens next", () => {
     );
   });
 
+  it("crediting with no hash: claims no submission the record cannot show", () => {
+    renderReceipt(
+      receipt("crediting", { refund: { txHash: null, state: "pending" } }),
+    );
+    expect(text()).toContain(
+      "The refund is being sent and has no transaction on record yet; if it cannot be confirmed, the platform reconciles it by hand — you will not be paid twice, and will not be skipped.",
+    );
+    // The row beneath says "Being sent" — which is to say not submitted. The
+    // sentence above it must not say the opposite.
+    expect(text()).not.toContain("was submitted");
+    expect(txHrefs()).toHaveLength(0);
+  });
+
   it("credited: says what was received and what it cost the agent", () => {
     renderReceipt(receipt("credited"));
     expect(text()).toContain(
