@@ -44,6 +44,8 @@ import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 import { classifyError } from "@/lib/wallet-errors";
 
+import { disputeStatusLabel } from "./dispute-status-badge";
+
 /**
  * Why the dialog asked to be closed, passed to `onClose`. The page closes it
  * for every reason alike; the reason says whether its receipt is still true.
@@ -343,9 +345,11 @@ function DisputeRaised({
       </p>
       <dl className="space-y-2 font-mono text-sm">
         <KVRow k="Status">
-          <Badge tone="cyan">
-            {dispute.status === "open" ? "under review" : dispute.status}
-          </Badge>
+          {/* The badge's own words, never the wire's. A backend that answers
+              a POST with anything but `open` — which it may yet — would
+              otherwise print its own state name ("crediting", "credited") at
+              a buyer, which is what `disputeStatusLabel` exists to stop. */}
+          <Badge tone="cyan">{disputeStatusLabel(dispute.status)}</Badge>
         </KVRow>
         <KVRow k="Charged" value={formatUsdc(dispute.charged_usdc)} />
         <KVRow

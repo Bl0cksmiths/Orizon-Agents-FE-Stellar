@@ -593,6 +593,19 @@ describe("DisputeDialog — submitting", () => {
     await act(async () => opened.resolve(DISPUTE));
   });
 
+  it("names any stored status in the buyer's words, never the wire's", async () => {
+    // The backend answers `open` today. It need not always: a record that
+    // came back already crediting would have printed the wire word at a
+    // buyer who has never seen it.
+    raiseThen(async () => ({ ...DISPUTE, status: "crediting" }));
+    renderDialog();
+
+    await submitWith();
+
+    expect(screen.getByText("Refund in progress")).toBeTruthy();
+    expect(dialog().textContent).not.toContain("crediting");
+  });
+
   it("shows the dispute as stored, focuses Done, and closes as dismissed", async () => {
     raiseThen();
     const { props } = renderDialog();
@@ -600,7 +613,7 @@ describe("DisputeDialog — submitting", () => {
     await submitWith();
 
     expect(screen.getByText("dispute raised")).toBeTruthy();
-    expect(screen.getByText("under review")).toBeTruthy();
+    expect(screen.getByText("Under review")).toBeTruthy();
     // Same name, so a screen reader is not told it is somewhere new; the
     // description says where things now stand.
     expect(
