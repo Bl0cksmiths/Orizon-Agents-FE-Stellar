@@ -1423,6 +1423,25 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(left()).toBe(8 * M - S);
   });
 
+  it("arms no countdown for an answer that lands in a hidden tab", async () => {
+    // A poll's answer re-renders, and a re-render re-arms: the countdown has
+    // to refuse at the arming too, not only when the tab is hidden.
+    const live = (leftMs: number, skewMs = 0) =>
+      answer(leftMs, { skewMs, disputes: [dsp(1, "open")] });
+    await mountWith(live(10 * M));
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+
+    setVisibility("hidden");
+    // Two seconds of a hidden tab, so the answer lands on a clock that has
+    // moved: an answer that changed nothing would not re-arm anything, and
+    // would prove nothing either.
+    await advance(2 * S);
+    await land(poll, live(10 * M - 32 * S, 32 * S));
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("does not skip the countdown forward on a glance away", async () => {
     const { result } = await mountWith(answer(10 * M));
     const left = () => settledOf(result.current.view).window.remainingMs;
