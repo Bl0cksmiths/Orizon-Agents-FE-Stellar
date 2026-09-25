@@ -19,6 +19,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,13 @@ export type DisputeDialogProps = {
   onClose: (reason: DisputeDialogCloseReason) => void;
   /** Called once, with the stored dispute, when the backend accepts it. */
   onSubmitted: (dispute: Dispute) => void;
+  /**
+   * Where focus goes when this closes and the Dispute button it was opened
+   * from is no longer on the page — which is the HAPPY path: raising a
+   * dispute turns the step from disputable to disputed, so the button is gone
+   * before the buyer presses Done. Without it focus lands on `document.body`.
+   */
+  returnFocusRef?: RefObject<HTMLElement>;
 };
 
 /**
@@ -379,6 +387,7 @@ function DisputeForm({
   settlement,
   onClose,
   onSubmitted,
+  returnFocusRef,
 }: DisputeDialogProps) {
   const wallet = useWallet();
   const shown = open && step !== null && settlement !== null;
@@ -621,6 +630,7 @@ function DisputeForm({
       // Nothing dismisses the dialog mid-sequence: closing it would not stop
       // the wallet prompt or the request, only hide their outcome.
       dismissible={!busy}
+      returnFocusRef={returnFocusRef}
       eyebrow="dispute"
       title={step ? `Dispute step ${stepNumber(step)}` : "Dispute a step"}
       // The title stays put so the dialog's name never changes under a

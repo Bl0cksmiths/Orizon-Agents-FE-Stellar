@@ -10,7 +10,7 @@
  * would be a rule changed in the wrong place.
  */
 
-import { useId } from "react";
+import { useId, type RefObject } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,10 +35,18 @@ type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
 
 export function ReceiptPanel({
   view,
+  headingRef,
   onDispute,
   onConnect,
 }: {
   view: DisputePanelView;
+  /**
+   * The settled receipt's own heading, for a page that needs somewhere to put
+   * focus. The Dispute button a dialog was opened from is gone by the time it
+   * closes — the step shows its receipt instead — and this heading is the one
+   * thing on the panel that outlives that swap.
+   */
+  headingRef?: RefObject<HTMLHeadingElement>;
   /** The payer chose to dispute this step. */
   onDispute: (step: SettlementStepView) => void;
   /** An anonymous viewer asked to connect the wallet that paid. */
@@ -55,6 +63,7 @@ export function ReceiptPanel({
     <SettledReceipt
       view={view}
       headingId={headingId}
+      headingRef={headingRef}
       onDispute={onDispute}
       onConnect={onConnect}
     />
@@ -132,11 +141,13 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
 function SettledReceipt({
   view,
   headingId,
+  headingRef,
   onDispute,
   onConnect,
 }: {
   view: SettledView;
   headingId: string;
+  headingRef?: RefObject<HTMLHeadingElement>;
   onDispute: (step: SettlementStepView) => void;
   onConnect: () => void;
 }) {
@@ -170,9 +181,14 @@ function SettledReceipt({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
+                {/* tabIndex -1: focusable by script as a landing point when
+                    a dialog closes onto a page whose opener has gone, never
+                    an extra Tab stop on the way down the receipt. */}
                 <h2
                   id={headingId}
-                  className="text-lg font-semibold tracking-tight"
+                  ref={headingRef}
+                  tabIndex={-1}
+                  className="text-lg font-semibold tracking-tight focus:outline-none"
                 >
                   Receipt
                 </h2>

@@ -179,6 +179,11 @@ export function Dialog({
       // case; with none, focus is left where it is rather than guessed at,
       // which is the old behaviour and still better than a wrong landing.
       if (opener?.isConnected) opener.focus();
+      // Read at cleanup on purpose, which is exactly what the lint rule warns
+      // about: the fallback's element is the one on the page NOW. Capturing it
+      // when the dialog opened would hold a node the page may have replaced
+      // since — the very transition this fallback exists for.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       else returnFocusRef?.current?.focus();
     };
   }, [open, initialFocusRef, returnFocusRef]);

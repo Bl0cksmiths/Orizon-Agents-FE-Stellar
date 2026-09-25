@@ -370,6 +370,43 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(disputeButtons(page)).toHaveCount(1);
   });
 
+  // The happy path takes the opener away: raising a dispute turns the step
+  // from disputable to disputed, so the Dispute button is gone before the
+  // buyer presses Done. Focus was left on <body>, where the first Tab does
+  // nothing and the whole page has to be walked back to the receipt the
+  // buyer was reading (WCAG 2.4.3).
+  test("after Done, focus lands on the receipt rather than on the page body", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await expect(form).toContainText("dispute raised");
+    await form.getByRole("button", { name: "Done" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+
+    const landed = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? "",
+      text: (document.activeElement?.textContent ?? "").trim(),
+    }));
+    expect(landed).toEqual({ tag: "H2", text: "Receipt" });
+
+    // And the next Tab carries on into the receipt from there, rather than
+    // starting again at the skip link above the whole document.
+    await page.keyboard.press("Tab");
+    const next = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? "",
+      inReceipt: !!document.activeElement?.closest("section"),
+    }));
+    expect(next.tag).not.toBe("BODY");
+    expect(next.inReceipt).toBe(true);
+  });
+
   test("a step disputed from another tab resolves to that dispute, not an error", async ({
     page,
   }) => {

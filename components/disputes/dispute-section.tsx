@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { DisputeDialogCloseReason } from "@/components/disputes/dispute-dialog";
 import { ReceiptPanel } from "@/components/disputes/receipt-panel";
 import { Card } from "@/components/ui/card";
@@ -227,6 +227,13 @@ export const DisputeSection = memo(function DisputeSection({
     demo,
   });
   const { connect } = useWallet();
+  // Where the dialog puts focus when it closes onto a page that no longer has
+  // the button it was opened from — which is every successful dispute, since
+  // the step swaps its action for its receipt the moment the refresh lands.
+  // The receipt's own heading is the one node on the panel that survives that
+  // swap, so a keyboard or screen-reader user comes back to the receipt they
+  // were reading instead of to the top of the document.
+  const receiptHeadingRef = useRef<HTMLHeadingElement>(null);
   // The open dialog's step, and the settlement as it stood at the click. A
   // settlement record never changes once written, so the snapshot is exact —
   // and the dialog is not handed a new object on every tick of the countdown.
@@ -297,7 +304,12 @@ export const DisputeSection = memo(function DisputeSection({
           ⚠ receipt unavailable — {error}
         </ErrorNote>
       )}
-      <ReceiptPanel view={view} onDispute={onDispute} onConnect={onConnect} />
+      <ReceiptPanel
+        view={view}
+        headingRef={receiptHeadingRef}
+        onDispute={onDispute}
+        onConnect={onConnect}
+      />
       {/* Mounted while a step can be disputed — which keeps a half-typed
           reason across an accidental close — or while its dialog is still
           open after the last step stopped being disputable. */}
@@ -308,6 +320,7 @@ export const DisputeSection = memo(function DisputeSection({
           settlement={target?.settlement ?? null}
           onClose={onClose}
           onSubmitted={onSubmitted}
+          returnFocusRef={receiptHeadingRef}
         />
       )}
     </div>
