@@ -145,7 +145,13 @@ export function DisputeReceipt({
         </div>
         <div className="flex flex-col gap-0.5 font-mono text-[11px] text-muted sm:flex-row sm:flex-wrap sm:gap-x-5">
           <Moment label="Raised" ms={view.openedAtMs} nowMs={now} />
-          <Moment label="Updated" ms={view.lastChangedAtMs} nowMs={now} />
+          {/* Only when something actually changed. A backend that stamps no
+              transitions falls back to the opening time, and "Raised 1h ago /
+              Updated 1h ago" printed the same instant twice — true, and it
+              reads as though the platform had done something. */}
+          {view.lastChangedAtMs !== view.openedAtMs && (
+            <Moment label="Updated" ms={view.lastChangedAtMs} nowMs={now} />
+          )}
         </div>
       </div>
 

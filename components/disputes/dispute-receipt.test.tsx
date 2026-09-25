@@ -169,6 +169,19 @@ describe("DisputeReceipt — the header, in every state", () => {
     expect(updated).toContain(formatAge(NOW - CHANGED_AT));
   });
 
+  it("does not print one instant twice when nothing has changed", () => {
+    // An older backend stamps no transitions, so the last change falls back
+    // to the opening. Two identical lines read as though the platform had
+    // moved on the dispute when it has not.
+    const { container } = renderReceipt(
+      receipt("open", { lastChangedAtMs: OPENED_AT }),
+    );
+    const times = [...container.querySelectorAll("time")];
+    expect(times).toHaveLength(1);
+    expect(text()).toContain("Raised");
+    expect(text()).not.toContain("Updated");
+  });
+
   it("names the agent in its heading for anyone navigating by headings", () => {
     renderReceipt(receipt("open"));
     const heading = screen.getByRole("heading", { level: 4 });
