@@ -316,12 +316,6 @@ describe("getTaskDisputes", () => {
     await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
   });
 
-  /** A dispute carrying `field` with a value of the wrong type. */
-  const mistyped = (field: string, value: unknown) =>
-    taskDisputes({
-      disputes: [{ ...dispute(0), [field]: value } as Dispute],
-    });
-
   const malformed: [string, unknown][] = [
     ["a non-object", "<html>bad gateway</html>"],
     ["a missing dispute list", { ...taskDisputes(), disputes: undefined }],
@@ -361,31 +355,6 @@ describe("getTaskDisputes", () => {
         }),
       }),
     ],
-    [
-      "a dispute status this build cannot name",
-      taskDisputes({
-        disputes: [dispute(0, { status: "withdrawn" as Dispute["status"] })],
-      }),
-    ],
-    [
-      "a dispute with no resolved_at key",
-      {
-        ...taskDisputes(),
-        disputes: [{ ...dispute(0), resolved_at: undefined }],
-      },
-    ],
-    // Absent is an older backend; present and mistyped is a broken one.
-    ["a credited amount sent as a string", mistyped("credited_usdc", "0.004")],
-    ["an updated_at that is not a number", mistyped("updated_at", "later")],
-    [
-      "a rating confirmation of the truthy string 'false'",
-      mistyped("rating_confirmed", "false"),
-    ],
-    ["a rating confirmation sent as 1", mistyped("rating_confirmed", 1)],
-    [
-      "a rejection reason that is not a string",
-      mistyped("rejection_reason", 42),
-    ],
   ];
 
   it.each(malformed)("rejects %s as a malformed response", async (_, body) => {
@@ -394,6 +363,82 @@ describe("getTaskDisputes", () => {
     await expect(getTaskDisputes(TASK)).rejects.toThrow(
       `malformed response from /tasks/${TASK}/disputes`,
     );
+  });
+
+  // A row this build cannot read costs that row, never the receipt. The
+  // frontend deploys ahead of the backend in BOTH directions, so a newer
+  // backend that widens a dispute must not blank the settlement, the steps
+  // and every other dispute — and with the snapshot kept on error, a payload
+  // that fails outright leaves the panel polling and failing every 5 s
+  // forever under a permanent banner.
+  const unreadableRow: [string, unknown][] = [
+    ["no resolved_at key", { ...dispute(0), resolved_at: undefined }],
+    // Absent is an older backend; present and mistyped is a broken one.
+    [
+      "a credited amount sent as a string",
+      { ...dispute(0), credited_usdc: "0.004" },
+    ],
+    [
+      "an updated_at that is not a number",
+      { ...dispute(0), updated_at: "later" },
+    ],
+    [
+      "a rating confirmation of the truthy string 'false'",
+      { ...dispute(0), rating_confirmed: "false" },
+    ],
+    ["a rating confirmation sent as 1", { ...dispute(0), rating_confirmed: 1 }],
+    [
+      "a rejection reason that is not a string",
+      { ...dispute(0), rejection_reason: 42 },
+    ],
+    ["a fractional step index", { ...dispute(0), step_index: 1.5 }],
+    ["nothing at all", null],
+  ];
+
+  it.each(unreadableRow)(
+    "drops a dispute with %s and keeps the rest of the receipt",
+    async (_, row) => {
+      const kept = dispute(2, { status: "open" });
+      const body = { ...taskDisputes(), disputes: [row, kept] };
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+      const res = await getTaskDisputes(TASK);
+      expect(res.disputes).toEqual([kept]);
+      expect(res.settlement).toEqual(settlement());
+    },
+  );
+
+  it("keeps a dispute whose status this build cannot name, as one under review", async () => {
+    // Dropping it would show the step as disputable again and walk the buyer
+    // into a `duplicate_dispute`; claiming a status would claim an outcome.
+    // Under review is what is certainly true: it was raised, and this build
+    // cannot say what became of it.
+    const body = taskDisputes({
+      disputes: [dispute(0, { status: "withdrawn" as Dispute["status"] })],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    const res = await getTaskDisputes(TASK);
+    expect(res.disputes).toEqual([dispute(0, { status: "open" })]);
+  });
+
+  it("does not let an unknown status claim a refund it cannot vouch for", async () => {
+    const body = taskDisputes({
+      disputes: [
+        dispute(0, {
+          status: "settled_in_full" as Dispute["status"],
+          refund_tx: "a".repeat(64),
+          credited_usdc: 0.005,
+        }),
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    const [row] = (await getTaskDisputes(TASK)).disputes;
+    if (!row) throw new Error("expected the row to be kept");
+    const receipt = disputeReceipt(row, "payer", policy);
+    expect(receipt.refund.state).toBe("none");
+    expect(receipt.amount.final).toBe(false);
   });
 
   it("rejects a refusal as an ApiError carrying the status and code", async () => {

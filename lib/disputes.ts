@@ -203,7 +203,11 @@ function isSettlement(v: unknown): v is SettlementView {
   );
 }
 
-function isDispute(v: unknown): v is Dispute {
+/** A dispute in every respect but its status, which is judged separately so
+ * a status this build has never heard of costs the receipt nothing. */
+type UnjudgedDispute = Omit<Dispute, "status"> & { status: string };
+
+function isDisputeRow(v: unknown): v is UnjudgedDispute {
   return (
     isRecord(v) &&
     isStr(v.id) &&
@@ -214,7 +218,6 @@ function isDispute(v: unknown): v is Dispute {
     isStr(v.payer) &&
     isStr(v.reason) &&
     isStr(v.status) &&
-    DISPUTE_STATUSES.has(v.status) &&
     isNum(v.charged_usdc) &&
     isNum(v.creditable_usdc) &&
     isNum(v.opened_at) &&
@@ -229,14 +232,52 @@ function isDispute(v: unknown): v is Dispute {
   );
 }
 
+function isDispute(v: unknown): v is Dispute {
+  return isDisputeRow(v) && DISPUTE_STATUSES.has(v.status);
+}
+
+/**
+ * One dispute row as this build can use it, or null when it cannot use it at
+ * all — so a row it fails to read costs that row and never the receipt.
+ *
+ * `isAbsentOr` buys forward-compatibility for four FIELDS and nothing else,
+ * but this client deploys ahead of the backend in both directions: a newer
+ * backend that names a new status, or widens a field, would otherwise fail
+ * `ensure` and lose the whole payload — the settlement, every step and every
+ * other dispute — and, because the panel keeps its last snapshot on error, go
+ * on polling and failing every five seconds under a permanent banner.
+ *
+ * A status this build cannot name is kept as `open`. Dropping the row would
+ * show the step as disputable again and walk the buyer into a
+ * `duplicate_dispute`; mapping it to any outcome would claim one. "Raised,
+ * awaiting a decision" is what is certainly true of it, and it is the status
+ * that claims the least: no refund, no rating, no rejection, no final amount.
+ *
+ * The settlement is NOT treated this way. A step's price or a credited
+ * fraction that this build cannot read is unprintable, not merely unknown,
+ * and a receipt is worth nothing if its figures are guesses.
+ */
+function acceptedDispute(v: unknown): Dispute | null {
+  if (isDispute(v)) return v;
+  if (isDisputeRow(v)) return { ...v, status: "open" };
+  return null;
+}
+
+/** The answer as it arrives: every dispute row still unjudged. */
+type RawTaskDisputes = Omit<TaskDisputes, "disputes"> & { disputes: unknown[] };
+
 /**
  * `settlement` is checked only when the key is present. Absent is a backend
  * that predates the field — the panel hides — while `null` is that backend's
  * real answer that nothing has settled yet. Both are valid; a malformed
  * settlement is not, and neither is a `now` that is not a number, since the
  * window is judged on it.
+ *
+ * The dispute rows are only required to BE a list here; each is judged on its
+ * own by `acceptedDispute`, so one row this build cannot read never costs the
+ * whole answer.
  */
-function isTaskDisputes(v: unknown): v is TaskDisputes {
+function isTaskDisputes(v: unknown): v is RawTaskDisputes {
   return (
     isRecord(v) &&
     isStr(v.task_id) &&
@@ -245,8 +286,7 @@ function isTaskDisputes(v: unknown): v is TaskDisputes {
     (v.settlement === undefined ||
       v.settlement === null ||
       isSettlement(v.settlement)) &&
-    Array.isArray(v.disputes) &&
-    v.disputes.every(isDispute)
+    Array.isArray(v.disputes)
   );
 }
 
@@ -290,7 +330,13 @@ export async function getTaskDisputes(taskId: string): Promise<TaskDisputes> {
   );
   if (!res.ok) throw await httpError("GET", path, res);
   const json: unknown = await res.json();
-  return ensure(path, isTaskDisputes)(json);
+  const raw = ensure(path, isTaskDisputes)(json);
+  const disputes: Dispute[] = [];
+  for (const row of raw.disputes) {
+    const accepted = acceptedDispute(row);
+    if (accepted !== null) disputes.push(accepted);
+  }
+  return { ...raw, disputes };
 }
 
 /**
