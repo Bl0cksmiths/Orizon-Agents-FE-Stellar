@@ -511,10 +511,16 @@ describe("DisputeDialog — submitting", () => {
     ).toBe(true);
     expect(props.onClose).not.toHaveBeenCalled();
 
-    // A second submit — even one forced past the disabled button — is refused.
-    expect(submitButton().disabled).toBe(true);
+    // The submit is MARKED unavailable rather than disabled, so it keeps
+    // focus while the wallet prompt is open — a disabled control is blurred
+    // by the browser and the buyer is left on the page body with Escape
+    // vetoed. What refuses a second attempt is the form itself.
+    expect(submitButton().getAttribute("aria-disabled")).toBe("true");
     const form = dialog().querySelector("form");
     if (!form) throw new Error("no form rendered");
+    await act(async () => {
+      fireEvent.click(submitButton());
+    });
     await act(async () => {
       fireEvent.submit(form);
     });
