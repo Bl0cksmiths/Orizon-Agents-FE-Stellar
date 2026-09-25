@@ -562,6 +562,39 @@ describe("DisputeReceipt — the live announcement", () => {
     expect(said).not.toContain("refunded");
   });
 
+  // The badge flips amber → green here with the record's status unmoved. The
+  // region watched that status, so the one change the buyer is waiting for —
+  // the money landing — was the one it never spoke.
+  it("announces a refund confirming under an unchanged status", () => {
+    const { rerender } = renderReceipt(receipt("credited", UNRECONCILED));
+    const region = liveRegion();
+    expect(region.textContent).toBe("");
+
+    rerender(
+      <DisputeReceipt
+        view={receipt("credited")}
+        agentName={AGENT}
+        nowMs={NOW}
+      />,
+    );
+    expect(liveRegion()).toBe(region);
+    expect(region.textContent).toBe(
+      `Your dispute against ${AGENT} was refunded.`,
+    );
+  });
+
+  it("says nothing when a poll brings the same unreconciled credit back", () => {
+    const { rerender } = renderReceipt(receipt("credited", UNRECONCILED));
+    rerender(
+      <DisputeReceipt
+        view={receipt("credited", UNRECONCILED)}
+        agentName={AGENT}
+        nowMs={NOW}
+      />,
+    );
+    expect(liveRegion().textContent).toBe("");
+  });
+
   it("announces each later change in turn", () => {
     const { rerender } = renderReceipt(receipt("open"));
     const redraw = (view: DisputeReceiptView) =>

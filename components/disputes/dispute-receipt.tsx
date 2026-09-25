@@ -117,7 +117,7 @@ export function DisputeReceipt({
   const headingId = useId();
   const voice = viewer === "payer" ? PAYER_VOICE : OTHER_VOICE;
   const announcement = useStatusAnnouncement(
-    view.status,
+    announcedState(view),
     changeSentence(view, agentName, voice),
   );
   const now = nowMs ?? Date.now();
@@ -180,20 +180,37 @@ export function DisputeReceipt({
 }
 
 /**
- * The sentence to announce, set only when the status CHANGES while the
- * receipt is mounted: nothing on first render, and nothing on a poll that
- * brought the same status back, because the text is then left exactly as it
- * was and an unchanged live region says nothing.
+ * What the receipt is currently SAYING, as one comparable value: the badge's
+ * status and the record's own.
+ *
+ * The two part company in exactly one case — a `credited` dispute whose
+ * transfer has not confirmed wears the amber "Refund in progress" badge — and
+ * that case is why the ear cannot follow `view.status` alone. When such a
+ * refund confirms, the record's status does not move: the badge flips to the
+ * green "✓ Refunded" and the whole next-step sentence is replaced, with the
+ * live region silent. The one moment a blind buyer is waiting for — their
+ * money arriving — was the one change never announced. Pairing the two keeps
+ * the announcement on every visible change and on no invisible one.
+ */
+function announcedState(view: DisputeReceiptView): string {
+  return `${receiptBadgeStatus(view)}:${view.status}`;
+}
+
+/**
+ * The sentence to announce, set only when the receipt's state CHANGES while
+ * it is mounted: nothing on first render, and nothing on a poll that brought
+ * the same state back, because the text is then left exactly as it was and an
+ * unchanged live region says nothing.
  *
  * Tracked in state and adjusted during render (React's pattern for deriving
  * from a previous prop) rather than in an effect: the announcement lands in
- * the same commit as the new status it describes, never one frame behind.
+ * the same commit as the new state it describes, never one frame behind.
  */
-function useStatusAnnouncement(status: DisputeStatus, sentence: string) {
-  const [seen, setSeen] = useState(status);
+function useStatusAnnouncement(state: string, sentence: string) {
+  const [seen, setSeen] = useState(state);
   const [announcement, setAnnouncement] = useState("");
-  if (status !== seen) {
-    setSeen(status);
+  if (state !== seen) {
+    setSeen(state);
     setAnnouncement(sentence);
   }
   return announcement;
