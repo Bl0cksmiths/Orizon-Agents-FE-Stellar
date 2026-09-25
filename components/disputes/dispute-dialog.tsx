@@ -29,6 +29,7 @@ import { KVRow } from "@/components/ui/kv-row";
 import {
   MAX_DISPUTE_REASON_CHARS,
   disputeErrorCode,
+  formatCreditShare,
   formatUsdc,
   raiseDispute,
 } from "@/lib/disputes";
@@ -372,10 +373,6 @@ const stepNumber = (step: SettlementStepView) => step.step_index + 1;
 const shortAddress = (address: string) =>
   `${address.slice(0, 4)}…${address.slice(-4)}`;
 
-/** 0.5 → "50%", 0.125 → "12.5%": as exact as the policy, never "50.00%". */
-const formatPercent = (fraction: number) =>
-  `${Number((fraction * 100).toFixed(2))}%`;
-
 // The two literal fields are switched on exhaustively: widen either type and
 // this stops compiling, rather than describing a new funder or adjudicator
 // with the old sentence.
@@ -408,7 +405,7 @@ function adjudicatedByLine(judge: CreditPolicy["adjudicated_by"]): string {
 function creditTerms(policy: CreditPolicy): string[] {
   const credit =
     policy.credited_fraction > 0
-      ? `An upheld dispute credits ${formatPercent(policy.credited_fraction)} of this step's charge back to the wallet that paid.`
+      ? `An upheld dispute credits ${formatCreditShare(policy.credited_fraction)} of this step's charge back to the wallet that paid.`
       : "Under the current terms an upheld dispute credits nothing back.";
   return [
     credit,

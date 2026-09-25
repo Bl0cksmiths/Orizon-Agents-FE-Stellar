@@ -19,7 +19,7 @@ import { KVRow } from "@/components/ui/kv-row";
 import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { formatUsdc } from "@/lib/disputes";
+import { formatCreditShare, formatUsdc } from "@/lib/disputes";
 import type {
   CreditPolicy,
   DisputePanelView,
@@ -304,15 +304,15 @@ const ADJUDICATED_BY: Record<CreditPolicy["adjudicated_by"], string> = {
     "The platform decides each dispute; there is no on-chain arbitration.",
 };
 
-const SHARE = new Intl.NumberFormat(undefined, {
-  style: "percent",
-  maximumFractionDigits: 1,
-});
-
 /**
  * What a dispute can get the buyer, stated before they commit to one. The
  * figures are the backend's policy in force, never a number written into the
  * UI: a buyer shown the wrong share has been promised money they will not get.
+ *
+ * The share is `formatCreditShare`'s, the same one the dispute form prints.
+ * This line used `Intl.NumberFormat` at one decimal place, which read 0.0625
+ * as "6.3%" beside the form's "6.25%" — and rounded UP, promising a larger
+ * share than the policy pays.
  */
 function CreditTerms({ policy }: { policy: CreditPolicy }) {
   return (
@@ -320,8 +320,8 @@ function CreditTerms({ policy }: { policy: CreditPolicy }) {
       <span className="font-mono text-[10px] uppercase tracking-widest text-cyan">
         terms ·{" "}
       </span>
-      An upheld dispute credits {SHARE.format(policy.credited_fraction)} of that
-      step&apos;s charge back to you, {FUNDED_BY[policy.funded_by]}.{" "}
+      An upheld dispute credits {formatCreditShare(policy.credited_fraction)} of
+      that step&apos;s charge back to you, {FUNDED_BY[policy.funded_by]}.{" "}
       {ADJUDICATED_BY[policy.adjudicated_by]}
     </p>
   );

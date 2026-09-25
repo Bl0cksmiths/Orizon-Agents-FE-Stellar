@@ -179,12 +179,17 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(submit).toBeDisabled();
   });
 
-  // The fraction is printed as the dialog prints it — to at most two decimal
-  // places — so a third is "33.33%", never a recomputed "33%" or a raw
-  // 33.333…: the half-credit case alone would pass either way.
+  // The fraction is printed to at most two decimal places, so a third is
+  // "33.33%", never a recomputed "33%" or a raw 33.333… — and the RECEIPT
+  // prints the same share as the form. The two used different formatters and
+  // disagreed on anything finer than a tenth: 0.0625 read "6.3%" above the
+  // action and "6.25%" inside it, the receipt's figure rounded UP, over the
+  // share the backend will actually pay. The half-credit case, which is the
+  // policy in force, passes either way.
   for (const { fraction, percent, credit } of [
     { fraction: 0.5, percent: "50%", credit: "0.027 USDC" },
     { fraction: 1 / 3, percent: "33.33%", credit: "0.018 USDC" },
+    { fraction: 0.0625, percent: "6.25%", credit: "0.003375 USDC" },
   ]) {
     test(`the credit terms (${percent}) are stated in the form before anything is submitted`, async ({
       page,
@@ -201,6 +206,11 @@ test.describe("dispute action on the trace / receipt view", () => {
           creditedFraction: fraction,
         }),
       });
+      // The receipt states the same share above the action it belongs to.
+      await expect(receipt(page)).toContainText(
+        `An upheld dispute credits ${percent} of that step's charge back to you,`,
+      );
+
       const form = await openDialog(page, codeStep.agent_id);
 
       // The fraction as served, the one who pays it, and the one who
