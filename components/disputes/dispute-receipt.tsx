@@ -236,7 +236,11 @@ function nextStep(
     case "open":
       return `The platform is reviewing this dispute; if it is upheld, the step's credit is paid to ${voice.wallet} and ${agent}'s reputation records the dispute.`;
     case "upheld":
-      return `The platform upheld this dispute; the credit is being sent to ${voice.wallet}.`;
+      // Decided, not paid. `refundArtifact` reads `upheld` as pending with
+      // never a hash — the transfer has not been attempted — so a sentence
+      // saying the credit "is being sent" sends a buyer to Stellar Expert
+      // looking for a transaction that does not exist and was never made.
+      return `The platform upheld this dispute; the credit has not been sent yet — the transfer to ${voice.wallet} is queued, and there is no transaction to look up until the platform submits it.`;
     case "crediting":
       return `The refund was submitted and is waiting for confirmation on Stellar; if it cannot be confirmed, the platform reconciles it by hand — ${voice.who} will not be paid twice, and will not be skipped.`;
     case "credited": {

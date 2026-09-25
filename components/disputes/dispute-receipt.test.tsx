@@ -184,11 +184,15 @@ describe("DisputeReceipt — what happens next", () => {
     );
   });
 
-  it("upheld: the credit is being sent", () => {
+  it("upheld: says the credit has not been sent, and why nothing links", () => {
     renderReceipt(receipt("upheld"));
     expect(text()).toContain(
-      "The platform upheld this dispute; the credit is being sent to your wallet.",
+      "The platform upheld this dispute; the credit has not been sent yet — the transfer to your wallet is queued, and there is no transaction to look up until the platform submits it.",
     );
+    // An upheld dispute has no transfer on record, so a sentence claiming one
+    // is on its way sends a buyer hunting the explorer for nothing.
+    expect(text()).not.toContain("the credit is being sent");
+    expect(text()).not.toContain("was submitted");
   });
 
   it("crediting: waiting on Stellar, reconciled by hand, never twice", () => {
