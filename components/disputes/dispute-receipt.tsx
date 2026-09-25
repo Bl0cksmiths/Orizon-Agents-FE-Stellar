@@ -384,7 +384,7 @@ function Artifacts({
       artifact: view.refund,
       copy: {
         title: "Refund transfer",
-        caption: (confirmed) =>
+        caption: (confirmed: boolean) =>
           confirmed
             ? `what ${voice.who} received`
             : `what is owed to ${voice.who}`,
@@ -396,7 +396,7 @@ function Artifacts({
       artifact: view.rating,
       copy: {
         title: `Dispute rating against ${agentName}`,
-        caption: (confirmed) =>
+        caption: (confirmed: boolean) =>
           confirmed ? "what it cost the agent" : "what it will cost the agent",
         link: "view rating on stellar.expert",
       },
