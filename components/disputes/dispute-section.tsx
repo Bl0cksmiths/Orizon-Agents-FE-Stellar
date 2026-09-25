@@ -102,6 +102,63 @@ const TERMS_GHOST =
   "terms · An upheld dispute credits a share of that step's charge back to you, paid by the platform and never clawed back from the agent. The platform decides each dispute; there is no on-chain arbitration.";
 
 /**
+ * How many step rows the skeleton reserves when nothing better is known.
+ * Every other dimension here is measured against the real panel; this one
+ * cannot be, because the count only arrives with the answer.
+ */
+const DEFAULT_SKELETON_STEPS = 3;
+
+/** Where a task's last known step count is kept; see `useSkeletonSteps`. */
+const STEPS_KEY = "orizon.receipt-steps";
+
+/**
+ * The step count remembered for this task, or the default.
+ *
+ * The rows are the tallest part of the receipt and their number was a
+ * literal three, which is right for one fixture and wrong for every other
+ * workflow: at 360px a one-step receipt yanked the trace log 383px UP under
+ * the reader, and a six-step one pushed it 579px down — two thirds of a phone
+ * screen, the exact jump the skeleton exists to prevent. A first visit still
+ * cannot know; a reload, a revisit or a back-navigation can, and those are
+ * how a settled trace is usually seen loading at all.
+ *
+ * Read after mount, never during render: there is no `sessionStorage` on the
+ * server, and a first paint that disagreed with the server's would be a
+ * hydration mismatch. The skeleton stands for a whole round trip, so the
+ * correction lands long before the receipt does.
+ *
+ * Session storage, not local: a placeholder height has no business outliving
+ * the session that measured it. Every access is guarded — a private window or
+ * blocked site data throws on the property itself, and a skeleton is never
+ * worth an error.
+ */
+function useSkeletonSteps(taskId: string | null, settled: number | null) {
+  const [steps, setSteps] = useState(DEFAULT_SKELETON_STEPS);
+
+  useEffect(() => {
+    if (taskId === null) return;
+    try {
+      const held = window.sessionStorage.getItem(`${STEPS_KEY}:${taskId}`);
+      const count = held === null ? NaN : Number(held);
+      if (Number.isInteger(count) && count >= 0) setSteps(count);
+    } catch {
+      // No storage to read: the default stands.
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    if (taskId === null || settled === null) return;
+    try {
+      window.sessionStorage.setItem(`${STEPS_KEY}:${taskId}`, String(settled));
+    } catch {
+      // No storage to write: the next load reserves the default.
+    }
+  }, [taskId, settled]);
+
+  return steps;
+}
+
+/**
  * The receipt's own frame, drawn empty while it loads: the card, header,
  * facts, window, terms and step rows of a settled receipt, each in the line
  * boxes the panel's text occupies at a phone's width and a desktop's.
@@ -111,7 +168,7 @@ const TERMS_GHOST =
  * against the rendered panel by the dispute e2e spec, which fails the build if
  * the log moves by more than a line when the receipt lands.
  */
-function ReceiptSkeleton() {
+function ReceiptSkeleton({ steps }: { steps: number }) {
   return (
     <div aria-busy="true">
       <LoadingStatus label="Loading the receipt…" />
@@ -174,7 +231,7 @@ function ReceiptSkeleton() {
 
           <div className="space-y-3 border-t border-border/60 pt-5">
             <Line box="h-[16.5px]" bar="h-2.5 w-12" />
-            {Array.from({ length: 3 }).map((_, i) => (
+            {Array.from({ length: steps }).map((_, i) => (
               <div
                 key={i}
                 className="clip-cyber-sm flex h-[180px] flex-col gap-3 border border-border/60 p-4 sm:h-[115px] sm:flex-row sm:justify-between"
@@ -227,6 +284,10 @@ export const DisputeSection = memo(function DisputeSection({
     demo,
   });
   const { connect } = useWallet();
+  const skeletonSteps = useSkeletonSteps(
+    demo ? null : taskId,
+    view.kind === "settled" ? view.steps.length : null,
+  );
   // Where the dialog puts focus when it closes onto a page that no longer has
   // the button it was opened from — which is every successful dispute, since
   // the step swaps its action for its receipt the moment the refresh lands.
@@ -282,7 +343,7 @@ export const DisputeSection = memo(function DisputeSection({
 
   if (demo || !taskId) return null;
   // Only before the first answer: a refresh keeps the receipt on screen.
-  if (loading) return <ReceiptSkeleton />;
+  if (loading) return <ReceiptSkeleton steps={skeletonSteps} />;
   // An older backend answers without a settlement, and nothing is drawn: not
   // an empty box, which would still take a gap in the page's stack.
   //

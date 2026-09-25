@@ -795,6 +795,71 @@ test.describe("dispute action on the trace / receipt view", () => {
     });
   }
 
+  /** A settlement of `count` delivered, charged steps, cycling the fixtures. */
+  function settlementOfSteps(
+    settledAtS: number,
+    count: number,
+  ): ReturnType<typeof mockSettlementView> {
+    const base = mockSettlementView({ settledAtS });
+    return {
+      ...base,
+      steps: Array.from({ length: count }, (_, i) => ({
+        ...mockSettlementSteps[i % 2],
+        step_index: i,
+      })),
+    };
+  }
+
+  // The count of step rows was the one dimension of the skeleton written as a
+  // literal, and the fixture the tests above use happens to have exactly
+  // three of them, so the guard never fired. At 360px a one-step workflow
+  // yanked the log 383px UP under the reader and a six-step one pushed it
+  // 579px down.
+  for (const count of [1, 6]) {
+    test(`at 360px a ${count}-step receipt lands in the skeleton's place`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 360, height: 900 });
+      let hold = false;
+      let answer!: () => void;
+      const answered = new Promise<void>((resolve) => (answer = resolve));
+      await openTrace(
+        page,
+        { settlement: settlementOfSteps(nowS() - HOUR_S - 17 * 60, count) },
+        {
+          routes: async (p) => {
+            await p.route(
+              (url) => DISPUTES_READ.test(url.pathname),
+              async (route) => {
+                if (hold) await answered;
+                await route.fallback();
+              },
+            );
+          },
+        },
+      );
+      await expect(disputeButtons(page)).toHaveCount(count);
+
+      // A second visit — a reload, a back-navigation, a shared link opened
+      // again — is how a settled trace is usually seen loading at all, and
+      // the last answer says exactly how tall the receipt will be.
+      hold = true;
+      await page.goto(`/app/trace?task=${mockDisputeTaskId}`);
+      await expect(page.getByText("Loading the receipt…")).toBeAttached();
+      const logBar = page.locator("main").getByText("sealed", { exact: true });
+      const before = await logBar.boundingBox();
+
+      answer();
+      await expect(disputeButtons(page)).toHaveCount(count);
+      const after = await logBar.boundingBox();
+
+      if (before === null || after === null) {
+        throw new Error("expected the trace log's status bar to be laid out");
+      }
+      expect(Math.abs(after.y - before.y)).toBeLessThanOrEqual(MAX_SHIFT_PX);
+    });
+  }
+
   test("the window closing while the page is open takes the action away", async ({
     page,
   }) => {
