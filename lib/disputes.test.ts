@@ -675,6 +675,44 @@ function kinds(v: SettledView): Record<number, string> {
   );
 }
 
+describe("disputeView — disputes from another job", () => {
+  /** A re-execution of the same task: a second job, its own dispute. */
+  const OTHER_JOB = "f".repeat(32);
+
+  it("never pins another job's dispute onto this settlement's step", () => {
+    // One task can hold more than one job while `res.settlement` is a single
+    // record, so the step index alone does not identify a step. Keyed on it
+    // the other run's dispute took this step's row: a credited badge, a final
+    // refund amount and the other run's reason, on a step nobody disputed.
+    const stray = dispute(0, {
+      id: "dsp_other_job",
+      job_id_hex: OTHER_JOB,
+      status: "credited",
+      refund_tx: "b".repeat(64),
+      credited_usdc: 0.005,
+      reason: "the other run's words",
+    });
+
+    const v = settled({ res: taskDisputes({ disputes: [stray] }) });
+    expect(kinds(v)).toEqual({
+      0: "disputable",
+      1: "disputable",
+      2: "disputable",
+    });
+  });
+
+  it("keeps this job's dispute when both runs' disputes arrive together", () => {
+    const stray = dispute(0, { id: "dsp_other_job", job_id_hex: OTHER_JOB });
+    const mine = dispute(0, { id: "dsp_mine" });
+
+    const v = settled({ res: taskDisputes({ disputes: [stray, mine] }) });
+    const state = v.steps[0]?.state;
+    expect(state?.kind).toBe("disputed");
+    if (state?.kind !== "disputed") throw new Error("expected disputed");
+    expect(state.dispute.id).toBe("dsp_mine");
+  });
+});
+
 describe("disputeView — hidden and not settled", () => {
   it("is hidden in demo mode, whatever the backend said", () => {
     expect(view({ demo: true })).toEqual({ kind: "hidden" });

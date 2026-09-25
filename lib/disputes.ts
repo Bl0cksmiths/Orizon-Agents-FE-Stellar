@@ -403,14 +403,28 @@ const openedBefore = (a: Dispute, b: Dispute): boolean =>
   a.opened_at < b.opened_at || (a.opened_at === b.opened_at && a.id < b.id);
 
 /**
- * Each step's dispute. A step has at most one — the backend answers a second
- * attempt with the first, unchanged — so should the data ever hold two, the
- * EARLIEST is the one kept: it is the dispute the server itself treats as the
- * step's, and the one a `duplicate_dispute` refusal hands back.
+ * Each step's dispute, for the job this settlement records.
+ *
+ * The job is checked as well as the step index, because the index alone does
+ * not name a step: a task that is re-executed holds more than one job while
+ * `res.settlement` is a single record, and the read answers with every
+ * dispute the task has. Keyed on the index alone, the other run's dispute
+ * took this run's row — its badge, its refund amount, its reason — and the
+ * step it landed on lost its Dispute button, since a step with a dispute is
+ * never disputable.
+ *
+ * A step has at most one dispute — the backend answers a second attempt with
+ * the first, unchanged — so should the data ever hold two, the EARLIEST is
+ * the one kept: it is the dispute the server itself treats as the step's, and
+ * the one a `duplicate_dispute` refusal hands back.
  */
-function disputesByStep(disputes: Dispute[]): Map<number, Dispute> {
+function disputesByStep(
+  disputes: Dispute[],
+  jobIdHex: string,
+): Map<number, Dispute> {
   const byStep = new Map<number, Dispute>();
   for (const d of disputes) {
+    if (d.job_id_hex !== jobIdHex) continue;
     const held = byStep.get(d.step_index);
     if (held === undefined || openedBefore(d, held))
       byStep.set(d.step_index, d);
@@ -609,7 +623,7 @@ export function disputeView(input: {
   const closesAtMs = settlement.window_closes_at * 1_000;
   const leftMs = closesAtMs - nowMs;
   const open = leftMs > 0;
-  const byStep = disputesByStep(res.disputes);
+  const byStep = disputesByStep(res.disputes, settlement.job_id_hex);
   const steps = [...settlement.steps]
     .sort((a, b) => a.step_index - b.step_index)
     .map((step) => ({
