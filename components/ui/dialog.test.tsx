@@ -357,6 +357,73 @@ describe("Dialog — focus", () => {
     expect(() => rerender(<Page open={false} />)).not.toThrow();
     expect(document.activeElement).not.toBe(opener);
   });
+
+  // The happy path removes the opener: the control that raised a dispute is
+  // replaced by the dispute's own receipt before the buyer presses Done. With
+  // nowhere named to go, focus lands on <body> and the next Tab is a no-op.
+  it("falls back to the page's own target when the opener is gone", () => {
+    function Page({ open }: { open: boolean }) {
+      const anchor = useRef<HTMLHeadingElement>(null);
+      return (
+        <>
+          <h2 ref={anchor} tabIndex={-1}>
+            Receipt
+          </h2>
+          <Dialog
+            open={open}
+            onClose={() => {}}
+            title="Raise a dispute"
+            returnFocusRef={anchor}
+          >
+            <p>Body copy</p>
+          </Dialog>
+        </>
+      );
+    }
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+    const { rerender } = render(<Page open />);
+
+    opener.remove();
+    rerender(<Page open={false} />);
+
+    expect(document.activeElement).toBe(
+      screen.getByRole("heading", { name: "Receipt" }),
+    );
+  });
+
+  // The opener is the better answer whenever it is still there: the fallback
+  // must not pull a keyboard user off the control they pressed.
+  it("prefers a surviving opener to the fallback", () => {
+    function Page({ open }: { open: boolean }) {
+      const anchor = useRef<HTMLHeadingElement>(null);
+      return (
+        <>
+          <h2 ref={anchor} tabIndex={-1}>
+            Receipt
+          </h2>
+          <Dialog
+            open={open}
+            onClose={() => {}}
+            title="Raise a dispute"
+            returnFocusRef={anchor}
+          >
+            <p>Body copy</p>
+          </Dialog>
+        </>
+      );
+    }
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+    const { rerender } = render(<Page open />);
+
+    rerender(<Page open={false} />);
+
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
 });
 
 describe("Dialog — close button and backdrop", () => {

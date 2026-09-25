@@ -410,6 +410,54 @@ describe("DisputeDialog — the reason", () => {
     expect(live()).toBe("20 characters left.");
   });
 
+  it("speaks at the landmarks, not on every keystroke", () => {
+    renderDialog();
+    const live = () =>
+      dialog().querySelector('[aria-live="polite"]:not([role])')?.textContent ??
+      "";
+
+    // Typed one character at a time, all the way through the warn zone to
+    // the cap: the visible counter changes thirty-one times, the ear hears
+    // three sentences.
+    const said: string[] = [];
+    let last = live();
+    for (let length = 470; length <= 500; length += 1) {
+      typeReason("a".repeat(length));
+      const now = live();
+      if (now !== last && now !== "") said.push(now);
+      last = now;
+    }
+
+    expect(said).toEqual([
+      "25 characters left.",
+      "10 characters left.",
+      "Character limit reached.",
+    ]);
+  });
+
+  it("goes quiet when the buyer deletes back out of the zone", () => {
+    renderDialog();
+    const live = () =>
+      dialog().querySelector('[aria-live="polite"]:not([role])')?.textContent ??
+      "";
+
+    typeReason("a".repeat(480));
+    expect(live()).toBe("20 characters left.");
+    typeReason("a".repeat(400));
+    expect(live()).toBe("");
+    // And the zone can be re-entered and announced again.
+    typeReason("a".repeat(490));
+    expect(live()).toBe("10 characters left.");
+  });
+
+  it("counts the last character in the singular", () => {
+    renderDialog();
+    typeReason("a".repeat(499));
+    expect(
+      dialog().querySelector('[aria-live="polite"]:not([role])')?.textContent,
+    ).toBe("1 character left.");
+  });
+
   it("says when the limit is reached", () => {
     renderDialog();
 
@@ -511,10 +559,16 @@ describe("DisputeDialog — submitting", () => {
     ).toBe(true);
     expect(props.onClose).not.toHaveBeenCalled();
 
-    // A second submit — even one forced past the disabled button — is refused.
-    expect(submitButton().disabled).toBe(true);
+    // The submit is MARKED unavailable rather than disabled, so it keeps
+    // focus while the wallet prompt is open — a disabled control is blurred
+    // by the browser and the buyer is left on the page body with Escape
+    // vetoed. What refuses a second attempt is the form itself.
+    expect(submitButton().getAttribute("aria-disabled")).toBe("true");
     const form = dialog().querySelector("form");
     if (!form) throw new Error("no form rendered");
+    await act(async () => {
+      fireEvent.click(submitButton());
+    });
     await act(async () => {
       fireEvent.submit(form);
     });
@@ -539,6 +593,42 @@ describe("DisputeDialog — submitting", () => {
     await act(async () => opened.resolve(DISPUTE));
   });
 
+  // A registered name that is present but EMPTY passed the nullish check at
+  // both sites: the form read "Step 2 · ," and the confirmation "Step 2 ()
+  // is now under review." — a blank where the agent should be, in the record
+  // of a consequential action.
+  it.each(["", "   "])(
+    "falls back to the agent id when the name is %o",
+    async (agent_name) => {
+      raiseThen();
+      renderDialog({ step: { ...STEP, agent_name } });
+
+      // The form's step line names the agent by its id rather than leaving
+      // the space where a name would be blank.
+      expect(screen.getByText(STEP.agent_id)).toBeTruthy();
+
+      await submitWith();
+
+      expect(dialog().textContent).toContain(
+        `Step 2 (${STEP.agent_id}) is now under review.`,
+      );
+      expect(dialog().textContent).not.toContain("()");
+    },
+  );
+
+  it("names any stored status in the buyer's words, never the wire's", async () => {
+    // The backend answers `open` today. It need not always: a record that
+    // came back already crediting would have printed the wire word at a
+    // buyer who has never seen it.
+    raiseThen(async () => ({ ...DISPUTE, status: "crediting" }));
+    renderDialog();
+
+    await submitWith();
+
+    expect(screen.getByText("Refund in progress")).toBeTruthy();
+    expect(dialog().textContent).not.toContain("crediting");
+  });
+
   it("shows the dispute as stored, focuses Done, and closes as dismissed", async () => {
     raiseThen();
     const { props } = renderDialog();
@@ -546,7 +636,7 @@ describe("DisputeDialog — submitting", () => {
     await submitWith();
 
     expect(screen.getByText("dispute raised")).toBeTruthy();
-    expect(screen.getByText("under review")).toBeTruthy();
+    expect(screen.getByText("Under review")).toBeTruthy();
     // Same name, so a screen reader is not told it is somewhere new; the
     // description says where things now stand.
     expect(

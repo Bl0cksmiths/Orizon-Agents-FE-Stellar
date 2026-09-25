@@ -10,7 +10,7 @@
  * would be a rule changed in the wrong place.
  */
 
-import { useId } from "react";
+import { useEffect, useId, useState, type RefObject } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { KVRow } from "@/components/ui/kv-row";
 import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { formatUsdc } from "@/lib/disputes";
+import { agentLabel, formatCreditShare, formatUsdc } from "@/lib/disputes";
 import type {
   CreditPolicy,
   DisputePanelView,
@@ -35,10 +35,18 @@ type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
 
 export function ReceiptPanel({
   view,
+  headingRef,
   onDispute,
   onConnect,
 }: {
   view: DisputePanelView;
+  /**
+   * The settled receipt's own heading, for a page that needs somewhere to put
+   * focus. The Dispute button a dialog was opened from is gone by the time it
+   * closes — the step shows its receipt instead — and this heading is the one
+   * thing on the panel that outlives that swap.
+   */
+  headingRef?: RefObject<HTMLHeadingElement>;
   /** The payer chose to dispute this step. */
   onDispute: (step: SettlementStepView) => void;
   /** An anonymous viewer asked to connect the wallet that paid. */
@@ -55,6 +63,7 @@ export function ReceiptPanel({
     <SettledReceipt
       view={view}
       headingId={headingId}
+      headingRef={headingRef}
       onDispute={onDispute}
       onConnect={onConnect}
     />
@@ -109,6 +118,12 @@ function NotSettled({
  *
  * A hash the backend did not record is said to be missing rather than
  * dropped: a receipt with a row quietly absent looks complete when it is not.
+ *
+ * The link carries the row's own name. `StellarExpertLink`'s default text is
+ * the same for every link on the page, and three of them sit here — payer,
+ * charge, seal — so a screen reader's links list read "view on stellar.expert"
+ * three times over three different resources (WCAG 2.4.4). The dispute
+ * receipt already names its two; these are named on the same terms.
  */
 function TxRow({ label, hash }: { label: string; hash: string | null }) {
   return (
@@ -116,11 +131,10 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
       {hash ? (
         <>
           <span className="block break-all">{hash}</span>
-          <StellarExpertLink
-            kind="tx"
-            id={hash}
-            className="mt-1 inline-block"
-          />
+          <StellarExpertLink kind="tx" id={hash} className="mt-1 inline-block">
+            view {label} on stellar.expert
+            <span aria-hidden="true"> ▸</span>
+          </StellarExpertLink>
         </>
       ) : (
         <span className="text-muted">not recorded</span>
@@ -129,14 +143,48 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
   );
 }
 
+/**
+ * The coarse cadence the shared stale badge falls back to past an hour. A
+ * closed window is at least a whole window old, so nothing finer than this
+ * can change in the ages beside it.
+ */
+const CLOSED_CLOCK_TICK_MS = 300_000;
+
+/**
+ * "Now" for the ages on a receipt whose dispute window has closed, or null
+ * until the first reading is taken.
+ *
+ * An open window carries the server's clock inside the view itself —
+ * `closesAt` minus what is left — and wants nothing from here. A closed one
+ * carries none, and `Date.now()` read during render is an impure render;
+ * worse, nothing re-renders a closed window on its own, so every age froze at
+ * first paint until an unrelated poll happened to land. Read after the
+ * commit, and again on the badge's own coarse cadence.
+ *
+ * Never a second opinion about the time: the panel's hook stops its own tick
+ * exactly when the window closes (`disputeTickMs`), so only one clock runs.
+ */
+function useClosedWindowClock(open: boolean): number | null {
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    if (open) return;
+    setNowMs(Date.now());
+    const timer = setInterval(() => setNowMs(Date.now()), CLOSED_CLOCK_TICK_MS);
+    return () => clearInterval(timer);
+  }, [open]);
+  return nowMs;
+}
+
 function SettledReceipt({
   view,
   headingId,
+  headingRef,
   onDispute,
   onConnect,
 }: {
   view: SettledView;
   headingId: string;
+  headingRef?: RefObject<HTMLHeadingElement>;
   onDispute: (step: SettlementStepView) => void;
   onConnect: () => void;
 }) {
@@ -144,10 +192,13 @@ function SettledReceipt({
   // it — an open window is closesAt minus what is left — so a skewed laptop
   // clock cannot print a settlement as happening in the future. Once the
   // window has closed the settlement is a whole window old, and a few seconds
-  // of skew no longer show in an age that coarse.
+  // of skew no longer show in an age that coarse. Until the first reading is
+  // taken, the close itself stands in: one frame's worth of under-reporting,
+  // against an age measured in hours.
+  const closedNowMs = useClosedWindowClock(view.window.open);
   const nowMs = view.window.open
     ? view.window.closesAtMs - view.window.remainingMs
-    : Date.now();
+    : (closedNowMs ?? view.window.closesAtMs);
   const steps = view.steps.length;
   // Only someone the page cannot yet place is told how to become able to
   // dispute. A payer already has the buttons; a connected wallet that did not
@@ -170,9 +221,14 @@ function SettledReceipt({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
+                {/* tabIndex -1: focusable by script as a landing point when
+                    a dialog closes onto a page whose opener has gone, never
+                    an extra Tab stop on the way down the receipt. */}
                 <h2
                   id={headingId}
-                  className="text-lg font-semibold tracking-tight"
+                  ref={headingRef}
+                  tabIndex={-1}
+                  className="text-lg font-semibold tracking-tight focus:outline-none"
                 >
                   Receipt
                 </h2>
@@ -204,7 +260,10 @@ function SettledReceipt({
                 kind="account"
                 id={view.payer}
                 className="mt-1 inline-block"
-              />
+              >
+                view payer on stellar.expert
+                <span aria-hidden="true"> ▸</span>
+              </StellarExpertLink>
             </KVRow>
             <KVRow k="settled" value={formatLocalTime(view.settledAtMs)} />
             <TxRow label="charge" hash={view.chargeTx} />
@@ -280,15 +339,15 @@ const ADJUDICATED_BY: Record<CreditPolicy["adjudicated_by"], string> = {
     "The platform decides each dispute; there is no on-chain arbitration.",
 };
 
-const SHARE = new Intl.NumberFormat(undefined, {
-  style: "percent",
-  maximumFractionDigits: 1,
-});
-
 /**
  * What a dispute can get the buyer, stated before they commit to one. The
  * figures are the backend's policy in force, never a number written into the
  * UI: a buyer shown the wrong share has been promised money they will not get.
+ *
+ * The share is `formatCreditShare`'s, the same one the dispute form prints.
+ * This line used `Intl.NumberFormat` at one decimal place, which read 0.0625
+ * as "6.3%" beside the form's "6.25%" — and rounded UP, promising a larger
+ * share than the policy pays.
  */
 function CreditTerms({ policy }: { policy: CreditPolicy }) {
   return (
@@ -296,8 +355,8 @@ function CreditTerms({ policy }: { policy: CreditPolicy }) {
       <span className="font-mono text-[10px] uppercase tracking-widest text-cyan">
         terms ·{" "}
       </span>
-      An upheld dispute credits {SHARE.format(policy.credited_fraction)} of that
-      step&apos;s charge back to you, {FUNDED_BY[policy.funded_by]}.{" "}
+      An upheld dispute credits {formatCreditShare(policy.credited_fraction)} of
+      that step&apos;s charge back to you, {FUNDED_BY[policy.funded_by]}.{" "}
       {ADJUDICATED_BY[policy.adjudicated_by]}
     </p>
   );
@@ -306,11 +365,6 @@ function CreditTerms({ policy }: { policy: CreditPolicy }) {
 /** `step_index` counts from 0, as the backend enumerates the plan. */
 function stepNumber(step: SettlementStepView): number {
   return step.step_index + 1;
-}
-
-/** The agent's name, or its id when it registered none. */
-function agentLabel(step: SettlementStepView): string {
-  return step.agent_name?.trim() || step.agent_id;
 }
 
 /**

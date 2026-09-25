@@ -33,6 +33,9 @@ import {
 
 const HOUR_S = 60 * 60;
 
+/** The receipt's own re-read cadence while a dispute is merely open. */
+const ADJUDICATION_POLL_MS = 30_000;
+
 const [briefStep, codeStep, failedStep] = mockSettlementSteps;
 
 /** The one read the receipt is drawn from. */
@@ -179,12 +182,17 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(submit).toBeDisabled();
   });
 
-  // The fraction is printed as the dialog prints it — to at most two decimal
-  // places — so a third is "33.33%", never a recomputed "33%" or a raw
-  // 33.333…: the half-credit case alone would pass either way.
+  // The fraction is printed to at most two decimal places, so a third is
+  // "33.33%", never a recomputed "33%" or a raw 33.333… — and the RECEIPT
+  // prints the same share as the form. The two used different formatters and
+  // disagreed on anything finer than a tenth: 0.0625 read "6.3%" above the
+  // action and "6.25%" inside it, the receipt's figure rounded UP, over the
+  // share the backend will actually pay. The half-credit case, which is the
+  // policy in force, passes either way.
   for (const { fraction, percent, credit } of [
     { fraction: 0.5, percent: "50%", credit: "0.027 USDC" },
     { fraction: 1 / 3, percent: "33.33%", credit: "0.018 USDC" },
+    { fraction: 0.0625, percent: "6.25%", credit: "0.003375 USDC" },
   ]) {
     test(`the credit terms (${percent}) are stated in the form before anything is submitted`, async ({
       page,
@@ -201,6 +209,11 @@ test.describe("dispute action on the trace / receipt view", () => {
           creditedFraction: fraction,
         }),
       });
+      // The receipt states the same share above the action it belongs to.
+      await expect(receipt(page)).toContainText(
+        `An upheld dispute credits ${percent} of that step's charge back to you,`,
+      );
+
       const form = await openDialog(page, codeStep.agent_id);
 
       // The fraction as served, the one who pays it, and the one who
@@ -370,6 +383,106 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(disputeButtons(page)).toHaveCount(1);
   });
 
+  // The happy path takes the opener away: raising a dispute turns the step
+  // from disputable to disputed, so the Dispute button is gone before the
+  // buyer presses Done. Focus was left on <body>, where the first Tab does
+  // nothing and the whole page has to be walked back to the receipt the
+  // buyer was reading (WCAG 2.4.3).
+  test("after Done, focus lands on the receipt rather than on the page body", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await expect(form).toContainText("dispute raised");
+    await form.getByRole("button", { name: "Done" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+
+    const landed = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? "",
+      text: (document.activeElement?.textContent ?? "").trim(),
+    }));
+    expect(landed).toEqual({ tag: "H2", text: "Receipt" });
+
+    // And the next Tab carries on into the receipt from there, rather than
+    // starting again at the skip link above the whole document.
+    await page.keyboard.press("Tab");
+    const next = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? "",
+      inReceipt: !!document.activeElement?.closest("section"),
+    }));
+    expect(next.tag).not.toBe("BODY");
+    expect(next.inReceipt).toBe(true);
+  });
+
+  // The press that opens the wallet prompt used to disable the button under
+  // the buyer's finger. A browser blurs a control the moment it is disabled,
+  // so for the whole round trip — half a minute and more on a real wallet —
+  // `activeElement` was <body>, with Escape correctly vetoed: no position in
+  // the dialog and no way out of it.
+  test("keeps focus on the submit button for the whole signing round trip", async ({
+    page,
+  }) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // Holds the sequence open where a real wallet prompt would hold it.
+        routes: async (p) => {
+          await p.route("**/api/disputes/challenge", async (route) => {
+            await held;
+            await route.fallback();
+          });
+        },
+      },
+    );
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    const signing = form.getByRole("button", { name: /signing/i });
+    await expect(signing).toBeVisible();
+    const parked = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? "",
+      label: (document.activeElement?.textContent ?? "").trim(),
+    }));
+    expect(parked.tag).toBe("BUTTON");
+    expect(parked.label).toContain("Signing");
+    // Marked unavailable rather than disabled: that is what keeps it focused.
+    await expect(signing).toHaveAttribute("aria-disabled", "true");
+
+    // The veto still holds — which is precisely why the focus position is the
+    // only bearing the buyer has while this runs.
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toHaveCount(1);
+
+    // And one press is still one request, whatever the button allows.
+    const posts: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === "/api/disputes"
+      ) {
+        posts.push(request.url());
+      }
+    });
+    await signing.click({ force: true });
+    await page.keyboard.press("Control+Enter");
+
+    release();
+    await expect(form).toContainText("dispute raised");
+    expect(posts).toHaveLength(1);
+  });
+
   test("a step disputed from another tab resolves to that dispute, not an error", async ({
     page,
   }) => {
@@ -464,6 +577,126 @@ test.describe("dispute action on the trace / receipt view", () => {
     });
   }
 
+  // A re-read that fails keeps the receipt on screen on purpose — the trace
+  // is evidence and must not blank — so the banner sat above a fully drawn
+  // receipt saying it was unavailable. The words have to follow what is
+  // actually there.
+  // A poll can be answered by a backend older than the one that served the
+  // receipt — a rollback, or a proxy in front of two versions — and the panel
+  // hides on an answer with no settlement. Taking the section away while the
+  // form is open unmounts it mid-signature with no `onClose`, leaving the
+  // wallet prompt standing over a page that has forgotten it asked.
+  test("an older answer arriving mid-dispute does not take the form away", async ({
+    page,
+  }) => {
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    const settledAtS = Math.floor(start / 1000) - HOUR_S;
+    let legacy = false;
+
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({ settledAtS }),
+        // One dispute still open, so the receipt is polled at all.
+        disputes: [
+          mockDispute(briefStep, {
+            openedAtS: settledAtS + 60,
+            reason: "the outline misses half of the brief",
+          }),
+        ],
+        clock: () => page.evaluate(() => Date.now()),
+      },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            async (route) =>
+              legacy
+                ? route.fulfill({
+                    status: 200,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                      task_id: mockDisputeTaskId,
+                      window_closes_at: settledAtS + DISPUTE_WINDOW_S,
+                      disputes: [],
+                    }),
+                  })
+                : route.fallback(),
+          );
+        },
+      },
+    );
+
+    const form = await openDialog(page, codeStep.agent_id);
+    const reason = "the calculator app does not compute anything";
+    await form.getByRole("textbox", { name: /your reason/i }).fill(reason);
+
+    // The backend goes back a version under the open form.
+    legacy = true;
+    await page.clock.runFor(ADJUDICATION_POLL_MS + 1_000);
+
+    await expect(dialog(page)).toBeVisible();
+    await expect(
+      form.getByRole("textbox", { name: /your reason/i }),
+    ).toHaveValue(reason);
+
+    // And the buyer's own way out still works, the receipt going with it.
+    await form.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(receipt(page)).toHaveCount(0);
+  });
+
+  test("a failed re-read dates the receipt it is printed above, not denies it", async ({
+    page,
+  }) => {
+    let failing = false;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            (route) =>
+              failing
+                ? route.fulfill({
+                    status: 503,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                      detail: "Service Unavailable",
+                      error: {
+                        code: "service_unavailable",
+                        message: "service unavailable",
+                        request_id: "e2e0000000000503",
+                      },
+                    }),
+                  })
+                : route.fallback(),
+          );
+        },
+      },
+    );
+    await expect(receipt(page)).toBeVisible();
+
+    // Raising a dispute re-reads the receipt; that read is the one that fails.
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    failing = true;
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await expect(form).toContainText("dispute raised");
+    await form.getByRole("button", { name: "Done" }).click();
+
+    const alert = page.locator("main").getByRole("alert");
+    await expect(alert).toContainText("this receipt may be out of date");
+    await expect(alert).not.toContainText("receipt unavailable");
+    // And it is: the receipt below the banner is still drawn in full.
+    await expect(receipt(page)).toBeVisible();
+    await expect(disputeButtons(page)).toHaveCount(2);
+  });
+
   test("a failed receipt read says so with a retry, and never blocks the trace", async ({
     page,
   }) => {
@@ -553,6 +786,71 @@ test.describe("dispute action on the trace / receipt view", () => {
 
       answer();
       await expect(disputeButtons(page)).toHaveCount(2);
+      const after = await logBar.boundingBox();
+
+      if (before === null || after === null) {
+        throw new Error("expected the trace log's status bar to be laid out");
+      }
+      expect(Math.abs(after.y - before.y)).toBeLessThanOrEqual(MAX_SHIFT_PX);
+    });
+  }
+
+  /** A settlement of `count` delivered, charged steps, cycling the fixtures. */
+  function settlementOfSteps(
+    settledAtS: number,
+    count: number,
+  ): ReturnType<typeof mockSettlementView> {
+    const base = mockSettlementView({ settledAtS });
+    return {
+      ...base,
+      steps: Array.from({ length: count }, (_, i) => ({
+        ...mockSettlementSteps[i % 2],
+        step_index: i,
+      })),
+    };
+  }
+
+  // The count of step rows was the one dimension of the skeleton written as a
+  // literal, and the fixture the tests above use happens to have exactly
+  // three of them, so the guard never fired. At 360px a one-step workflow
+  // yanked the log 383px UP under the reader and a six-step one pushed it
+  // 579px down.
+  for (const count of [1, 6]) {
+    test(`at 360px a ${count}-step receipt lands in the skeleton's place`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 360, height: 900 });
+      let hold = false;
+      let answer!: () => void;
+      const answered = new Promise<void>((resolve) => (answer = resolve));
+      await openTrace(
+        page,
+        { settlement: settlementOfSteps(nowS() - HOUR_S - 17 * 60, count) },
+        {
+          routes: async (p) => {
+            await p.route(
+              (url) => DISPUTES_READ.test(url.pathname),
+              async (route) => {
+                if (hold) await answered;
+                await route.fallback();
+              },
+            );
+          },
+        },
+      );
+      await expect(disputeButtons(page)).toHaveCount(count);
+
+      // A second visit — a reload, a back-navigation, a shared link opened
+      // again — is how a settled trace is usually seen loading at all, and
+      // the last answer says exactly how tall the receipt will be.
+      hold = true;
+      await page.goto(`/app/trace?task=${mockDisputeTaskId}`);
+      await expect(page.getByText("Loading the receipt…")).toBeAttached();
+      const logBar = page.locator("main").getByText("sealed", { exact: true });
+      const before = await logBar.boundingBox();
+
+      answer();
+      await expect(disputeButtons(page)).toHaveCount(count);
       const after = await logBar.boundingBox();
 
       if (before === null || after === null) {

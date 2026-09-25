@@ -117,7 +117,7 @@ export function DisputeReceipt({
   const headingId = useId();
   const voice = viewer === "payer" ? PAYER_VOICE : OTHER_VOICE;
   const announcement = useStatusAnnouncement(
-    view.status,
+    announcedState(view),
     changeSentence(view, agentName, voice),
   );
   const now = nowMs ?? Date.now();
@@ -145,7 +145,13 @@ export function DisputeReceipt({
         </div>
         <div className="flex flex-col gap-0.5 font-mono text-[11px] text-muted sm:flex-row sm:flex-wrap sm:gap-x-5">
           <Moment label="Raised" ms={view.openedAtMs} nowMs={now} />
-          <Moment label="Updated" ms={view.lastChangedAtMs} nowMs={now} />
+          {/* Only when something actually changed. A backend that stamps no
+              transitions falls back to the opening time, and "Raised 1h ago /
+              Updated 1h ago" printed the same instant twice — true, and it
+              reads as though the platform had done something. */}
+          {view.lastChangedAtMs !== view.openedAtMs && (
+            <Moment label="Updated" ms={view.lastChangedAtMs} nowMs={now} />
+          )}
         </div>
       </div>
 
@@ -180,20 +186,37 @@ export function DisputeReceipt({
 }
 
 /**
- * The sentence to announce, set only when the status CHANGES while the
- * receipt is mounted: nothing on first render, and nothing on a poll that
- * brought the same status back, because the text is then left exactly as it
- * was and an unchanged live region says nothing.
+ * What the receipt is currently SAYING, as one comparable value: the badge's
+ * status and the record's own.
+ *
+ * The two part company in exactly one case — a `credited` dispute whose
+ * transfer has not confirmed wears the amber "Refund in progress" badge — and
+ * that case is why the ear cannot follow `view.status` alone. When such a
+ * refund confirms, the record's status does not move: the badge flips to the
+ * green "✓ Refunded" and the whole next-step sentence is replaced, with the
+ * live region silent. The one moment a blind buyer is waiting for — their
+ * money arriving — was the one change never announced. Pairing the two keeps
+ * the announcement on every visible change and on no invisible one.
+ */
+function announcedState(view: DisputeReceiptView): string {
+  return `${receiptBadgeStatus(view)}:${view.status}`;
+}
+
+/**
+ * The sentence to announce, set only when the receipt's state CHANGES while
+ * it is mounted: nothing on first render, and nothing on a poll that brought
+ * the same state back, because the text is then left exactly as it was and an
+ * unchanged live region says nothing.
  *
  * Tracked in state and adjusted during render (React's pattern for deriving
  * from a previous prop) rather than in an effect: the announcement lands in
- * the same commit as the new status it describes, never one frame behind.
+ * the same commit as the new state it describes, never one frame behind.
  */
-function useStatusAnnouncement(status: DisputeStatus, sentence: string) {
-  const [seen, setSeen] = useState(status);
+function useStatusAnnouncement(state: string, sentence: string) {
+  const [seen, setSeen] = useState(state);
   const [announcement, setAnnouncement] = useState("");
-  if (status !== seen) {
-    setSeen(status);
+  if (state !== seen) {
+    setSeen(state);
     setAnnouncement(sentence);
   }
   return announcement;
@@ -236,9 +259,22 @@ function nextStep(
     case "open":
       return `The platform is reviewing this dispute; if it is upheld, the step's credit is paid to ${voice.wallet} and ${agent}'s reputation records the dispute.`;
     case "upheld":
-      return `The platform upheld this dispute; the credit is being sent to ${voice.wallet}.`;
-    case "crediting":
-      return `The refund was submitted and is waiting for confirmation on Stellar; if it cannot be confirmed, the platform reconciles it by hand — ${voice.who} will not be paid twice, and will not be skipped.`;
+      // Decided, not paid. `refundArtifact` reads `upheld` as pending with
+      // never a hash — the transfer has not been attempted — so a sentence
+      // saying the credit "is being sent" sends a buyer to Stellar Expert
+      // looking for a transaction that does not exist and was never made.
+      return `The platform upheld this dispute; the credit has not been sent yet — the transfer to ${voice.wallet} is queued, and there is no transaction to look up until the platform submits it.`;
+    case "crediting": {
+      // `refund_tx` is nullable on a crediting record: the platform can be
+      // holding the payout before it has a transaction to show for it. The
+      // row underneath reads "No transaction on record" in exactly that case,
+      // so claiming a submission here would contradict it two lines later —
+      // and point the buyer at an explorer with nothing to look up.
+      const reconciled = `if it cannot be confirmed, the platform reconciles it by hand — ${voice.who} will not be paid twice, and will not be skipped.`;
+      return view.refund.txHash
+        ? `The refund was submitted and is waiting for confirmation on Stellar; ${reconciled}`
+        : `The refund is being sent and has no transaction on record yet; ${reconciled}`;
+    }
     case "credited": {
       // The backend can mark a dispute credited with no transfer on record to
       // prove it — its own tooling treats that as unreconciled. The badge
@@ -316,8 +352,15 @@ function CreditLine({
 
 type ArtifactCopy = {
   title: string;
-  /** What the transaction means for the reader, beside its name. */
-  caption: string;
+  /**
+   * What the transaction means for the reader, beside its name — in the tense
+   * the record has earned. A caption is a claim like any other sentence here:
+   * "what you received" over a transfer that has not confirmed states a
+   * settlement the chain has not made, and on a screen recording it is the
+   * line a reviewer reads before the mark under it. So it is asked for the
+   * artifact's own state rather than written once per row.
+   */
+  caption: (confirmed: boolean) => string;
   /** Visible link text, distinct per artifact so a link list is legible. */
   link: string;
 };
@@ -347,7 +390,10 @@ function Artifacts({
       artifact: view.refund,
       copy: {
         title: "Refund transfer",
-        caption: `what ${voice.who} received`,
+        caption: (confirmed: boolean) =>
+          confirmed
+            ? `what ${voice.who} received`
+            : `what is owed to ${voice.who}`,
         link: "view refund on stellar.expert",
       },
     },
@@ -356,7 +402,8 @@ function Artifacts({
       artifact: view.rating,
       copy: {
         title: `Dispute rating against ${agentName}`,
-        caption: "what it cost the agent",
+        caption: (confirmed: boolean) =>
+          confirmed ? "what it cost the agent" : "what it will cost the agent",
         link: "view rating on stellar.expert",
       },
     },
@@ -407,7 +454,7 @@ function ArtifactRow({
       <dt className="text-xs leading-snug text-text">
         {copy.title}
         <span className="block font-mono text-[10px] uppercase tracking-widest text-muted">
-          {copy.caption}
+          {copy.caption(confirmed)}
         </span>
       </dt>
       <dd className="mt-2 space-y-1.5">
@@ -446,6 +493,13 @@ function ArtifactRow({
  *
  * Pending borrows nothing from confirmed — no ✓, no cyan — so no frame of a
  * recording can pass a transaction in flight off as a landed one.
+ *
+ * Pending with no hash says only what the record holds. It read "Being sent",
+ * which on an upheld dispute — decided, never submitted — asserted a transfer
+ * under way that nobody had attempted; and the mark is the short line a
+ * reviewer reads off a screen recording, so it outranked every careful
+ * sentence above it. A buyer who reads it and nothing else goes to Stellar
+ * Expert for a transaction that does not exist.
  */
 function ArtifactMark({ artifact }: { artifact: DisputeArtifact }) {
   if (artifact.state === "confirmed") {
@@ -462,7 +516,9 @@ function ArtifactMark({ artifact }: { artifact: DisputeArtifact }) {
         aria-hidden="true"
         className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-violet shadow-[0_0_8px_#B026FF] motion-reduce:animate-none"
       />
-      {artifact.txHash ? "Submitted, waiting for confirmation" : "Being sent"}
+      {artifact.txHash
+        ? "Submitted, waiting for confirmation"
+        : "No transaction on record"}
     </p>
   );
 }

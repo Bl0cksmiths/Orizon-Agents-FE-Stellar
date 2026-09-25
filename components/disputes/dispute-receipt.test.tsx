@@ -169,6 +169,19 @@ describe("DisputeReceipt — the header, in every state", () => {
     expect(updated).toContain(formatAge(NOW - CHANGED_AT));
   });
 
+  it("does not print one instant twice when nothing has changed", () => {
+    // An older backend stamps no transitions, so the last change falls back
+    // to the opening. Two identical lines read as though the platform had
+    // moved on the dispute when it has not.
+    const { container } = renderReceipt(
+      receipt("open", { lastChangedAtMs: OPENED_AT }),
+    );
+    const times = [...container.querySelectorAll("time")];
+    expect(times).toHaveLength(1);
+    expect(text()).toContain("Raised");
+    expect(text()).not.toContain("Updated");
+  });
+
   it("names the agent in its heading for anyone navigating by headings", () => {
     renderReceipt(receipt("open"));
     const heading = screen.getByRole("heading", { level: 4 });
@@ -184,11 +197,15 @@ describe("DisputeReceipt — what happens next", () => {
     );
   });
 
-  it("upheld: the credit is being sent", () => {
+  it("upheld: says the credit has not been sent, and why nothing links", () => {
     renderReceipt(receipt("upheld"));
     expect(text()).toContain(
-      "The platform upheld this dispute; the credit is being sent to your wallet.",
+      "The platform upheld this dispute; the credit has not been sent yet — the transfer to your wallet is queued, and there is no transaction to look up until the platform submits it.",
     );
+    // An upheld dispute has no transfer on record, so a sentence claiming one
+    // is on its way sends a buyer hunting the explorer for nothing.
+    expect(text()).not.toContain("the credit is being sent");
+    expect(text()).not.toContain("was submitted");
   });
 
   it("crediting: waiting on Stellar, reconciled by hand, never twice", () => {
@@ -196,6 +213,19 @@ describe("DisputeReceipt — what happens next", () => {
     expect(text()).toContain(
       "The refund was submitted and is waiting for confirmation on Stellar; if it cannot be confirmed, the platform reconciles it by hand — you will not be paid twice, and will not be skipped.",
     );
+  });
+
+  it("crediting with no hash: claims no submission the record cannot show", () => {
+    renderReceipt(
+      receipt("crediting", { refund: { txHash: null, state: "pending" } }),
+    );
+    expect(text()).toContain(
+      "The refund is being sent and has no transaction on record yet; if it cannot be confirmed, the platform reconciles it by hand — you will not be paid twice, and will not be skipped.",
+    );
+    // The row beneath says "No transaction on record". The sentence above it
+    // must not say the opposite.
+    expect(text()).not.toContain("was submitted");
+    expect(txHrefs()).toHaveLength(0);
   });
 
   it("credited: says what was received and what it cost the agent", () => {
@@ -333,6 +363,42 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
     ).toBeTruthy();
   });
 
+  // The caption is the line a reviewer reads first on a recording, and it
+  // was a constant: "what you received" sat over an upheld dispute's empty
+  // refund row, which is a statement of settlement nothing had made.
+  it.each<DisputeStatus>(["upheld", "crediting"])(
+    "%s: never captions an unconfirmed refund as money received",
+    (status) => {
+      renderReceipt(receipt(status));
+      const refund = artifactRow(/^Refund transfer/);
+      expect(refund.textContent).toContain("what is owed to you");
+      expect(refund.textContent).not.toContain("what you received");
+    },
+  );
+
+  it("captions a credited dispute's unrecorded refund as still owed", () => {
+    renderReceipt(receipt("credited", UNRECONCILED));
+    const refund = artifactRow(/^Refund transfer/);
+    expect(refund.textContent).toContain("what is owed to you");
+    expect(refund.textContent).not.toContain("what you received");
+  });
+
+  it("never captions an unconfirmed rating as a cost already paid", () => {
+    renderReceipt(
+      receipt("credited", { rating: { txHash: RATING_TX, state: "pending" } }),
+    );
+    const rating = artifactRow(/^Dispute rating/);
+    expect(rating.textContent).toContain("what it will cost the agent");
+    expect(rating.textContent).not.toContain("what it cost the agent");
+  });
+
+  it("speaks of the payer, not to them, in an unconfirmed caption", () => {
+    renderReceipt(receipt("upheld", { reason: null }), { viewer: "other" });
+    const refund = artifactRow(/^Refund transfer/);
+    expect(refund.textContent).toContain("what is owed to the payer");
+    expect(refund.textContent).not.toMatch(/\byou\b/i);
+  });
+
   it("never shows a pending transaction with the confirmed mark", () => {
     renderReceipt(receipt("crediting"));
     const refund = artifactRow(/^Refund transfer/);
@@ -347,10 +413,15 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
     ]);
   });
 
-  it("says a refund with no hash yet is being sent, and links nothing", () => {
+  // The mark is the short line a reviewer reads off a screen recording, so
+  // it outranks every careful sentence above it: "Being sent" over an upheld
+  // dispute asserted a transfer nobody had attempted, and sent a buyer to
+  // Stellar Expert for a transaction that does not exist.
+  it("says a refund with no hash has no transaction on record, and links nothing", () => {
     renderReceipt(receipt("upheld"));
     const refund = artifactRow(/^Refund transfer/);
-    expect(refund.textContent).toContain("Being sent");
+    expect(refund.textContent).toContain("No transaction on record");
+    expect(refund.textContent).not.toMatch(/being sent|submitted/i);
     expect(refund.textContent).not.toMatch(/confirmed/i);
     expect(refund.textContent).not.toContain("✓");
     expect(txHrefs()).toHaveLength(0);
@@ -359,7 +430,8 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
   it("draws a credited dispute's unrecorded refund as pending, not done", () => {
     renderReceipt(receipt("credited", UNRECONCILED));
     const refund = artifactRow(/^Refund transfer/);
-    expect(refund.textContent).toContain("Being sent");
+    expect(refund.textContent).toContain("No transaction on record");
+    expect(refund.textContent).not.toMatch(/being sent|submitted/i);
     expect(refund.textContent).not.toMatch(/confirmed/i);
     expect(refund.textContent).not.toContain("✓");
     expect(screen.queryByRole("link", { name: /refund/i })).toBeNull();
@@ -507,6 +579,39 @@ describe("DisputeReceipt — the live announcement", () => {
       `Your dispute against ${AGENT} was marked as paid, but its refund is not confirmed on Stellar yet.`,
     );
     expect(said).not.toContain("refunded");
+  });
+
+  // The badge flips amber → green here with the record's status unmoved. The
+  // region watched that status, so the one change the buyer is waiting for —
+  // the money landing — was the one it never spoke.
+  it("announces a refund confirming under an unchanged status", () => {
+    const { rerender } = renderReceipt(receipt("credited", UNRECONCILED));
+    const region = liveRegion();
+    expect(region.textContent).toBe("");
+
+    rerender(
+      <DisputeReceipt
+        view={receipt("credited")}
+        agentName={AGENT}
+        nowMs={NOW}
+      />,
+    );
+    expect(liveRegion()).toBe(region);
+    expect(region.textContent).toBe(
+      `Your dispute against ${AGENT} was refunded.`,
+    );
+  });
+
+  it("says nothing when a poll brings the same unreconciled credit back", () => {
+    const { rerender } = renderReceipt(receipt("credited", UNRECONCILED));
+    rerender(
+      <DisputeReceipt
+        view={receipt("credited", UNRECONCILED)}
+        agentName={AGENT}
+        nowMs={NOW}
+      />,
+    );
+    expect(liveRegion().textContent).toBe("");
   });
 
   it("announces each later change in turn", () => {

@@ -203,7 +203,11 @@ function isSettlement(v: unknown): v is SettlementView {
   );
 }
 
-function isDispute(v: unknown): v is Dispute {
+/** A dispute in every respect but its status, which is judged separately so
+ * a status this build has never heard of costs the receipt nothing. */
+type UnjudgedDispute = Omit<Dispute, "status"> & { status: string };
+
+function isDisputeRow(v: unknown): v is UnjudgedDispute {
   return (
     isRecord(v) &&
     isStr(v.id) &&
@@ -214,7 +218,6 @@ function isDispute(v: unknown): v is Dispute {
     isStr(v.payer) &&
     isStr(v.reason) &&
     isStr(v.status) &&
-    DISPUTE_STATUSES.has(v.status) &&
     isNum(v.charged_usdc) &&
     isNum(v.creditable_usdc) &&
     isNum(v.opened_at) &&
@@ -225,9 +228,44 @@ function isDispute(v: unknown): v is Dispute {
     isAbsentOr(v.credited_usdc, isNullableNum) &&
     isAbsentOr(v.updated_at, isNullableNum) &&
     isAbsentOr(v.rating_confirmed, isNullableBool) &&
-    isAbsentOr(v.rejection_reason, isNullableStr)
+    isAbsentOr(v.rejection_reason, isNullableStr) &&
+    isAbsentOr(v.refund_confirmed, isNullableBool)
   );
 }
+
+function isDispute(v: unknown): v is Dispute {
+  return isDisputeRow(v) && DISPUTE_STATUSES.has(v.status);
+}
+
+/**
+ * One dispute row as this build can use it, or null when it cannot use it at
+ * all — so a row it fails to read costs that row and never the receipt.
+ *
+ * `isAbsentOr` buys forward-compatibility for four FIELDS and nothing else,
+ * but this client deploys ahead of the backend in both directions: a newer
+ * backend that names a new status, or widens a field, would otherwise fail
+ * `ensure` and lose the whole payload — the settlement, every step and every
+ * other dispute — and, because the panel keeps its last snapshot on error, go
+ * on polling and failing every five seconds under a permanent banner.
+ *
+ * A status this build cannot name is kept as `open`. Dropping the row would
+ * show the step as disputable again and walk the buyer into a
+ * `duplicate_dispute`; mapping it to any outcome would claim one. "Raised,
+ * awaiting a decision" is what is certainly true of it, and it is the status
+ * that claims the least: no refund, no rating, no rejection, no final amount.
+ *
+ * The settlement is NOT treated this way. A step's price or a credited
+ * fraction that this build cannot read is unprintable, not merely unknown,
+ * and a receipt is worth nothing if its figures are guesses.
+ */
+function acceptedDispute(v: unknown): Dispute | null {
+  if (isDispute(v)) return v;
+  if (isDisputeRow(v)) return { ...v, status: "open" };
+  return null;
+}
+
+/** The answer as it arrives: every dispute row still unjudged. */
+type RawTaskDisputes = Omit<TaskDisputes, "disputes"> & { disputes: unknown[] };
 
 /**
  * `settlement` is checked only when the key is present. Absent is a backend
@@ -235,8 +273,12 @@ function isDispute(v: unknown): v is Dispute {
  * real answer that nothing has settled yet. Both are valid; a malformed
  * settlement is not, and neither is a `now` that is not a number, since the
  * window is judged on it.
+ *
+ * The dispute rows are only required to BE a list here; each is judged on its
+ * own by `acceptedDispute`, so one row this build cannot read never costs the
+ * whole answer.
  */
-function isTaskDisputes(v: unknown): v is TaskDisputes {
+function isTaskDisputes(v: unknown): v is RawTaskDisputes {
   return (
     isRecord(v) &&
     isStr(v.task_id) &&
@@ -245,8 +287,7 @@ function isTaskDisputes(v: unknown): v is TaskDisputes {
     (v.settlement === undefined ||
       v.settlement === null ||
       isSettlement(v.settlement)) &&
-    Array.isArray(v.disputes) &&
-    v.disputes.every(isDispute)
+    Array.isArray(v.disputes)
   );
 }
 
@@ -290,7 +331,13 @@ export async function getTaskDisputes(taskId: string): Promise<TaskDisputes> {
   );
   if (!res.ok) throw await httpError("GET", path, res);
   const json: unknown = await res.json();
-  return ensure(path, isTaskDisputes)(json);
+  const raw = ensure(path, isTaskDisputes)(json);
+  const disputes: Dispute[] = [];
+  for (const row of raw.disputes) {
+    const accepted = acceptedDispute(row);
+    if (accepted !== null) disputes.push(accepted);
+  }
+  return { ...raw, disputes };
 }
 
 /**
@@ -302,9 +349,16 @@ export async function getTaskDisputes(taskId: string): Promise<TaskDisputes> {
  * for, `createBindChallenge`'s reasoning: a wallet prompt shows the buyer an
  * opaque string, so a proxy answering with a challenge for another step —
  * dearer, or another agent's — would have them sign a dispute they never
- * meant. Checked are the domain, the `:{job}:{step}:` it names and the nonce
- * it ends with; the version segment is left free, because the backend
- * returns the message precisely so its format can move without this build.
+ * meant.
+ *
+ * PARSED, not searched. A substring test for `:{job}:{step}:` matches
+ * anywhere, so `orizon-dispute:v1:{otherJob}:9:{job}:{step}:{nonce}` passed
+ * as a challenge for (job, step) while being one for step 9 of another job:
+ * it read like a binding check without being one. The segments are compared
+ * one by one instead — the domain, the job, the step, and the nonce the rest
+ * of the message must be. The VERSION segment is left free, because the
+ * backend returns the message precisely so its format can move without this
+ * build; a nonce holding colons of its own is free too, as the whole tail.
  */
 export function createDisputeChallenge(
   req: DisputeChallengeReq,
@@ -316,10 +370,12 @@ export function createDisputeChallenge(
     ensure(path, isDisputeChallenge),
   ).then((challenge) => {
     const { message, nonce } = challenge;
+    const [domain, , job, step, ...tail] = message.split(":");
     const addressesStep =
-      message.startsWith("orizon-dispute:") &&
-      message.includes(`:${req.job_id_hex}:${req.step_index}:`) &&
-      message.endsWith(`:${nonce}`);
+      domain === "orizon-dispute" &&
+      job === req.job_id_hex &&
+      step === String(req.step_index) &&
+      tail.join(":") === nonce;
     if (!addressesStep) {
       throw new Error(
         `malformed response from ${path} — challenge does not address step ${req.step_index} of job ${req.job_id_hex}`,
@@ -346,24 +402,35 @@ export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
 // ── the window's clock ──────────────────────────────────────────
 
 /**
- * How far the server's clock runs ahead of this browser's, in ms, measured
- * from a response's `now` at the moment it arrived: add it to `Date.now()` to
- * read the server's clock.
+ * How far the server's clock runs ahead of this browser's, in ms: add it to
+ * `Date.now()` to read the server's clock.
  *
  * The window closes on the server's clock — that is where the refusal comes
  * from — and a laptop whose clock is a few minutes off would otherwise offer a
  * dispute the server has already stopped taking, or hide one it still would.
- * The half round-trip the answer spent in flight is not corrected for: it is
- * well under the panel's one-second tick.
+ *
+ * Measured against the moment the request was SENT, not the moment its answer
+ * arrived. The server stamped `now` somewhere inside that exchange and the
+ * client cannot tell where, so every offset in
+ * `[now - receivedAt, now - sentAt]` is consistent with what came back. This
+ * takes the top of that range: the latest the server's clock could be, so the
+ * panel understates the window by at most one round trip and never overstates
+ * it by any. Nothing is lost by closing a 24-hour window a minute early;
+ * offering a button the server has stopped honouring costs the buyer a wallet
+ * signature and answers it with `dispute_window_closed`.
+ *
+ * Measuring on arrival instead charged the whole exchange the other way, and
+ * the exchange is not small: `GET_TIMEOUT_MS` is a minute precisely because
+ * the backend cold-starts in 30-60 s on Render's free tier.
  *
  * 0 — trust the local clock — when the backend predates `now`.
  */
 export function serverClockOffsetMs(
   res: TaskDisputes,
-  receivedAtMs: number,
+  sentAtMs: number,
 ): number {
-  if (!isNum(res.now) || !isNum(receivedAtMs)) return 0;
-  return Math.round(res.now * 1_000 - receivedAtMs);
+  if (!isNum(res.now) || !isNum(sentAtMs)) return 0;
+  return Math.round(res.now * 1_000 - sentAtMs);
 }
 
 // ── the panel, derived ──────────────────────────────────────────
@@ -392,14 +459,28 @@ const openedBefore = (a: Dispute, b: Dispute): boolean =>
   a.opened_at < b.opened_at || (a.opened_at === b.opened_at && a.id < b.id);
 
 /**
- * Each step's dispute. A step has at most one — the backend answers a second
- * attempt with the first, unchanged — so should the data ever hold two, the
- * EARLIEST is the one kept: it is the dispute the server itself treats as the
- * step's, and the one a `duplicate_dispute` refusal hands back.
+ * Each step's dispute, for the job this settlement records.
+ *
+ * The job is checked as well as the step index, because the index alone does
+ * not name a step: a task that is re-executed holds more than one job while
+ * `res.settlement` is a single record, and the read answers with every
+ * dispute the task has. Keyed on the index alone, the other run's dispute
+ * took this run's row — its badge, its refund amount, its reason — and the
+ * step it landed on lost its Dispute button, since a step with a dispute is
+ * never disputable.
+ *
+ * A step has at most one dispute — the backend answers a second attempt with
+ * the first, unchanged — so should the data ever hold two, the EARLIEST is
+ * the one kept: it is the dispute the server itself treats as the step's, and
+ * the one a `duplicate_dispute` refusal hands back.
  */
-function disputesByStep(disputes: Dispute[]): Map<number, Dispute> {
+function disputesByStep(
+  disputes: Dispute[],
+  jobIdHex: string,
+): Map<number, Dispute> {
   const byStep = new Map<number, Dispute>();
   for (const d of disputes) {
+    if (d.job_id_hex !== jobIdHex) continue;
     const held = byStep.get(d.step_index);
     if (held === undefined || openedBefore(d, held))
       byStep.set(d.step_index, d);
@@ -412,7 +493,11 @@ function disputesByStep(disputes: Dispute[]): Map<number, Dispute> {
  *
  * - `credited` with its `refund_tx` is the one confirmed case: the backend
  *   writes `credited` only once the transfer has landed, alongside the hash
- *   that proves it.
+ *   that proves it — UNLESS it also sends `refund_confirmed: false`, which is
+ *   that same backend withdrawing the word. Absent is not a no: no backend
+ *   sends the field today, and reading absent as unconfirmed would leave
+ *   every real refund pending for ever. See `Dispute.refund_confirmed` for
+ *   the invariant the absent case rests on.
  * - `credited` WITHOUT a `refund_tx` is pending, with no hash — never
  *   confirmed. The backend's own operator tooling treats that record as
  *   unreconciled and refuses to write anything against it until the payer's
@@ -432,9 +517,12 @@ function refundArtifact(d: Dispute): DisputeArtifact {
   const txHash = d.refund_tx || null;
   switch (d.status) {
     case "credited":
-      return txHash
-        ? { txHash, state: "confirmed" }
-        : { txHash: null, state: "pending" };
+      if (txHash === null) return { txHash: null, state: "pending" };
+      // The hash stays linked either way: a transfer the buyer can watch is
+      // worth more than a blank, and `pending` says what it is worth.
+      return d.refund_confirmed === false
+        ? { txHash, state: "pending" }
+        : { txHash, state: "confirmed" };
     case "crediting":
       return { txHash, state: "pending" };
     case "upheld":
@@ -458,6 +546,30 @@ function ratingArtifact(d: Dispute): DisputeArtifact {
     txHash: d.rating_tx,
     state: d.rating_confirmed === true ? "confirmed" : "pending",
   };
+}
+
+/**
+ * Whether this dispute's receipt is still waiting on the chain — something
+ * that will change on its own, without the buyer touching anything.
+ *
+ * The question the poll must ask, and it is NOT the raw status. `credited`
+ * and `rejected` read as final, but `refundArtifact` calls `credited` without
+ * a transfer pending, and a backend can withdraw its word on one outright:
+ * exactly the receipts whose copy is hedged and waiting, and the only
+ * unresolved ones nothing ever re-read. They could not resolve without a
+ * reload.
+ *
+ * A rating counts only when the backend says `rating_confirmed: false` — it
+ * is in flight, and the answer is coming. ABSENT or null is a backend that
+ * cannot say, which never becomes a yes: polling on it would re-read every
+ * five seconds for the life of the tab and never stop.
+ */
+export function receiptAwaitsChain(dispute: Dispute): boolean {
+  if (refundArtifact(dispute).state === "pending") return true;
+  return (
+    dispute.rating_confirmed === false &&
+    ratingArtifact(dispute).state === "pending"
+  );
 }
 
 /**
@@ -598,7 +710,7 @@ export function disputeView(input: {
   const closesAtMs = settlement.window_closes_at * 1_000;
   const leftMs = closesAtMs - nowMs;
   const open = leftMs > 0;
-  const byStep = disputesByStep(res.disputes);
+  const byStep = disputesByStep(res.disputes, settlement.job_id_hex);
   const steps = [...settlement.steps]
     .sort((a, b) => a.step_index - b.step_index)
     .map((step) => ({
@@ -630,6 +742,24 @@ export function disputeView(input: {
 // ── raising one ─────────────────────────────────────────────────
 
 /**
+ * A challenge to put in front of the wallet: the one the server issued, or a
+ * replacement when that one was dead on arrival.
+ *
+ * Exactly one replacement is ever asked for. Both requests are cheap and
+ * silent; a wallet prompt is neither, which is the whole point of checking
+ * before one is raised.
+ */
+async function liveChallenge(
+  target: DisputeChallengeReq,
+  clockOffsetMs: number,
+): Promise<DisputeChallenge> {
+  const challenge = await createDisputeChallenge(target);
+  const serverNowMs = Date.now() + clockOffsetMs;
+  if (challenge.expires_at * 1_000 > serverNowMs) return challenge;
+  return createDisputeChallenge(target);
+}
+
+/**
  * Challenge → wallet signature → open, for one step.
  *
  * Refused before any network call, as a `DisputeRefusal` the dialog reads
@@ -642,6 +772,14 @@ export function disputeView(input: {
  * with its own error, untouched, so the dialog can run it through
  * `classifyError` and tell "you cancelled" from "it failed", exactly as the
  * bind page does.
+ *
+ * A challenge that arrives ALREADY dead is replaced before the wallet is
+ * asked for anything. `expires_at` says when the nonce dies, and a buyer who
+ * came back to a page that had been open a while used to be prompted, sent
+ * round trip, refused `challenge_expired`, and prompted a SECOND time for the
+ * retry below — two wallet popups for one dispute. One re-request, not a
+ * loop: if the replacement is dead too, the clocks disagree about more than
+ * latency, and the server's own refusal is a better answer than spinning.
  *
  * One retry, on `challenge_expired` only: the nonce lives five minutes and a
  * wallet popup can sit open for longer, which is nobody's fault and is cured
@@ -657,8 +795,15 @@ export async function raiseDispute(args: {
   reason: string;
   payer: string;
   signMessage: (m: string) => Promise<string>;
+  /**
+   * The server's clock minus this browser's, from `serverClockOffsetMs`. The
+   * nonce dies on the server's clock, so that is the one it is judged on; 0 —
+   * trust the local clock — when the caller holds no measurement.
+   */
+  serverClockOffsetMs?: number;
 }): Promise<Dispute> {
   const { settlement, step, payer, signMessage } = args;
+  const clockOffsetMs = args.serverClockOffsetMs ?? 0;
   const reason = args.reason.trim();
   if (reason.length === 0) {
     throw new DisputeRefusal(
@@ -684,7 +829,7 @@ export async function raiseDispute(args: {
     step_index: step.step_index,
   };
   for (let attempt = 1; ; attempt += 1) {
-    const challenge = await createDisputeChallenge(target);
+    const challenge = await liveChallenge(target, clockOffsetMs);
     const signature_b64 = await signMessage(challenge.message);
     try {
       return await openDispute({
@@ -754,9 +899,59 @@ export function formatRemaining(ms: number): string {
  * own precision — which matters here: a credit of half a 0.005 step is 0.0025,
  * and a fixed three places would round the buyer's refund up to 0.003, a
  * figure the backend computed precisely so the UI would never re-derive it.
- * A value that is not a number prints as a dash, never "NaN USDC".
+ *
+ * FLOORED to the stroop, not rounded. Every figure here is money that has
+ * moved or that the platform is about to move, and the chain moves whole
+ * stroops: rounding half up printed a tenth of a millionth of a dollar that
+ * no transfer could carry, which on a receipt is a promise. The nudge before
+ * the floor is for binary floating point alone — 0.29 * 10_000_000 is
+ * 2899999.9999999995 — and is a thousandth of a stroop, far below anything
+ * the chain can express, so it restores the figure without inventing one.
+ *
+ * A value that is not a number prints as a dash, never "NaN USDC", and so
+ * does a NEGATIVE one: nothing upstream rejects a backend sign error, and a
+ * minus sign beside "Refunded" tells the buyer they owe the platform money.
+ * A dash says what is true — the figure cannot be stated — where a clamp to
+ * zero would state one the record does not support.
  */
 export function formatUsdc(n: number): string {
-  if (!Number.isFinite(n)) return "—";
-  return formatSettled(Math.round(n * STROOPS_PER_UNIT), "USDC");
+  if (!Number.isFinite(n) || n < 0) return "—";
+  const stroops = Math.floor(Number((n * STROOPS_PER_UNIT).toFixed(3)));
+  return formatSettled(stroops, "USDC");
+}
+
+/**
+ * A credit share as the buyer is told it: "50%", "12.5%", "6.25%".
+ *
+ * The one definition, because the receipt and the dialog quote the SAME
+ * policy at the same buyer and disagreed: `Intl.NumberFormat` at one decimal
+ * read 0.0625 as "6.3%" beside the form's "6.25%", and it rounded UP —
+ * promising a credit a fraction larger than the one the backend will pay.
+ * So this floors to the hundredth of a percent: the figure is never more than
+ * the policy in force, and trailing zeros are dropped so an exact half is
+ * "50%" and not "50.00%".
+ *
+ * The nudge before flooring is for binary floating point alone — 0.29 * 100
+ * is 28.999999999999996 — and is far smaller than any share a policy can
+ * express, so it restores the figure without inventing a hundredth.
+ * A value that is not a number prints as a dash, as `formatUsdc` does.
+ */
+export function formatCreditShare(fraction: number): string {
+  if (!Number.isFinite(fraction)) return "—";
+  const hundredthsOfPercent = Math.floor(fraction * 10_000 + 1e-6);
+  return `${Number((hundredthsOfPercent / 100).toFixed(2))}%`;
+}
+
+/**
+ * How a settled step names its agent: the registered name, or the agent id
+ * when there is none.
+ *
+ * The one definition, because `agent_name ?? agent_id` and
+ * `agent_name?.trim() || agent_id` disagreed on a name that is present but
+ * empty — the same step read "Step 2 · ," in the dialog and "Step 2 ()" in
+ * the confirmation. A name of only whitespace is no name: the id always
+ * identifies the agent, and a blank never does.
+ */
+export function agentLabel(step: SettlementStepView): string {
+  return step.agent_name?.trim() || step.agent_id;
 }

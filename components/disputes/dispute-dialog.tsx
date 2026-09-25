@@ -19,6 +19,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,9 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import {
   MAX_DISPUTE_REASON_CHARS,
+  agentLabel,
   disputeErrorCode,
+  formatCreditShare,
   formatUsdc,
   raiseDispute,
 } from "@/lib/disputes";
@@ -42,6 +45,8 @@ import { inputCls } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 import { classifyError } from "@/lib/wallet-errors";
+
+import { disputeStatusLabel } from "./dispute-status-badge";
 
 /**
  * Why the dialog asked to be closed, passed to `onClose`. The page closes it
@@ -77,6 +82,13 @@ export type DisputeDialogProps = {
   onClose: (reason: DisputeDialogCloseReason) => void;
   /** Called once, with the stored dispute, when the backend accepts it. */
   onSubmitted: (dispute: Dispute) => void;
+  /**
+   * Where focus goes when this closes and the Dispute button it was opened
+   * from is no longer on the page — which is the HAPPY path: raising a
+   * dispute turns the step from disputable to disputed, so the button is gone
+   * before the buyer presses Done. Without it focus lands on `document.body`.
+   */
+  returnFocusRef?: RefObject<HTMLElement>;
 };
 
 /**
@@ -106,6 +118,52 @@ function SectionLabel({
 
 /** Within this many characters of the cap the counter starts to speak. */
 const COUNTER_WARN_AT = 25;
+
+/**
+ * The counts the EAR is told about. The visible counter stays live on every
+ * keystroke — that is for the eye, which can ignore it — but a live region
+ * rewritten on every keystroke inside the warn zone reads twenty-five counts
+ * over a screen-reader user's own echo, while they compose the very words the
+ * platform will judge them on. Three landmarks say the same thing.
+ */
+const COUNTER_SPEAKS_AT = [0, 10, COUNTER_WARN_AT] as const;
+
+/**
+ * The landmark `remaining` has reached, or null while it is above them all.
+ * ASCENDING order matters: the first one the count is at or under is the
+ * nearest it has crossed, and a descending list would answer 25 all the way
+ * to the cap and announce once for the whole zone.
+ */
+function counterThreshold(remaining: number): number | null {
+  return COUNTER_SPEAKS_AT.find((at) => remaining <= at) ?? null;
+}
+
+/**
+ * What the counter says out loud: written only when `remaining` crosses into
+ * a new landmark, and cleared once it climbs back above all of them, so the
+ * zone can be entered again and announced again.
+ *
+ * The sentence carries the REAL count, not the landmark, so a paste that
+ * drops it from 40 to 6 is announced as 6. Derived during render, as the
+ * receipt's status announcement is, so the words land in the same commit as
+ * the count they describe.
+ */
+function useCounterAnnouncement(remaining: number): string {
+  const threshold = counterThreshold(remaining);
+  const [spoken, setSpoken] = useState(threshold);
+  const [notice, setNotice] = useState("");
+  if (threshold !== spoken) {
+    setSpoken(threshold);
+    setNotice(
+      threshold === null
+        ? ""
+        : remaining === 0
+          ? "Character limit reached."
+          : `${remaining} character${remaining === 1 ? "" : "s"} left.`,
+    );
+  }
+  return notice;
+}
 
 /** Why an attempt failed, in the buyer's words, and what can follow it. */
 type Failure = {
@@ -279,8 +337,12 @@ function DisputeRaised({
         dispute raised
       </Badge>
       <p className="text-sm leading-relaxed text-text">
-        Step {stepNumber(step)} ({step.agent_name ?? step.agent_id}) is now
-        under review. If the platform upholds your dispute,{" "}
+        {/* `agentLabel`, not `agent_name ?? agent_id`: a registered name that
+            is present but empty passed the nullish check and printed "Step 2
+            () is now under review." — an empty parenthesis in the record of a
+            consequential action. */}
+        Step {stepNumber(step)} ({agentLabel(step)}) is now under review. If the
+        platform upholds your dispute,{" "}
         <span className="font-mono text-cyan">
           {formatUsdc(dispute.creditable_usdc)}
         </span>{" "}
@@ -289,9 +351,11 @@ function DisputeRaised({
       </p>
       <dl className="space-y-2 font-mono text-sm">
         <KVRow k="Status">
-          <Badge tone="cyan">
-            {dispute.status === "open" ? "under review" : dispute.status}
-          </Badge>
+          {/* The badge's own words, never the wire's. A backend that answers
+              a POST with anything but `open` — which it may yet — would
+              otherwise print its own state name ("crediting", "credited") at
+              a buyer, which is what `disputeStatusLabel` exists to stop. */}
+          <Badge tone="cyan">{disputeStatusLabel(dispute.status)}</Badge>
         </KVRow>
         <KVRow k="Charged" value={formatUsdc(dispute.charged_usdc)} />
         <KVRow
@@ -313,10 +377,6 @@ const stepNumber = (step: SettlementStepView) => step.step_index + 1;
 /** GABC…WXYZ — enough of a G-address to recognise the wallet by. */
 const shortAddress = (address: string) =>
   `${address.slice(0, 4)}…${address.slice(-4)}`;
-
-/** 0.5 → "50%", 0.125 → "12.5%": as exact as the policy, never "50.00%". */
-const formatPercent = (fraction: number) =>
-  `${Number((fraction * 100).toFixed(2))}%`;
 
 // The two literal fields are switched on exhaustively: widen either type and
 // this stops compiling, rather than describing a new funder or adjudicator
@@ -350,7 +410,7 @@ function adjudicatedByLine(judge: CreditPolicy["adjudicated_by"]): string {
 function creditTerms(policy: CreditPolicy): string[] {
   const credit =
     policy.credited_fraction > 0
-      ? `An upheld dispute credits ${formatPercent(policy.credited_fraction)} of this step's charge back to the wallet that paid.`
+      ? `An upheld dispute credits ${formatCreditShare(policy.credited_fraction)} of this step's charge back to the wallet that paid.`
       : "Under the current terms an upheld dispute credits nothing back.";
   return [
     credit,
@@ -379,6 +439,7 @@ function DisputeForm({
   settlement,
   onClose,
   onSubmitted,
+  returnFocusRef,
 }: DisputeDialogProps) {
   const wallet = useWallet();
   const shown = open && step !== null && settlement !== null;
@@ -404,6 +465,7 @@ function DisputeForm({
   // Counted exactly as `maxLength` counts (UTF-16 units), so the counter and
   // the field's own limit can never disagree about what fits.
   const remaining = MAX_DISPUTE_REASON_CHARS - reason.length;
+  const countdownNotice = useCounterAnnouncement(remaining);
 
   const busy = state.kind === "signing" || state.kind === "submitting";
   const finished =
@@ -591,12 +653,22 @@ function DisputeForm({
               >
                 Cancel
               </Button>
+              {/* While the sequence runs the button is MARKED unavailable,
+                  not disabled: a browser blurs a control the moment it is
+                  disabled, and this press opens a wallet prompt that can sit
+                  open for half a minute with Escape correctly vetoed — which
+                  left a keyboard user on <body>, with no position in the
+                  dialog and no way out of it. Nothing is weakened by keeping
+                  it pressable: `submit()` refuses while `canSubmit` is false,
+                  and the `inFlight` ref refuses what a re-render could not
+                  catch in time. */}
               <Button
                 ref={primaryRef}
                 type="submit"
                 form={ids.form}
-                disabled={!canSubmit}
-                className="flex-1 sm:flex-none"
+                disabled={!canSubmit && !busy}
+                aria-disabled={busy || undefined}
+                className="flex-1 aria-disabled:opacity-50 sm:flex-none"
               >
                 {busy && <span aria-hidden>◉</span>}
                 {state.kind === "signing"
@@ -621,6 +693,7 @@ function DisputeForm({
       // Nothing dismisses the dialog mid-sequence: closing it would not stop
       // the wallet prompt or the request, only hide their outcome.
       dismissible={!busy}
+      returnFocusRef={returnFocusRef}
       eyebrow="dispute"
       title={step ? `Dispute step ${stepNumber(step)}` : "Dispute a step"}
       // The title stays put so the dialog's name never changes under a
@@ -655,7 +728,7 @@ function DisputeForm({
                 </span>
                 <span className="sr-only">, </span>
                 <span className="break-all font-semibold text-text">
-                  {step.agent_name ?? step.agent_id}
+                  {agentLabel(step)}
                 </span>
               </p>
               {step.output_summary ? (
@@ -745,14 +818,11 @@ function DisputeForm({
                 {reason.length} / {MAX_DISPUTE_REASON_CHARS} characters
                 {remaining === 0 && " · limit reached"}
               </p>
-              {/* Silent until the cap is close: a count read out on every
-                  keystroke would drown the buyer's own typing. */}
+              {/* Silent until the cap is close, and then only at the
+                  landmarks: a count read out on every keystroke would drown
+                  the buyer's own typing. */}
               <p className="sr-only" aria-live="polite">
-                {remaining === 0
-                  ? "Character limit reached."
-                  : remaining <= COUNTER_WARN_AT
-                    ? `${remaining} characters left.`
-                    : ""}
+                {countdownNotice}
               </p>
             </section>
 

@@ -585,6 +585,21 @@ export type Dispute = {
    */
   rating_confirmed?: boolean | null;
   /**
+   * Whether `refund_tx` is known to have landed — the money artifact's answer
+   * to `rating_confirmed`, and the stricter rule the refund was missing: the
+   * hash is the sole gate on the final amount and on the green "Refunded"
+   * badge, so a backend that can tell an unconfirmed transfer from a landed
+   * one must be able to say so.
+   *
+   * ABSENT (today's backend sends no such field) means "this backend does not
+   * distinguish", NOT "unconfirmed" — reading it as unconfirmed would show
+   * every real refund as pending for ever. A `credited` record with a hash is
+   * then taken at its word, on the backend's own invariant: `credited` is
+   * written only once the transfer has landed, and the hash is written with
+   * it. An explicit `false` is the only way to withdraw that word.
+   */
+  refund_confirmed?: boolean | null;
+  /**
    * The adjudicator's reason, present only when the dispute was rejected.
    * Written for the buyer, and shown only to the buyer.
    */

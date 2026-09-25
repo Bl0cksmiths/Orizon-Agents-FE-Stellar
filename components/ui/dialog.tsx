@@ -63,6 +63,16 @@ export type DialogProps = {
    */
   initialFocusRef?: RefObject<HTMLElement>;
   /**
+   * Where focus lands on close when the opener cannot take it back. On a
+   * happy path the opener is often gone by then — the control that raised a
+   * dispute is replaced by the dispute's own receipt before the buyer presses
+   * Done — and focus would otherwise be left on `document.body`, from which
+   * the first Tab does nothing and the whole page has to be walked again
+   * (WCAG 2.4.3). Point this at something that survives the transition and
+   * takes focus by script, such as a heading with `tabIndex={-1}`.
+   */
+  returnFocusRef?: RefObject<HTMLElement>;
+  /**
    * The veto. While false, nothing the user does dismisses the dialog: Escape
    * and backdrop clicks are ignored, the close button is disabled, and a close
    * the browser forces anyway is undone. Defaults to true.
@@ -135,6 +145,7 @@ export function Dialog({
   children,
   footer,
   initialFocusRef,
+  returnFocusRef,
   dismissible = true,
   closeLabel = "Close",
   className,
@@ -164,10 +175,18 @@ export function Dialog({
       releaseScroll();
       if (dialog.open) dialog.close();
       // An opener the page has since removed (a button swapped for a result)
-      // cannot take focus; leave it to the page rather than guess a target.
+      // cannot take focus. The page names its own fallback for exactly that
+      // case; with none, focus is left where it is rather than guessed at,
+      // which is the old behaviour and still better than a wrong landing.
       if (opener?.isConnected) opener.focus();
+      // Read at cleanup on purpose, which is exactly what the lint rule warns
+      // about: the fallback's element is the one on the page NOW. Capturing it
+      // when the dialog opened would hold a node the page may have replaced
+      // since — the very transition this fallback exists for.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      else returnFocusRef?.current?.focus();
     };
-  }, [open, initialFocusRef]);
+  }, [open, initialFocusRef, returnFocusRef]);
 
   // Escape (and the Android back gesture) arrive as `cancel`. The native
   // default would close the element behind React's back, leaving `open` true

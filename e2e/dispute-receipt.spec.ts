@@ -317,7 +317,12 @@ test.describe("dispute status and refund receipt", () => {
     await expect(row).toContainText("Refund in progress");
     await expect(row).not.toContainText("Refunded");
     const refund = artifact(row, "Refund transfer");
-    await expect(refund).toContainText("Being sent");
+    // The mark is the shortest line on the row and the one a reviewer reads
+    // off a recording, so it says only what the record holds: no hash means
+    // no transaction, never a transfer under way.
+    await expect(refund).toContainText("No transaction on record");
+    await expect(refund).not.toContainText("Being sent");
+    await expect(refund).not.toContainText("Submitted");
     await expect(refund).not.toContainText("Confirmed on Stellar");
     // Nothing to link: there is no transaction to prove it.
     await expect(row.getByRole("link", { name: /refund/i })).toHaveCount(0);
@@ -639,7 +644,7 @@ test.describe("dispute receipt while the page stays open", () => {
     await attachShot(testInfo, "receipt — credited live", row);
   });
 
-  test("once every dispute is credited or rejected, the receipt stops reading", async ({
+  test("the receipt stops reading once no dispute is waiting on the chain", async ({
     page,
   }) => {
     const { reads, openedAtS } = await openOnFakeClock(page, (openedAtS) => [
@@ -650,6 +655,10 @@ test.describe("dispute receipt while the page stays open", () => {
         refund_tx: mockRefundTx,
       }),
     ]);
+    const rejected = mockReceiptDispute(briefStep, {
+      status: "rejected",
+      openedAtS,
+    });
     const row = stepRow(page, codeStep.agent_id);
     await expect(row).toContainText("Refund in progress");
     await freezeClock(page);
@@ -659,18 +668,45 @@ test.describe("dispute receipt while the page stays open", () => {
     // the fast cadence, through this very mock — so the silence below is a
     // measurement, not a counter that could never have moved.
     reads.answer([
-      mockReceiptDispute(briefStep, { status: "rejected", openedAtS }),
+      rejected,
+      // `credited` on the record, but with no transfer on it: the receipt
+      // draws that as a refund still pending and the badge still reads
+      // "Refund in progress". The status is not what makes a receipt final —
+      // read that way, this was the one unresolved state nothing re-read, and
+      // it could never resolve without a reload.
+      mockReceiptDispute(codeStep, {
+        status: "credited",
+        openedAtS,
+        refund_tx: null,
+      }),
+    ]);
+    // A beat, not a repaint, is what says this read landed: the badge does
+    // not move, which is the whole point of the case.
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await networkBeat(page);
+    await expect(row).toContainText("Refund in progress");
+    expect(reads.count()).toBe(loaded + 1);
+
+    // Still waiting on the chain, so it is still read for.
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await networkBeat(page);
+    expect(reads.count()).toBe(loaded + 2);
+
+    // The transfer lands, with the hash that proves it and a rating the
+    // backend confirms: now nothing on this receipt can change on its own.
+    reads.answer([
+      rejected,
       mockReceiptDispute(codeStep, { status: "credited", openedAtS }),
     ]);
     await page.clock.runFor(ACTIVE_POLL_MS);
     await expect(row).toContainText("Refunded");
-    expect(reads.count()).toBe(loaded + 1);
+    expect(reads.count()).toBe(loaded + 3);
 
-    // Both terminal now: a whole minute on the clock — twice the slow
-    // cadence, twelve times the fast one — and not one more read.
+    // A whole minute on the clock — twice the slow cadence, twelve times the
+    // fast one — and not one more read.
     await page.clock.runFor(60_000);
     await networkBeat(page);
-    expect(reads.count()).toBe(loaded + 1);
+    expect(reads.count()).toBe(loaded + 3);
   });
 
   test("a hidden tab reads nothing, and reads at once when it is shown again", async ({
