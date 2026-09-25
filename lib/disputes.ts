@@ -349,9 +349,16 @@ export async function getTaskDisputes(taskId: string): Promise<TaskDisputes> {
  * for, `createBindChallenge`'s reasoning: a wallet prompt shows the buyer an
  * opaque string, so a proxy answering with a challenge for another step —
  * dearer, or another agent's — would have them sign a dispute they never
- * meant. Checked are the domain, the `:{job}:{step}:` it names and the nonce
- * it ends with; the version segment is left free, because the backend
- * returns the message precisely so its format can move without this build.
+ * meant.
+ *
+ * PARSED, not searched. A substring test for `:{job}:{step}:` matches
+ * anywhere, so `orizon-dispute:v1:{otherJob}:9:{job}:{step}:{nonce}` passed
+ * as a challenge for (job, step) while being one for step 9 of another job:
+ * it read like a binding check without being one. The segments are compared
+ * one by one instead — the domain, the job, the step, and the nonce the rest
+ * of the message must be. The VERSION segment is left free, because the
+ * backend returns the message precisely so its format can move without this
+ * build; a nonce holding colons of its own is free too, as the whole tail.
  */
 export function createDisputeChallenge(
   req: DisputeChallengeReq,
@@ -363,10 +370,12 @@ export function createDisputeChallenge(
     ensure(path, isDisputeChallenge),
   ).then((challenge) => {
     const { message, nonce } = challenge;
+    const [domain, , job, step, ...tail] = message.split(":");
     const addressesStep =
-      message.startsWith("orizon-dispute:") &&
-      message.includes(`:${req.job_id_hex}:${req.step_index}:`) &&
-      message.endsWith(`:${nonce}`);
+      domain === "orizon-dispute" &&
+      job === req.job_id_hex &&
+      step === String(req.step_index) &&
+      tail.join(":") === nonce;
     if (!addressesStep) {
       throw new Error(
         `malformed response from ${path} — challenge does not address step ${req.step_index} of job ${req.job_id_hex}`,

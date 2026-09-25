@@ -492,6 +492,24 @@ describe("createDisputeChallenge", () => {
       "a bind challenge rather than a dispute",
       { ...challenge(2), message: `orizon-bind:v1:${JOB}:2:n0nce` },
     ],
+    [
+      "another job's step, with this one's buried inside the message",
+      // A substring test reads this as addressing (JOB, 2). It is a
+      // challenge for step 9 of someone else's job, and the wallet shows the
+      // buyer an opaque string either way.
+      {
+        ...challenge(2),
+        message: `orizon-dispute:v1:${"e".repeat(32)}:9:${JOB}:2:n0nce`,
+      },
+    ],
+    [
+      "a step whose number merely starts with this one's",
+      { ...challenge(2), message: `orizon-dispute:v1:${JOB}:20:n0nce` },
+    ],
+    [
+      "a domain that merely starts with the right one",
+      { ...challenge(2), message: `orizon-dispute-v2:v1:${JOB}:2:n0nce` },
+    ],
   ];
 
   it.each(misaddressed)(
