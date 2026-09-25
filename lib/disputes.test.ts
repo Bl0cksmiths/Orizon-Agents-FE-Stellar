@@ -16,10 +16,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api";
 import {
   DisputeRefusal,
+  agentLabel,
   createDisputeChallenge,
   disputeErrorCode,
   disputeReceipt,
   disputeView,
+  formatCreditShare,
   formatRemaining,
   formatUsdc,
   getTaskDisputes,
@@ -1603,4 +1605,65 @@ describe("receiptBadgeStatus", () => {
       expect(badgeFor({ status })).toBe(status);
     },
   );
+});
+
+describe("formatCreditShare", () => {
+  it.each([
+    [0.5, "50%"],
+    [0.125, "12.5%"],
+    [0.0625, "6.25%"],
+    [0, "0%"],
+    [1, "100%"],
+    [0.29, "29%"],
+    [0.07, "7%"],
+  ])("prints %d as %s", (fraction, label) => {
+    expect(formatCreditShare(fraction)).toBe(label);
+  });
+
+  it("never rounds a share up — the buyer is never promised more than the policy pays", () => {
+    // The receipt's Intl formatter at one decimal read this as "6.3%", a
+    // larger credit than the backend will ever transfer.
+    expect(formatCreditShare(0.0625)).toBe("6.25%");
+    expect(formatCreditShare(0.06256)).toBe("6.25%");
+    expect(formatCreditShare(0.999999)).toBe("99.99%");
+  });
+
+  it("is one definition for both the receipt and the dialog", () => {
+    // The two components quote the SAME policy at the same buyer; anything
+    // they could disagree on is a promise the buyer cannot rely on.
+    for (let bps = 0; bps <= 10_000; bps += 7) {
+      const label = formatCreditShare(bps / 10_000);
+      expect(label).toBe(formatCreditShare(bps / 10_000));
+      expect(Number(label.slice(0, -1))).toBeLessThanOrEqual(bps / 100);
+    }
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+    "prints %d as a dash rather than a broken figure",
+    (n) => {
+      expect(formatCreditShare(n)).toBe("—");
+    },
+  );
+});
+
+describe("agentLabel", () => {
+  it("prefers the registered name", () => {
+    expect(agentLabel(step(1, { agent_name: "Code Gen" }))).toBe("Code Gen");
+  });
+
+  it.each([
+    ["null", null],
+    ["empty", ""],
+    ["only whitespace", "   "],
+  ])("falls back to the agent id when the name is %s", (_, agent_name) => {
+    // `agent_name ?? agent_id` let a blank through, and the dialog rendered
+    // "Step 2 · ," where the receipt rendered the id.
+    expect(agentLabel(step(1, { agent_name }))).toBe("agt_1");
+  });
+
+  it("trims a padded name rather than printing its padding", () => {
+    expect(agentLabel(step(0, { agent_name: "  Code Gen  " }))).toBe(
+      "Code Gen",
+    );
+  });
 });

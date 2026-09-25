@@ -760,3 +760,39 @@ export function formatUsdc(n: number): string {
   if (!Number.isFinite(n)) return "—";
   return formatSettled(Math.round(n * STROOPS_PER_UNIT), "USDC");
 }
+
+/**
+ * A credit share as the buyer is told it: "50%", "12.5%", "6.25%".
+ *
+ * The one definition, because the receipt and the dialog quote the SAME
+ * policy at the same buyer and disagreed: `Intl.NumberFormat` at one decimal
+ * read 0.0625 as "6.3%" beside the form's "6.25%", and it rounded UP —
+ * promising a credit a fraction larger than the one the backend will pay.
+ * So this floors to the hundredth of a percent: the figure is never more than
+ * the policy in force, and trailing zeros are dropped so an exact half is
+ * "50%" and not "50.00%".
+ *
+ * The nudge before flooring is for binary floating point alone — 0.29 * 100
+ * is 28.999999999999996 — and is far smaller than any share a policy can
+ * express, so it restores the figure without inventing a hundredth.
+ * A value that is not a number prints as a dash, as `formatUsdc` does.
+ */
+export function formatCreditShare(fraction: number): string {
+  if (!Number.isFinite(fraction)) return "—";
+  const hundredthsOfPercent = Math.floor(fraction * 10_000 + 1e-6);
+  return `${Number((hundredthsOfPercent / 100).toFixed(2))}%`;
+}
+
+/**
+ * How a settled step names its agent: the registered name, or the agent id
+ * when there is none.
+ *
+ * The one definition, because `agent_name ?? agent_id` and
+ * `agent_name?.trim() || agent_id` disagreed on a name that is present but
+ * empty — the same step read "Step 2 · ," in the dialog and "Step 2 ()" in
+ * the confirmation. A name of only whitespace is no name: the id always
+ * identifies the agent, and a blank never does.
+ */
+export function agentLabel(step: SettlementStepView): string {
+  return step.agent_name?.trim() || step.agent_id;
+}
