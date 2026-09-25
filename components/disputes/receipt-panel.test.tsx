@@ -17,6 +17,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -374,6 +375,33 @@ describe("ReceiptPanel — the step list", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     // The window state says why, once, above the list.
     expect(text()).toContain("Dispute window closed");
+  });
+
+  // The clock for a closed window was read DURING render — an impure render,
+  // and since nothing re-renders a closed window on its own the ages froze at
+  // first paint until an unrelated poll happened to land.
+  it("keeps a closed window's ages moving without a new view", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(CLOSES_AT + HOUR);
+    try {
+      renderPanel(
+        settled([{ step: step(0), state: { kind: "window_closed" } }], {
+          window: CLOSED,
+        }),
+      );
+      // 24 hours of window plus the hour since it closed.
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+      expect(text()).toContain(`Settled ${formatAge(25 * HOUR)}`);
+
+      act(() => {
+        vi.advanceTimersByTime(24 * HOUR);
+      });
+      expect(text()).toContain(`Settled ${formatAge(49 * HOUR)}`);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renders a view-only step with no control, no hint, nothing", () => {

@@ -10,7 +10,7 @@
  * would be a rule changed in the wrong place.
  */
 
-import { useId, type RefObject } from "react";
+import { useEffect, useId, useState, type RefObject } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -143,6 +143,38 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
   );
 }
 
+/**
+ * The coarse cadence the shared stale badge falls back to past an hour. A
+ * closed window is at least a whole window old, so nothing finer than this
+ * can change in the ages beside it.
+ */
+const CLOSED_CLOCK_TICK_MS = 300_000;
+
+/**
+ * "Now" for the ages on a receipt whose dispute window has closed, or null
+ * until the first reading is taken.
+ *
+ * An open window carries the server's clock inside the view itself —
+ * `closesAt` minus what is left — and wants nothing from here. A closed one
+ * carries none, and `Date.now()` read during render is an impure render;
+ * worse, nothing re-renders a closed window on its own, so every age froze at
+ * first paint until an unrelated poll happened to land. Read after the
+ * commit, and again on the badge's own coarse cadence.
+ *
+ * Never a second opinion about the time: the panel's hook stops its own tick
+ * exactly when the window closes (`disputeTickMs`), so only one clock runs.
+ */
+function useClosedWindowClock(open: boolean): number | null {
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    if (open) return;
+    setNowMs(Date.now());
+    const timer = setInterval(() => setNowMs(Date.now()), CLOSED_CLOCK_TICK_MS);
+    return () => clearInterval(timer);
+  }, [open]);
+  return nowMs;
+}
+
 function SettledReceipt({
   view,
   headingId,
@@ -160,10 +192,13 @@ function SettledReceipt({
   // it — an open window is closesAt minus what is left — so a skewed laptop
   // clock cannot print a settlement as happening in the future. Once the
   // window has closed the settlement is a whole window old, and a few seconds
-  // of skew no longer show in an age that coarse.
+  // of skew no longer show in an age that coarse. Until the first reading is
+  // taken, the close itself stands in: one frame's worth of under-reporting,
+  // against an age measured in hours.
+  const closedNowMs = useClosedWindowClock(view.window.open);
   const nowMs = view.window.open
     ? view.window.closesAtMs - view.window.remainingMs
-    : Date.now();
+    : (closedNowMs ?? view.window.closesAtMs);
   const steps = view.steps.length;
   // Only someone the page cannot yet place is told how to become able to
   // dispute. A payer already has the buttons; a connected wallet that did not
