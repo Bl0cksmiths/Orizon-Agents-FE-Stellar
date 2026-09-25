@@ -333,6 +333,42 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
     ).toBeTruthy();
   });
 
+  // The caption is the line a reviewer reads first on a recording, and it
+  // was a constant: "what you received" sat over an upheld dispute's empty
+  // refund row, which is a statement of settlement nothing had made.
+  it.each<DisputeStatus>(["upheld", "crediting"])(
+    "%s: never captions an unconfirmed refund as money received",
+    (status) => {
+      renderReceipt(receipt(status));
+      const refund = artifactRow(/^Refund transfer/);
+      expect(refund.textContent).toContain("what is owed to you");
+      expect(refund.textContent).not.toContain("what you received");
+    },
+  );
+
+  it("captions a credited dispute's unrecorded refund as still owed", () => {
+    renderReceipt(receipt("credited", UNRECONCILED));
+    const refund = artifactRow(/^Refund transfer/);
+    expect(refund.textContent).toContain("what is owed to you");
+    expect(refund.textContent).not.toContain("what you received");
+  });
+
+  it("never captions an unconfirmed rating as a cost already paid", () => {
+    renderReceipt(
+      receipt("credited", { rating: { txHash: RATING_TX, state: "pending" } }),
+    );
+    const rating = artifactRow(/^Dispute rating/);
+    expect(rating.textContent).toContain("what it will cost the agent");
+    expect(rating.textContent).not.toContain("what it cost the agent");
+  });
+
+  it("speaks of the payer, not to them, in an unconfirmed caption", () => {
+    renderReceipt(receipt("upheld", { reason: null }), { viewer: "other" });
+    const refund = artifactRow(/^Refund transfer/);
+    expect(refund.textContent).toContain("what is owed to the payer");
+    expect(refund.textContent).not.toMatch(/\byou\b/i);
+  });
+
   it("never shows a pending transaction with the confirmed mark", () => {
     renderReceipt(receipt("crediting"));
     const refund = artifactRow(/^Refund transfer/);
