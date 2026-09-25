@@ -33,6 +33,9 @@ import {
 
 const HOUR_S = 60 * 60;
 
+/** The receipt's own re-read cadence while a dispute is merely open. */
+const ADJUDICATION_POLL_MS = 30_000;
+
 const [briefStep, codeStep, failedStep] = mockSettlementSteps;
 
 /** The one read the receipt is drawn from. */
@@ -578,6 +581,72 @@ test.describe("dispute action on the trace / receipt view", () => {
   // is evidence and must not blank — so the banner sat above a fully drawn
   // receipt saying it was unavailable. The words have to follow what is
   // actually there.
+  // A poll can be answered by a backend older than the one that served the
+  // receipt — a rollback, or a proxy in front of two versions — and the panel
+  // hides on an answer with no settlement. Taking the section away while the
+  // form is open unmounts it mid-signature with no `onClose`, leaving the
+  // wallet prompt standing over a page that has forgotten it asked.
+  test("an older answer arriving mid-dispute does not take the form away", async ({
+    page,
+  }) => {
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    const settledAtS = Math.floor(start / 1000) - HOUR_S;
+    let legacy = false;
+
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({ settledAtS }),
+        // One dispute still open, so the receipt is polled at all.
+        disputes: [
+          mockDispute(briefStep, {
+            openedAtS: settledAtS + 60,
+            reason: "the outline misses half of the brief",
+          }),
+        ],
+        clock: () => page.evaluate(() => Date.now()),
+      },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            async (route) =>
+              legacy
+                ? route.fulfill({
+                    status: 200,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                      task_id: mockDisputeTaskId,
+                      window_closes_at: settledAtS + DISPUTE_WINDOW_S,
+                      disputes: [],
+                    }),
+                  })
+                : route.fallback(),
+          );
+        },
+      },
+    );
+
+    const form = await openDialog(page, codeStep.agent_id);
+    const reason = "the calculator app does not compute anything";
+    await form.getByRole("textbox", { name: /your reason/i }).fill(reason);
+
+    // The backend goes back a version under the open form.
+    legacy = true;
+    await page.clock.runFor(ADJUDICATION_POLL_MS + 1_000);
+
+    await expect(dialog(page)).toBeVisible();
+    await expect(
+      form.getByRole("textbox", { name: /your reason/i }),
+    ).toHaveValue(reason);
+
+    // And the buyer's own way out still works, the receipt going with it.
+    await form.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(receipt(page)).toHaveCount(0);
+  });
+
   test("a failed re-read dates the receipt it is printed above, not denies it", async ({
     page,
   }) => {

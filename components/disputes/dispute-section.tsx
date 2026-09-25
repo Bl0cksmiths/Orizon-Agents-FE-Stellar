@@ -285,7 +285,13 @@ export const DisputeSection = memo(function DisputeSection({
   if (loading) return <ReceiptSkeleton />;
   // An older backend answers without a settlement, and nothing is drawn: not
   // an empty box, which would still take a gap in the page's stack.
-  if (view.kind === "hidden" && !error) return null;
+  //
+  // An OPEN dialog holds the section up regardless. A poll can be answered by
+  // a backend older than the one that served the receipt — a rollback, or a
+  // proxy in front of two versions — and hiding the panel then would unmount
+  // the form mid-signature without `onClose` ever firing: the wallet prompt
+  // left standing over a page that no longer knows it asked for anything.
+  if (view.kind === "hidden" && !error && target === null) return null;
 
   // A flex gap, not `space-y`: the dialog is a child here, and space-y's
   // sibling margin outranks the `mt-auto` that seats it as a bottom sheet on
