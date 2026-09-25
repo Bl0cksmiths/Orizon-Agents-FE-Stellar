@@ -675,12 +675,16 @@ test.describe("dispute receipt while the page stays open", () => {
         refund_tx: null,
       }),
     ]);
+    // A beat, not a repaint, is what says this read landed: the badge does
+    // not move, which is the whole point of the case.
     await page.clock.runFor(ACTIVE_POLL_MS);
+    await networkBeat(page);
     await expect(row).toContainText("Refund in progress");
     expect(reads.count()).toBe(loaded + 1);
 
     // Still waiting on the chain, so it is still read for.
     await page.clock.runFor(ACTIVE_POLL_MS);
+    await networkBeat(page);
     expect(reads.count()).toBe(loaded + 2);
 
     // The transfer lands, with the hash that proves it and a rating the
