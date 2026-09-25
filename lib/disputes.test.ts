@@ -624,8 +624,20 @@ describe("serverClockOffsetMs", () => {
     expect(serverClockOffsetMs(res, 1_000_000_000)).toBe(0);
   });
 
-  it("is 0 when the arrival time is not a number", () => {
+  it("is 0 when the send time is not a number", () => {
     expect(serverClockOffsetMs(taskDisputes(), Number.NaN)).toBe(0);
+  });
+
+  it("is measured from the request, so the exchange is never counted as time left", () => {
+    // A 45 s answer whose `now` was stamped as the request reached the
+    // server. Measured on ARRIVAL this reads −45 s, putting the panel's clock
+    // three quarters of a minute in the past and offering disputes the server
+    // has already refused; measured from the request it is the 0 it should be.
+    const sentAtMs = 1_000_000_000;
+    const res = taskDisputes({ now: sentAtMs / 1_000 });
+
+    expect(serverClockOffsetMs(res, sentAtMs)).toBe(0);
+    expect(serverClockOffsetMs(res, sentAtMs + 45_000)).toBe(-45_000);
   });
 });
 

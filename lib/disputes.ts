@@ -346,24 +346,35 @@ export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
 // ── the window's clock ──────────────────────────────────────────
 
 /**
- * How far the server's clock runs ahead of this browser's, in ms, measured
- * from a response's `now` at the moment it arrived: add it to `Date.now()` to
- * read the server's clock.
+ * How far the server's clock runs ahead of this browser's, in ms: add it to
+ * `Date.now()` to read the server's clock.
  *
  * The window closes on the server's clock — that is where the refusal comes
  * from — and a laptop whose clock is a few minutes off would otherwise offer a
  * dispute the server has already stopped taking, or hide one it still would.
- * The half round-trip the answer spent in flight is not corrected for: it is
- * well under the panel's one-second tick.
+ *
+ * Measured against the moment the request was SENT, not the moment its answer
+ * arrived. The server stamped `now` somewhere inside that exchange and the
+ * client cannot tell where, so every offset in
+ * `[now - receivedAt, now - sentAt]` is consistent with what came back. This
+ * takes the top of that range: the latest the server's clock could be, so the
+ * panel understates the window by at most one round trip and never overstates
+ * it by any. Nothing is lost by closing a 24-hour window a minute early;
+ * offering a button the server has stopped honouring costs the buyer a wallet
+ * signature and answers it with `dispute_window_closed`.
+ *
+ * Measuring on arrival instead charged the whole exchange the other way, and
+ * the exchange is not small: `GET_TIMEOUT_MS` is a minute precisely because
+ * the backend cold-starts in 30-60 s on Render's free tier.
  *
  * 0 — trust the local clock — when the backend predates `now`.
  */
 export function serverClockOffsetMs(
   res: TaskDisputes,
-  receivedAtMs: number,
+  sentAtMs: number,
 ): number {
-  if (!isNum(res.now) || !isNum(receivedAtMs)) return 0;
-  return Math.round(res.now * 1_000 - receivedAtMs);
+  if (!isNum(res.now) || !isNum(sentAtMs)) return 0;
+  return Math.round(res.now * 1_000 - sentAtMs);
 }
 
 // ── the panel, derived ──────────────────────────────────────────

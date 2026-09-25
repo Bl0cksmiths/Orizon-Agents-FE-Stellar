@@ -188,6 +188,9 @@ export function useDisputePanel(
             ? { ...s, error: null }
             : s,
       );
+      // Taken before the request leaves: the offset is measured against it,
+      // so a slow exchange can only ever understate the window.
+      const sentAtMs = Date.now();
       let res: TaskDisputes;
       try {
         res = await getTaskDisputes(id);
@@ -207,15 +210,15 @@ export function useDisputePanel(
         // late must not clear it while a newer one is still out.
         if (epochRef.current === epoch) inFlightRef.current = false;
       }
-      // Measured before anything else runs: the offset is only as good as
-      // the moment it is taken.
+      // Measured before anything else runs: the clock restarts here, and it
+      // is only as good as the moment it is taken.
       const receivedAtMs = Date.now();
       if (!isLatest()) return;
       setState({
         taskId: id,
         snapshot: {
           res,
-          offsetMs: serverClockOffsetMs(res, receivedAtMs),
+          offsetMs: serverClockOffsetMs(res, sentAtMs),
           doneAtRequest,
         },
         error: null,

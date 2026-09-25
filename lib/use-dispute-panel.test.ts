@@ -455,9 +455,37 @@ describe("useDisputePanel — the server's clock", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("measures the offset when the answer arrives, not when it was asked for", async () => {
-    // A cold backend: the answer takes 45 s, and the server's now is stamped
-    // when it leaves. Judged against the mount-time clock it would be 45 s off.
+  it("never offers a dispute the server has already stopped taking, however slow the read", async () => {
+    // Both clocks agree. The window closes 30 s from now, the server stamps
+    // its `now` as the request reaches it, and the answer takes 45 s to come
+    // back — so by the time it is on screen the server has been refusing
+    // disputes for 15 s. An offset measured against the ARRIVAL puts the
+    // panel's clock back at the stamp and offers the button anyway; the buyer
+    // signs and is told `dispute_window_closed`.
+    const d = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(d.promise);
+    const { result } = mount();
+
+    await advance(45 * S);
+    await land(d, {
+      ...answer(0),
+      now: T0 / 1_000,
+      settlement: settlement(T0 + 30 * S),
+    });
+
+    expect(settledOf(result.current.view).window.open).toBe(false);
+    expect(stateKinds(result.current.view)).toEqual([
+      "window_closed",
+      "window_closed",
+    ]);
+  });
+
+  it("charges the whole round trip to the window, never to the buyer", async () => {
+    // The other extreme: a cold backend that took 45 s to wake and stamped
+    // its `now` on the way out. The exchange could have been spent on either
+    // leg and the client cannot tell, so the panel assumes the latest server
+    // clock the answer allows — understating the window by at most the round
+    // trip, which no buyer loses a dispute to, rather than overstating it.
     const d = deferred<TaskDisputes>();
     fetchDisputes.mockReturnValueOnce(d.promise);
     const { result } = mount();
@@ -469,7 +497,9 @@ describe("useDisputePanel — the server's clock", () => {
       now: leavesAtMs / 1_000,
       settlement: settlement(leavesAtMs + 2 * H),
     });
-    expect(settledOf(result.current.view).window.remainingMs).toBe(2 * H);
+    expect(settledOf(result.current.view).window.remainingMs).toBe(
+      2 * H - 45 * S,
+    );
   });
 });
 
@@ -1003,13 +1033,17 @@ describe("useDisputePanel — the poll and the countdown", () => {
     await advance(FINAL_HOUR_TICK_MS);
     expect(remaining(result.current.view)).toBe(10 * M - 31 * S);
 
+    // The poll spent a second in flight, and the window is charged for it:
+    // the offset is measured from the request, so the countdown steps to
+    // where the server's clock could already be rather than where its answer
+    // says it was.
     await land(
       poll,
       answer(10 * M - 31 * S, { skewMs: 31 * S, disputes: [dsp(1, "open")] }),
     );
-    expect(remaining(result.current.view)).toBe(10 * M - 31 * S);
-    await advance(FINAL_HOUR_TICK_MS);
     expect(remaining(result.current.view)).toBe(10 * M - 32 * S);
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(remaining(result.current.view)).toBe(10 * M - 33 * S);
     // One countdown, one poll — never a second of either.
     expect(vi.getTimerCount()).toBe(2);
   });
