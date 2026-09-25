@@ -593,6 +593,29 @@ describe("DisputeDialog — submitting", () => {
     await act(async () => opened.resolve(DISPUTE));
   });
 
+  // A registered name that is present but EMPTY passed the nullish check at
+  // both sites: the form read "Step 2 · ," and the confirmation "Step 2 ()
+  // is now under review." — a blank where the agent should be, in the record
+  // of a consequential action.
+  it.each(["", "   "])(
+    "falls back to the agent id when the name is %o",
+    async (agent_name) => {
+      raiseThen();
+      renderDialog({ step: { ...STEP, agent_name } });
+
+      // The form's step line names the agent by its id rather than leaving
+      // the space where a name would be blank.
+      expect(screen.getByText(STEP.agent_id)).toBeTruthy();
+
+      await submitWith();
+
+      expect(dialog().textContent).toContain(
+        `Step 2 (${STEP.agent_id}) is now under review.`,
+      );
+      expect(dialog().textContent).not.toContain("()");
+    },
+  );
+
   it("names any stored status in the buyer's words, never the wire's", async () => {
     // The backend answers `open` today. It need not always: a record that
     // came back already crediting would have printed the wire word at a

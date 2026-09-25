@@ -28,6 +28,7 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import {
   MAX_DISPUTE_REASON_CHARS,
+  agentLabel,
   disputeErrorCode,
   formatCreditShare,
   formatUsdc,
@@ -336,8 +337,12 @@ function DisputeRaised({
         dispute raised
       </Badge>
       <p className="text-sm leading-relaxed text-text">
-        Step {stepNumber(step)} ({step.agent_name ?? step.agent_id}) is now
-        under review. If the platform upholds your dispute,{" "}
+        {/* `agentLabel`, not `agent_name ?? agent_id`: a registered name that
+            is present but empty passed the nullish check and printed "Step 2
+            () is now under review." — an empty parenthesis in the record of a
+            consequential action. */}
+        Step {stepNumber(step)} ({agentLabel(step)}) is now under review. If the
+        platform upholds your dispute,{" "}
         <span className="font-mono text-cyan">
           {formatUsdc(dispute.creditable_usdc)}
         </span>{" "}
@@ -723,7 +728,7 @@ function DisputeForm({
                 </span>
                 <span className="sr-only">, </span>
                 <span className="break-all font-semibold text-text">
-                  {step.agent_name ?? step.agent_id}
+                  {agentLabel(step)}
                 </span>
               </p>
               {step.output_summary ? (

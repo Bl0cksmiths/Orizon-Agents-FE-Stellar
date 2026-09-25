@@ -19,7 +19,7 @@ import { KVRow } from "@/components/ui/kv-row";
 import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { formatCreditShare, formatUsdc } from "@/lib/disputes";
+import { agentLabel, formatCreditShare, formatUsdc } from "@/lib/disputes";
 import type {
   CreditPolicy,
   DisputePanelView,
@@ -330,11 +330,6 @@ function CreditTerms({ policy }: { policy: CreditPolicy }) {
 /** `step_index` counts from 0, as the backend enumerates the plan. */
 function stepNumber(step: SettlementStepView): number {
   return step.step_index + 1;
-}
-
-/** The agent's name, or its id when it registered none. */
-function agentLabel(step: SettlementStepView): string {
-  return step.agent_name?.trim() || step.agent_id;
 }
 
 /**
