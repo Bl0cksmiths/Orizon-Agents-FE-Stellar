@@ -223,6 +223,9 @@ export function useDisputePanel(
   // fresh as the one it would ask for, and a second read would supersede it —
   // turning a `refresh()` into one that resolves before its answer is shown.
   const inFlightRef = useRef(false);
+  // When the last read was ASKED FOR — what a rate limiter counts, and what
+  // the poll's cadence is measured from when a hidden tab comes back.
+  const lastReadAtMs = useRef(0);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -234,6 +237,7 @@ export function useDisputePanel(
   const load = useCallback(
     async (id: string, doneAtRequest: boolean): Promise<void> => {
       const epoch = ++epochRef.current;
+      lastReadAtMs.current = Date.now();
       // Whether this task already has an answer on screen, read before the
       // state below is touched: it decides what a 404 means (see
       // `noReceiptRoute`).
@@ -402,8 +406,13 @@ export function useDisputePanel(
   //
   // Paused while the tab is hidden: nobody is watching, and a background tab
   // left on a receipt should not poll the backend for hours. Coming back is
-  // the moment the view is most likely stale, so it re-reads at once rather
-  // than waiting out an interval, and the cadence resumes from that answer.
+  // the moment the view is most likely stale, so it re-reads as soon as the
+  // cadence allows and resumes from that answer — but no sooner. The cadence
+  // runs whether the tab was hidden or not, because a return that always read
+  // at once made every alt-tab a request: six cycles in sixty milliseconds
+  // were seven reads against a thirty-second cadence, which is how a perfectly
+  // good receipt ends up under a rate-limited banner. A return inside the
+  // interval arms what is left of it instead.
   const pollMs = disputePollMs(
     snapshot === null
       ? null
@@ -424,12 +433,17 @@ export function useDisputePanel(
       if (!inFlightRef.current) void load(id, doneRef.current);
     };
     const hidden = () => document.visibilityState === "hidden";
+    /** What is left of the cadence since the last read, never negative. */
+    const dueInMs = () =>
+      Math.max(0, pollMs - (Date.now() - lastReadAtMs.current));
     const onVisibilityChange = () => {
       if (hidden()) {
         clearTimeout(timer);
         timer = undefined;
       } else if (timer === undefined) {
-        poll();
+        const leftMs = dueInMs();
+        if (leftMs === 0) poll();
+        else timer = setTimeout(poll, leftMs);
       }
     };
     if (!hidden()) timer = setTimeout(poll, pollMs);

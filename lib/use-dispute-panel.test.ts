@@ -1368,6 +1368,41 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(3);
   });
 
+  it("does not re-read on every return to the tab", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+
+    // Six hide/show cycles in 60 ms. Unthrottled that is seven reads against
+    // a documented thirty-second cadence: enough to trip the rate limiter on
+    // a free-tier backend and banner "receipt unavailable" over a receipt
+    // that was perfectly good.
+    for (let i = 0; i < 6; i += 1) {
+      setVisibility("hidden");
+      await advance(5);
+      setVisibility("visible");
+      await advance(5);
+    }
+
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits out the rest of the cadence on return, not a whole new interval", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    await advance(20 * S);
+
+    setVisibility("hidden");
+    await advance(5 * S);
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    // Twenty-five seconds of the thirty are spent, so five are left — not
+    // thirty, which would punish the buyer for having looked away.
+    nextRead();
+    await advance(5 * S - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
   it("does not re-read early when the tab was never hidden", async () => {
     await mountWith(closedWith(dsp(1, "open")));
     await advance(10 * S);
