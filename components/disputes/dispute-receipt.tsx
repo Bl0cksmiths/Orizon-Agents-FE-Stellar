@@ -267,9 +267,9 @@ function nextStep(
     case "crediting": {
       // `refund_tx` is nullable on a crediting record: the platform can be
       // holding the payout before it has a transaction to show for it. The
-      // row underneath reads "Being sent" in exactly that case, so claiming a
-      // submission here would contradict it two lines later — and point the
-      // buyer at an explorer with nothing to look up.
+      // row underneath reads "No transaction on record" in exactly that case,
+      // so claiming a submission here would contradict it two lines later —
+      // and point the buyer at an explorer with nothing to look up.
       const reconciled = `if it cannot be confirmed, the platform reconciles it by hand — ${voice.who} will not be paid twice, and will not be skipped.`;
       return view.refund.txHash
         ? `The refund was submitted and is waiting for confirmation on Stellar; ${reconciled}`
@@ -493,6 +493,13 @@ function ArtifactRow({
  *
  * Pending borrows nothing from confirmed — no ✓, no cyan — so no frame of a
  * recording can pass a transaction in flight off as a landed one.
+ *
+ * Pending with no hash says only what the record holds. It read "Being sent",
+ * which on an upheld dispute — decided, never submitted — asserted a transfer
+ * under way that nobody had attempted; and the mark is the short line a
+ * reviewer reads off a screen recording, so it outranked every careful
+ * sentence above it. A buyer who reads it and nothing else goes to Stellar
+ * Expert for a transaction that does not exist.
  */
 function ArtifactMark({ artifact }: { artifact: DisputeArtifact }) {
   if (artifact.state === "confirmed") {
@@ -509,7 +516,9 @@ function ArtifactMark({ artifact }: { artifact: DisputeArtifact }) {
         aria-hidden="true"
         className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-violet shadow-[0_0_8px_#B026FF] motion-reduce:animate-none"
       />
-      {artifact.txHash ? "Submitted, waiting for confirmation" : "Being sent"}
+      {artifact.txHash
+        ? "Submitted, waiting for confirmation"
+        : "No transaction on record"}
     </p>
   );
 }

@@ -222,8 +222,8 @@ describe("DisputeReceipt — what happens next", () => {
     expect(text()).toContain(
       "The refund is being sent and has no transaction on record yet; if it cannot be confirmed, the platform reconciles it by hand — you will not be paid twice, and will not be skipped.",
     );
-    // The row beneath says "Being sent" — which is to say not submitted. The
-    // sentence above it must not say the opposite.
+    // The row beneath says "No transaction on record". The sentence above it
+    // must not say the opposite.
     expect(text()).not.toContain("was submitted");
     expect(txHrefs()).toHaveLength(0);
   });
@@ -413,10 +413,15 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
     ]);
   });
 
-  it("says a refund with no hash yet is being sent, and links nothing", () => {
+  // The mark is the short line a reviewer reads off a screen recording, so
+  // it outranks every careful sentence above it: "Being sent" over an upheld
+  // dispute asserted a transfer nobody had attempted, and sent a buyer to
+  // Stellar Expert for a transaction that does not exist.
+  it("says a refund with no hash has no transaction on record, and links nothing", () => {
     renderReceipt(receipt("upheld"));
     const refund = artifactRow(/^Refund transfer/);
-    expect(refund.textContent).toContain("Being sent");
+    expect(refund.textContent).toContain("No transaction on record");
+    expect(refund.textContent).not.toMatch(/being sent|submitted/i);
     expect(refund.textContent).not.toMatch(/confirmed/i);
     expect(refund.textContent).not.toContain("✓");
     expect(txHrefs()).toHaveLength(0);
@@ -425,7 +430,8 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
   it("draws a credited dispute's unrecorded refund as pending, not done", () => {
     renderReceipt(receipt("credited", UNRECONCILED));
     const refund = artifactRow(/^Refund transfer/);
-    expect(refund.textContent).toContain("Being sent");
+    expect(refund.textContent).toContain("No transaction on record");
+    expect(refund.textContent).not.toMatch(/being sent|submitted/i);
     expect(refund.textContent).not.toMatch(/confirmed/i);
     expect(refund.textContent).not.toContain("✓");
     expect(screen.queryByRole("link", { name: /refund/i })).toBeNull();
