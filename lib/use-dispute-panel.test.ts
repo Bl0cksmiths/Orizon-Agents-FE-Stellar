@@ -248,8 +248,14 @@ describe("disputeTickMs", () => {
 });
 
 describe("disputePollMs", () => {
+  // A credited dispute carries the hash that proves its transfer: the status
+  // alone was never what made a receipt final.
   const withStatuses = (...statuses: DisputeStatus[]) =>
-    answer(H, { disputes: statuses.map((s, i) => dsp(i, s)) });
+    answer(H, {
+      disputes: statuses.map((s, i) =>
+        dsp(i, s, s === "credited" ? { refund_tx: `tx_${i}` } : {}),
+      ),
+    });
 
   /** The cadence for an answer, on a task whose run has sealed and whose
    * settlement — when it has one — arrived with the first read. */
@@ -312,6 +318,59 @@ describe("disputePollMs", () => {
       expect(pollFor(withStatuses(...statuses))).toBe(ADJUDICATION_POLL_MS);
     },
   );
+
+  it("re-reads a credited dispute whose refund has not landed", () => {
+    // `credited` was treated as final, but a record with no transfer on it is
+    // one the receipt itself calls pending — the copy is hedged, the badge
+    // reads "Refund in progress", and nothing was ever going to re-read it.
+    expect(
+      pollFor(
+        answer(H, { disputes: [dsp(0, "credited", { refund_tx: null })] }),
+      ),
+    ).toBe(CREDIT_POLL_MS);
+  });
+
+  it("re-reads a credited dispute whose backend has withdrawn its word", () => {
+    expect(
+      pollFor(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", { refund_tx: "tx_0", refund_confirmed: false }),
+          ],
+        }),
+      ),
+    ).toBe(CREDIT_POLL_MS);
+  });
+
+  it("re-reads while a rating the backend calls unconfirmed is in flight", () => {
+    expect(
+      pollFor(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", {
+              refund_tx: "tx_0",
+              rating_tx: "tx_rating",
+              rating_confirmed: false,
+            }),
+          ],
+        }),
+      ),
+    ).toBe(CREDIT_POLL_MS);
+  });
+
+  it("stops for a rating an older backend cannot confirm either way", () => {
+    // Absent is "this backend cannot say", and it never becomes a yes: a poll
+    // waiting on it would run for the life of the tab.
+    expect(
+      pollFor(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", { refund_tx: "tx_0", rating_tx: "tx_rating" }),
+          ],
+        }),
+      ),
+    ).toBeNull();
+  });
 
   it.each(
     mixes(
@@ -1042,7 +1101,12 @@ describe("useDisputePanel — live updates", () => {
 
   it.each([
     ["no dispute", []],
-    ["only final disputes", [dsp(0, "credited"), dsp(1, "rejected")]],
+    [
+      "only settled receipts",
+      // Credited WITH the transfer that proves it: nothing here is waiting on
+      // the chain, which is what makes a receipt final.
+      [dsp(0, "credited", { refund_tx: "tx_0" }), dsp(1, "rejected")],
+    ],
   ])("never polls a task with %s", async (_, disputes) => {
     await mountWith(closedWith(...disputes));
 
@@ -1084,6 +1148,32 @@ describe("useDisputePanel — live updates", () => {
     await land(poll, closedWith(dsp(1, "upheld")));
     expect(result.current.error).toBeNull();
     expect(receiptOf(result.current.view).status).toBe("upheld");
+  });
+
+  it("goes on reading a credited receipt whose refund has not landed", async () => {
+    // The only unresolved states the hook never polled: the copy says the
+    // transfer is pending and nothing was ever going to ask again, so the
+    // receipt could not resolve without a reload.
+    const { result } = await mountWith(
+      closedWith(dsp(1, "credited", { refund_tx: null })),
+    );
+    expect(receiptOf(result.current.view).refund.state).toBe("pending");
+
+    fetchDisputes.mockResolvedValue(
+      closedWith(dsp(1, "credited", { refund_tx: null })),
+    );
+    for (let i = 0; i < 3; i += 1) await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(4);
+
+    const landed = nextRead();
+    await advance(CREDIT_POLL_MS);
+    await land(landed, closedWith(dsp(1, "credited", { refund_tx: "tx_r" })));
+    expect(receiptOf(result.current.view).refund.state).toBe("confirmed");
+
+    // Nothing is waiting on the chain now, so nothing reads again.
+    const spent = fetchDisputes.mock.calls.length;
+    for (let i = 0; i < 3; i += 1) await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
   });
 
   it("keeps a live receipt when one re-read 404s, and goes on polling", async () => {

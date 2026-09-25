@@ -549,6 +549,30 @@ function ratingArtifact(d: Dispute): DisputeArtifact {
 }
 
 /**
+ * Whether this dispute's receipt is still waiting on the chain — something
+ * that will change on its own, without the buyer touching anything.
+ *
+ * The question the poll must ask, and it is NOT the raw status. `credited`
+ * and `rejected` read as final, but `refundArtifact` calls `credited` without
+ * a transfer pending, and a backend can withdraw its word on one outright:
+ * exactly the receipts whose copy is hedged and waiting, and the only
+ * unresolved ones nothing ever re-read. They could not resolve without a
+ * reload.
+ *
+ * A rating counts only when the backend says `rating_confirmed: false` — it
+ * is in flight, and the answer is coming. ABSENT or null is a backend that
+ * cannot say, which never becomes a yes: polling on it would re-read every
+ * five seconds for the life of the tab and never stop.
+ */
+export function receiptAwaitsChain(dispute: Dispute): boolean {
+  if (refundArtifact(dispute).state === "pending") return true;
+  return (
+    dispute.rating_confirmed === false &&
+    ratingArtifact(dispute).state === "pending"
+  );
+}
+
+/**
  * Everything the receipt says about one dispute, for this viewer, under this
  * policy: status, when it was raised and last changed, the amount and who
  * funds it, the refund and the rating each with how far the record vouches

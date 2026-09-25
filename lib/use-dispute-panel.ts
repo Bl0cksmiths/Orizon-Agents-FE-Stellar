@@ -31,7 +31,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "./api";
-import { disputeView, getTaskDisputes, serverClockOffsetMs } from "./disputes";
+import {
+  disputeView,
+  getTaskDisputes,
+  receiptAwaitsChain,
+  serverClockOffsetMs,
+} from "./disputes";
 import type { DisputePanelView, TaskDisputes } from "./types";
 import { toMessage } from "./use-async-action";
 import { useWallet } from "./wallet";
@@ -95,10 +100,14 @@ export type DisputePollState = {
  * it was raised in while the dispute moved underneath it.
  *
  * Only an unresolved dispute can change on its own, so only one keeps a poll
- * alive: `CREDIT_POLL_MS` while any is `upheld` or `crediting`, else
- * `ADJUDICATION_POLL_MS` while any is `open`. `credited` and `rejected` are
- * final, so a task whose disputes are all one or the other — or that has none
- * — is not polled at all.
+ * alive: `CREDIT_POLL_MS` while any receipt is still waiting on the chain,
+ * else `ADJUDICATION_POLL_MS` while any dispute is `open`. A task whose
+ * receipts have all settled — or that has no dispute at all — is not polled.
+ *
+ * Judged on `receiptAwaitsChain`, not on the raw status: a `credited` record
+ * with no transfer on it is one the receipt itself draws as pending, and
+ * treating the status as final left exactly those receipts unable to resolve
+ * without a reload.
  *
  * A SEALED run with no settlement is the one other case that must be asked
  * again, for `SETTLEMENT_WAIT_MS` at `SETTLEMENT_POLL_MS`. The settlement is
@@ -122,9 +131,9 @@ export function disputePollMs(state: DisputePollState | null): number | null {
     return state.awaitedMs < SETTLEMENT_WAIT_MS ? SETTLEMENT_POLL_MS : null;
   }
   let ms: number | null = null;
-  for (const { status } of res.disputes) {
-    if (status === "upheld" || status === "crediting") return CREDIT_POLL_MS;
-    if (status === "open") ms = ADJUDICATION_POLL_MS;
+  for (const dispute of res.disputes) {
+    if (receiptAwaitsChain(dispute)) return CREDIT_POLL_MS;
+    if (dispute.status === "open") ms = ADJUDICATION_POLL_MS;
   }
   return ms;
 }
