@@ -308,6 +308,7 @@ describe("getTaskDisputes", () => {
           updated_at: null,
           rating_confirmed: null,
           rejection_reason: null,
+          refund_confirmed: null,
         }),
       ],
     });
@@ -387,6 +388,10 @@ describe("getTaskDisputes", () => {
       { ...dispute(0), rating_confirmed: "false" },
     ],
     ["a rating confirmation sent as 1", { ...dispute(0), rating_confirmed: 1 }],
+    [
+      "a refund confirmation of the truthy string 'false'",
+      { ...dispute(0), refund_confirmed: "false" },
+    ],
     [
       "a rejection reason that is not a string",
       { ...dispute(0), rejection_reason: 42 },
@@ -1209,6 +1214,58 @@ describe("disputeReceipt", () => {
         state: "pending",
       });
     });
+
+    it("believes a backend that says the transfer is not confirmed yet", () => {
+      // The money artifact was the one held to the weaker rule: a hash alone
+      // read as confirmed, and that was the sole gate on the final amount and
+      // on the green "Refunded" badge. A backend that CAN tell the difference
+      // is believed when it says no.
+      const r = receipt({
+        status: "credited",
+        refund_tx: "tx_refund",
+        refund_confirmed: false,
+        credited_usdc: 0.004,
+      });
+
+      expect(r.refund).toEqual({ txHash: "tx_refund", state: "pending" });
+      expect(r.amount).toEqual({ usdc: 0.005, final: false });
+      expect(receiptBadgeStatus(r)).toBe("crediting");
+    });
+
+    it("confirms a credit the backend vouches for outright", () => {
+      const r = receipt({
+        status: "credited",
+        refund_tx: "tx_refund",
+        refund_confirmed: true,
+        credited_usdc: 0.004,
+      });
+
+      expect(r.refund).toEqual({ txHash: "tx_refund", state: "confirmed" });
+      expect(r.amount).toEqual({ usdc: 0.004, final: true });
+    });
+
+    it.each([
+      ["absent", {}],
+      ["null", { refund_confirmed: null }],
+    ])(
+      "keeps trusting a credited hash when the field is %s — that backend cannot tell",
+      (_, over) => {
+        // Today's backend sends no `refund_confirmed` at all. Reading absent
+        // as "not confirmed" would show every real refund as unconfirmed for
+        // ever. The invariant this leans on is the backend's own: `credited`
+        // is written only after the transfer has landed, and `refund_tx` is
+        // written with it. An explicit `false` is the only way to say no.
+        const r = receipt({
+          status: "credited",
+          refund_tx: "tx_refund",
+          credited_usdc: 0.004,
+          ...over,
+        });
+
+        expect(r.refund).toEqual({ txHash: "tx_refund", state: "confirmed" });
+        expect(r.amount).toEqual({ usdc: 0.004, final: true });
+      },
+    );
   });
 
   describe("the rating", () => {

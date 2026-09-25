@@ -228,7 +228,8 @@ function isDisputeRow(v: unknown): v is UnjudgedDispute {
     isAbsentOr(v.credited_usdc, isNullableNum) &&
     isAbsentOr(v.updated_at, isNullableNum) &&
     isAbsentOr(v.rating_confirmed, isNullableBool) &&
-    isAbsentOr(v.rejection_reason, isNullableStr)
+    isAbsentOr(v.rejection_reason, isNullableStr) &&
+    isAbsentOr(v.refund_confirmed, isNullableBool)
   );
 }
 
@@ -483,7 +484,11 @@ function disputesByStep(
  *
  * - `credited` with its `refund_tx` is the one confirmed case: the backend
  *   writes `credited` only once the transfer has landed, alongside the hash
- *   that proves it.
+ *   that proves it — UNLESS it also sends `refund_confirmed: false`, which is
+ *   that same backend withdrawing the word. Absent is not a no: no backend
+ *   sends the field today, and reading absent as unconfirmed would leave
+ *   every real refund pending for ever. See `Dispute.refund_confirmed` for
+ *   the invariant the absent case rests on.
  * - `credited` WITHOUT a `refund_tx` is pending, with no hash — never
  *   confirmed. The backend's own operator tooling treats that record as
  *   unreconciled and refuses to write anything against it until the payer's
@@ -503,9 +508,12 @@ function refundArtifact(d: Dispute): DisputeArtifact {
   const txHash = d.refund_tx || null;
   switch (d.status) {
     case "credited":
-      return txHash
-        ? { txHash, state: "confirmed" }
-        : { txHash: null, state: "pending" };
+      if (txHash === null) return { txHash: null, state: "pending" };
+      // The hash stays linked either way: a transfer the buyer can watch is
+      // worth more than a blank, and `pending` says what it is worth.
+      return d.refund_confirmed === false
+        ? { txHash, state: "pending" }
+        : { txHash, state: "confirmed" };
     case "crediting":
       return { txHash, state: "pending" };
     case "upheld":
