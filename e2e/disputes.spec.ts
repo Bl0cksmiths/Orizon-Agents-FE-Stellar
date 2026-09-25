@@ -574,6 +574,60 @@ test.describe("dispute action on the trace / receipt view", () => {
     });
   }
 
+  // A re-read that fails keeps the receipt on screen on purpose — the trace
+  // is evidence and must not blank — so the banner sat above a fully drawn
+  // receipt saying it was unavailable. The words have to follow what is
+  // actually there.
+  test("a failed re-read dates the receipt it is printed above, not denies it", async ({
+    page,
+  }) => {
+    let failing = false;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            (route) =>
+              failing
+                ? route.fulfill({
+                    status: 503,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                      detail: "Service Unavailable",
+                      error: {
+                        code: "service_unavailable",
+                        message: "service unavailable",
+                        request_id: "e2e0000000000503",
+                      },
+                    }),
+                  })
+                : route.fallback(),
+          );
+        },
+      },
+    );
+    await expect(receipt(page)).toBeVisible();
+
+    // Raising a dispute re-reads the receipt; that read is the one that fails.
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    failing = true;
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await expect(form).toContainText("dispute raised");
+    await form.getByRole("button", { name: "Done" }).click();
+
+    const alert = page.locator("main").getByRole("alert");
+    await expect(alert).toContainText("this receipt may be out of date");
+    await expect(alert).not.toContainText("receipt unavailable");
+    // And it is: the receipt below the banner is still drawn in full.
+    await expect(receipt(page)).toBeVisible();
+    await expect(disputeButtons(page)).toHaveCount(2);
+  });
+
   test("a failed receipt read says so with a retry, and never blocks the trace", async ({
     page,
   }) => {

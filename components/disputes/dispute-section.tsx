@@ -301,7 +301,13 @@ export const DisputeSection = memo(function DisputeSection({
           retrying={retrying}
           retryLabel="↻ retry"
         >
-          ⚠ receipt unavailable — {error}
+          {/* A failed re-read deliberately KEEPS the receipt on screen, so
+              "unavailable" would be printed directly above a fully drawn one.
+              The words follow what is actually there: nothing to show, or
+              something that may have moved since it was read. */}
+          {view.kind === "hidden"
+            ? `⚠ receipt unavailable — ${error}`
+            : `⚠ this receipt may be out of date — ${error}`}
         </ErrorNote>
       )}
       <ReceiptPanel
