@@ -115,6 +115,52 @@ function SectionLabel({
 /** Within this many characters of the cap the counter starts to speak. */
 const COUNTER_WARN_AT = 25;
 
+/**
+ * The counts the EAR is told about. The visible counter stays live on every
+ * keystroke — that is for the eye, which can ignore it — but a live region
+ * rewritten on every keystroke inside the warn zone reads twenty-five counts
+ * over a screen-reader user's own echo, while they compose the very words the
+ * platform will judge them on. Three landmarks say the same thing.
+ */
+const COUNTER_SPEAKS_AT = [0, 10, COUNTER_WARN_AT] as const;
+
+/**
+ * The landmark `remaining` has reached, or null while it is above them all.
+ * ASCENDING order matters: the first one the count is at or under is the
+ * nearest it has crossed, and a descending list would answer 25 all the way
+ * to the cap and announce once for the whole zone.
+ */
+function counterThreshold(remaining: number): number | null {
+  return COUNTER_SPEAKS_AT.find((at) => remaining <= at) ?? null;
+}
+
+/**
+ * What the counter says out loud: written only when `remaining` crosses into
+ * a new landmark, and cleared once it climbs back above all of them, so the
+ * zone can be entered again and announced again.
+ *
+ * The sentence carries the REAL count, not the landmark, so a paste that
+ * drops it from 40 to 6 is announced as 6. Derived during render, as the
+ * receipt's status announcement is, so the words land in the same commit as
+ * the count they describe.
+ */
+function useCounterAnnouncement(remaining: number): string {
+  const threshold = counterThreshold(remaining);
+  const [spoken, setSpoken] = useState(threshold);
+  const [notice, setNotice] = useState("");
+  if (threshold !== spoken) {
+    setSpoken(threshold);
+    setNotice(
+      threshold === null
+        ? ""
+        : remaining === 0
+          ? "Character limit reached."
+          : `${remaining} character${remaining === 1 ? "" : "s"} left.`,
+    );
+  }
+  return notice;
+}
+
 /** Why an attempt failed, in the buyer's words, and what can follow it. */
 type Failure = {
   message: string;
@@ -413,6 +459,7 @@ function DisputeForm({
   // Counted exactly as `maxLength` counts (UTF-16 units), so the counter and
   // the field's own limit can never disagree about what fits.
   const remaining = MAX_DISPUTE_REASON_CHARS - reason.length;
+  const countdownNotice = useCounterAnnouncement(remaining);
 
   const busy = state.kind === "signing" || state.kind === "submitting";
   const finished =
@@ -765,14 +812,11 @@ function DisputeForm({
                 {reason.length} / {MAX_DISPUTE_REASON_CHARS} characters
                 {remaining === 0 && " · limit reached"}
               </p>
-              {/* Silent until the cap is close: a count read out on every
-                  keystroke would drown the buyer's own typing. */}
+              {/* Silent until the cap is close, and then only at the
+                  landmarks: a count read out on every keystroke would drown
+                  the buyer's own typing. */}
               <p className="sr-only" aria-live="polite">
-                {remaining === 0
-                  ? "Character limit reached."
-                  : remaining <= COUNTER_WARN_AT
-                    ? `${remaining} characters left.`
-                    : ""}
+                {countdownNotice}
               </p>
             </section>
 

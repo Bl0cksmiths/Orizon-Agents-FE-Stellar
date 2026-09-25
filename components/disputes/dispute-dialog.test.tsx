@@ -410,6 +410,54 @@ describe("DisputeDialog — the reason", () => {
     expect(live()).toBe("20 characters left.");
   });
 
+  it("speaks at the landmarks, not on every keystroke", () => {
+    renderDialog();
+    const live = () =>
+      dialog().querySelector('[aria-live="polite"]:not([role])')?.textContent ??
+      "";
+
+    // Typed one character at a time, all the way through the warn zone to
+    // the cap: the visible counter changes thirty-one times, the ear hears
+    // three sentences.
+    const said: string[] = [];
+    let last = live();
+    for (let length = 470; length <= 500; length += 1) {
+      typeReason("a".repeat(length));
+      const now = live();
+      if (now !== last && now !== "") said.push(now);
+      last = now;
+    }
+
+    expect(said).toEqual([
+      "25 characters left.",
+      "10 characters left.",
+      "Character limit reached.",
+    ]);
+  });
+
+  it("goes quiet when the buyer deletes back out of the zone", () => {
+    renderDialog();
+    const live = () =>
+      dialog().querySelector('[aria-live="polite"]:not([role])')?.textContent ??
+      "";
+
+    typeReason("a".repeat(480));
+    expect(live()).toBe("20 characters left.");
+    typeReason("a".repeat(400));
+    expect(live()).toBe("");
+    // And the zone can be re-entered and announced again.
+    typeReason("a".repeat(490));
+    expect(live()).toBe("10 characters left.");
+  });
+
+  it("counts the last character in the singular", () => {
+    renderDialog();
+    typeReason("a".repeat(499));
+    expect(
+      dialog().querySelector('[aria-live="polite"]:not([role])')?.textContent,
+    ).toBe("1 character left.");
+  });
+
   it("says when the limit is reached", () => {
     renderDialog();
 
