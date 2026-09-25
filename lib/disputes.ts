@@ -875,11 +875,25 @@ export function formatRemaining(ms: number): string {
  * own precision — which matters here: a credit of half a 0.005 step is 0.0025,
  * and a fixed three places would round the buyer's refund up to 0.003, a
  * figure the backend computed precisely so the UI would never re-derive it.
- * A value that is not a number prints as a dash, never "NaN USDC".
+ *
+ * FLOORED to the stroop, not rounded. Every figure here is money that has
+ * moved or that the platform is about to move, and the chain moves whole
+ * stroops: rounding half up printed a tenth of a millionth of a dollar that
+ * no transfer could carry, which on a receipt is a promise. The nudge before
+ * the floor is for binary floating point alone — 0.29 * 10_000_000 is
+ * 2899999.9999999995 — and is a thousandth of a stroop, far below anything
+ * the chain can express, so it restores the figure without inventing one.
+ *
+ * A value that is not a number prints as a dash, never "NaN USDC", and so
+ * does a NEGATIVE one: nothing upstream rejects a backend sign error, and a
+ * minus sign beside "Refunded" tells the buyer they owe the platform money.
+ * A dash says what is true — the figure cannot be stated — where a clamp to
+ * zero would state one the record does not support.
  */
 export function formatUsdc(n: number): string {
-  if (!Number.isFinite(n)) return "—";
-  return formatSettled(Math.round(n * STROOPS_PER_UNIT), "USDC");
+  if (!Number.isFinite(n) || n < 0) return "—";
+  const stroops = Math.floor(Number((n * STROOPS_PER_UNIT).toFixed(3)));
+  return formatSettled(stroops, "USDC");
 }
 
 /**

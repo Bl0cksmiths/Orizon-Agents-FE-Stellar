@@ -1807,9 +1807,40 @@ describe("formatUsdc", () => {
     [0.0025, "0.0025 USDC"],
     [1, "1.0 USDC"],
     [0, "0.0 USDC"],
-    [1.23456789, "1.2345679 USDC"],
+    // Floored at the stroop: a figure the chain cannot move is not one the
+    // receipt may print.
+    [1.23456789, "1.2345678 USDC"],
   ])("prints %d as %s", (n, label) => {
     expect(formatUsdc(n)).toBe(label);
+  });
+
+  it("never prints a stroop more than the chain can move", () => {
+    // Half a stroop rounded UP promised a tenth of a millionth of a dollar
+    // that no transfer can carry.
+    expect(formatUsdc(0.00000005)).toBe("0.0 USDC");
+    expect(formatUsdc(0.00000015)).toBe("0.0000001 USDC");
+    expect(formatUsdc(0.0000001)).toBe("0.0000001 USDC");
+  });
+
+  it("floors without letting binary noise eat a whole stroop", () => {
+    // 0.29 * 10_000_000 is 2899999.9999999995 in binary floating point; a
+    // bare floor would print 0.2899999.
+    expect(formatUsdc(0.29)).toBe("0.29 USDC");
+    expect(formatUsdc(0.07)).toBe("0.07 USDC");
+    expect(formatUsdc(8.22)).toBe("8.22 USDC");
+  });
+
+  it.each([-0.005, -1, -0.0000001])(
+    "prints %d as a dash: a negative refund is not a figure the receipt can state",
+    (n) => {
+      // Nothing rejects a negative credited amount upstream, and a minus sign
+      // beside "Refunded" says the buyer paid the platform back.
+      expect(formatUsdc(n)).toBe("—");
+    },
+  );
+
+  it("prints a negative zero as nothing, not as a minus", () => {
+    expect(formatUsdc(-0)).toBe("0.0 USDC");
   });
 
   it("does not round a fractional credit up to three places", () => {
