@@ -407,6 +407,69 @@ test.describe("dispute action on the trace / receipt view", () => {
     expect(next.inReceipt).toBe(true);
   });
 
+  // The press that opens the wallet prompt used to disable the button under
+  // the buyer's finger. A browser blurs a control the moment it is disabled,
+  // so for the whole round trip — half a minute and more on a real wallet —
+  // `activeElement` was <body>, with Escape correctly vetoed: no position in
+  // the dialog and no way out of it.
+  test("keeps focus on the submit button for the whole signing round trip", async ({
+    page,
+  }) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // Holds the sequence open where a real wallet prompt would hold it.
+        routes: async (p) => {
+          await p.route("**/api/disputes/challenge", async (route) => {
+            await held;
+            await route.fallback();
+          });
+        },
+      },
+    );
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    const signing = form.getByRole("button", { name: /signing/i });
+    await expect(signing).toBeVisible();
+    const parked = await page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? "",
+      label: (document.activeElement?.textContent ?? "").trim(),
+    }));
+    expect(parked.tag).toBe("BUTTON");
+    expect(parked.label).toContain("Signing");
+    // Marked unavailable rather than disabled: that is what keeps it focused.
+    await expect(signing).toHaveAttribute("aria-disabled", "true");
+
+    // The veto still holds — which is precisely why the focus position is the
+    // only bearing the buyer has while this runs.
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toHaveCount(1);
+
+    // And one press is still one request, whatever the button allows.
+    const posts: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        new URL(request.url()).pathname === "/api/disputes"
+      ) {
+        posts.push(request.url());
+      }
+    });
+    await signing.click({ force: true });
+    await page.keyboard.press("Control+Enter");
+
+    release();
+    await expect(form).toContainText("dispute raised");
+    expect(posts).toHaveLength(1);
+  });
+
   test("a step disputed from another tab resolves to that dispute, not an error", async ({
     page,
   }) => {

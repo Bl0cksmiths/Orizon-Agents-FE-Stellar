@@ -600,12 +600,22 @@ function DisputeForm({
               >
                 Cancel
               </Button>
+              {/* While the sequence runs the button is MARKED unavailable,
+                  not disabled: a browser blurs a control the moment it is
+                  disabled, and this press opens a wallet prompt that can sit
+                  open for half a minute with Escape correctly vetoed — which
+                  left a keyboard user on <body>, with no position in the
+                  dialog and no way out of it. Nothing is weakened by keeping
+                  it pressable: `submit()` refuses while `canSubmit` is false,
+                  and the `inFlight` ref refuses what a re-render could not
+                  catch in time. */}
               <Button
                 ref={primaryRef}
                 type="submit"
                 form={ids.form}
-                disabled={!canSubmit}
-                className="flex-1 sm:flex-none"
+                disabled={!canSubmit && !busy}
+                aria-disabled={busy || undefined}
+                className="flex-1 aria-disabled:opacity-50 sm:flex-none"
               >
                 {busy && <span aria-hidden>◉</span>}
                 {state.kind === "signing"
