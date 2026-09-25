@@ -138,6 +138,13 @@ export function disputePollMs(state: DisputePollState | null): number | null {
  * backend older than story 4.02), or task-read enforcement is on and this
  * session holds no token for a trace it was sent. Neither is something the
  * viewer can act on, and neither may banner an error across every trace.
+ *
+ * Only ever used for a FIRST read of a task. A route that answered once
+ * exists, so a later 404 is a blip — a redeploy, a proxy — not a backend
+ * that predates receipts, and standing in this stub for a receipt already on
+ * screen would erase it: the view would go `hidden`, `error` would be null so
+ * nothing explained it, and the poll would never re-arm, because a stub with
+ * no settlement is not polled.
  */
 function noReceiptRoute(taskId: string): TaskDisputes {
   return { task_id: taskId, window_closes_at: null, disputes: [] };
@@ -218,6 +225,11 @@ export function useDisputePanel(
   const load = useCallback(
     async (id: string, doneAtRequest: boolean): Promise<void> => {
       const epoch = ++epochRef.current;
+      // Whether this task already has an answer on screen, read before the
+      // state below is touched: it decides what a 404 means (see
+      // `noReceiptRoute`).
+      const held = stateRef.current;
+      const firstRead = held.taskId !== id || held.snapshot === null;
       inFlightRef.current = true;
       const isLatest = () =>
         mountedRef.current &&
@@ -241,7 +253,7 @@ export function useDisputePanel(
         res = await getTaskDisputes(id);
       } catch (err) {
         if (!isLatest()) return;
-        if (err instanceof ApiError && err.status === 404) {
+        if (err instanceof ApiError && err.status === 404 && firstRead) {
           res = noReceiptRoute(id);
         } else {
           // Whatever is on screen stays: it is this task's (the epoch says no

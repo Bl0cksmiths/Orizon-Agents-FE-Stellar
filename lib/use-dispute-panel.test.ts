@@ -1086,6 +1086,47 @@ describe("useDisputePanel — live updates", () => {
     expect(receiptOf(result.current.view).status).toBe("upheld");
   });
 
+  it("keeps a live receipt when one re-read 404s, and goes on polling", async () => {
+    // One Render redeploy blip mid-poll used to replace the held answer with
+    // a settlement-less stub: the section rendered null, `error` was null so
+    // nothing explained it, and the poll never re-armed — the whole receipt
+    // gone, silently, while the buyer watched a credit land.
+    const { result } = await mountWith(closedWith(dsp(1, "crediting")));
+    const onScreen = result.current.view;
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    await advance(CREDIT_POLL_MS);
+
+    expect(result.current.view).toBe(onScreen);
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 404");
+
+    const poll = nextRead();
+    await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    await land(poll, closedWith(dsp(1, "credited", { refund_tx: "tx_r" })));
+    expect(result.current.error).toBeNull();
+    expect(receiptOf(result.current.view).status).toBe("credited");
+  });
+
+  it("keeps the receipt when the refresh after a submit 404s", async () => {
+    // The buyer opens a dispute and the panel vanishes with no message: they
+    // cannot tell whether it was recorded.
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    const onScreen = result.current.view;
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(result.current.view).toBe(onScreen);
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 404");
+  });
+
   it("skips a poll that falls due while a refresh is out, and re-arms from the refresh's answer", async () => {
     const { result } = await mountWith(closedWith(dsp(1, "open")));
     await advance(ADJUDICATION_POLL_MS - S);
