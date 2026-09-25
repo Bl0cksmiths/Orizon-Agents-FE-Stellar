@@ -982,6 +982,40 @@ describe("useDisputePanel — the run finishing", () => {
     });
   });
 
+  it("does not double the read when the run finishes mid-fetch", async () => {
+    // The finish lands while the FIRST read is still out — and that is the
+    // slowest read there is, the cold one a first visit waits a minute for.
+    // A second request doubles it for nothing: the answer already coming is
+    // at least as fresh as the one it would ask for.
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount({ workflowDone: false });
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    rerender({ ...DEFAULTS, workflowDone: true });
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    // The seal is not lost with the request: the answer arrives after it, so
+    // an empty settlement is one worth waiting on rather than one to declare.
+    fetchDisputes.mockResolvedValue(answer(H, { settlement: null }));
+    await land(first, answer(H, { settlement: null }));
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads again when the run finishes after an answer has landed", async () => {
+    // The ordinary case, and the one the skip above must not swallow.
+    const { rerender } = await mountWith(answer(H, { settlement: null }), {
+      workflowDone: false,
+    });
+
+    nextRead();
+    rerender({ ...DEFAULTS, workflowDone: true });
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
   it("does not refetch on the finish once a settlement is already held", async () => {
     const { result, rerender } = await mountWith(answer(23 * H), {
       workflowDone: false,

@@ -226,6 +226,12 @@ export function useDisputePanel(
   // When the last read was ASKED FOR — what a rate limiter counts, and what
   // the poll's cadence is measured from when a hidden tab comes back.
   const lastReadAtMs = useRef(0);
+  // Whether the run sealed while the read now in flight was out. That read
+  // was asked for before the seal, but its answer arrives after it, and the
+  // seal is what makes an empty settlement worth waiting on rather than one
+  // to declare — so the answer inherits it instead of the seal costing a
+  // second request.
+  const sealedInFlightRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -238,6 +244,7 @@ export function useDisputePanel(
     async (id: string, doneAtRequest: boolean): Promise<void> => {
       const epoch = ++epochRef.current;
       lastReadAtMs.current = Date.now();
+      sealedInFlightRef.current = false;
       // Whether this task already has an answer on screen, read before the
       // state below is touched: it decides what a 404 means (see
       // `noReceiptRoute`).
@@ -292,18 +299,19 @@ export function useDisputePanel(
       // is only as good as the moment it is taken.
       const receivedAtMs = Date.now();
       if (!isLatest()) return;
+      const sealed = doneAtRequest || sealedInFlightRef.current;
       setState((s) => {
         const held = s.taskId === id ? s.snapshot : null;
         // A sealed run whose settlement has not appeared: the wait starts at
         // the first such answer and is carried by every one after it, so a
         // run of re-reads cannot extend its own deadline.
-        const awaiting = doneAtRequest && res.settlement === null;
+        const awaiting = sealed && res.settlement === null;
         return {
           taskId: id,
           snapshot: {
             res,
             offsetMs: serverClockOffsetMs(res, sentAtMs),
-            doneAtRequest,
+            doneAtRequest: sealed,
             awaitingSinceMs: awaiting
               ? (held?.awaitingSinceMs ?? receivedAtMs)
               : null,
@@ -332,6 +340,14 @@ export function useDisputePanel(
     const held = stateRef.current;
     const settled = held.taskId === target && held.snapshot?.res.settlement;
     if (!retargeted && settled) return;
+    // A read for this task is already out, and it is the slowest one there
+    // is — the cold first visit that waits a minute. Its answer is at least
+    // as fresh as anything asked for now, so the seal is recorded against it
+    // rather than spent on a second request that supersedes the first.
+    if (!retargeted && inFlightRef.current) {
+      sealedInFlightRef.current = workflowDone;
+      return;
+    }
     void load(target, workflowDone);
   }, [target, workflowDone, load]);
 
