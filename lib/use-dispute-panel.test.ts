@@ -1402,6 +1402,39 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(3);
   });
 
+  it("stops the countdown in a hidden tab and catches it up on return", async () => {
+    // The poll paused here and the tick did not: a backgrounded receipt woke
+    // the page once a second, all night, to repaint a countdown nobody could
+    // see.
+    const { result } = await mountWith(answer(10 * M));
+    const left = () => settledOf(result.current.view).window.remainingMs;
+    expect(left()).toBe(10 * M);
+
+    setVisibility("hidden");
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(2 * M);
+    expect(left()).toBe(10 * M);
+
+    // Back, and right at once rather than a tick later.
+    setVisibility("visible");
+    expect(left()).toBe(8 * M);
+    expect(vi.getTimerCount()).toBe(1);
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(left()).toBe(8 * M - S);
+  });
+
+  it("does not skip the countdown forward on a glance away", async () => {
+    const { result } = await mountWith(answer(10 * M));
+    const left = () => settledOf(result.current.view).window.remainingMs;
+
+    for (let i = 0; i < 6; i += 1) {
+      setVisibility("hidden");
+      setVisibility("visible");
+    }
+
+    expect(left()).toBe(10 * M);
+  });
+
   it("does not re-read on every return to the tab", async () => {
     await mountWith(closedWith(dsp(1, "open")));
 

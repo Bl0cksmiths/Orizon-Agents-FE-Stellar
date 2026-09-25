@@ -392,16 +392,44 @@ export function useDisputePanel(
 
   // `clockMs` is a dependency only to re-arm: each tick moves the clock, and
   // the clock moving schedules the next tick.
+  //
+  // Paused while the tab is hidden, for the poll's reason: in the final hour
+  // this fires every second, and a backgrounded receipt woke the page all
+  // night to repaint a countdown nobody could see. Coming back re-reads the
+  // clock at once rather than a tick later, so the number is never stale on
+  // the frame the buyer sees it.
   const tickMs = disputeTickMs(view);
   useEffect(() => {
     if (tickMs === null) return;
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const hidden = () => document.visibilityState === "hidden";
+    const tick = () => {
+      timer = undefined;
       // Never behind the scheduled moment, even if the timer fires a hair
       // early: an unchanged clock would not re-render, and the countdown
       // would stall one tick short of the close.
       setClockMs((prev) => Math.max(Date.now(), prev + tickMs));
-    }, tickMs);
-    return () => clearTimeout(timer);
+    };
+    const arm = () => {
+      if (!hidden() && timer === undefined) timer = setTimeout(tick, tickMs);
+    };
+    const onVisibilityChange = () => {
+      if (hidden()) {
+        clearTimeout(timer);
+        timer = undefined;
+        return;
+      }
+      // The clock as it really is, never a tick added: a glance away and
+      // back is not a second gone, and six of them are not six.
+      setClockMs((prev) => Math.max(Date.now(), prev));
+      arm();
+    };
+    arm();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [tickMs, clockMs]);
 
   // The live receipt (story 4.06): re-read on `disputePollMs`'s cadence while
