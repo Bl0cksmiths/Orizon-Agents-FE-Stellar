@@ -29,6 +29,8 @@ import {
   COARSE_TICK_MS,
   CREDIT_POLL_MS,
   FINAL_HOUR_TICK_MS,
+  SETTLEMENT_POLL_MS,
+  SETTLEMENT_WAIT_MS,
   disputePollMs,
   disputeTickMs,
   useDisputePanel,
@@ -249,22 +251,41 @@ describe("disputePollMs", () => {
   const withStatuses = (...statuses: DisputeStatus[]) =>
     answer(H, { disputes: statuses.map((s, i) => dsp(i, s)) });
 
+  /** The cadence for an answer, on a task whose run has sealed and whose
+   * settlement — when it has one — arrived with the first read. */
+  const pollFor = (
+    res: TaskDisputes | null,
+    over: Partial<{ doneAtRequest: boolean; awaitedMs: number }> = {},
+  ) =>
+    disputePollMs(
+      res === null ? null : { res, doneAtRequest: true, awaitedMs: 0, ...over },
+    );
+
   it("keeps the two cadences where the story sets them", () => {
     expect(ADJUDICATION_POLL_MS).toBe(30 * S);
     expect(CREDIT_POLL_MS).toBe(5 * S);
   });
 
   it("polls nothing without an answer, or with no dispute on the task", () => {
-    expect(disputePollMs(null)).toBeNull();
-    expect(disputePollMs(withStatuses())).toBeNull();
+    expect(pollFor(null)).toBeNull();
+    expect(pollFor(withStatuses())).toBeNull();
   });
 
-  it("polls nothing for a panel that draws no receipt, whatever is unresolved", () => {
+  it("polls nothing for a backend that predates the settlement field", () => {
     const { settlement: _omitted, ...legacy } = withStatuses("open");
-    expect(disputePollMs(legacy)).toBeNull();
-    expect(
-      disputePollMs({ ...withStatuses("crediting"), settlement: null }),
-    ).toBeNull();
+    expect(pollFor(legacy)).toBeNull();
+  });
+
+  it("asks a sealed run for its missing settlement, and only until the wait is spent", () => {
+    const unsettled = { ...withStatuses("crediting"), settlement: null };
+
+    expect(pollFor(unsettled)).toBe(SETTLEMENT_POLL_MS);
+    expect(pollFor(unsettled, { awaitedMs: SETTLEMENT_WAIT_MS - 1 })).toBe(
+      SETTLEMENT_POLL_MS,
+    );
+    expect(pollFor(unsettled, { awaitedMs: SETTLEMENT_WAIT_MS })).toBeNull();
+    // Still running: the seal's own refetch is what asks next.
+    expect(pollFor(unsettled, { doneAtRequest: false })).toBeNull();
   });
 
   /** One case per status mix, labelled with the whole mix. */
@@ -274,7 +295,7 @@ describe("disputePollMs", () => {
   it.each(mixes(["credited"], ["rejected"], ["credited", "rejected"]))(
     "stops once every dispute is final: $mix",
     ({ statuses }) => {
-      expect(disputePollMs(withStatuses(...statuses))).toBeNull();
+      expect(pollFor(withStatuses(...statuses))).toBeNull();
     },
   );
 
@@ -288,9 +309,7 @@ describe("disputePollMs", () => {
   )(
     "re-reads every 30 s while the only unresolved disputes are open: $mix",
     ({ statuses }) => {
-      expect(disputePollMs(withStatuses(...statuses))).toBe(
-        ADJUDICATION_POLL_MS,
-      );
+      expect(pollFor(withStatuses(...statuses))).toBe(ADJUDICATION_POLL_MS);
     },
   );
 
@@ -305,7 +324,7 @@ describe("disputePollMs", () => {
   )(
     "re-reads every 5 s while any credit is decided or in flight: $mix",
     ({ statuses }) => {
-      expect(disputePollMs(withStatuses(...statuses))).toBe(CREDIT_POLL_MS);
+      expect(pollFor(withStatuses(...statuses))).toBe(CREDIT_POLL_MS);
     },
   );
 });
@@ -424,6 +443,115 @@ describe("useDisputePanel — who is looking", () => {
       "disputable",
       "disputable",
     ]);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useDisputePanel — waiting for a settlement", () => {
+  /** The seal has fired, and the settlement row is not there yet. */
+  const unsettled = (over: Partial<TaskDisputes> = {}) => ({
+    ...answer(2 * H),
+    settlement: null,
+    ...over,
+  });
+
+  /** How many re-reads the bounded wait is worth. */
+  const TRIES = SETTLEMENT_WAIT_MS / SETTLEMENT_POLL_MS;
+
+  it("keeps the wait short and bounded", () => {
+    expect(SETTLEMENT_POLL_MS).toBe(3 * S);
+    expect(SETTLEMENT_WAIT_MS).toBe(30 * S);
+  });
+
+  it("keeps asking for a settlement the seal says should exist", async () => {
+    // `workflowDone` comes from the trace SSE seal. A settlement row committed
+    // even 100 ms after that event answers this read with `settlement: null`,
+    // and nothing else would ever ask again: the fetch effect's deps do not
+    // change, and neither cadence covered an unsettled answer. The buyer was
+    // told, as a fact, that their paid workflow charged nothing — with no
+    // error, so not even the retry control was drawn.
+    const { result } = await mountWith(unsettled());
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    fetchDisputes.mockResolvedValue(answer(2 * H));
+    await advance(SETTLEMENT_POLL_MS);
+
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("never says nothing was charged while it is still looking", async () => {
+    // That one sentence closes the buyer's only route to a refund. It is not
+    // said on a first answer, and not while a re-read might still disprove it.
+    const { result } = await mountWith(unsettled());
+    fetchDisputes.mockResolvedValue(unsettled());
+
+    for (let i = 0; i < TRIES; i += 1) {
+      expect(result.current.view).toEqual({
+        kind: "not_settled",
+        running: true,
+      });
+      await advance(SETTLEMENT_POLL_MS);
+    }
+
+    expect(result.current.view).toEqual({
+      kind: "not_settled",
+      running: false,
+    });
+  });
+
+  it("gives up in the end rather than polling a settlement that is never coming", async () => {
+    await mountWith(unsettled());
+    fetchDisputes.mockResolvedValue(unsettled());
+
+    for (let i = 0; i < TRIES; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1 + TRIES);
+    expect(vi.getTimerCount()).toBe(0);
+
+    for (let i = 0; i < 20; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1 + TRIES);
+  });
+
+  it("stops the moment the settlement lands, mid-wait", async () => {
+    const { result } = await mountWith(unsettled());
+    fetchDisputes.mockResolvedValue(unsettled());
+
+    await advance(SETTLEMENT_POLL_MS);
+    fetchDisputes.mockResolvedValue(answer(2 * H));
+    await advance(SETTLEMENT_POLL_MS);
+
+    expect(result.current.view.kind).toBe("settled");
+    const spent = fetchDisputes.mock.calls.length;
+    for (let i = 0; i < TRIES; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("does not let a failing backend hold the wait open for ever", async () => {
+    // The snapshot is kept on error, so nothing about the answer changes and
+    // the deadline has to be judged on the clock rather than on what landed.
+    await mountWith(unsettled());
+    fetchDisputes.mockRejectedValue(new Error("Failed to fetch"));
+
+    for (let i = 0; i < TRIES + 5; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes.mock.calls.length).toBeLessThanOrEqual(1 + TRIES);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("asks nothing extra while the run is still going", async () => {
+    // Not finished: the seal itself will fetch, so a poll would only double
+    // every read of a live run.
+    await mountWith(unsettled(), { workflowDone: false });
+
+    for (let i = 0; i < TRIES; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks nothing of a backend that predates the settlement field", async () => {
+    const { settlement: _omitted, ...legacy } = unsettled();
+    const { result } = await mountWith(legacy);
+
+    for (let i = 0; i < TRIES; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(result.current.view).toEqual({ kind: "hidden" });
     expect(fetchDisputes).toHaveBeenCalledTimes(1);
   });
 });
@@ -773,15 +901,22 @@ describe("useDisputePanel — the run finishing", () => {
     expect(result.current.view.kind).toBe("settled");
   });
 
-  it("says nothing was charged once a post-finish answer still has no settlement", async () => {
+  it("says nothing was charged only once the post-finish answers stop changing", async () => {
     const { result, rerender } = await mountWith(
       answer(H, { settlement: null }),
       { workflowDone: false },
     );
 
-    fetchDisputes.mockResolvedValueOnce(answer(H, { settlement: null }));
+    fetchDisputes.mockResolvedValue(answer(H, { settlement: null }));
     rerender({ ...DEFAULTS, workflowDone: true });
     await act(async () => {});
+    // The settlement is written AFTER the seal that flipped this flag, so the
+    // first answer past it proves nothing.
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    for (let i = 0; i < SETTLEMENT_WAIT_MS / SETTLEMENT_POLL_MS; i += 1) {
+      await advance(SETTLEMENT_POLL_MS);
+    }
     expect(result.current.view).toEqual({
       kind: "not_settled",
       running: false,

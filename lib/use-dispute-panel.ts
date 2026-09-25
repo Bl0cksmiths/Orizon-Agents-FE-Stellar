@@ -66,6 +66,28 @@ export const ADJUDICATION_POLL_MS = 30_000;
  * in seconds, and the buyer is watching for it. */
 export const CREDIT_POLL_MS = 5_000;
 
+/** Cadence while the settlement a sealed run should have has not appeared. */
+export const SETTLEMENT_POLL_MS = 3_000;
+/**
+ * How long a sealed run's settlement is waited for before the panel says
+ * nothing was charged.
+ *
+ * Long enough for a row committed just after the seal, and for the backend's
+ * own retry of a charge whose first attempt timed out; short enough that a
+ * workflow that really charged nothing is not left reading "still running"
+ * while the buyer waits for a receipt.
+ */
+export const SETTLEMENT_WAIT_MS = 30_000;
+
+/** What the poll is decided on: the last answer, whether the run had sealed
+ * when it was asked for, and how long a settlement has been waited for. */
+export type DisputePollState = {
+  res: TaskDisputes;
+  doneAtRequest: boolean;
+  /** Local ms since the panel first went looking for the settlement. */
+  awaitedMs: number;
+};
+
 /**
  * How long until the receipt should be re-read, or null for "never" (story
  * 4.06). Between raising a dispute and its credit landing, nothing the buyer
@@ -78,11 +100,27 @@ export const CREDIT_POLL_MS = 5_000;
  * final, so a task whose disputes are all one or the other — or that has none
  * — is not polled at all.
  *
- * Nor is an answer with no settlement: that panel draws no receipt, so there
- * is nothing on screen a re-read could change.
+ * A SEALED run with no settlement is the one other case that must be asked
+ * again, for `SETTLEMENT_WAIT_MS` at `SETTLEMENT_POLL_MS`. The settlement is
+ * written after the trace seals, and `workflowDone` is that seal: a row
+ * committed even 100 ms later answered this read `settlement: null`, and
+ * nothing ever asked again — the fetch effect's deps do not change, no
+ * cadence covered an unsettled answer, and the panel stated as fact that the
+ * buyer's paid workflow had charged nothing, with no `error` to draw a retry
+ * beside it. The twenty-four-hour window then expired in silence.
+ *
+ * An answer with no settlement KEY is a backend that predates receipts: the
+ * panel hides, and there is nothing to wait for. Nor is anything asked while
+ * the run is still going — the seal will fetch on its own.
  */
-export function disputePollMs(res: TaskDisputes | null): number | null {
-  if (!res?.settlement) return null;
+export function disputePollMs(state: DisputePollState | null): number | null {
+  if (state === null) return null;
+  const { res } = state;
+  if (res.settlement === undefined) return null;
+  if (res.settlement === null) {
+    if (!state.doneAtRequest) return null;
+    return state.awaitedMs < SETTLEMENT_WAIT_MS ? SETTLEMENT_POLL_MS : null;
+  }
   let ms: number | null = null;
   for (const { status } of res.disputes) {
     if (status === "upheld" || status === "crediting") return CREDIT_POLL_MS;
@@ -107,10 +145,17 @@ function noReceiptRoute(taskId: string): TaskDisputes {
 
 type Snapshot = {
   res: TaskDisputes;
-  /** Server clock minus local clock, measured when `res` arrived. */
+  /** Server clock minus local clock, measured when `res` was asked for. */
   offsetMs: number;
   /** Whether the run had finished when this answer was asked for. */
   doneAtRequest: boolean;
+  /**
+   * The local clock when the panel FIRST went looking for a settlement the
+   * seal says should exist, carried across the re-reads that look for it;
+   * null when it is not waiting for one. The bound is on the whole wait, not
+   * on each answer inside it.
+   */
+  awaitingSinceMs: number | null;
 };
 
 type FetchState = {
@@ -203,6 +248,14 @@ export function useDisputePanel(
           // other load has started since), and the error dates it.
           const error = toMessage(err);
           setState((s) => ({ ...s, error }));
+          // While the panel is waiting for a settlement, time passed whether
+          // or not the answer came: that wait is bounded on this clock, and a
+          // backend failing every read must not hold it open for ever. The
+          // clock is left alone otherwise, so a failed poll of a settled
+          // receipt leaves the view it dates untouched, object and all.
+          if ((stateRef.current.snapshot?.awaitingSinceMs ?? null) !== null) {
+            setClockMs((prev) => Math.max(prev, Date.now()));
+          }
           return;
         }
       } finally {
@@ -214,14 +267,24 @@ export function useDisputePanel(
       // is only as good as the moment it is taken.
       const receivedAtMs = Date.now();
       if (!isLatest()) return;
-      setState({
-        taskId: id,
-        snapshot: {
-          res,
-          offsetMs: serverClockOffsetMs(res, sentAtMs),
-          doneAtRequest,
-        },
-        error: null,
+      setState((s) => {
+        const held = s.taskId === id ? s.snapshot : null;
+        // A sealed run whose settlement has not appeared: the wait starts at
+        // the first such answer and is carried by every one after it, so a
+        // run of re-reads cannot extend its own deadline.
+        const awaiting = doneAtRequest && res.settlement === null;
+        return {
+          taskId: id,
+          snapshot: {
+            res,
+            offsetMs: serverClockOffsetMs(res, sentAtMs),
+            doneAtRequest,
+            awaitingSinceMs: awaiting
+              ? (held?.awaitingSinceMs ?? receivedAtMs)
+              : null,
+          },
+          error: null,
+        };
       });
       // The clock restarts at the arrival the offset was measured against,
       // so the first view of a fresh answer is judged on the right time even
@@ -258,6 +321,14 @@ export function useDisputePanel(
   const loading = target !== null && snapshot === null && !current?.error;
   const error = current?.error ?? null;
 
+  // How long a settlement the seal says should exist has been looked for, and
+  // whether the panel is still looking. Both are 0/false unless it is waiting.
+  const awaitingSinceMs = snapshot?.awaitingSinceMs ?? null;
+  const awaitedMs =
+    awaitingSinceMs === null ? 0 : Math.max(0, clockMs - awaitingSinceMs);
+  const stillLooking =
+    awaitingSinceMs !== null && awaitedMs < SETTLEMENT_WAIT_MS;
+
   const view = useMemo(
     () =>
       disputeView({
@@ -266,12 +337,16 @@ export function useDisputePanel(
         // An answer asked for while the run was still going cannot say that
         // nothing was charged — the settlement may be the next thing written.
         // Until the refetch the finish triggers lands, it still reads as
-        // running, so "nothing was charged" never flashes up in between.
-        workflowDone: workflowDone && (snapshot?.doneAtRequest ?? false),
+        // running, so "nothing was charged" never flashes up in between. Nor
+        // may it be said while the panel is still asking for the settlement:
+        // that sentence closes the buyer's only route to a refund, and it is
+        // said once the wait is spent or not at all.
+        workflowDone:
+          workflowDone && (snapshot?.doneAtRequest ?? false) && !stillLooking,
         nowMs: clockMs + (snapshot?.offsetMs ?? 0),
         demo,
       }),
-    [snapshot, address, workflowDone, clockMs, demo],
+    [snapshot, address, workflowDone, stillLooking, clockMs, demo],
   );
 
   // `clockMs` is a dependency only to re-arm: each tick moves the clock, and
@@ -308,7 +383,15 @@ export function useDisputePanel(
   // left on a receipt should not poll the backend for hours. Coming back is
   // the moment the view is most likely stale, so it re-reads at once rather
   // than waiting out an interval, and the cadence resumes from that answer.
-  const pollMs = disputePollMs(snapshot?.res ?? null);
+  const pollMs = disputePollMs(
+    snapshot === null
+      ? null
+      : {
+          res: snapshot.res,
+          doneAtRequest: snapshot.doneAtRequest,
+          awaitedMs,
+        },
+  );
   useEffect(() => {
     if (target === null || pollMs === null) return;
     const id = target;
