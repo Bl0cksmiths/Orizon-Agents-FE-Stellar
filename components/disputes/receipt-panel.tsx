@@ -118,6 +118,12 @@ function NotSettled({
  *
  * A hash the backend did not record is said to be missing rather than
  * dropped: a receipt with a row quietly absent looks complete when it is not.
+ *
+ * The link carries the row's own name. `StellarExpertLink`'s default text is
+ * the same for every link on the page, and three of them sit here — payer,
+ * charge, seal — so a screen reader's links list read "view on stellar.expert"
+ * three times over three different resources (WCAG 2.4.4). The dispute
+ * receipt already names its two; these are named on the same terms.
  */
 function TxRow({ label, hash }: { label: string; hash: string | null }) {
   return (
@@ -125,11 +131,10 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
       {hash ? (
         <>
           <span className="block break-all">{hash}</span>
-          <StellarExpertLink
-            kind="tx"
-            id={hash}
-            className="mt-1 inline-block"
-          />
+          <StellarExpertLink kind="tx" id={hash} className="mt-1 inline-block">
+            view {label} on stellar.expert
+            <span aria-hidden="true"> ▸</span>
+          </StellarExpertLink>
         </>
       ) : (
         <span className="text-muted">not recorded</span>
@@ -220,7 +225,10 @@ function SettledReceipt({
                 kind="account"
                 id={view.payer}
                 className="mt-1 inline-block"
-              />
+              >
+                view payer on stellar.expert
+                <span aria-hidden="true"> ▸</span>
+              </StellarExpertLink>
             </KVRow>
             <KVRow k="settled" value={formatLocalTime(view.settledAtMs)} />
             <TxRow label="charge" hash={view.chargeTx} />
