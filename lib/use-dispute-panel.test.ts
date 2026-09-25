@@ -29,6 +29,8 @@ import {
   COARSE_TICK_MS,
   CREDIT_POLL_MS,
   FINAL_HOUR_TICK_MS,
+  SETTLEMENT_POLL_MS,
+  SETTLEMENT_WAIT_MS,
   disputePollMs,
   disputeTickMs,
   useDisputePanel,
@@ -246,8 +248,24 @@ describe("disputeTickMs", () => {
 });
 
 describe("disputePollMs", () => {
+  // A credited dispute carries the hash that proves its transfer: the status
+  // alone was never what made a receipt final.
   const withStatuses = (...statuses: DisputeStatus[]) =>
-    answer(H, { disputes: statuses.map((s, i) => dsp(i, s)) });
+    answer(H, {
+      disputes: statuses.map((s, i) =>
+        dsp(i, s, s === "credited" ? { refund_tx: `tx_${i}` } : {}),
+      ),
+    });
+
+  /** The cadence for an answer, on a task whose run has sealed and whose
+   * settlement — when it has one — arrived with the first read. */
+  const pollFor = (
+    res: TaskDisputes | null,
+    over: Partial<{ doneAtRequest: boolean; awaitedMs: number }> = {},
+  ) =>
+    disputePollMs(
+      res === null ? null : { res, doneAtRequest: true, awaitedMs: 0, ...over },
+    );
 
   it("keeps the two cadences where the story sets them", () => {
     expect(ADJUDICATION_POLL_MS).toBe(30 * S);
@@ -255,16 +273,25 @@ describe("disputePollMs", () => {
   });
 
   it("polls nothing without an answer, or with no dispute on the task", () => {
-    expect(disputePollMs(null)).toBeNull();
-    expect(disputePollMs(withStatuses())).toBeNull();
+    expect(pollFor(null)).toBeNull();
+    expect(pollFor(withStatuses())).toBeNull();
   });
 
-  it("polls nothing for a panel that draws no receipt, whatever is unresolved", () => {
+  it("polls nothing for a backend that predates the settlement field", () => {
     const { settlement: _omitted, ...legacy } = withStatuses("open");
-    expect(disputePollMs(legacy)).toBeNull();
-    expect(
-      disputePollMs({ ...withStatuses("crediting"), settlement: null }),
-    ).toBeNull();
+    expect(pollFor(legacy)).toBeNull();
+  });
+
+  it("asks a sealed run for its missing settlement, and only until the wait is spent", () => {
+    const unsettled = { ...withStatuses("crediting"), settlement: null };
+
+    expect(pollFor(unsettled)).toBe(SETTLEMENT_POLL_MS);
+    expect(pollFor(unsettled, { awaitedMs: SETTLEMENT_WAIT_MS - 1 })).toBe(
+      SETTLEMENT_POLL_MS,
+    );
+    expect(pollFor(unsettled, { awaitedMs: SETTLEMENT_WAIT_MS })).toBeNull();
+    // Still running: the seal's own refetch is what asks next.
+    expect(pollFor(unsettled, { doneAtRequest: false })).toBeNull();
   });
 
   /** One case per status mix, labelled with the whole mix. */
@@ -274,7 +301,7 @@ describe("disputePollMs", () => {
   it.each(mixes(["credited"], ["rejected"], ["credited", "rejected"]))(
     "stops once every dispute is final: $mix",
     ({ statuses }) => {
-      expect(disputePollMs(withStatuses(...statuses))).toBeNull();
+      expect(pollFor(withStatuses(...statuses))).toBeNull();
     },
   );
 
@@ -288,11 +315,62 @@ describe("disputePollMs", () => {
   )(
     "re-reads every 30 s while the only unresolved disputes are open: $mix",
     ({ statuses }) => {
-      expect(disputePollMs(withStatuses(...statuses))).toBe(
-        ADJUDICATION_POLL_MS,
-      );
+      expect(pollFor(withStatuses(...statuses))).toBe(ADJUDICATION_POLL_MS);
     },
   );
+
+  it("re-reads a credited dispute whose refund has not landed", () => {
+    // `credited` was treated as final, but a record with no transfer on it is
+    // one the receipt itself calls pending — the copy is hedged, the badge
+    // reads "Refund in progress", and nothing was ever going to re-read it.
+    expect(
+      pollFor(
+        answer(H, { disputes: [dsp(0, "credited", { refund_tx: null })] }),
+      ),
+    ).toBe(CREDIT_POLL_MS);
+  });
+
+  it("re-reads a credited dispute whose backend has withdrawn its word", () => {
+    expect(
+      pollFor(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", { refund_tx: "tx_0", refund_confirmed: false }),
+          ],
+        }),
+      ),
+    ).toBe(CREDIT_POLL_MS);
+  });
+
+  it("re-reads while a rating the backend calls unconfirmed is in flight", () => {
+    expect(
+      pollFor(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", {
+              refund_tx: "tx_0",
+              rating_tx: "tx_rating",
+              rating_confirmed: false,
+            }),
+          ],
+        }),
+      ),
+    ).toBe(CREDIT_POLL_MS);
+  });
+
+  it("stops for a rating an older backend cannot confirm either way", () => {
+    // Absent is "this backend cannot say", and it never becomes a yes: a poll
+    // waiting on it would run for the life of the tab.
+    expect(
+      pollFor(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", { refund_tx: "tx_0", rating_tx: "tx_rating" }),
+          ],
+        }),
+      ),
+    ).toBeNull();
+  });
 
   it.each(
     mixes(
@@ -305,7 +383,7 @@ describe("disputePollMs", () => {
   )(
     "re-reads every 5 s while any credit is decided or in flight: $mix",
     ({ statuses }) => {
-      expect(disputePollMs(withStatuses(...statuses))).toBe(CREDIT_POLL_MS);
+      expect(pollFor(withStatuses(...statuses))).toBe(CREDIT_POLL_MS);
     },
   );
 });
@@ -428,6 +506,115 @@ describe("useDisputePanel — who is looking", () => {
   });
 });
 
+describe("useDisputePanel — waiting for a settlement", () => {
+  /** The seal has fired, and the settlement row is not there yet. */
+  const unsettled = (over: Partial<TaskDisputes> = {}) => ({
+    ...answer(2 * H),
+    settlement: null,
+    ...over,
+  });
+
+  /** How many re-reads the bounded wait is worth. */
+  const TRIES = SETTLEMENT_WAIT_MS / SETTLEMENT_POLL_MS;
+
+  it("keeps the wait short and bounded", () => {
+    expect(SETTLEMENT_POLL_MS).toBe(3 * S);
+    expect(SETTLEMENT_WAIT_MS).toBe(30 * S);
+  });
+
+  it("keeps asking for a settlement the seal says should exist", async () => {
+    // `workflowDone` comes from the trace SSE seal. A settlement row committed
+    // even 100 ms after that event answers this read with `settlement: null`,
+    // and nothing else would ever ask again: the fetch effect's deps do not
+    // change, and neither cadence covered an unsettled answer. The buyer was
+    // told, as a fact, that their paid workflow charged nothing — with no
+    // error, so not even the retry control was drawn.
+    const { result } = await mountWith(unsettled());
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    fetchDisputes.mockResolvedValue(answer(2 * H));
+    await advance(SETTLEMENT_POLL_MS);
+
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("never says nothing was charged while it is still looking", async () => {
+    // That one sentence closes the buyer's only route to a refund. It is not
+    // said on a first answer, and not while a re-read might still disprove it.
+    const { result } = await mountWith(unsettled());
+    fetchDisputes.mockResolvedValue(unsettled());
+
+    for (let i = 0; i < TRIES; i += 1) {
+      expect(result.current.view).toEqual({
+        kind: "not_settled",
+        running: true,
+      });
+      await advance(SETTLEMENT_POLL_MS);
+    }
+
+    expect(result.current.view).toEqual({
+      kind: "not_settled",
+      running: false,
+    });
+  });
+
+  it("gives up in the end rather than polling a settlement that is never coming", async () => {
+    await mountWith(unsettled());
+    fetchDisputes.mockResolvedValue(unsettled());
+
+    for (let i = 0; i < TRIES; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1 + TRIES);
+    expect(vi.getTimerCount()).toBe(0);
+
+    for (let i = 0; i < 20; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1 + TRIES);
+  });
+
+  it("stops the moment the settlement lands, mid-wait", async () => {
+    const { result } = await mountWith(unsettled());
+    fetchDisputes.mockResolvedValue(unsettled());
+
+    await advance(SETTLEMENT_POLL_MS);
+    fetchDisputes.mockResolvedValue(answer(2 * H));
+    await advance(SETTLEMENT_POLL_MS);
+
+    expect(result.current.view.kind).toBe("settled");
+    const spent = fetchDisputes.mock.calls.length;
+    for (let i = 0; i < TRIES; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("does not let a failing backend hold the wait open for ever", async () => {
+    // The snapshot is kept on error, so nothing about the answer changes and
+    // the deadline has to be judged on the clock rather than on what landed.
+    await mountWith(unsettled());
+    fetchDisputes.mockRejectedValue(new Error("Failed to fetch"));
+
+    for (let i = 0; i < TRIES + 5; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes.mock.calls.length).toBeLessThanOrEqual(1 + TRIES);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("asks nothing extra while the run is still going", async () => {
+    // Not finished: the seal itself will fetch, so a poll would only double
+    // every read of a live run.
+    await mountWith(unsettled(), { workflowDone: false });
+
+    for (let i = 0; i < TRIES; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks nothing of a backend that predates the settlement field", async () => {
+    const { settlement: _omitted, ...legacy } = unsettled();
+    const { result } = await mountWith(legacy);
+
+    for (let i = 0; i < TRIES; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(result.current.view).toEqual({ kind: "hidden" });
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("useDisputePanel — the server's clock", () => {
   it("judges the window on the server's clock when it runs ahead", async () => {
     // Server says 10 minutes later than this laptop does; the window closes
@@ -455,9 +642,37 @@ describe("useDisputePanel — the server's clock", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("measures the offset when the answer arrives, not when it was asked for", async () => {
-    // A cold backend: the answer takes 45 s, and the server's now is stamped
-    // when it leaves. Judged against the mount-time clock it would be 45 s off.
+  it("never offers a dispute the server has already stopped taking, however slow the read", async () => {
+    // Both clocks agree. The window closes 30 s from now, the server stamps
+    // its `now` as the request reaches it, and the answer takes 45 s to come
+    // back — so by the time it is on screen the server has been refusing
+    // disputes for 15 s. An offset measured against the ARRIVAL puts the
+    // panel's clock back at the stamp and offers the button anyway; the buyer
+    // signs and is told `dispute_window_closed`.
+    const d = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(d.promise);
+    const { result } = mount();
+
+    await advance(45 * S);
+    await land(d, {
+      ...answer(0),
+      now: T0 / 1_000,
+      settlement: settlement(T0 + 30 * S),
+    });
+
+    expect(settledOf(result.current.view).window.open).toBe(false);
+    expect(stateKinds(result.current.view)).toEqual([
+      "window_closed",
+      "window_closed",
+    ]);
+  });
+
+  it("charges the whole round trip to the window, never to the buyer", async () => {
+    // The other extreme: a cold backend that took 45 s to wake and stamped
+    // its `now` on the way out. The exchange could have been spent on either
+    // leg and the client cannot tell, so the panel assumes the latest server
+    // clock the answer allows — understating the window by at most the round
+    // trip, which no buyer loses a dispute to, rather than overstating it.
     const d = deferred<TaskDisputes>();
     fetchDisputes.mockReturnValueOnce(d.promise);
     const { result } = mount();
@@ -469,7 +684,9 @@ describe("useDisputePanel — the server's clock", () => {
       now: leavesAtMs / 1_000,
       settlement: settlement(leavesAtMs + 2 * H),
     });
-    expect(settledOf(result.current.view).window.remainingMs).toBe(2 * H);
+    expect(settledOf(result.current.view).window.remainingMs).toBe(
+      2 * H - 45 * S,
+    );
   });
 });
 
@@ -743,19 +960,60 @@ describe("useDisputePanel — the run finishing", () => {
     expect(result.current.view.kind).toBe("settled");
   });
 
-  it("says nothing was charged once a post-finish answer still has no settlement", async () => {
+  it("says nothing was charged only once the post-finish answers stop changing", async () => {
     const { result, rerender } = await mountWith(
       answer(H, { settlement: null }),
       { workflowDone: false },
     );
 
-    fetchDisputes.mockResolvedValueOnce(answer(H, { settlement: null }));
+    fetchDisputes.mockResolvedValue(answer(H, { settlement: null }));
     rerender({ ...DEFAULTS, workflowDone: true });
     await act(async () => {});
+    // The settlement is written AFTER the seal that flipped this flag, so the
+    // first answer past it proves nothing.
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    for (let i = 0; i < SETTLEMENT_WAIT_MS / SETTLEMENT_POLL_MS; i += 1) {
+      await advance(SETTLEMENT_POLL_MS);
+    }
     expect(result.current.view).toEqual({
       kind: "not_settled",
       running: false,
     });
+  });
+
+  it("does not double the read when the run finishes mid-fetch", async () => {
+    // The finish lands while the FIRST read is still out — and that is the
+    // slowest read there is, the cold one a first visit waits a minute for.
+    // A second request doubles it for nothing: the answer already coming is
+    // at least as fresh as the one it would ask for.
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount({ workflowDone: false });
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    rerender({ ...DEFAULTS, workflowDone: true });
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    // The seal is not lost with the request: the answer arrives after it, so
+    // an empty settlement is one worth waiting on rather than one to declare.
+    fetchDisputes.mockResolvedValue(answer(H, { settlement: null }));
+    await land(first, answer(H, { settlement: null }));
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads again when the run finishes after an answer has landed", async () => {
+    // The ordinary case, and the one the skip above must not swallow.
+    const { rerender } = await mountWith(answer(H, { settlement: null }), {
+      workflowDone: false,
+    });
+
+    nextRead();
+    rerender({ ...DEFAULTS, workflowDone: true });
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
   });
 
   it("does not refetch on the finish once a settlement is already held", async () => {
@@ -877,7 +1135,12 @@ describe("useDisputePanel — live updates", () => {
 
   it.each([
     ["no dispute", []],
-    ["only final disputes", [dsp(0, "credited"), dsp(1, "rejected")]],
+    [
+      "only settled receipts",
+      // Credited WITH the transfer that proves it: nothing here is waiting on
+      // the chain, which is what makes a receipt final.
+      [dsp(0, "credited", { refund_tx: "tx_0" }), dsp(1, "rejected")],
+    ],
   ])("never polls a task with %s", async (_, disputes) => {
     await mountWith(closedWith(...disputes));
 
@@ -919,6 +1182,73 @@ describe("useDisputePanel — live updates", () => {
     await land(poll, closedWith(dsp(1, "upheld")));
     expect(result.current.error).toBeNull();
     expect(receiptOf(result.current.view).status).toBe("upheld");
+  });
+
+  it("goes on reading a credited receipt whose refund has not landed", async () => {
+    // The only unresolved states the hook never polled: the copy says the
+    // transfer is pending and nothing was ever going to ask again, so the
+    // receipt could not resolve without a reload.
+    const { result } = await mountWith(
+      closedWith(dsp(1, "credited", { refund_tx: null })),
+    );
+    expect(receiptOf(result.current.view).refund.state).toBe("pending");
+
+    fetchDisputes.mockResolvedValue(
+      closedWith(dsp(1, "credited", { refund_tx: null })),
+    );
+    for (let i = 0; i < 3; i += 1) await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(4);
+
+    const landed = nextRead();
+    await advance(CREDIT_POLL_MS);
+    await land(landed, closedWith(dsp(1, "credited", { refund_tx: "tx_r" })));
+    expect(receiptOf(result.current.view).refund.state).toBe("confirmed");
+
+    // Nothing is waiting on the chain now, so nothing reads again.
+    const spent = fetchDisputes.mock.calls.length;
+    for (let i = 0; i < 3; i += 1) await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("keeps a live receipt when one re-read 404s, and goes on polling", async () => {
+    // One Render redeploy blip mid-poll used to replace the held answer with
+    // a settlement-less stub: the section rendered null, `error` was null so
+    // nothing explained it, and the poll never re-armed — the whole receipt
+    // gone, silently, while the buyer watched a credit land.
+    const { result } = await mountWith(closedWith(dsp(1, "crediting")));
+    const onScreen = result.current.view;
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    await advance(CREDIT_POLL_MS);
+
+    expect(result.current.view).toBe(onScreen);
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 404");
+
+    const poll = nextRead();
+    await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    await land(poll, closedWith(dsp(1, "credited", { refund_tx: "tx_r" })));
+    expect(result.current.error).toBeNull();
+    expect(receiptOf(result.current.view).status).toBe("credited");
+  });
+
+  it("keeps the receipt when the refresh after a submit 404s", async () => {
+    // The buyer opens a dispute and the panel vanishes with no message: they
+    // cannot tell whether it was recorded.
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    const onScreen = result.current.view;
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(result.current.view).toBe(onScreen);
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 404");
   });
 
   it("skips a poll that falls due while a refresh is out, and re-arms from the refresh's answer", async () => {
@@ -1003,13 +1333,17 @@ describe("useDisputePanel — the poll and the countdown", () => {
     await advance(FINAL_HOUR_TICK_MS);
     expect(remaining(result.current.view)).toBe(10 * M - 31 * S);
 
+    // The poll spent a second in flight, and the window is charged for it:
+    // the offset is measured from the request, so the countdown steps to
+    // where the server's clock could already be rather than where its answer
+    // says it was.
     await land(
       poll,
       answer(10 * M - 31 * S, { skewMs: 31 * S, disputes: [dsp(1, "open")] }),
     );
-    expect(remaining(result.current.view)).toBe(10 * M - 31 * S);
-    await advance(FINAL_HOUR_TICK_MS);
     expect(remaining(result.current.view)).toBe(10 * M - 32 * S);
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(remaining(result.current.view)).toBe(10 * M - 33 * S);
     // One countdown, one poll — never a second of either.
     expect(vi.getTimerCount()).toBe(2);
   });
@@ -1066,6 +1400,93 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
     await advance(1);
     expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops the countdown in a hidden tab and catches it up on return", async () => {
+    // The poll paused here and the tick did not: a backgrounded receipt woke
+    // the page once a second, all night, to repaint a countdown nobody could
+    // see.
+    const { result } = await mountWith(answer(10 * M));
+    const left = () => settledOf(result.current.view).window.remainingMs;
+    expect(left()).toBe(10 * M);
+
+    setVisibility("hidden");
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(2 * M);
+    expect(left()).toBe(10 * M);
+
+    // Back, and right at once rather than a tick later.
+    setVisibility("visible");
+    expect(left()).toBe(8 * M);
+    expect(vi.getTimerCount()).toBe(1);
+    await advance(FINAL_HOUR_TICK_MS);
+    expect(left()).toBe(8 * M - S);
+  });
+
+  it("arms no countdown for an answer that lands in a hidden tab", async () => {
+    // A poll's answer re-renders, and a re-render re-arms: the countdown has
+    // to refuse at the arming too, not only when the tab is hidden.
+    const live = (leftMs: number, skewMs = 0) =>
+      answer(leftMs, { skewMs, disputes: [dsp(1, "open")] });
+    await mountWith(live(10 * M));
+    const poll = nextRead();
+    await advance(ADJUDICATION_POLL_MS);
+
+    setVisibility("hidden");
+    // Two seconds of a hidden tab, so the answer lands on a clock that has
+    // moved: an answer that changed nothing would not re-arm anything, and
+    // would prove nothing either.
+    await advance(2 * S);
+    await land(poll, live(10 * M - 32 * S, 32 * S));
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not skip the countdown forward on a glance away", async () => {
+    const { result } = await mountWith(answer(10 * M));
+    const left = () => settledOf(result.current.view).window.remainingMs;
+
+    for (let i = 0; i < 6; i += 1) {
+      setVisibility("hidden");
+      setVisibility("visible");
+    }
+
+    expect(left()).toBe(10 * M);
+  });
+
+  it("does not re-read on every return to the tab", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+
+    // Six hide/show cycles in 60 ms. Unthrottled that is seven reads against
+    // a documented thirty-second cadence: enough to trip the rate limiter on
+    // a free-tier backend and banner "receipt unavailable" over a receipt
+    // that was perfectly good.
+    for (let i = 0; i < 6; i += 1) {
+      setVisibility("hidden");
+      await advance(5);
+      setVisibility("visible");
+      await advance(5);
+    }
+
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits out the rest of the cadence on return, not a whole new interval", async () => {
+    await mountWith(closedWith(dsp(1, "open")));
+    await advance(20 * S);
+
+    setVisibility("hidden");
+    await advance(5 * S);
+    setVisibility("visible");
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    // Twenty-five seconds of the thirty are spent, so five are left — not
+    // thirty, which would punish the buyer for having looked away.
+    nextRead();
+    await advance(5 * S - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
   });
 
   it("does not re-read early when the tab was never hidden", async () => {

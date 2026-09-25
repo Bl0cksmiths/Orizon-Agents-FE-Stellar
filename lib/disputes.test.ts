@@ -12,14 +12,16 @@
  * token wiring is observable.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api";
 import {
   DisputeRefusal,
+  agentLabel,
   createDisputeChallenge,
   disputeErrorCode,
   disputeReceipt,
   disputeView,
+  formatCreditShare,
   formatRemaining,
   formatUsdc,
   getTaskDisputes,
@@ -306,6 +308,7 @@ describe("getTaskDisputes", () => {
           updated_at: null,
           rating_confirmed: null,
           rejection_reason: null,
+          refund_confirmed: null,
         }),
       ],
     });
@@ -313,12 +316,6 @@ describe("getTaskDisputes", () => {
 
     await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
   });
-
-  /** A dispute carrying `field` with a value of the wrong type. */
-  const mistyped = (field: string, value: unknown) =>
-    taskDisputes({
-      disputes: [{ ...dispute(0), [field]: value } as Dispute],
-    });
 
   const malformed: [string, unknown][] = [
     ["a non-object", "<html>bad gateway</html>"],
@@ -359,31 +356,6 @@ describe("getTaskDisputes", () => {
         }),
       }),
     ],
-    [
-      "a dispute status this build cannot name",
-      taskDisputes({
-        disputes: [dispute(0, { status: "withdrawn" as Dispute["status"] })],
-      }),
-    ],
-    [
-      "a dispute with no resolved_at key",
-      {
-        ...taskDisputes(),
-        disputes: [{ ...dispute(0), resolved_at: undefined }],
-      },
-    ],
-    // Absent is an older backend; present and mistyped is a broken one.
-    ["a credited amount sent as a string", mistyped("credited_usdc", "0.004")],
-    ["an updated_at that is not a number", mistyped("updated_at", "later")],
-    [
-      "a rating confirmation of the truthy string 'false'",
-      mistyped("rating_confirmed", "false"),
-    ],
-    ["a rating confirmation sent as 1", mistyped("rating_confirmed", 1)],
-    [
-      "a rejection reason that is not a string",
-      mistyped("rejection_reason", 42),
-    ],
   ];
 
   it.each(malformed)("rejects %s as a malformed response", async (_, body) => {
@@ -392,6 +364,86 @@ describe("getTaskDisputes", () => {
     await expect(getTaskDisputes(TASK)).rejects.toThrow(
       `malformed response from /tasks/${TASK}/disputes`,
     );
+  });
+
+  // A row this build cannot read costs that row, never the receipt. The
+  // frontend deploys ahead of the backend in BOTH directions, so a newer
+  // backend that widens a dispute must not blank the settlement, the steps
+  // and every other dispute — and with the snapshot kept on error, a payload
+  // that fails outright leaves the panel polling and failing every 5 s
+  // forever under a permanent banner.
+  const unreadableRow: [string, unknown][] = [
+    ["no resolved_at key", { ...dispute(0), resolved_at: undefined }],
+    // Absent is an older backend; present and mistyped is a broken one.
+    [
+      "a credited amount sent as a string",
+      { ...dispute(0), credited_usdc: "0.004" },
+    ],
+    [
+      "an updated_at that is not a number",
+      { ...dispute(0), updated_at: "later" },
+    ],
+    [
+      "a rating confirmation of the truthy string 'false'",
+      { ...dispute(0), rating_confirmed: "false" },
+    ],
+    ["a rating confirmation sent as 1", { ...dispute(0), rating_confirmed: 1 }],
+    [
+      "a refund confirmation of the truthy string 'false'",
+      { ...dispute(0), refund_confirmed: "false" },
+    ],
+    [
+      "a rejection reason that is not a string",
+      { ...dispute(0), rejection_reason: 42 },
+    ],
+    ["a fractional step index", { ...dispute(0), step_index: 1.5 }],
+    ["nothing at all", null],
+  ];
+
+  it.each(unreadableRow)(
+    "drops a dispute with %s and keeps the rest of the receipt",
+    async (_, row) => {
+      const kept = dispute(2, { status: "open" });
+      const body = { ...taskDisputes(), disputes: [row, kept] };
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+      const res = await getTaskDisputes(TASK);
+      expect(res.disputes).toEqual([kept]);
+      expect(res.settlement).toEqual(settlement());
+    },
+  );
+
+  it("keeps a dispute whose status this build cannot name, as one under review", async () => {
+    // Dropping it would show the step as disputable again and walk the buyer
+    // into a `duplicate_dispute`; claiming a status would claim an outcome.
+    // Under review is what is certainly true: it was raised, and this build
+    // cannot say what became of it.
+    const body = taskDisputes({
+      disputes: [dispute(0, { status: "withdrawn" as Dispute["status"] })],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    const res = await getTaskDisputes(TASK);
+    expect(res.disputes).toEqual([dispute(0, { status: "open" })]);
+  });
+
+  it("does not let an unknown status claim a refund it cannot vouch for", async () => {
+    const body = taskDisputes({
+      disputes: [
+        dispute(0, {
+          status: "settled_in_full" as Dispute["status"],
+          refund_tx: "a".repeat(64),
+          credited_usdc: 0.005,
+        }),
+      ],
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+
+    const [row] = (await getTaskDisputes(TASK)).disputes;
+    if (!row) throw new Error("expected the row to be kept");
+    const receipt = disputeReceipt(row, "payer", policy);
+    expect(receipt.refund.state).toBe("none");
+    expect(receipt.amount.final).toBe(false);
   });
 
   it("rejects a refusal as an ApiError carrying the status and code", async () => {
@@ -439,6 +491,24 @@ describe("createDisputeChallenge", () => {
     [
       "a bind challenge rather than a dispute",
       { ...challenge(2), message: `orizon-bind:v1:${JOB}:2:n0nce` },
+    ],
+    [
+      "another job's step, with this one's buried inside the message",
+      // A substring test reads this as addressing (JOB, 2). It is a
+      // challenge for step 9 of someone else's job, and the wallet shows the
+      // buyer an opaque string either way.
+      {
+        ...challenge(2),
+        message: `orizon-dispute:v1:${"e".repeat(32)}:9:${JOB}:2:n0nce`,
+      },
+    ],
+    [
+      "a step whose number merely starts with this one's",
+      { ...challenge(2), message: `orizon-dispute:v1:${JOB}:20:n0nce` },
+    ],
+    [
+      "a domain that merely starts with the right one",
+      { ...challenge(2), message: `orizon-dispute-v2:v1:${JOB}:2:n0nce` },
     ],
   ];
 
@@ -622,8 +692,20 @@ describe("serverClockOffsetMs", () => {
     expect(serverClockOffsetMs(res, 1_000_000_000)).toBe(0);
   });
 
-  it("is 0 when the arrival time is not a number", () => {
+  it("is 0 when the send time is not a number", () => {
     expect(serverClockOffsetMs(taskDisputes(), Number.NaN)).toBe(0);
+  });
+
+  it("is measured from the request, so the exchange is never counted as time left", () => {
+    // A 45 s answer whose `now` was stamped as the request reached the
+    // server. Measured on ARRIVAL this reads −45 s, putting the panel's clock
+    // three quarters of a minute in the past and offering disputes the server
+    // has already refused; measured from the request it is the 0 it should be.
+    const sentAtMs = 1_000_000_000;
+    const res = taskDisputes({ now: sentAtMs / 1_000 });
+
+    expect(serverClockOffsetMs(res, sentAtMs)).toBe(0);
+    expect(serverClockOffsetMs(res, sentAtMs + 45_000)).toBe(-45_000);
   });
 });
 
@@ -660,6 +742,44 @@ function kinds(v: SettledView): Record<number, string> {
     v.steps.map(({ step: s, state }) => [s.step_index, state.kind]),
   );
 }
+
+describe("disputeView — disputes from another job", () => {
+  /** A re-execution of the same task: a second job, its own dispute. */
+  const OTHER_JOB = "f".repeat(32);
+
+  it("never pins another job's dispute onto this settlement's step", () => {
+    // One task can hold more than one job while `res.settlement` is a single
+    // record, so the step index alone does not identify a step. Keyed on it
+    // the other run's dispute took this step's row: a credited badge, a final
+    // refund amount and the other run's reason, on a step nobody disputed.
+    const stray = dispute(0, {
+      id: "dsp_other_job",
+      job_id_hex: OTHER_JOB,
+      status: "credited",
+      refund_tx: "b".repeat(64),
+      credited_usdc: 0.005,
+      reason: "the other run's words",
+    });
+
+    const v = settled({ res: taskDisputes({ disputes: [stray] }) });
+    expect(kinds(v)).toEqual({
+      0: "disputable",
+      1: "disputable",
+      2: "disputable",
+    });
+  });
+
+  it("keeps this job's dispute when both runs' disputes arrive together", () => {
+    const stray = dispute(0, { id: "dsp_other_job", job_id_hex: OTHER_JOB });
+    const mine = dispute(0, { id: "dsp_mine" });
+
+    const v = settled({ res: taskDisputes({ disputes: [stray, mine] }) });
+    const state = v.steps[0]?.state;
+    expect(state?.kind).toBe("disputed");
+    if (state?.kind !== "disputed") throw new Error("expected disputed");
+    expect(state.dispute.id).toBe("dsp_mine");
+  });
+});
 
 describe("disputeView — hidden and not settled", () => {
   it("is hidden in demo mode, whatever the backend said", () => {
@@ -1112,6 +1232,58 @@ describe("disputeReceipt", () => {
         state: "pending",
       });
     });
+
+    it("believes a backend that says the transfer is not confirmed yet", () => {
+      // The money artifact was the one held to the weaker rule: a hash alone
+      // read as confirmed, and that was the sole gate on the final amount and
+      // on the green "Refunded" badge. A backend that CAN tell the difference
+      // is believed when it says no.
+      const r = receipt({
+        status: "credited",
+        refund_tx: "tx_refund",
+        refund_confirmed: false,
+        credited_usdc: 0.004,
+      });
+
+      expect(r.refund).toEqual({ txHash: "tx_refund", state: "pending" });
+      expect(r.amount).toEqual({ usdc: 0.005, final: false });
+      expect(receiptBadgeStatus(r)).toBe("crediting");
+    });
+
+    it("confirms a credit the backend vouches for outright", () => {
+      const r = receipt({
+        status: "credited",
+        refund_tx: "tx_refund",
+        refund_confirmed: true,
+        credited_usdc: 0.004,
+      });
+
+      expect(r.refund).toEqual({ txHash: "tx_refund", state: "confirmed" });
+      expect(r.amount).toEqual({ usdc: 0.004, final: true });
+    });
+
+    it.each([
+      ["absent", {}],
+      ["null", { refund_confirmed: null }],
+    ])(
+      "keeps trusting a credited hash when the field is %s — that backend cannot tell",
+      (_, over) => {
+        // Today's backend sends no `refund_confirmed` at all. Reading absent
+        // as "not confirmed" would show every real refund as unconfirmed for
+        // ever. The invariant this leans on is the backend's own: `credited`
+        // is written only after the transfer has landed, and `refund_tx` is
+        // written with it. An explicit `false` is the only way to say no.
+        const r = receipt({
+          status: "credited",
+          refund_tx: "tx_refund",
+          credited_usdc: 0.004,
+          ...over,
+        });
+
+        expect(r.refund).toEqual({ txHash: "tx_refund", state: "confirmed" });
+        expect(r.amount).toEqual({ usdc: 0.004, final: true });
+      },
+    );
   });
 
   describe("the rating", () => {
@@ -1277,6 +1449,18 @@ describe("disputeReceipt", () => {
 // ── raising one ─────────────────────────────────────────────────
 
 describe("raiseDispute", () => {
+  // Only Date is faked, and pinned to the fixture's own epoch: every
+  // challenge here carries an `expires_at`, and a suite whose nonces are
+  // alive or dead depending on the day it runs is no suite at all.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(SETTLED_AT * 1_000);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   /** A wallet that signs whatever it is shown, and remembers what that was. */
   const wallet = () =>
     vi.fn<(m: string) => Promise<string>>(async (m) => `sig(${m})`);
@@ -1327,6 +1511,80 @@ describe("raiseDispute", () => {
       nonce: issued.nonce,
       signature_b64: `sig(${issued.message})`,
     });
+  });
+
+  it("re-requests a nonce that arrives already dead, before any wallet prompt", async () => {
+    // Signing a dead nonce costs the buyer a wallet popup, a round trip and
+    // `challenge_expired`, then a SECOND popup for the retry. The challenge
+    // says when it dies; reading it spends one cheap request instead.
+    const dead = { ...challenge(1, "dead"), expires_at: SETTLED_AT - 1 };
+    const alive = { ...challenge(1, "alive"), expires_at: SETTLED_AT + 400 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, dead))
+      .mockResolvedValueOnce(jsonResponse(200, alive))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await expect(raise({ signMessage })).resolves.toEqual(dispute(1));
+
+    expect(paths()).toEqual([
+      "/api/disputes/challenge",
+      "/api/disputes/challenge",
+      "/api/disputes",
+    ]);
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(alive.message);
+  });
+
+  it("judges the nonce on the server's clock, not on this laptop's", async () => {
+    // The laptop is an hour behind. On its own clock the nonce has five
+    // minutes left; on the server's it died fifty-five minutes ago.
+    const stale = { ...challenge(1, "stale"), expires_at: SETTLED_AT + 300 };
+    const alive = { ...challenge(1, "alive"), expires_at: SETTLED_AT + 4_000 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, stale))
+      .mockResolvedValueOnce(jsonResponse(200, alive))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await raise({ signMessage, serverClockOffsetMs: 3_600_000 });
+
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(alive.message);
+  });
+
+  it("asks once and then signs: a dead second nonce is the server's to refuse", async () => {
+    const dead = (n: string) => ({
+      ...challenge(1, n),
+      expires_at: SETTLED_AT - 1,
+    });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, dead("first")))
+      .mockResolvedValueOnce(jsonResponse(200, dead("second")))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await raise({ signMessage });
+
+    // Two challenges, never three: a third would mean the clocks disagree
+    // about more than latency, and looping on it would hang the dialog.
+    expect(paths()).toEqual([
+      "/api/disputes/challenge",
+      "/api/disputes/challenge",
+      "/api/disputes",
+    ]);
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(dead("second").message);
+  });
+
+  it("asks for nothing extra when the nonce is alive", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, challenge(1)))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+
+    await raise();
+
+    expect(paths()).toEqual(["/api/disputes/challenge", "/api/disputes"]);
   });
 
   it.each([
@@ -1549,9 +1807,40 @@ describe("formatUsdc", () => {
     [0.0025, "0.0025 USDC"],
     [1, "1.0 USDC"],
     [0, "0.0 USDC"],
-    [1.23456789, "1.2345679 USDC"],
+    // Floored at the stroop: a figure the chain cannot move is not one the
+    // receipt may print.
+    [1.23456789, "1.2345678 USDC"],
   ])("prints %d as %s", (n, label) => {
     expect(formatUsdc(n)).toBe(label);
+  });
+
+  it("never prints a stroop more than the chain can move", () => {
+    // Half a stroop rounded UP promised a tenth of a millionth of a dollar
+    // that no transfer can carry.
+    expect(formatUsdc(0.00000005)).toBe("0.0 USDC");
+    expect(formatUsdc(0.00000015)).toBe("0.0000001 USDC");
+    expect(formatUsdc(0.0000001)).toBe("0.0000001 USDC");
+  });
+
+  it("floors without letting binary noise eat a whole stroop", () => {
+    // 0.29 * 10_000_000 is 2899999.9999999995 in binary floating point; a
+    // bare floor would print 0.2899999.
+    expect(formatUsdc(0.29)).toBe("0.29 USDC");
+    expect(formatUsdc(0.07)).toBe("0.07 USDC");
+    expect(formatUsdc(8.22)).toBe("8.22 USDC");
+  });
+
+  it.each([-0.005, -1, -0.0000001])(
+    "prints %d as a dash: a negative refund is not a figure the receipt can state",
+    (n) => {
+      // Nothing rejects a negative credited amount upstream, and a minus sign
+      // beside "Refunded" says the buyer paid the platform back.
+      expect(formatUsdc(n)).toBe("—");
+    },
+  );
+
+  it("prints a negative zero as nothing, not as a minus", () => {
+    expect(formatUsdc(-0)).toBe("0.0 USDC");
   });
 
   it("does not round a fractional credit up to three places", () => {
@@ -1603,4 +1892,65 @@ describe("receiptBadgeStatus", () => {
       expect(badgeFor({ status })).toBe(status);
     },
   );
+});
+
+describe("formatCreditShare", () => {
+  it.each([
+    [0.5, "50%"],
+    [0.125, "12.5%"],
+    [0.0625, "6.25%"],
+    [0, "0%"],
+    [1, "100%"],
+    [0.29, "29%"],
+    [0.07, "7%"],
+  ])("prints %d as %s", (fraction, label) => {
+    expect(formatCreditShare(fraction)).toBe(label);
+  });
+
+  it("never rounds a share up — the buyer is never promised more than the policy pays", () => {
+    // The receipt's Intl formatter at one decimal read this as "6.3%", a
+    // larger credit than the backend will ever transfer.
+    expect(formatCreditShare(0.0625)).toBe("6.25%");
+    expect(formatCreditShare(0.06256)).toBe("6.25%");
+    expect(formatCreditShare(0.999999)).toBe("99.99%");
+  });
+
+  it("is one definition for both the receipt and the dialog", () => {
+    // The two components quote the SAME policy at the same buyer; anything
+    // they could disagree on is a promise the buyer cannot rely on.
+    for (let bps = 0; bps <= 10_000; bps += 7) {
+      const label = formatCreditShare(bps / 10_000);
+      expect(label).toBe(formatCreditShare(bps / 10_000));
+      expect(Number(label.slice(0, -1))).toBeLessThanOrEqual(bps / 100);
+    }
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+    "prints %d as a dash rather than a broken figure",
+    (n) => {
+      expect(formatCreditShare(n)).toBe("—");
+    },
+  );
+});
+
+describe("agentLabel", () => {
+  it("prefers the registered name", () => {
+    expect(agentLabel(step(1, { agent_name: "Code Gen" }))).toBe("Code Gen");
+  });
+
+  it.each([
+    ["null", null],
+    ["empty", ""],
+    ["only whitespace", "   "],
+  ])("falls back to the agent id when the name is %s", (_, agent_name) => {
+    // `agent_name ?? agent_id` let a blank through, and the dialog rendered
+    // "Step 2 · ," where the receipt rendered the id.
+    expect(agentLabel(step(1, { agent_name }))).toBe("agt_1");
+  });
+
+  it("trims a padded name rather than printing its padding", () => {
+    expect(agentLabel(step(0, { agent_name: "  Code Gen  " }))).toBe(
+      "Code Gen",
+    );
+  });
 });
