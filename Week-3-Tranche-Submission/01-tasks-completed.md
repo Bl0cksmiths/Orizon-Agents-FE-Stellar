@@ -115,7 +115,7 @@ Each is recorded in `docs/uat/defects.md` with its severity, reproduction steps 
 
 **Status, stated plainly: 24 of the 27 are still open.** Three are fixed in code and not yet deployed — D-053, D-056 and D-064, all carried by the hardening merge `08efeda`.
 
-**Eleven of the 27 were found against our own hardening build.** D-066 through D-076 were found at backend `08efeda` and frontend `5105a8b` — the 4.07 merges of 2026-09-25 — as each evidence page's own build stamp records (6.03e §2, 6.03f §1, 6.03g §2, 6.03 §3). The hardening pass closed the classes of defect it went looking for; it did not make the dispute path clean.
+**Eleven of the 27 were raised after our own hardening merge.** D-066 through D-076 all postdate the 4.07 merges of 2026-09-25 (backend `08efeda`, frontend `5105a8b`), and the evidence pages' build stamps record ten of them as exercised against that build (6.03e §2, 6.03f §1, 6.03g §2, 6.03 §3); D-073 was found on the deployment, which still runs an older build. The hardening pass closed the classes of defect it went looking for; it did not make the dispute path clean.
 
 ### Also closed this week
 
