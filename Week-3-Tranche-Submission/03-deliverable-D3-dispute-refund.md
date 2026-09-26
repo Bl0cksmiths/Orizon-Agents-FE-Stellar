@@ -4,29 +4,29 @@
 
 ## Status: build complete and merged; the on-chain evidence run on the live deployment is not yet captured
 
-**Read this before anything else in this document.** Every part of D3 is built, merged to `main` in both repositories, hardened in a dedicated pass, and independently tested by QA. What D3 asks for as *evidence* — a refund transaction and a dispute-rating transaction produced by the live deployment, plus a recording of the dispute UI in that same session — **does not exist yet**, for two reasons that are both on the public record:
+**Read this before anything else in this document.** Every part of D3 is built, merged to `main` in both repositories, hardened in a dedicated pass, and independently tested by QA. What D3 asks for as _evidence_ — a refund transaction and a dispute-rating transaction produced by the live deployment, plus a recording of the dispute UI in that same session — **does not exist yet**, for two reasons that are both on the public record:
 
 1. **No workflow settles on the deployment**, so no step is disputable. `PaymentEscrow.charge` cannot move the payer's funds, so no settlement record is written and no dispute window opens — QA defect **D-050** ([BE #67](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/67)), behind the contract defect **D-039** ([contracts #3](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/issues/3)).
 2. **Dispute refunds are switched off on the deployment**, so nothing could be upheld even if a dispute existed — QA defect **D-051** ([BE #68](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/68)). Verified again while writing this document; see [The live deployment](#the-live-deployment-read-2026-09-26).
 
 Two **real testnet transactions** do exist — a refund transfer and a `kind="dispute"` rating — produced by QA running the real backend against a drill ReputationLedger with a test asset. They prove the code path. They are **not Deliverable 3**, and this document says why in [The evidence that exists](#the-evidence-that-exists-and-what-it-is-not). Independent QA's own verdict on the story is **no-go**. Nothing in this bundle presents a drill capture as live behaviour.
 
-| What shipped                                                     | Status               | Evidence                                                                                                                                                         |
-| ---------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 24-hour dispute window, stamped on the settlement record          | Merged 2026-09-21    | [BE #60](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60) · [BLO-30](https://linear.app/bl0cksmiths/issue/BLO-30) · ADR 0007 D1                     |
-| Payer-only disputes, proved by a wallet signature                 | Merged 2026-09-21    | [BE #60](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60) · ADR 0007 D2                                                                            |
-| Settler-funded partial credit, payable exactly once               | Merged 2026-09-21    | [BE #62](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62) · [BLO-31](https://linear.app/bl0cksmiths/issue/BLO-31) · ADR 0002, ADR 0008              |
-| `kind="dispute"` rating on the ReputationLedger, under a derived id | Merged 2026-09-21    | [BE #63](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/63) · [BLO-32](https://linear.app/bl0cksmiths/issue/BLO-32) · ADR 0009 D1                     |
-| Dispute action and receipt on the trace view                      | Merged 2026-09-21    | [FE #68](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/68) + [BE #64](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/64) · [BLO-33](https://linear.app/bl0cksmiths/issue/BLO-33) |
-| A receipt that never reads as done before the chain confirms it   | Merged 2026-09-22    | [FE #69](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/69) + [BE #65](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/65) · [BLO-34](https://linear.app/bl0cksmiths/issue/BLO-34) |
-| Hardening pass over the whole dispute money path                  | Merged 2026-09-25    | [BE #75](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/75) + [FE #76](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/76) — see [`04`](./04-money-path-safety.md) |
-| All six dispute routes served by the deployment                   | Live                 | `GET /openapi.json` — [table below](#the-live-deployment-read-2026-09-26)                                                                                          |
-| The platform's signer is authorised to write the dispute rating   | Live                 | `GET /readiness` → `ratings.writer: scorer`                                                                                                                       |
-| Independent QA across seven sub-stories                           | Complete, verdict no-go | [BLO-42](https://linear.app/bl0cksmiths/issue/BLO-42) and [`docs/uat/evidence/6.03-dispute-refund-rating.md`](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03-dispute-refund-rating.md) |
-| Refunds enabled on the deployment                                 | **No**               | `POST /api/disputes/{id}/uphold` → `503 dispute_refunds_disabled` (D-051)                                                                                          |
-| A dispute raised on the deployment                                | **No**               | no run settles (D-050, behind D-039)                                                                                                                              |
-| The refund tx and the dispute-rating tx **from the deployment**   | **Not captured**     | [outstanding work](#what-is-outstanding-for-d3)                                                                                                                   |
-| The recording of the dispute UI                                   | **Not captured**     | [outstanding work](#what-is-outstanding-for-d3)                                                                                                                   |
+| What shipped                                                        | Status                  | Evidence                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 24-hour dispute window, stamped on the settlement record            | Merged 2026-09-21       | [BE #60](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60) · [BLO-30](https://linear.app/bl0cksmiths/issue/BLO-30) · ADR 0007 D1                                                                                   |
+| Payer-only disputes, proved by a wallet signature                   | Merged 2026-09-21       | [BE #60](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60) · ADR 0007 D2                                                                                                                                           |
+| Settler-funded partial credit, payable exactly once                 | Merged 2026-09-21       | [BE #62](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62) · [BLO-31](https://linear.app/bl0cksmiths/issue/BLO-31) · ADR 0002, ADR 0008                                                                            |
+| `kind="dispute"` rating on the ReputationLedger, under a derived id | Merged 2026-09-21       | [BE #63](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/63) · [BLO-32](https://linear.app/bl0cksmiths/issue/BLO-32) · ADR 0009 D1                                                                                   |
+| Dispute action and receipt on the trace view                        | Merged 2026-09-21       | [FE #68](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/68) + [BE #64](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/64) · [BLO-33](https://linear.app/bl0cksmiths/issue/BLO-33)                     |
+| A receipt that never reads as done before the chain confirms it     | Merged 2026-09-22       | [FE #69](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/69) + [BE #65](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/65) · [BLO-34](https://linear.app/bl0cksmiths/issue/BLO-34)                     |
+| Hardening pass over the whole dispute money path                    | Merged 2026-09-25       | [BE #75](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/75) + [FE #76](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/76) — see [`04`](./04-money-path-safety.md)                                     |
+| All six dispute routes served by the deployment                     | Live                    | `GET /openapi.json` — [table below](#the-live-deployment-read-2026-09-26)                                                                                                                                                         |
+| The platform's signer is authorised to write the dispute rating     | Live                    | `GET /readiness` → `ratings.writer: scorer`                                                                                                                                                                                       |
+| Independent QA across seven sub-stories                             | Complete, verdict no-go | [BLO-42](https://linear.app/bl0cksmiths/issue/BLO-42) and [`docs/uat/evidence/6.03-dispute-refund-rating.md`](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03-dispute-refund-rating.md) |
+| Refunds enabled on the deployment                                   | **No**                  | `POST /api/disputes/{id}/uphold` → `503 dispute_refunds_disabled` (D-051)                                                                                                                                                         |
+| A dispute raised on the deployment                                  | **No**                  | no run settles (D-050, behind D-039)                                                                                                                                                                                              |
+| The refund tx and the dispute-rating tx **from the deployment**     | **Not captured**        | [outstanding work](#what-is-outstanding-for-d3)                                                                                                                                                                                   |
+| The recording of the dispute UI                                     | **Not captured**        | [outstanding work](#what-is-outstanding-for-d3)                                                                                                                                                                                   |
 
 ## The window
 
@@ -34,7 +34,7 @@ Two **real testnet transactions** do exist — a refund transfer and a `kind="di
 
 **The closing time is written once, onto the settlement record, and never recomputed.** `SettlementRecord.window_closes_at` is stamped at settlement from the value of `DISPUTE_WINDOW_SECONDS` (shipped at `86400.0`) in force at that instant, and every later check compares against that stored field rather than re-evaluating `settled_at + config`.
 
-That is the difference between a promise and a setting. If the deadline were recomputed on read, retuning the window afterwards would silently move deadlines for work already done — shortening it would close windows a buyer was told were open, lengthening it would reopen windows an operator had been told were closed and whose earnings they believed final. Neither is an outcome anyone would trace back to the config change that caused it. The stamp makes the knob mean what an operator expects: it governs workflows that settle *after* the change, and nothing that already happened. The reasoning is in [ADR 0007 D1](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0007-dispute-window.md), and it is written beside the setting in `app/config.py` and on the field in `dispute_store.SettlementRecord`, because it is exactly the kind of apparently redundant field a later cleanup deletes.
+That is the difference between a promise and a setting. If the deadline were recomputed on read, retuning the window afterwards would silently move deadlines for work already done — shortening it would close windows a buyer was told were open, lengthening it would reopen windows an operator had been told were closed and whose earnings they believed final. Neither is an outcome anyone would trace back to the config change that caused it. The stamp makes the knob mean what an operator expects: it governs workflows that settle _after_ the change, and nothing that already happened. The reasoning is in [ADR 0007 D1](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0007-dispute-window.md), and it is written beside the setting in `app/config.py` and on the field in `dispute_store.SettlementRecord`, because it is exactly the kind of apparently redundant field a later cleanup deletes.
 
 A dispute raised after the window has closed is refused, and the refusal **states when it closed** rather than only that it did — a window whose length is discovered on rejection is not recourse. Timestamps are epoch seconds from the service's own clock, never the database's, so no timezone conversion sits between what the buyer was promised and what is read back. The per-task read returns the server's `now` alongside the deadline, so the buyer's countdown corrects for a client clock that has drifted.
 
@@ -49,34 +49,34 @@ The window closing deletes nothing: not the dispute record, not the settlement r
 **Proof is an ed25519 signature from that wallet — no account, no password, no session.** Three steps:
 
 1. **Ask for a challenge** on the job and the step. `POST /api/disputes/challenge` returns a single-use nonce, the exact message to sign, and when the challenge expires.
-2. **Sign that message** with the wallet that paid. The message is `orizon-dispute:v1:{job_id_hex}:{step_index}:{nonce}` — domain-separated, versioned, and covering *what is being authorized*, so a captured signature cannot be replayed against a different step or a different workflow. Both encodings real wallets produce are accepted: the SEP-53 framing Freighter implements, and the raw-bytes form. Verification goes through the SDK's `verify_message` rather than a hand-built second copy of the framing.
+2. **Sign that message** with the wallet that paid. The message is `orizon-dispute:v1:{job_id_hex}:{step_index}:{nonce}` — domain-separated, versioned, and covering _what is being authorized_, so a captured signature cannot be replayed against a different step or a different workflow. Both encodings real wallets produce are accepted: the SEP-53 framing Freighter implements, and the raw-bytes form. Verification goes through the SDK's `verify_message` rather than a hand-built second copy of the framing.
 3. **Post the signature** with the written reason.
 
 The frontend checks the challenge before the wallet is asked to sign it — the returned message must name the job and step the buyer asked about, because a wallet should not be asked to sign a message the client did not expect.
 
 **Why not the capability token the story card proposed.** The task read token is a fine credential for reading a trace and the wrong one for authorizing a payout, for three compounding reasons: it is process-local memory, so it does not survive the restart the 24-hour window is measured against; it is evicted in lockstep with its task, terminal tasks first, so it is often gone well before the window is; and its guard `TASK_AUTH_REQUIRED` ships off so the public demo stays open, which means an endpoint trusting it would accept a dispute from anyone holding a task id. A dispute is a write that ends with funds leaving the platform wallet and a permanent low rating on an operator's on-chain record. The full argument is [ADR 0007 D2](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0007-dispute-window.md).
 
-**The cost of that choice, stated.** The wallet that paid must be *connected* at dispute time; remembering the address is not enough. And a buyer who no longer controls the wallet that paid cannot dispute — there is no account to recover into. That is the same trade permissionless payment makes everywhere else in this marketplace, and it is disclosed rather than discovered.
+**The cost of that choice, stated.** The wallet that paid must be _connected_ at dispute time; remembering the address is not enough. And a buyer who no longer controls the wallet that paid cannot dispute — there is no account to recover into. That is the same trade permissionless payment makes everywhere else in this marketplace, and it is disclosed rather than discovered.
 
 **A non-payer is offered nothing, and is never sent the complaint text.** A connected wallet that is not the payer sees no Dispute button and no disabled button — no action of any kind. The buyer's own words are removed from the data the page receives, not merely hidden by the panel: without a task token or the operator key, the backend itself sends `reason: ""` and `rejection_reason: null`. QA proved this from the outside (6.03f, FS-06): with another wallet and with no wallet, in fresh browser contexts, neither the payer's reason nor the adjudicator's rejection reason appeared in the rendered DOM, in the page source as served, or in any response the browser received. Closing that hole was part of the hardening pass — before [BE #75](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/75) a task id alone returned both free-text fields to an anonymous caller.
 
-**What can be disputed.** A step that was *settled*: a workflow is charged as a whole but disputed a step at a time, because a step is the unit with a price, an agent and an outcome. A step that never delivered was never charged, so there is nothing to credit and nothing to dispute — the settlement record keeps a `delivered` flag per step precisely so that stays answerable a day later, when the run's trace is long gone. One dispute per step: a second dispute against the same step returns **the original dispute, unchanged**, rather than an error the buyer must act on. A different step of the same workflow is a separate dispute and is allowed. A simulated run — no wallet, no authorization — charges nothing, settles nothing and has no window.
+**What can be disputed.** A step that was _settled_: a workflow is charged as a whole but disputed a step at a time, because a step is the unit with a price, an agent and an outcome. A step that never delivered was never charged, so there is nothing to credit and nothing to dispute — the settlement record keeps a `delivered` flag per step precisely so that stays answerable a day later, when the run's trace is long gone. One dispute per step: a second dispute against the same step returns **the original dispute, unchanged**, rather than an error the buyer must act on. A different step of the same workflow is a separate dispute and is allowed. A simulated run — no wallet, no authorization — charges nothing, settles nothing and has no window.
 
 **The reason is mandatory and is kept**, up to 500 characters; a longer one is refused outright rather than accepted and stored in part. It stays on the record whether the dispute is upheld or rejected, because it is the evidence trail an adjudication actually reads.
 
 ## What an upheld dispute pays, and who pays it
 
-The credit is a **stated policy, not a case-by-case judgement**. `DISPUTE_CREDITED_FRACTION` ships at `1.0` — the whole of what the disputed step cost. It is a *partial* refund of the **workflow**: the steps that did deliver stay paid, and their agents keep their earnings.
+The credit is a **stated policy, not a case-by-case judgement**. `DISPUTE_CREDITED_FRACTION` ships at `1.0` — the whole of what the disputed step cost. It is a _partial_ refund of the **workflow**: the steps that did deliver stay paid, and their agents keep their earnings.
 
 **The amount transferred is the smallest of three numbers:**
 
-| bound                                                            | why it exists                                                                            |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| the amount **frozen on the dispute when it was opened**           | the buyer can never be paid less than they were shown, and never more                     |
-| the step's price × the **policy fraction in force at adjudication** | the policy is honoured as it stands                                                       |
-| **what the workflow's charge actually moved on-chain**            | the platform never refunds money it did not collect                                       |
+| bound                                                               | why it exists                                                         |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| the amount **frozen on the dispute when it was opened**             | the buyer can never be paid less than they were shown, and never more |
+| the step's price × the **policy fraction in force at adjudication** | the policy is honoured as it stands                                   |
+| **what the workflow's charge actually moved on-chain**              | the platform never refunds money it did not collect                   |
 
-With the shipped policy those are normally the same number. They can differ, because the per-step figure starts life as the plan's *quoted* price while the charge's total is what was really submitted. One consequence is worth stating rather than leaving to be discovered: because the frozen amount is only ever an upper bound, *lowering* the fraction does reach disputes already open, while *raising* it cannot. The guarantee is one-directional on purpose. A credit above `MAX_REFUND_USDC` (shipped at `1.0`) is refused outright, before anything is signed.
+With the shipped policy those are normally the same number. They can differ, because the per-step figure starts life as the plan's _quoted_ price while the charge's total is what was really submitted. One consequence is worth stating rather than leaving to be discovered: because the frozen amount is only ever an upper bound, _lowering_ the fraction does reach disputes already open, while _raising_ it cannot. The guarantee is one-directional on purpose. A credit above `MAX_REFUND_USDC` (shipped at `1.0`) is refused outright, before anything is signed.
 
 **The credit is funded by the platform, and never clawed back from the agent.** It is a `transfer` from the settler's own wallet to the buyer over the asset contract — not a reversal of the original charge, and not a seizure of anything the agent was paid. The deployed `PaymentEscrow` has **no refund entrypoint and never takes custody**: `charge` sends funds from the payer straight to the agent's owner, so there is nothing held anywhere to reverse. An operator's settled earnings are final. The alternatives — adding a `refund` entrypoint, or holding funds in escrow until the window closes — were both rejected for this sprint because each requires redeploying `PaymentEscrow` and therefore **re-publishing the four testnet contract ids that SOW §6.1 lists as submitted evidence**. The reasoning and the rejected options are in [ADR 0002](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0002-partial-credit-refund.md).
 
@@ -91,17 +91,17 @@ With the shipped policy those are normally the same number. They can differ, bec
 
 Two adjudicators clicking at the same moment, a retried request, a process redeployed mid-flight: all meet the same row, and only one gets past it. A repeat uphold of a `credited` dispute signs **no transfer** and returns the same refund hash.
 
-**When the transfer definitively fails**, the claim is released and the dispute returns to `upheld`, payable again — a buyer who was not paid stays payable. **When the transfer times out, nothing is retried:** the dispute stays in `crediting` with the in-flight hash recorded, for a person to reconcile against the chain. That is a deliberate trade of *paying late rather than ever paying twice*, because the asset contract has no more of an undo than the escrow does.
+**When the transfer definitively fails**, the claim is released and the dispute returns to `upheld`, payable again — a buyer who was not paid stays payable. **When the transfer times out, nothing is retried:** the dispute stays in `crediting` with the in-flight hash recorded, for a person to reconcile against the chain. That is a deliberate trade of _paying late rather than ever paying twice_, because the asset contract has no more of an undo than the escrow does.
 
 **Adjudication is a permissioned, trusted operation, and it is disclosed everywhere rather than implied.** A person reviews the reason and the settled record and decides; no contract weighs the claim and no escrow releases on a verdict. There is **no on-chain arbitration** in this sprint. A rejection must say why: the note is required, 1–500 characters, and is returned to the buyer as `rejection_reason`, because a rejection with no explanation is worse than no dispute system at all. Opening a dispute proves nothing and costs the agent nothing until it is upheld.
 
-**The two adjudication routes fail closed, and are the only routes in the service that do.** Every other route treats an unset `API_KEY` as "the demo is open"; `uphold` and `reject` treat it as *refuse*, on every network including testnet, and they refuse while `DISPUTE_REFUNDS_ENABLED` is false — the shipped default. The asymmetry is deliberate: a server-signed charge can only spend an allowance the payer already authorised on-chain, while an upheld dispute spends the platform's own balance on an adjudicator's say-so with nothing on-chain to bound it. And turning the switch on without a key is not a silent weakness — `DISPUTE_REFUNDS_ENABLED=true` alone makes the process **refuse to start** unless `API_KEY` is set, and the error says why. There is no order of setting the two in which the rule does not bite.
+**The two adjudication routes fail closed, and are the only routes in the service that do.** Every other route treats an unset `API_KEY` as "the demo is open"; `uphold` and `reject` treat it as _refuse_, on every network including testnet, and they refuse while `DISPUTE_REFUNDS_ENABLED` is false — the shipped default. The asymmetry is deliberate: a server-signed charge can only spend an allowance the payer already authorised on-chain, while an upheld dispute spends the platform's own balance on an adjudicator's say-so with nothing on-chain to bound it. And turning the switch on without a key is not a silent weakness — `DISPUTE_REFUNDS_ENABLED=true` alone makes the process **refuse to start** unless `API_KEY` is set, and the error says why. There is no order of setting the two in which the rule does not bite.
 
 ## The negative on-chain rating
 
 An upheld, paid dispute has one more consequence, and it is the one that falls on the agent: the settler writes a rating against it on the **ReputationLedger** `CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT`, `kind = "dispute"`, scored **10 out of 100**, weighted by the step's quoted price exactly as every other rating is. It is written only once the credit has landed and been recorded, so no agent is ever rated for a dispute whose buyer was not paid. It moves the agent's `disputed` count and `dispute_rate_bps`, and the next plan decomposed after it lands is routed on the new score rather than a cached one — which is where D3 closes the loop back onto [D2's reputation-gated routing](../Week-2-Tranche-Submission/03-deliverable-D2-reputation-routing.md).
 
-**It is written under a derived job id, because the contract's replay guard keys on `(agent_id, job_id)`.** `ReputationLedger.submit` checks `Rated(agent_id, job_id)` *before* it reads `kind`, and the settler has already auto-rated every step under that exact pair at settlement — so a dispute rating under the settled job id would be refused as a replay of the automatic one. The derivation is:
+**It is written under a derived job id, because the contract's replay guard keys on `(agent_id, job_id)`.** `ReputationLedger.submit` checks `Rated(agent_id, job_id)` _before_ it reads `kind`, and the settler has already auto-rated every step under that exact pair at settlement — so a dispute rating under the settled job id would be refused as a replay of the automatic one. The derivation is:
 
 ```
 dispute_job_id(job_id, step) = job_id[:8] ‖ sha256(job_id ‖ "orizon-dispute:v1" ‖ step)[:8]
@@ -112,7 +112,7 @@ with the step packed as two big-endian bytes. Both halves do a job:
 - **The second half carries the step**, so two upheld disputes against the same agent in the same job derive two different ids and produce two ratings, rather than one rating and a refusal. The first version of this derivation, chosen in the 4.01 spike, hashed the job alone and would have collided exactly there. It was replaced in [ADR 0009 D1](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0009-dispute-rating.md) **before a single rating had ever been written under it**, which is the only moment it could be replaced at no cost — the ledger's guard remembers every key it has seen, for ever, with no expiry and no admin override.
 - **The first half is the sealed job's own bytes**, so a reviewer on Stellar Expert can tie the rating to the attested job **without reading our code**. The job id appears verbatim as an argument of `PaymentEscrow.charge`, of `AttestationRegistry.seal`, and of every automatic rating for that job. Open the dispute rating, read its `job_id` argument, open the workflow's seal, and the **first sixteen hex characters are the same**. Two unrelated 16-byte job ids share a prefix with probability 2⁻⁶⁴.
 
-A reviewer who wants the other half — that the rating is for *this step*, not merely for this job — can recompute it:
+A reviewer who wants the other half — that the rating is for _this step_, not merely for this job — can recompute it:
 
 ```bash
 python3 -c 'import hashlib,sys; j=bytes.fromhex(sys.argv[1]); s=int(sys.argv[2]); print((j[:8]+hashlib.sha256(j+b"orizon-dispute:v1"+s.to_bytes(2,"big")).digest()[:8]).hex())' <job_id_hex> <step_index>
@@ -130,12 +130,12 @@ For job `000102030405060708090a0b0c0d0e0f`, step `0`, that prints `0001020304050
 
 On the trace view of a settled workflow — `https://orizons.xyz/app/trace?task=<task_id>` — a receipt panel sits above the Trace and Artifact tabs. It shows what was charged, the payer, the charge and seal transactions, and the dispute window: open with a live countdown, or closed with the time it closed. Each step then shows its own state:
 
-| step                                     | what the buyer is offered                                                                     |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------- |
-| settled, window open, and you paid        | a **Dispute** button, with what an upheld dispute would credit                                 |
-| already disputed                          | its status — "Under review", "Refund in progress", "Refunded", "Rejected"                      |
-| nothing was charged for it                | the price struck through, and "Nothing was charged for this step, so there is nothing to dispute" |
-| window closed, or you are not the payer   | no action of any kind, and **no disabled button**                                               |
+| step                                    | what the buyer is offered                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| settled, window open, and you paid      | a **Dispute** button, with what an upheld dispute would credit                                    |
+| already disputed                        | its status — "Under review", "Refund in progress", "Refunded", "Rejected"                         |
+| nothing was charged for it              | the price struck through, and "Nothing was charged for this step, so there is nothing to dispute" |
+| window closed, or you are not the payer | no action of any kind, and **no disabled button**                                                 |
 
 The dispute form states the terms before the buyer commits, taken from the backend's own policy rather than hard-coded in the interface: the credited fraction, that the platform funds the credit and never claws it back from the agent, and that the platform decides the claim with no on-chain arbitration. Then the mandatory reason with its 500-character counter, then a note that the wallet will sign a message, which costs nothing and sends no transaction.
 
@@ -175,11 +175,24 @@ Unchanged since Week 2 — Epic 4 required no contract change, and the dispute r
 ### Ratings writer — `GET /readiness`
 
 ```json
-{"status":"ready","llm":"ok","stellar":"configured","signer":"configured","pdax":"configured",
- "cold_start":{"routable":true,"lower_bound_bps":5677,"floor_bps":5500,"margin_bps":177},
- "ratings":{"writer":"scorer",
-            "signer":"GDB4N25UYM3YNTTAWX7LSGI2P7OR62QZQXRNQWAGF5TFVENDKCTTCDHP",
-            "scorer":"GDB4N25UYM3YNTTAWX7LSGI2P7OR62QZQXRNQWAGF5TFVENDKCTTCDHP"}}
+{
+  "status": "ready",
+  "llm": "ok",
+  "stellar": "configured",
+  "signer": "configured",
+  "pdax": "configured",
+  "cold_start": {
+    "routable": true,
+    "lower_bound_bps": 5677,
+    "floor_bps": 5500,
+    "margin_bps": 177
+  },
+  "ratings": {
+    "writer": "scorer",
+    "signer": "GDB4N25UYM3YNTTAWX7LSGI2P7OR62QZQXRNQWAGF5TFVENDKCTTCDHP",
+    "scorer": "GDB4N25UYM3YNTTAWX7LSGI2P7OR62QZQXRNQWAGF5TFVENDKCTTCDHP"
+  }
+}
 ```
 
 `ratings.writer: scorer` means the deployment's signing key **is** the ReputationLedger's authorised Scorer, so a dispute rating it signs can land. That authorization is itself on-chain, from Week 2: [`216e1b5f…01f8`](https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8). This is the one live precondition for D3 that **holds**.
@@ -188,14 +201,14 @@ Unchanged since Week 2 — Epic 4 required no contract change, and the dispute r
 
 All six routes are served:
 
-| Method | Path                                  |
-| ------ | ------------------------------------- |
-| POST   | `/api/disputes/challenge`             |
-| POST   | `/api/disputes`                       |
-| GET    | `/api/disputes/{dispute_id}`          |
-| POST   | `/api/disputes/{dispute_id}/uphold`   |
-| POST   | `/api/disputes/{dispute_id}/reject`   |
-| GET    | `/api/tasks/{task_id}/disputes`       |
+| Method | Path                                |
+| ------ | ----------------------------------- |
+| POST   | `/api/disputes/challenge`           |
+| POST   | `/api/disputes`                     |
+| GET    | `/api/disputes/{dispute_id}`        |
+| POST   | `/api/disputes/{dispute_id}/uphold` |
+| POST   | `/api/disputes/{dispute_id}/reject` |
+| GET    | `/api/tasks/{task_id}/disputes`     |
 
 **But the document declares no security scheme at all** — `components.securitySchemes` is absent, as is any top-level or per-operation `security`. The 4.07 hardening merge adds one. So the deployed build **predates backend `08efeda`** ([BE #75](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/75), merged 2026-09-25) and does not carry that pass's fixes — including the reproducible double-payment fix and the disclosure fix on the buyer's own words. The deployment is behind `main`, and it must be redeployed before refunds are switched on. Render does not auto-deploy from this organisation, so the deploy is a manual step.
 
@@ -217,10 +230,10 @@ QA's roll-up — [`docs/uat/evidence/6.03-dispute-refund-rating.md`](https://git
 
 The closest real evidence comes from the **6.03f drill**. The real backend (`08efeda`) ran on this machine against real PostgreSQL 17.6 with the real trace page (`5105a8b`), against the 6.03e drill's **own** ReputationLedger on testnet and a **test asset named UATUSD**. One uphold through `POST /api/disputes/{id}/uphold` produced two real testnet transactions:
 
-| artifact                   | transaction                                                                                                                                                                       | ledger  | re-read on Horizon                    |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------- |
-| refund transfer            | [`a5baac43…01b8`](https://stellar.expert/explorer/testnet/tx/a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8) | 4865810 | `successful: true`, 2026-09-25T16:10:37Z |
-| `kind="dispute"` rating    | [`7138e4e3…7184`](https://stellar.expert/explorer/testnet/tx/7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184) | 4865811 | `successful: true`, 2026-09-25T16:10:42Z |
+| artifact                | transaction                                                                                                                    | ledger  | re-read on Horizon                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------- | ---------------------------------------- |
+| refund transfer         | [`a5baac43…01b8`](https://stellar.expert/explorer/testnet/tx/a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8) | 4865810 | `successful: true`, 2026-09-25T16:10:37Z |
+| `kind="dispute"` rating | [`7138e4e3…7184`](https://stellar.expert/explorer/testnet/tx/7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184) | 4865811 | `successful: true`, 2026-09-25T16:10:42Z |
 
 Both hashes are copied from QA's file, and both were re-read on Horizon while assembling this document — `successful: true` at the ledgers she recorded. The drill also demonstrated the receipt reaching "Refunded" with both links in the **same open document**, with a marker set on `window` still present afterwards, so the page never reloaded.
 
@@ -253,13 +266,13 @@ That session is what turns the table at the top of this document from "not captu
 
 ## Verify live
 
-| What                          | URL                                                                            |
-| ----------------------------- | ------------------------------------------------------------------------------ |
-| Network + contract ids        | https://orizon-agents-be-stellar.onrender.com/api/stellar/network               |
-| Ratings writer + cold start   | https://orizon-agents-be-stellar.onrender.com/readiness                         |
-| The six dispute routes        | https://orizon-agents-be-stellar.onrender.com/openapi.json                      |
-| The refund switch, today      | `curl -X POST https://orizon-agents-be-stellar.onrender.com/api/disputes/x/uphold` → `503 dispute_refunds_disabled` |
-| The trace / receipt view      | `https://orizons.xyz/app/trace?task=<task_id>` — no settled run to show yet      |
-| Buyer- and operator-facing docs | [`docs/disputes.md`](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/disputes.md) |
-| Design records                | [ADR 0002](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0002-partial-credit-refund.md) · [ADR 0007](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0007-dispute-window.md) · [ADR 0008](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0008-refund-execution.md) · [ADR 0009](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0009-dispute-rating.md) |
-| Independent QA evidence       | [6.03 roll-up](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03-dispute-refund-rating.md) · [6.03a](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03a-dispute-path.md) · [6.03f](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03f-dispute-ui.md) |
+| What                            | URL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Network + contract ids          | https://orizon-agents-be-stellar.onrender.com/api/stellar/network                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Ratings writer + cold start     | https://orizon-agents-be-stellar.onrender.com/readiness                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| The six dispute routes          | https://orizon-agents-be-stellar.onrender.com/openapi.json                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| The refund switch, today        | `curl -X POST https://orizon-agents-be-stellar.onrender.com/api/disputes/x/uphold` → `503 dispute_refunds_disabled`                                                                                                                                                                                                                                                                                                                                                                            |
+| The trace / receipt view        | `https://orizons.xyz/app/trace?task=<task_id>` — no settled run to show yet                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Buyer- and operator-facing docs | [`docs/disputes.md`](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/disputes.md)                                                                                                                                                                                                                                                                                                                                                                                       |
+| Design records                  | [ADR 0002](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0002-partial-credit-refund.md) · [ADR 0007](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0007-dispute-window.md) · [ADR 0008](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0008-refund-execution.md) · [ADR 0009](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0009-dispute-rating.md) |
+| Independent QA evidence         | [6.03 roll-up](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03-dispute-refund-rating.md) · [6.03a](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03a-dispute-path.md) · [6.03f](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03f-dispute-ui.md)                                                                                                                   |
