@@ -1,0 +1,2119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Orizon Agents — Week 3 Proof of Deliverables</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      @page {
+        size: A4;
+        margin: 12mm 15mm 16mm 15mm;
+      }
+      :root {
+        --ink: #172033;
+        --muted: #5b6475;
+        --rule: #d5dbe6;
+        --accent: #1d3f8f;
+        --soft: #f3f6fb;
+        --amber: #8a5300;
+        --amber-bg: #fff4dc;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+      }
+      body {
+        font-family: "Inter", "Ubuntu Sans", "DejaVu Sans", sans-serif;
+        color: var(--ink);
+        font-size: 9.6pt;
+        line-height: 1.45;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .mono,
+      code,
+      .ids td {
+        font-family:
+          "JetBrains Mono", "Ubuntu Sans Mono", "DejaVu Sans Mono", monospace;
+      }
+      code {
+        font-size: 0.9em;
+        background: var(--soft);
+        border: 1px solid #e3e8f1;
+        border-radius: 3px;
+        padding: 0 0.25em;
+        white-space: nowrap;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .page {
+        width: 180mm;
+        height: 268mm;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        break-after: page;
+      }
+      .page:last-child {
+        break-after: auto;
+      }
+      .eyebrow {
+        display: flex;
+        gap: 3mm;
+        align-items: baseline;
+        font-size: 7.6pt;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 1.5mm;
+      }
+      .eyebrow .num {
+        color: #fff;
+        background: var(--accent);
+        padding: 0.4mm 1.8mm;
+        border-radius: 2px;
+        font-weight: 600;
+      }
+      h2 {
+        font-size: 15pt;
+        line-height: 1.25;
+        margin: 0 0 2.5mm;
+        color: var(--accent);
+        font-weight: 700;
+      }
+      p {
+        margin: 0 0 2mm;
+      }
+      .after {
+        align-self: flex-start;
+        background: var(--amber-bg);
+        color: var(--amber);
+        border: 1px solid #f0d9a8;
+        border-radius: 3px;
+        font-weight: 600;
+        font-size: 8.4pt;
+        padding: 0.8mm 2.4mm;
+        margin: 0 0 2.5mm;
+      }
+      .meta {
+        display: grid;
+        grid-template-columns: 20mm 1fr;
+        gap: 0.6mm 3mm;
+        margin: 1mm 0 3.5mm;
+        padding: 2mm 3mm;
+        background: var(--soft);
+        border-radius: 3px;
+        font-size: 7.8pt;
+        color: var(--muted);
+      }
+      .meta dt {
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .meta dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .fig {
+        margin: 0 auto;
+        width: 100%;
+        border: 1px solid var(--rule);
+        border-radius: 3px;
+        overflow: hidden;
+        flex: none;
+      }
+      .fig > img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .fig.bare {
+        border: 0;
+        border-radius: 0;
+      }
+      .slice {
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+      }
+      .slice > img {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .gap {
+        font-size: 7.2pt;
+        color: var(--muted);
+        text-align: center;
+        padding: 1mm 2mm;
+        background: repeating-linear-gradient(
+          135deg,
+          #f6f7fa 0 6px,
+          #eceff5 6px 12px
+        );
+        border-top: 1px dashed #b9c2d3;
+        border-bottom: 1px dashed #b9c2d3;
+      }
+      /* cover */
+      .cover .kicker {
+        font-size: 8pt;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 2mm;
+      }
+      .cover h1 {
+        font-size: 23pt;
+        line-height: 1.15;
+        margin: 3mm 0 1.5mm;
+        color: var(--accent);
+        font-weight: 700;
+      }
+      .cover .sub {
+        font-size: 15pt;
+        color: var(--ink);
+        font-weight: 500;
+        margin-bottom: 4mm;
+        padding-bottom: 4mm;
+        border-bottom: 2px solid var(--accent);
+      }
+      .cover h3 {
+        font-size: 9.5pt;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+        margin: 4.5mm 0 1.5mm;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      .facts th,
+      .ids th {
+        text-align: left;
+        vertical-align: top;
+        font-weight: 600;
+        white-space: nowrap;
+        padding: 1mm 4mm 1mm 0;
+        width: 34mm;
+      }
+      .facts td,
+      .ids td {
+        padding: 1mm 0;
+        vertical-align: top;
+      }
+      .facts tr + tr th,
+      .facts tr + tr td,
+      .ids tr + tr th,
+      .ids tr + tr td {
+        border-top: 1px solid #e7ebf2;
+      }
+      .ids td {
+        font-size: 8.3pt;
+      }
+      .toc td {
+        padding: 0.75mm 0;
+        vertical-align: baseline;
+        border-top: 1px solid #eef1f6;
+        font-size: 8.2pt;
+        line-height: 1.3;
+      }
+      .toc .n {
+        width: 7mm;
+        color: var(--muted);
+        font-family: "JetBrains Mono", monospace;
+      }
+      .toc .t {
+        width: 44mm;
+        padding-left: 3mm;
+        font-size: 7.2pt;
+        color: var(--muted);
+      }
+      .toc .p {
+        width: 10mm;
+        text-align: right;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .note {
+        margin-top: 3.5mm;
+        font-size: 8pt;
+        color: var(--muted);
+      }
+      /* summary pages */
+      .summary {
+        font-size: 8.9pt;
+        line-height: 1.42;
+      }
+      .summary .lead {
+        font-size: 10pt;
+        margin: 0 0 1.5mm;
+      }
+      .summary h3 {
+        font-size: 9.6pt;
+        color: var(--accent);
+        margin: 3.2mm 0 1mm;
+        padding-bottom: 0.6mm;
+        border-bottom: 1px solid var(--rule);
+      }
+      .summary ul {
+        margin: 0;
+        padding-left: 4.5mm;
+      }
+      .summary li {
+        margin: 0 0 0.9mm;
+      }
+      .summary .small {
+        font-size: 7.6pt;
+        color: var(--muted);
+        margin: 1mm 0 0;
+      }
+      .summary .tx th {
+        text-align: left;
+        font-size: 7.4pt;
+        color: var(--muted);
+        font-weight: 600;
+        padding: 0.6mm 2mm 0.6mm 0;
+      }
+      .summary .tx td {
+        font-size: 7.6pt;
+        padding: 0.7mm 2mm 0.7mm 0;
+        border-top: 1px solid #e7ebf2;
+        vertical-align: top;
+      }
+      .summary .tx td.mono {
+        font-size: 6.9pt;
+        overflow-wrap: anywhere;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 2mm;
+        margin-top: 4mm;
+      }
+      .stats div {
+        background: var(--soft);
+        border-radius: 3px;
+        padding: 2mm;
+        text-align: center;
+      }
+      .stats b {
+        display: block;
+        font-size: 14pt;
+        color: var(--accent);
+        line-height: 1.1;
+      }
+      .stats span {
+        display: block;
+        font-size: 7pt;
+        color: var(--muted);
+        margin-top: 0.6mm;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="page cover">
+      <div class="kicker">Stellar Instawards (Cohort 2026)</div>
+      <h1>Orizon Agents — Week 3 Tranche Submission</h1>
+      <div class="sub">Proof of Deliverables</div>
+      <table class="facts">
+        <tr>
+          <th>Programme</th>
+          <td>Stellar Instawards (Cohort 2026)</td>
+        </tr>
+        <tr>
+          <th>Milestone</th>
+          <td>
+            M3 · Week 3 — Dispute Window &amp; Partial-Credit Refund
+            (Deliverable D3, Epic 4)
+          </td>
+        </tr>
+        <tr>
+          <th>Sprint week</th>
+          <td>Mon 2026-09-21 → Fri 2026-09-25</td>
+        </tr>
+        <tr>
+          <th>Network</th>
+          <td><b>Stellar testnet only</b></td>
+        </tr>
+        <tr>
+          <th>Team</th>
+          <td>
+            Danielle Bagaforo Meer — lead engineer (GitHub
+            <span class="mono">ALGOREX-PH</span>)<br />Rieselle Saure (“Rie”) —
+            PM + QA (GitHub <span class="mono">rie-hash14</span>)
+          </td>
+        </tr>
+        <tr>
+          <th>Evidence captured</th>
+          <td>
+            2026-09-26 — from the live testnet API, public GitHub and Stellar
+            Expert pages, and a local run of the shipped interface against the
+            test suite's fixtures. Every page states which of these it is, and
+            its source URL.
+          </td>
+        </tr>
+      </table>
+      <h3>Deployed testnet contract ids</h3>
+      <table class="ids">
+        <tr>
+          <th>AgentRegistry</th>
+          <td class="mono">
+            CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ
+          </td>
+        </tr>
+        <tr>
+          <th>ReputationLedger</th>
+          <td class="mono">
+            CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT
+          </td>
+        </tr>
+        <tr>
+          <th>PaymentEscrow</th>
+          <td class="mono">
+            CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI
+          </td>
+        </tr>
+        <tr>
+          <th>AttestationRegistry</th>
+          <td class="mono">
+            CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK
+          </td>
+        </tr>
+        <tr>
+          <th>Asset SAC</th>
+          <td class="mono">
+            CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
+          </td>
+        </tr>
+      </table>
+      <h3>Evidence in this document</h3>
+      <table class="toc">
+        <tr>
+          <td class="n">—</td>
+          <td>What we shipped in Week 3</td>
+          <td class="t">summary</td>
+          <td class="p">p. 2</td>
+        </tr>
+        <tr>
+          <td class="n">—</td>
+          <td>Where D3 stands, stated plainly</td>
+          <td class="t">summary</td>
+          <td class="p">p. 3</td>
+        </tr>
+        <tr>
+          <td class="n">—</td>
+          <td>How to check any of this without trusting us</td>
+          <td class="t">summary</td>
+          <td class="p">p. 4</td>
+        </tr>
+        <tr>
+          <td class="n">01</td>
+          <td>The dispute window and the dispute endpoint</td>
+          <td class="t">4.02 · D3</td>
+          <td class="p">p. 5</td>
+        </tr>
+        <tr>
+          <td class="n">02</td>
+          <td>The settler-executed partial-credit refund</td>
+          <td class="t">4.03 · D3</td>
+          <td class="p">p. 6</td>
+        </tr>
+        <tr>
+          <td class="n">03</td>
+          <td>The negative on-chain rating an upheld dispute writes</td>
+          <td class="t">4.04 · D3</td>
+          <td class="p">p. 7</td>
+        </tr>
+        <tr>
+          <td class="n">04</td>
+          <td>What a dispute receipt needs in order to be truthful</td>
+          <td class="t">4.06 · D3</td>
+          <td class="p">p. 8</td>
+        </tr>
+        <tr>
+          <td class="n">05</td>
+          <td>The dispute action on the buyer's trace view</td>
+          <td class="t">4.05 · D3</td>
+          <td class="p">p. 9</td>
+        </tr>
+        <tr>
+          <td class="n">06</td>
+          <td>The dispute status and refund receipt the buyer reads</td>
+          <td class="t">4.06 · D3</td>
+          <td class="p">p. 10</td>
+        </tr>
+        <tr>
+          <td class="n">07</td>
+          <td>
+            Backend hardening: the money path, disclosure and settlement ratings
+          </td>
+          <td class="t">4.07 · hardening</td>
+          <td class="p">p. 11</td>
+        </tr>
+        <tr>
+          <td class="n">08</td>
+          <td>
+            Frontend hardening: the receipt stops stating what it cannot show
+          </td>
+          <td class="t">4.07 · hardening</td>
+          <td class="p">p. 12</td>
+        </tr>
+        <tr>
+          <td class="n">09</td>
+          <td>Backend pull requests merged this week</td>
+          <td class="t">PRs</td>
+          <td class="p">p. 13</td>
+        </tr>
+        <tr>
+          <td class="n">10</td>
+          <td>Frontend pull requests merged this week</td>
+          <td class="t">PRs</td>
+          <td class="p">p. 14</td>
+        </tr>
+        <tr>
+          <td class="n">11</td>
+          <td>
+            Independent QA: 268 authored commits in the public UAT repository
+          </td>
+          <td class="t">QA</td>
+          <td class="p">p. 15</td>
+        </tr>
+        <tr>
+          <td class="n">12</td>
+          <td>
+            The live service is on testnet, against the deployed contracts
+          </td>
+          <td class="t">live API</td>
+          <td class="p">p. 16</td>
+        </tr>
+        <tr>
+          <td class="n">13</td>
+          <td>The platform's signer is the ledger's authorised scorer</td>
+          <td class="t">live API</td>
+          <td class="p">p. 17</td>
+        </tr>
+        <tr>
+          <td class="n">14</td>
+          <td>All six dispute routes are served by the deployed API</td>
+          <td class="t">live API</td>
+          <td class="p">p. 18</td>
+        </tr>
+        <tr>
+          <td class="n">15</td>
+          <td>The refund path is switched off on the deployment</td>
+          <td class="t">live state</td>
+          <td class="p">p. 19</td>
+        </tr>
+        <tr>
+          <td class="n">16</td>
+          <td>
+            A real refund transfer on testnet — from QA's drill, not the
+            deployment
+          </td>
+          <td class="t">testnet tx</td>
+          <td class="p">p. 20</td>
+        </tr>
+        <tr>
+          <td class="n">17</td>
+          <td>
+            The matching negative rating on testnet — same drill, same caveat
+          </td>
+          <td class="t">testnet tx</td>
+          <td class="p">p. 21</td>
+        </tr>
+        <tr>
+          <td class="n">18</td>
+          <td>Why no dispute can be raised on the deployment today</td>
+          <td class="t">blocker</td>
+          <td class="p">p. 22</td>
+        </tr>
+        <tr>
+          <td class="n">19</td>
+          <td>The root cause, at the contract level</td>
+          <td class="t">blocker</td>
+          <td class="p">p. 23</td>
+        </tr>
+        <tr>
+          <td class="n">20</td>
+          <td>The defect register: 27 defects logged this week</td>
+          <td class="t">QA</td>
+          <td class="p">p. 24</td>
+        </tr>
+        <tr>
+          <td class="n">21</td>
+          <td>The dispute action, with the window open</td>
+          <td class="t">UI · fixture</td>
+          <td class="p">p. 25</td>
+        </tr>
+        <tr>
+          <td class="n">22</td>
+          <td>Raising a dispute on one step</td>
+          <td class="t">UI · fixture</td>
+          <td class="p">p. 26</td>
+        </tr>
+        <tr>
+          <td class="n">23</td>
+          <td>An open dispute, waiting on the platform</td>
+          <td class="t">UI · fixture</td>
+          <td class="p">p. 27</td>
+        </tr>
+        <tr>
+          <td class="n">24</td>
+          <td>A credited dispute: refund and rating, both confirmed</td>
+          <td class="t">UI · fixture</td>
+          <td class="p">p. 28</td>
+        </tr>
+        <tr>
+          <td class="n">25</td>
+          <td>The state this epic exists to get right</td>
+          <td class="t">UI · fixture</td>
+          <td class="p">p. 29</td>
+        </tr>
+        <tr>
+          <td class="n">26</td>
+          <td>A rejected dispute, with the platform's reason</td>
+          <td class="t">UI · fixture</td>
+          <td class="p">p. 30</td>
+        </tr>
+      </table>
+      <p class="note">
+        Every page names the public URL it was captured from, so each claim can
+        be checked live. Pages 21–26 are the shipped interface rendered locally
+        against test fixtures, because the dispute path cannot be reached on the
+        deployment yet; the transaction hashes in them exist on no ledger. The
+        two Stellar Expert pages are real testnet transactions from QA's drill,
+        not from the deployed service. Both limits are stated again on the pages
+        themselves.
+      </p>
+      <style>
+        .cover .toc td {
+          padding: 1.1px 4px;
+          font-size: 8.1px;
+        }
+        .cover .toc .t {
+          color: #7a8394;
+        }
+        .cover .ids td,
+        .cover .ids th {
+          padding: 1.6px 4px;
+          font-size: 8.2px;
+        }
+        .cover .facts th,
+        .cover .facts td {
+          padding: 2.4px 4px;
+        }
+        .cover h3 {
+          margin: 7px 0 3px;
+        }
+        .cover .note {
+          font-size: 8px;
+          line-height: 1.35;
+        }
+      </style>
+    </section>
+
+    <section class="page summary">
+      <div class="eyebrow">
+        <span class="num">Summary</span><span>Summary · Week-3 delivery</span>
+      </div>
+      <h2>What we shipped in Week 3</h2>
+
+      <p class="lead">
+        This week we built
+        <b>Deliverable D3 — the dispute window and partial-credit refund</b>: a
+        buyer who pays for an agent workflow gets 24 hours to dispute any single
+        step, and an upheld dispute credits part of that step's charge back to
+        their wallet and writes a permanent negative rating against the agent
+        on-chain.
+      </p>
+      <h3>The five stories, all merged to <code>main</code></h3>
+      <ul>
+        <li>
+          <b>4.02 — Dispute window and endpoint.</b> Every settlement stamps a
+          24-hour window on its own record. The payer opens a dispute against
+          one step by signing a challenge with the wallet that paid; one dispute
+          per step is a database rule, not a UI rule.
+        </li>
+        <li>
+          <b>4.03 — Settler-executed partial-credit refund.</b> The platform
+          pays a configured share of the disputed step's charge from its own
+          wallet, clamped three ways, with the mutex taken <i>before</i> the
+          signature so no crash or second adjudicator can pay twice.
+        </li>
+        <li>
+          <b>4.04 — Negative on-chain rating.</b> An upheld dispute records the
+          consequence on the ReputationLedger under a per-step derived job id,
+          and that rating feeds the routing floor.
+        </li>
+        <li>
+          <b>4.05 — Dispute action on the trace view.</b> The buyer sees each
+          step's charge, what is creditable, a countdown, and a Dispute button —
+          offered to the paying wallet alone.
+        </li>
+        <li>
+          <b>4.06 — Dispute status and refund receipt.</b> Status, refund
+          transfer and rating, each with its explorer link, and nothing shown as
+          done until the chain confirms it.
+        </li>
+      </ul>
+      <h3>Then we attacked it — story 4.07</h3>
+      <p>
+        Before declaring the epic done we audited everything it produced, on the
+        rule that nothing counted as a finding until it had been reproduced
+        against the running service. It found a
+        <b>reproducible double payment</b>, a stale decision that could leave a
+        dispute permanently unpayable, a misconfiguration that parked a payment
+        mid-flight, the buyer's own words readable by a caller who had proved
+        nothing, a flood that could deny every buyer their dispute window, a
+        boot failure that printed secrets into the deploy log, a rating
+        collision that lost half the ratings when one agent served two steps,
+        and receipt copy that claimed a transfer existed when none had been
+        submitted. Every fix carries a test that was written first and watched
+        failing, and was then re-checked by putting the bug back.
+      </p>
+      <h3>The week in numbers</h3>
+      <ul>
+        <li>
+          <b>14 pull requests</b> merged across the public repositories; 1,295
+          commits; net +45,936 / −1,152 on <code>main</code>.
+        </li>
+        <li>
+          <b>908 authored commits</b> by the lead engineer (687 backend, 221
+          frontend), 849 of them touching exactly one file;
+          <b>268 authored commits</b> of independent QA work, every one touching
+          exactly one file.
+        </li>
+        <li>
+          Backend <b>2,177 tests</b> at 92.53% coverage; frontend
+          <b>1,503 unit</b> and <b>149 end-to-end</b> tests; CI green on
+          <code>main</code> in both repositories.
+        </li>
+      </ul>
+    </section>
+
+    <section class="page summary">
+      <div class="eyebrow">
+        <span class="num">Summary</span><span>Summary · Deliverable D3</span>
+      </div>
+      <h2>Where D3 stands, stated plainly</h2>
+
+      <p class="lead">
+        D3 is
+        <b
+          >built, merged and independently QA'd. Its evidence run on the live
+          deployment has not been captured</b
+        >, for two separate reasons — and the first one is not configuration.
+      </p>
+      <h3>1 · No workflow settles on the deployment</h3>
+      <p>
+        A dispute window is stamped on a <b>settlement</b>. On the deployed
+        service, <code>PaymentEscrow.charge</code> attempts the transfer from an
+        account that never signs, so the buyer's funds do not move and no run
+        records a settlement — which means no window is ever stamped and there
+        is nothing to dispute. QA filed it as D-050 (<span class="mono"
+          >backend issue #67</span
+        >) behind the contract-level cause D-039 (<span class="mono"
+          >contracts issue #3</span
+        >). This is the gating item: until it is fixed, no deployment or
+        environment work produces a disputable run.
+      </p>
+      <h3>2 · The refund path is switched off, on an older build</h3>
+      <p>
+        Asking the deployment to uphold a dispute answers
+        <code>503 dispute_refunds_disabled</code>, and its published API
+        description shows a build from before the hardening merge. Both are
+        shown in this document.
+      </p>
+      <h3>What we do have, and what it is not</h3>
+      <p>
+        QA drove the <b>real backend code</b> through one uphold and it produced
+        two real, confirmed testnet transactions: a refund transfer and a
+        <code>kind="dispute"</code> rating, one ledger apart. They prove the
+        path executes and yields verifiable artifacts. They are <b>not</b> D3:
+        the asset is a test asset rather than USDC, the ledger is QA's own drill
+        rather than the platform's, and the source account is a developer
+        machine's rather than the deployment's signer — which is checkable on
+        the Stellar Expert pages included here. Every screenshot of the
+        interface in this document is likewise a local run against the test
+        suite's fixtures, labelled as such on its own page, with hashes that
+        exist on no ledger.
+      </p>
+      <h3>The remaining path to D3, in order</h3>
+      <ol>
+        <li>
+          Fix the escrow charge so a paid run settles (contracts issue #3).
+        </li>
+        <li>
+          Deploy the current <code>main</code>, which carries the hardening
+          pass.
+        </li>
+        <li>
+          Set an operator key and switch the refund path on; confirm the
+          database is configured so settlements survive an idle spin-down; leave
+          the refund ceiling at a finite value; decide the refund asset.
+        </li>
+        <li>
+          Capture one run on the deployment producing both transactions, with
+          the screen recording taken in the same session.
+        </li>
+      </ol>
+      <p class="small">
+        The written bundle this PDF accompanies sets all of this out with links:
+        <span class="mono"
+          >Week-3-Tranche-Submission/03-deliverable-D3-dispute-refund.md</span
+        >.
+      </p>
+    </section>
+
+    <section class="page summary">
+      <div class="eyebrow">
+        <span class="num">Summary</span><span>Summary · Verification</span>
+      </div>
+      <h2>How to check any of this without trusting us</h2>
+
+      <p class="lead">
+        Every claim in this document resolves to something public: a merged pull
+        request, a commit, a GitHub issue, a transaction on Stellar Expert, or a
+        live endpoint you can call yourself.
+      </p>
+      <h3>Live endpoints</h3>
+      <table class="tx">
+        <tr>
+          <th>Check</th>
+          <th>Call</th>
+        </tr>
+        <tr>
+          <td>Network and contract ids</td>
+          <td class="mono">
+            GET orizon-agents-be-stellar.onrender.com/api/stellar/network
+          </td>
+        </tr>
+        <tr>
+          <td>Signer is the ledger's scorer</td>
+          <td class="mono">
+            GET orizon-agents-be-stellar.onrender.com/readiness
+          </td>
+        </tr>
+        <tr>
+          <td>The six dispute routes exist</td>
+          <td class="mono">
+            GET orizon-agents-be-stellar.onrender.com/openapi.json
+          </td>
+        </tr>
+        <tr>
+          <td>The refund switch is off</td>
+          <td class="mono">
+            POST orizon-agents-be-stellar.onrender.com/api/disputes/{id}/uphold
+          </td>
+        </tr>
+      </table>
+      <p class="small">
+        The service runs on a free tier and sleeps; the first request can take
+        30–60 seconds.
+      </p>
+      <h3>Testnet transactions in this document</h3>
+      <table class="tx">
+        <tr>
+          <th>Artifact</th>
+          <th>Transaction hash</th>
+        </tr>
+        <tr>
+          <td>Refund transfer (QA drill)</td>
+          <td class="mono">
+            a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8
+          </td>
+        </tr>
+        <tr>
+          <td>Dispute rating (QA drill)</td>
+          <td class="mono">
+            7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184
+          </td>
+        </tr>
+      </table>
+      <p class="small">
+        Each opens at
+        <span class="mono">stellar.expert/explorer/testnet/tx/&lt;hash&gt;</span
+        >. Both are drill transactions, as their pages in this document explain.
+      </p>
+      <h3>Independent QA</h3>
+      <p>
+        QA works in its own public repository,
+        <span class="mono">Bl0cksmiths/Orizon-Agents-UAT-Stellar</span>, with
+        its own Playwright suites, drills and evidence pages. This week it
+        logged <b>27 defects</b> (D-050 to D-076) — 25 as public GitHub issues,
+        two money-path defects held privately — of which
+        <b>eleven were found against our own hardening build</b>, including one
+        regression our disclosure fix introduced. Its verdict on the dispute
+        story card is <b>no-go</b>, and this submission reports it as no-go.
+      </p>
+      <h3>The code</h3>
+      <p class="small">
+        Backend
+        <span class="mono"
+          >github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar</span
+        >
+        · frontend
+        <span class="mono"
+          >github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar</span
+        >
+        · QA
+        <span class="mono"
+          >github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar</span
+        >
+        · contracts
+        <span class="mono"
+          >github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar</span
+        >
+        · reference agent
+        <span class="mono"
+          >github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar</span
+        >. Design records for this epic are in the backend repository under
+        <span class="mono">docs/decisions/</span> (ADRs 0002, 0007, 0008, 0009)
+        and the operator runbook is <span class="mono">docs/disputes.md</span>.
+      </p>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 01</span
+        ><span
+          >Story 4.02 · Deliverable D3 — Dispute Window &amp; Partial-Credit
+          Refund</span
+        >
+      </div>
+      <h2>The dispute window and the dispute endpoint</h2>
+
+      <p>
+        Every settlement now stamps a <b>24-hour dispute window</b> on its own
+        record at the moment it settles. The window is never recomputed from
+        configuration, so changing the policy cannot move a deadline a buyer has
+        already been told.
+      </p>
+      <p>
+        A buyer opens a dispute against <b>one step</b> of the workflow they
+        paid for by signing a one-time challenge with the wallet that paid — no
+        account, no password, no support ticket. One dispute per
+        <span class="mono">(job, step)</span> is enforced by a database
+        constraint, so a double-submit is answered with the first dispute
+        unchanged rather than an error the buyer cannot act on.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:48 PHT ·
+          <span class="mono">screenshots/01-be-pr-60-dispute-window.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="01-be-pr-60-dispute-window.png"
+          width="1440"
+          height="2600"
+          alt="The dispute window and the dispute endpoint"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 02</span
+        ><span>Story 4.03 · Deliverable D3</span>
+      </div>
+      <h2>The settler-executed partial-credit refund</h2>
+
+      <p>
+        An upheld dispute pays a configured share of the disputed step's charge
+        back to the buyer's wallet, signed by the platform's settler from the
+        platform's own funds. The amount is clamped to the smallest of three
+        figures: the creditable amount frozen when the dispute opened, the
+        step's settled price times the policy share, and the total actually
+        settled.
+      </p>
+      <p>
+        The safety property that matters: a
+        <b>claim row is written before the transfer is signed</b>, not after. A
+        crash, a retry, a restart or a second adjudicator therefore cannot
+        produce a second transfer, and a claim left over a payout whose outcome
+        is unknown blocks further attempts instead of releasing them.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:48 PHT ·
+          <span class="mono"
+            >screenshots/02-be-pr-62-partial-credit-refund.png</span
+          >
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="02-be-pr-62-partial-credit-refund.png"
+          width="1440"
+          height="2600"
+          alt="The settler-executed partial-credit refund"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 03</span
+        ><span>Story 4.04 · Deliverable D3</span>
+      </div>
+      <h2>The negative on-chain rating an upheld dispute writes</h2>
+
+      <p>
+        The refund makes the buyer whole; the rating is what changes who gets
+        hired next. An upheld dispute writes a permanent
+        <span class="mono">kind="dispute"</span> rating against the agent on the
+        ReputationLedger, and that rating feeds the routing floor the planner
+        applies before a buyer is asked to pay.
+      </p>
+      <p>
+        The ledger's replay guard keys on
+        <span class="mono">(agent_id, job_id)</span>, so a dispute rating is
+        written under a <b>per-step derived job id</b>: the first half of the
+        sealed job id, then a hash carrying the step index. A reviewer can still
+        match every rating to its job by eye on Stellar Expert, because the
+        first sixteen hex characters are the sealed job's own.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/63"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/63</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:48 PHT ·
+          <span class="mono">screenshots/03-be-pr-63-dispute-rating.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="03-be-pr-63-dispute-rating.png"
+          width="1440"
+          height="2600"
+          alt="The negative on-chain rating an upheld dispute writes"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 04</span
+        ><span>Story 4.06 · Deliverable D3 (backend)</span>
+      </div>
+      <h2>What a dispute receipt needs in order to be truthful</h2>
+
+      <p>
+        The record behind the buyer's receipt: the amount actually credited,
+        when the dispute last changed, the platform's reason when a dispute is
+        rejected, and — the one that decides whether a receipt can lie — an
+        explicit <b>confirmation flag on the rating</b>.
+      </p>
+      <p>
+        A transaction hash alone proves nothing, because a hash is also recorded
+        when a submission times out. So the interface is not allowed to treat a
+        hash as success: the rating reads as done only once the ledger has
+        vouched for it, and the hardening pass later made that confirmation
+        monotonic so a later timeout cannot un-confirm it or be paired with it.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/65"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/65</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:48 PHT ·
+          <span class="mono">screenshots/04-be-pr-65-receipt-record.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="04-be-pr-65-receipt-record.png"
+          width="1440"
+          height="2600"
+          alt="What a dispute receipt needs in order to be truthful"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 05</span
+        ><span>Story 4.05 · Deliverable D3 (frontend)</span>
+      </div>
+      <h2>The dispute action on the buyer's trace view</h2>
+
+      <p>
+        The buyer's side of D3: a settlement view on the trace page showing what
+        each step cost and what is creditable, a live countdown to the window
+        closing, and a Dispute button on each step still open to one.
+      </p>
+      <p>
+        Only the paying wallet is offered the action. A visitor who is not the
+        payer sees no dispute affordance at all and is never sent the complaint
+        text — the server withholds it and the client blanks it independently,
+        so no component can leak it by picking the wrong object.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/68"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/68</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:48 PHT ·
+          <span class="mono">screenshots/05-fe-pr-68-dispute-action.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="05-fe-pr-68-dispute-action.png"
+          width="1440"
+          height="2600"
+          alt="The dispute action on the buyer's trace view"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 06</span
+        ><span>Story 4.06 · Deliverable D3 (frontend)</span>
+      </div>
+      <h2>The dispute status and refund receipt the buyer reads</h2>
+
+      <p>
+        The receipt: the dispute's status, the refund transfer and the negative
+        rating, each with its transaction hash and a Stellar Expert link a
+        reviewer can check without trusting us.
+      </p>
+      <p>
+        The rule throughout is that
+        <b>nothing reads as done until the chain says so</b>. A credit recorded
+        whose transfer has not confirmed wears “Refund in progress”, never
+        “Refunded”, and the amount is marked as a promise rather than a payment
+        until the record carries what was actually paid.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/69"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/69</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:49 PHT ·
+          <span class="mono">screenshots/06-fe-pr-69-dispute-receipt.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="06-fe-pr-69-dispute-receipt.png"
+          width="1440"
+          height="2600"
+          alt="The dispute status and refund receipt the buyer reads"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 07</span
+        ><span>Story 4.07 — Epic 4 hardening pass (backend)</span>
+      </div>
+      <h2>
+        Backend hardening: the money path, disclosure and settlement ratings
+      </h2>
+
+      <p>
+        Before calling Epic 4 done we attacked our own implementation, on the
+        rule that nothing counted as a finding until it had been reproduced
+        against the running service, and every fix carries a test that was
+        written first and watched failing.
+      </p>
+      <p>
+        What it fixed: a <b>reproducible double payment</b> (two transfers for
+        one dispute, 0.10 USDC out against a record saying 0.05); a stale
+        decision that could strand a live payout's claim and leave a dispute
+        unpayable; a missing signing key that parked a dispute mid-payment; the
+        buyer's own words and the platform's rejection reason being readable by
+        a caller who had proved nothing; a challenge-table flood that could deny
+        every buyer their dispute window; a boot failure that printed
+        configuration secrets into the deploy log; and a rating collision that
+        lost half the ratings when one agent served two steps of a plan. Gate on
+        merge: 2,177 tests, 92.53% coverage, type checking clean across 106
+        modules.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/75"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/75</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:49 PHT ·
+          <span class="mono">screenshots/07-be-pr-75-hardening.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="07-be-pr-75-hardening.png"
+          width="1440"
+          height="2600"
+          alt="Backend hardening: the money path, disclosure and settlement ratings"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 08</span
+        ><span>Story 4.07 — Epic 4 hardening pass (frontend)</span>
+      </div>
+      <h2>Frontend hardening: the receipt stops stating what it cannot show</h2>
+
+      <p>
+        An upheld dispute used to read “the credit is being sent to your
+        wallet”, over a row captioned “what you received”, marked “Being sent” —
+        with nothing submitted and no transaction in existence. A buyer would go
+        looking on Stellar Expert for a transfer nobody had attempted. All three
+        lines now state only what the record holds.
+      </p>
+      <p>
+        Also fixed: a single 404 on any re-read silently destroyed a live
+        receipt with no error and no recovery; “Nothing on this workflow was
+        charged” was terminal and never re-checked; the countdown overstated the
+        window by the whole network round trip, offering a Dispute button the
+        server would refuse; and the moment a refund confirms was announced to
+        nobody using a screen reader. Gate on merge: 1,503 unit tests, 149
+        end-to-end tests, every route inside the 480 KB budget.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/76"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/76</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:49 PHT ·
+          <span class="mono">screenshots/08-fe-pr-76-hardening.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="08-fe-pr-76-hardening.png"
+          width="1440"
+          height="2600"
+          alt="Frontend hardening: the receipt stops stating what it cannot show"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 09</span
+        ><span>GitHub PR evidence — Orizon-Agents-BE-Stellar</span>
+      </div>
+      <h2>Backend pull requests merged this week</h2>
+
+      <p>
+        Every backend pull request merged in the sprint week, filtered by merge
+        date in GitHub's own search. Stories 4.02 through 4.06 and the 4.07
+        hardening pass all landed on <span class="mono">main</span>.
+      </p>
+      <p>
+        One record in that list is an honest mistake worth naming: PR #61 was
+        opened against an unmerged feature branch rather than
+        <span class="mono">main</span>, so its commits did not reach
+        <span class="mono">main</span> until PR #62 re-landed them. Both are in
+        the public record, and <span class="mono">05-pull-requests.md</span> in
+        this bundle explains why the two share a diff.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-21..2026-09-26"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-21..2026-09-26</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:49 PHT ·
+          <span class="mono">screenshots/09-be-pull-requests-week3.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="09-be-pull-requests-week3.png"
+          width="1440"
+          height="1248"
+          alt="Backend pull requests merged this week"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 10</span
+        ><span>GitHub PR evidence — Orizon-Agents-FE-Stellar</span>
+      </div>
+      <h2>Frontend pull requests merged this week</h2>
+
+      <p>
+        Every frontend pull request merged in the sprint week. Stories 4.05 and
+        4.06 shipped the buyer-facing dispute surface; PR #76 is the hardening
+        pass over it.
+      </p>
+      <p>
+        The two Week-2 evidence documents (PRs #65 and #66) also appear here
+        because they merged on the Monday; their work was authored the previous
+        week and is counted there.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-21..2026-09-26"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-21..2026-09-26</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:49 PHT ·
+          <span class="mono">screenshots/10-fe-pull-requests-week3.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="10-fe-pull-requests-week3.png"
+          width="1440"
+          height="1248"
+          alt="Frontend pull requests merged this week"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 11</span
+        ><span>Multi-contributor evidence — Orizon-Agents-UAT-Stellar</span>
+      </div>
+      <h2>Independent QA: 268 authored commits in the public UAT repository</h2>
+
+      <p>
+        QA is a separate pair of eyes and a separate public repository. The
+        commits tab of UAT PR #4 shows <b>rie-hash14</b> as the author of every
+        commit in it — 268 authored commits this week plus 12 merges, each
+        touching exactly one file.
+      </p>
+      <p>
+        The work behind them: the seven 6.03 sub-stories (the dispute happy
+        path, attack idempotency on the money path, who may dispute and when,
+        durability and the unconfirmed-refund path, the reputation consequence,
+        the dispute UI in every state, and the adjudication door), the drills
+        that produced the two testnet transactions later in this document, and
+        the defect register.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/4/commits"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/4/commits</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:49 PHT ·
+          <span class="mono">screenshots/11-uat-pr-4-rie-commits.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="11-uat-pr-4-rie-commits.png"
+          width="1440"
+          height="3200"
+          alt="Independent QA: 268 authored commits in the public UAT repository"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 12</span
+        ><span>Live endpoint — GET /api/stellar/network</span>
+      </div>
+      <h2>The live service is on testnet, against the deployed contracts</h2>
+
+      <p>
+        The deployed backend reports the network it is on and the contract ids
+        it is wired to. Both are unchanged from Week 2: Epic 4 needed no
+        contract change, because the dispute rating is written through the
+        ReputationLedger already deployed.
+      </p>
+      <p>
+        Note the asset: the configured SAC is the
+        <b>native XLM SAC on testnet</b>, while the interface labels amounts in
+        USDC. Choosing the refund asset deliberately is one of the outstanding
+        items before the D3 evidence run, and it is listed as such in this
+        bundle rather than left for a reviewer to notice.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://orizon-agents-be-stellar.onrender.com/api/stellar/network"
+            >https://orizon-agents-be-stellar.onrender.com/api/stellar/network</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:49 PHT ·
+          <span class="mono">screenshots/12-be-stellar-network.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="12-be-stellar-network.png"
+          width="1440"
+          height="900"
+          alt="The live service is on testnet, against the deployed contracts"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 13</span
+        ><span>Live endpoint — GET /readiness</span>
+      </div>
+      <h2>The platform's signer is the ledger's authorised scorer</h2>
+
+      <p>
+        The one live precondition for D3 that already holds:
+        <span class="mono">ratings.writer</span> reads
+        <span class="mono">"scorer"</span>, meaning the account the deployment
+        signs with is the account the ReputationLedger authorises to write
+        ratings. Without that, an upheld dispute would refund the buyer and fail
+        to record the consequence.
+      </p>
+      <p>
+        The same probe is how we verify it after every deploy, and it is checked
+        by the six-hourly production smoke test.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a href="https://orizon-agents-be-stellar.onrender.com/readiness"
+            >https://orizon-agents-be-stellar.onrender.com/readiness</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:49 PHT ·
+          <span class="mono">screenshots/13-be-readiness.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="13-be-readiness.png"
+          width="1440"
+          height="900"
+          alt="The platform's signer is the ledger's authorised scorer"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 14</span
+        ><span>Live endpoint — the deployed OpenAPI description</span>
+      </div>
+      <h2>All six dispute routes are served by the deployed API</h2>
+
+      <p>
+        The deployment serves the whole Epic 4 surface: the challenge mint,
+        opening a dispute, reading one dispute, reading a task's disputes, and
+        the adjudication pair that upholds or rejects. That is six routes under
+        the <span class="mono">disputes</span> tag; QA's own notes count five,
+        because they leave out the per-task read that the trace page uses. Same
+        surface, two ways of counting it.
+      </p>
+      <p>
+        The same description also shows that the deployment is running a build
+        from <b>before</b> the hardening merge — the operator security scheme
+        that BE #75 adds is absent from it. That is stated plainly in this
+        bundle: the hardened code is on <span class="mono">main</span>, not yet
+        on the deployed service.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a href="https://orizon-agents-be-stellar.onrender.com/openapi.json"
+            >https://orizon-agents-be-stellar.onrender.com/openapi.json</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:50 PHT ·
+          <span class="mono">screenshots/14-be-dispute-routes-openapi.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="14-be-dispute-routes-openapi.png"
+          width="1440"
+          height="900"
+          alt="All six dispute routes are served by the deployed API"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 15</span
+        ><span>Live endpoint — POST /api/disputes/{id}/uphold</span>
+      </div>
+      <h2>The refund path is switched off on the deployment</h2>
+
+      <p>
+        Asking the deployed service to uphold a dispute answers
+        <span class="mono">503 dispute_refunds_disabled</span>. The refund path
+        ships behind a master switch that is <b>off by default</b>,
+        deliberately: a money path enabled by the mere presence of a signing key
+        would be enabled in every test run and on every developer's laptop,
+        which is how an anonymous payout route reaches production without anyone
+        choosing it.
+      </p>
+      <p>
+        The gate covers the whole adjudication pair, not just the paying half:
+        <span class="mono">POST …/reject</span> answers the same 503, so on this
+        deployment a dispute cannot even be refused. PR #62's own deploy notes
+        state the shipped default — the path needs both the switch and an
+        operator key set in the host dashboard before it will move money.
+      </p>
+      <p>
+        This is the current, honest state of the deployment rather than a
+        demonstration. Turning the switch on is one step of the outstanding work
+        for D3 — and not the first one, because a deeper defect means no
+        workflow settles there to be disputed in the first place.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a href="https://orizon-agents-be-stellar.onrender.com/openapi.json"
+            >https://orizon-agents-be-stellar.onrender.com/openapi.json</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:50 PHT ·
+          <span class="mono">screenshots/15-be-refunds-disabled.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="15-be-refunds-disabled.png"
+          width="1440"
+          height="900"
+          alt="The refund path is switched off on the deployment"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 16</span
+        ><span>Stellar Expert (testnet) — proof of the code path</span>
+      </div>
+      <h2>
+        A real refund transfer on testnet — from QA's drill, not the deployment
+      </h2>
+
+      <p>
+        QA ran the <b>real backend code</b> through one uphold and it signed a
+        real transfer on testnet, confirmed on the ledger and re-read on
+        Horizon. It proves the refund path executes end to end and produces a
+        verifiable transaction.
+      </p>
+      <p>
+        <b
+          >It is not the Deliverable-3 evidence, and this document does not
+          present it as such.</b
+        >
+        The asset is a test asset, not USDC; the ledger is QA's own drill
+        ReputationLedger, not the platform's; and the source account is a
+        developer machine's, not the deployment's signer
+        <span class="mono">GDB4N25U…CDHP</span> — which anyone can check on this
+        very page. D3 stays open until one run on the deployed service produces
+        this transaction.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://stellar.expert/explorer/testnet/tx/a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8"
+            >https://stellar.expert/explorer/testnet/tx/a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:50 PHT ·
+          <span class="mono"
+            >screenshots/16-drill-refund-tx-stellar-expert.png</span
+          >
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="16-drill-refund-tx-stellar-expert.png"
+          width="1440"
+          height="929"
+          alt="A real refund transfer on testnet — from QA's drill, not the deployment"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 17</span
+        ><span>Stellar Expert (testnet) — proof of the code path</span>
+      </div>
+      <h2>The matching negative rating on testnet — same drill, same caveat</h2>
+
+      <p>
+        The second half of the consequence, one ledger after the refund: the
+        <span class="mono">kind="dispute"</span> rating written against the
+        agent whose step was disputed. Refund and rating are the two artifacts
+        D3 promises, and both were produced by one uphold.
+      </p>
+      <p>
+        Same caveat, stated again because it matters: this was signed against a
+        drill ledger from a developer machine. It demonstrates that the code
+        works; it does not demonstrate the deployment doing it.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://stellar.expert/explorer/testnet/tx/7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184"
+            >https://stellar.expert/explorer/testnet/tx/7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:50 PHT ·
+          <span class="mono"
+            >screenshots/17-drill-rating-tx-stellar-expert.png</span
+          >
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="17-drill-rating-tx-stellar-expert.png"
+          width="1440"
+          height="929"
+          alt="The matching negative rating on testnet — same drill, same caveat"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 18</span
+        ><span>Public defect — backend issue #67 (QA defect D-050)</span>
+      </div>
+      <h2>Why no dispute can be raised on the deployment today</h2>
+
+      <p>
+        The honest centre of this week's report. A dispute window is stamped on
+        a <b>settlement</b> — and no run on the deployment records one, so there
+        is nothing to dispute. QA found and filed it: a finished, paid run
+        leaves the settlement record unwritten, the dispute endpoint answers
+        that the job is unknown, and nothing in the product says so.
+      </p>
+      <p>
+        The whole of Epic 4 is therefore unreachable by a buyer on the deployed
+        service, even though it is built, merged and tested. We would rather a
+        reviewer read that here than discover it themselves.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/67"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/67</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:50 PHT ·
+          <span class="mono">screenshots/18-be-issue-67-no-settlement.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="18-be-issue-67-no-settlement.png"
+          width="1440"
+          height="3000"
+          alt="Why no dispute can be raised on the deployment today"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 19</span
+        ><span>Public defect — contracts issue #3 (QA defect D-039)</span>
+      </div>
+      <h2>The root cause, at the contract level</h2>
+
+      <p>
+        One layer down: <span class="mono">PaymentEscrow.charge</span> attempts
+        the transfer from an account that never signs, so the buyer's funds do
+        not move and the run cannot settle. This is a contract defect, not
+        configuration, and it is the gating item for D3 — until it is fixed, no
+        amount of deployment or environment work produces a disputable run.
+      </p>
+      <p>
+        It is public, reproducible and filed against the contracts repository.
+        Sequencing the remaining D3 work behind it is the first thing
+        <span class="mono">03-deliverable-D3-dispute-refund.md</span> in this
+        bundle does.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/issues/3"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/issues/3</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:50 PHT ·
+          <span class="mono"
+            >screenshots/19-contracts-issue-3-escrow-charge.png</span
+          >
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="19-contracts-issue-3-escrow-charge.png"
+          width="1440"
+          height="3000"
+          alt="The root cause, at the contract level"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 20</span
+        ><span>Independent QA — docs/uat/defects.md</span>
+      </div>
+      <h2>The defect register: 27 defects logged this week</h2>
+
+      <p>
+        QA logged <b>27 defects</b> this week (D-050 to D-076): one Blocker, two
+        Critical, seven Major, seventeen Minor. Twenty-five are filed as public
+        GitHub issues against the repository that owns the code. Two money-path
+        defects are held privately — their mechanisms were handed to the key
+        holder and the maintainers directly rather than published while the
+        deployment cannot be patched, which is the correct handling.
+      </p>
+      <p>
+        Eleven of the 27 were found against <b>our own hardening build</b>,
+        which is what independent QA is for. One of them, D-067, is a regression
+        our disclosure fix introduced: a payer who reopens their trace in a new
+        tab loses their own dispute reason. QA's verdict on the 6.03 story card
+        is <b>no-go</b>, and this bundle reports it as no-go.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/defects.md"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/defects.md</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:50 PHT ·
+          <span class="mono">screenshots/20-uat-defect-register.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="20-uat-defect-register.png"
+          width="1440"
+          height="3000"
+          alt="The defect register: 27 defects logged this week"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 21</span
+        ><span>Shipped interface — local run against test fixtures</span>
+      </div>
+      <h2>The dispute action, with the window open</h2>
+
+      <p>
+        <b
+          >Captured locally against stubbed API responses, not from the deployed
+          service.</b
+        >
+        The dispute surface cannot be reached on the deployment (see the two
+        defects above), so these six images show the interface that shipped this
+        week, rendered from the fixtures the end-to-end suite uses. Every amount
+        and hash in them is a fixture that exists on no ledger.
+      </p>
+      <p>
+        What it shows: the settlement view on the trace page — what each step
+        cost, what is creditable under the policy, a live countdown to the
+        window closing, and a Dispute button on each step still open to one.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/receipt-panel.tsx"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/receipt-panel.tsx</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:42 PHT ·
+          <span class="mono"
+            >screenshots/local-01-dispute-action-open-window.png</span
+          >
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="local-01-dispute-action-open-window.png"
+          width="1220"
+          height="1246"
+          alt="The dispute action, with the window open"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 22</span
+        ><span>Shipped interface — local run against test fixtures</span>
+      </div>
+      <h2>Raising a dispute on one step</h2>
+
+      <p>
+        The form names the step being disputed, states the share of that step's
+        charge an upheld dispute would credit, and takes the buyer's reason.
+        Submitting asks the wallet to sign a one-time challenge; nothing was
+        signed for this capture.
+      </p>
+      <p>
+        Fixture capture, as above — the step, the agent and the amounts come
+        from the test suite's fixtures.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-dialog.tsx"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-dialog.tsx</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:39 PHT ·
+          <span class="mono">screenshots/local-02-dispute-dialog.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="local-02-dispute-dialog.png"
+          width="1024"
+          height="1472"
+          alt="Raising a dispute on one step"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 23</span
+        ><span>Shipped interface — local run against test fixtures</span>
+      </div>
+      <h2>An open dispute, waiting on the platform</h2>
+
+      <p>
+        The receipt while a dispute is open: the status the buyer is in, and one
+        sentence saying what happens next. No refund row and no rating row,
+        because neither exists yet — an absent artifact on an open dispute is
+        not news, and the receipt does not pretend otherwise.
+      </p>
+      <p>Fixture capture, as above.</p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-receipt.tsx"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-receipt.tsx</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:41 PHT ·
+          <span class="mono"
+            >screenshots/local-03-receipt-open-dispute.png</span
+          >
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="local-03-receipt-open-dispute.png"
+          width="1852"
+          height="562"
+          alt="An open dispute, waiting on the platform"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 24</span
+        ><span>Shipped interface — local run against test fixtures</span>
+      </div>
+      <h2>A credited dispute: refund and rating, both confirmed</h2>
+
+      <p>
+        What a completed dispute looks like to the buyer: the amount credited,
+        the refund transfer with its transaction and explorer link, and the
+        negative rating written against the agent with its own. The two links
+        are the evidence a reviewer checks; the receipt's job is to hand them
+        over rather than to be believed.
+      </p>
+      <p>
+        Fixture capture — <b>the hashes shown here exist on no ledger.</b> The
+        two real testnet transactions in this document are shots 16 and 17, and
+        their caveats are stated there.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-receipt.tsx"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-receipt.tsx</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:41 PHT ·
+          <span class="mono">screenshots/local-04-receipt-credited.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="local-04-receipt-credited.png"
+          width="1389"
+          height="892"
+          alt="A credited dispute: refund and rating, both confirmed"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 25</span
+        ><span>Shipped interface — local run against test fixtures</span>
+      </div>
+      <h2>The state this epic exists to get right</h2>
+
+      <p>
+        A credit the platform has recorded whose transfer the chain has
+        <b>not</b> confirmed. The badge reads “Refund in progress”, never
+        “Refunded”; the row says there is no transaction on record rather than
+        linking one; and the amount is stated as what is owed rather than what
+        was received.
+      </p>
+      <p>
+        This is the single most important behaviour in Epic 4, and the one the
+        hardening pass was needed to secure: before it, the same state read “the
+        credit is being sent to your wallet” under a success tick. A payment
+        interface that overstates what has happened is worse than one that says
+        nothing, because the buyer goes looking for a transaction that does not
+        exist. Fixture capture, as above.
+      </p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/lib/disputes.ts"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/lib/disputes.ts</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:41 PHT ·
+          <span class="mono"
+            >screenshots/local-05-receipt-crediting-unconfirmed.png</span
+          >
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="local-05-receipt-crediting-unconfirmed.png"
+          width="1389"
+          height="847"
+          alt="The state this epic exists to get right"
+        />
+      </div>
+    </section>
+
+    <section class="page">
+      <div class="eyebrow">
+        <span class="num">Evidence 26</span
+        ><span>Shipped interface — local run against test fixtures</span>
+      </div>
+      <h2>A rejected dispute, with the platform's reason</h2>
+
+      <p>
+        A buyer whose dispute is refused is told why, in the adjudicator's own
+        words, and no credit line is drawn. The reason is shown to the payer
+        only: a visitor who is not the payer is never sent it.
+      </p>
+      <p>Fixture capture, as above.</p>
+      <dl class="meta">
+        <dt>Source</dt>
+        <dd>
+          <a
+            href="https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-receipt.tsx"
+            >https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-receipt.tsx</a
+          >
+        </dd>
+
+        <dt>Captured</dt>
+        <dd>
+          2026-09-26 19:43 PHT ·
+          <span class="mono">screenshots/local-06-receipt-rejected.png</span>
+        </dd>
+      </dl>
+      <div class="fig" data-max="100%">
+        <img
+          src="local-06-receipt-rejected.png"
+          width="1852"
+          height="598"
+          alt="A rejected dispute, with the platform's reason"
+        />
+      </div>
+    </section>
+    <script>
+      // Shrink each figure (keeping its aspect) until it fits the space left on
+      // its page. Runs before printing; widths are in the same mm geometry as print.
+      window.fitFigures = function () {
+        const report = [];
+        for (const page of document.querySelectorAll(".page")) {
+          const fig = page.querySelector(".fig");
+          if (!fig) continue;
+          const max = parseFloat(fig.dataset.max) || 100;
+          fig.style.width = max + "%";
+          for (let i = 0; i < 6; i++) {
+            const avail =
+              page.getBoundingClientRect().bottom -
+              fig.getBoundingClientRect().top -
+              2;
+            const h = fig.getBoundingClientRect().height;
+            if (h <= avail) break;
+            const cur =
+              (fig.getBoundingClientRect().width / page.clientWidth) * 100;
+            fig.style.width = Math.max(20, cur * (avail / h) - 0.4) + "%";
+          }
+          report.push(
+            Math.round(
+              (fig.getBoundingClientRect().width / page.clientWidth) * 100,
+            ),
+          );
+        }
+        return report;
+      };
+    </script>
+  </body>
+</html>
