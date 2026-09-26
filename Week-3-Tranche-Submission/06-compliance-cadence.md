@@ -2,8 +2,8 @@
 
 The Instawards programme checks a set of cadence obligations every week. Week 3 ran Mon 2026-09-21 → Fri 2026-09-25 and this evidence was assembled 2026-09-26; the statuses below are the ones Linear records on that date, not a self-assessment.
 
-| Story                                                  | Ticket                                                  | Owner | Status    | Artifact                                                                                                              |
-| ------------------------------------------------------ | ------------------------------------------------------- | ----- | --------- | --------------------------------------------------------------------------------------------------------------------- |
+| Story                                                  | Ticket                                                  | Owner | Status    | Artifact                                                                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------- | ----- | --------- | ---------------------------------------------------------------------------------------------------------------------- |
 | 7.01 — Weekly evidence bundle and tranche submission   | [BLO-133](https://linear.app/bl0cksmiths/issue/BLO-133) | Rie   | Todo      | This bundle; the Google Form submission has not yet been recorded on the card                                          |
 | 7.02 — Weekly public build post on X                   | [BLO-135](https://linear.app/bl0cksmiths/issue/BLO-135) | Rie   | Todo      | The card records no post URL — the link is to be added to BLO-135 once the Week-3 post is published                    |
 | 7.03 — Midweek check-in (Wed 2026-09-23)               | [BLO-137](https://linear.app/bl0cksmiths/issue/BLO-137) | Rie   | In Review | Opened 2026-09-23 with a pre-check-in note from Rie; the attendance, blockers and commitments record is still to come  |
