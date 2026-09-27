@@ -169,6 +169,29 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(row).toContainText(/not charged|did not deliver/i);
   });
 
+  // What pressing costs was on screen but not on the controls: a screen
+  // reader landing on the button heard its name and nothing of the credit or
+  // of the signature being free.
+  test("the Dispute action and Sign and submit carry what they credit and cost", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    await expect(
+      stepRow(page, codeStep.agent_id).getByRole("button", {
+        name: /dispute/i,
+      }),
+    ).toHaveAccessibleDescription("credits up to 0.027 USDC if upheld");
+
+    const form = await openDialog(page, codeStep.agent_id);
+    await expect(
+      form.getByRole("button", { name: /sign and submit/i }),
+    ).toHaveAccessibleDescription(
+      /Signing costs nothing, and no transaction is sent\.$/,
+    );
+  });
+
   test("the reason is required: submit stays disabled until it is filled", async ({
     page,
   }) => {
@@ -1764,6 +1787,23 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
     await expect(offer(page)).toHaveCount(0);
     expect(await signatures(page)).toBe(0);
     expect(reads.challenges()).toBe(1);
+  });
+
+  test("describes the offer by what signing costs", async ({ page }) => {
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          await stubReadGrant(p);
+        },
+      },
+    );
+    await expect(offer(page)).toHaveAccessibleDescription(
+      /it costs nothing and sends no transaction\.$/,
+    );
   });
 
   test("drops a grant the server stopped honouring and offers the signature again, without looping", async ({

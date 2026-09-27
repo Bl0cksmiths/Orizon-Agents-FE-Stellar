@@ -514,6 +514,8 @@ function StepAction({
   state: StepDisputeState;
   onDispute: (step: SettlementStepView) => void;
 }) {
+  // Before the switch: a hook, called whichever state the step is in.
+  const creditId = useId();
   switch (state.kind) {
     case "disputable":
       return (
@@ -526,6 +528,8 @@ function StepAction({
             variant="outline"
             size="sm"
             aria-label={`Dispute step ${stepNumber(step)}, ${agentLabel(step)}`}
+            // What an uphold would credit is read with the action it follows.
+            aria-describedby={step.creditable_usdc > 0 ? creditId : undefined}
             onClick={() => onDispute(step)}
           >
             Dispute
@@ -533,7 +537,7 @@ function StepAction({
           {/* "up to": the credit is a ceiling the backend bounds by what the
               settlement moved (D-071), as the dispute receipt says it. */}
           {step.creditable_usdc > 0 && (
-            <span className="font-mono text-[10px] text-muted">
+            <span id={creditId} className="font-mono text-[10px] text-muted">
               credits up to {formatUsdc(step.creditable_usdc)} if upheld
             </span>
           )}

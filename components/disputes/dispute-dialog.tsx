@@ -535,6 +535,7 @@ function DisputeForm({
     reasonHint: `${uid}-reason-hint`,
     reasonCount: `${uid}-reason-count`,
     error: `${uid}-error`,
+    signing: `${uid}-signing`,
   };
   // Counted exactly as `maxLength` counts (UTF-16 units), so the counter and
   // the field's own limit can never disagree about what fits.
@@ -783,6 +784,9 @@ function DisputeForm({
                 ref={primaryRef}
                 type="submit"
                 form={ids.form}
+                // What pressing it costs — nothing, and no transaction — is
+                // read with the button, not only in the body above it.
+                aria-describedby={ids.signing}
                 disabled={!canSubmit && !busy}
                 aria-disabled={busy || undefined}
                 className="flex-1 aria-disabled:opacity-50 sm:flex-none"
@@ -953,7 +957,7 @@ function DisputeForm({
             </section>
 
             <div className="space-y-2 border border-cyan/30 bg-cyan/5 px-3 py-2.5 text-xs leading-relaxed text-text">
-              <p>
+              <p id={ids.signing}>
                 Submitting asks the wallet that paid,{" "}
                 <span className="font-mono text-cyan" title={settlement.payer}>
                   {shortAddress(settlement.payer)}

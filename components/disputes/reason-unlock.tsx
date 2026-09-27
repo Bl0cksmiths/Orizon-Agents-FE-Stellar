@@ -9,6 +9,8 @@
  * this file only says what each one means for the payer.
  */
 
+import { useId } from "react";
+
 import { Button } from "@/components/ui/button";
 import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
 
@@ -36,10 +38,11 @@ export function ReasonUnlock({
   onUnlock: () => void;
 }) {
   const signing = status === "signing";
+  const costId = useId();
   return (
     <div className="clip-cyber-sm border border-violet/40 bg-violet/5 px-4 py-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs leading-relaxed text-text/90">
+        <p id={costId} className="text-xs leading-relaxed text-text/90">
           Your dispute reason, and the platform&apos;s reply to it, are shown
           only to the wallet that paid. Sign a message to show them here — it
           costs nothing and sends no transaction.
@@ -53,6 +56,8 @@ export function ReasonUnlock({
           variant="outline"
           onClick={signing ? undefined : onUnlock}
           aria-disabled={signing}
+          // Read with the button: signing costs nothing and sends nothing.
+          aria-describedby={costId}
           className="shrink-0 self-start sm:self-auto"
         >
           {signing ? "Signing…" : "Show my reason"}
