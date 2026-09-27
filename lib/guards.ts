@@ -328,12 +328,6 @@ function isPlanFloorNotice(v: unknown): boolean {
   );
 }
 
-/** Backend `ReputationInfo.source` literal (`app/routers/stellar.py`). The
- * leaderboard branches on it to decide whether a row shows on-chain evidence
- * or the seeded prior, so an unlisted value would present prior data as
- * measured. */
-const REPUTATION_SOURCES = new Set(["onchain", "prior"]);
-
 /** One agent's reputation, served on its own by
  * GET /api/stellar/reputation/{agent_id} and as every value of the batch
  * below: the numbers feed bps→score math, evidence sums (`weight`), counts
@@ -341,6 +335,11 @@ const REPUTATION_SOURCES = new Set(["onchain", "prior"]);
  * (`sortValue.disputes`) — a non-number makes every comparison NaN and
  * silently scrambles row order — and `avg_bps` is the unsmoothed on-chain
  * mean. All required on the backend model.
+ *
+ * `source` is checked as a string, NOT against the two values this build
+ * knows: a backend that adds one must not blank the score. Every consumer
+ * treats only `"onchain"` as evidence, so an unknown source is shown as an
+ * estimate — the humbler claim — rather than as measured.
  *
  * `degraded` is the ledger-read-failed flag (the service fails open and
  * answers with the prior). Optional, because a backend predating it omits the
@@ -358,21 +357,38 @@ export function isReputationInfo(v: unknown): v is ReputationInfo {
     isNum(v.disputed) &&
     isNum(v.dispute_rate_bps) &&
     isStr(v.source) &&
-    REPUTATION_SOURCES.has(v.source) &&
     isOptionalBool(v.degraded)
   );
 }
 
 /** Reputation pages: `reputations` values feed the math above and `floor_bps`
- * feeds the floor badge. */
-export function isReputationBatch(v: unknown): v is ReputationBatch {
-  return (
+ * feeds the floor badge. Screened per entry: an unusable entry is dropped (and
+ * counted, see `droppedCount`), which the pages already render honestly as "no
+ * score" for that one agent, instead of blanking every score on the page.
+ *
+ * The envelope stays strict — null when `floor_bps`, `prior_bps` or the
+ * `reputations` map is unusable — because no single score on the page can be
+ * judged against a floor that did not arrive. */
+export function screenReputationBatch(v: unknown): ReputationBatch | null {
+  if (!(
     isRecord(v) &&
     isNum(v.floor_bps) &&
     isNum(v.prior_bps) &&
-    isRecord(v.reputations) &&
-    Object.values(v.reputations).every(isReputationInfo)
+    isRecord(v.reputations)
+  ))
+    return null;
+  const entries = Object.entries(v.reputations);
+  const kept = entries.filter((e): e is [string, ReputationInfo] =>
+    isReputationInfo(e[1]),
   );
+  const batch: ReputationBatch = {
+    ...v,
+    floor_bps: v.floor_bps,
+    prior_bps: v.prior_bps,
+    reputations: Object.fromEntries(kept),
+  };
+  DROPPED.set(batch, entries.length - kept.length);
+  return batch;
 }
 
 /** One settlement row. `amount_stroops` is summed and divided, `self_payment`

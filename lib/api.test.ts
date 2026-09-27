@@ -328,6 +328,19 @@ describe("listReputation", () => {
     );
   });
 
+  it("drops an unusable entry rather than every score, and counts it", async () => {
+    const batch = {
+      reputations: { agt_01h8: repInfo, agt_02: { ...repInfo, count: "3" } },
+      floor_bps: 5500,
+      prior_bps: 7000,
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, batch));
+
+    const screened = await listReputation();
+    expect(Object.keys(screened.reputations)).toEqual(["agt_01h8"]);
+    expect(droppedCount(screened)).toBe(1);
+  });
+
   it("rejects on a non-OK response with method, path and status in the message", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(502, { detail: "horizon down" }),

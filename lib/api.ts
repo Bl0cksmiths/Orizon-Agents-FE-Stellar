@@ -10,7 +10,6 @@ import {
   isEndpointCheck,
   isFlow,
   isOverview,
-  isReputationBatch,
   isReputationInfo,
   isReputationParams,
   isStellarNetworkInfo,
@@ -21,6 +20,7 @@ import {
   isTraceLineList,
   isXdrResponse,
   screenAgentList,
+  screenReputationBatch,
 } from "./guards";
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
 import type {
@@ -441,7 +441,7 @@ export const buildAuthorize = (body: {
 export const listReputation = () =>
   get<ReputationBatch>(
     "/stellar/reputation",
-    ensure("/stellar/reputation", isReputationBatch),
+    ensureScreened("/stellar/reputation", screenReputationBatch),
   );
 export const getReputationParams = () =>
   get<ReputationParams>(

@@ -19,7 +19,6 @@ import {
   isEndpointCheck,
   isFlow,
   isOverview,
-  isReputationBatch,
   isReputationInfo,
   isReputationParams,
   isStellarNetworkInfo,
@@ -30,6 +29,7 @@ import {
   isTraceLineList,
   isXdrResponse,
   screenAgentList,
+  screenReputationBatch,
 } from "./guards";
 
 describe("screenAgentList", () => {
@@ -713,8 +713,14 @@ describe("isReputationInfo", () => {
     expect(isReputationInfo(noRate)).toBe(false);
   });
 
-  it("rejects a source outside the backend literal", () => {
-    expect(isReputationInfo({ ...valid, source: "cached" })).toBe(false);
+  it("accepts a source this build does not know, as data", () => {
+    expect(isReputationInfo({ ...valid, source: "cached" })).toBe(true);
+  });
+
+  it("rejects a missing or non-string source", () => {
+    const { source: _drop, ...missing } = valid;
+    expect(isReputationInfo(missing)).toBe(false);
+    expect(isReputationInfo({ ...valid, source: 1 })).toBe(false);
   });
 
   it("rejects non-objects", () => {
@@ -723,7 +729,7 @@ describe("isReputationInfo", () => {
   });
 });
 
-describe("isReputationBatch", () => {
+describe("screenReputationBatch", () => {
   const rep = {
     agent_id: "agt_01",
     smoothed_bps: 7000,
@@ -741,73 +747,103 @@ describe("isReputationBatch", () => {
     prior_bps: 7000,
   };
 
-  it("accepts a valid batch (empty reputations included)", () => {
-    expect(isReputationBatch(valid)).toBe(true);
-    expect(isReputationBatch({ ...valid, reputations: {} })).toBe(true);
+  /** The ids of the entries a screen kept, or null when it rejected. */
+  const keptIds = (v: unknown) => {
+    const batch = screenReputationBatch(v);
+    return batch && Object.keys(batch.reputations);
+  };
+  /** Whether this one entry survives the screen beside a healthy one. The
+   * batch itself must always survive: a bad entry is dropped, never the batch. */
+  const keeps = (entry: unknown) => {
+    const ids = keptIds({
+      ...valid,
+      reputations: { agt_01: rep, agt_02: entry },
+    });
+    expect(ids).not.toBeNull();
+    return ids?.length === 2;
+  };
+
+  it("keeps a valid batch (empty reputations included), nothing dropped", () => {
+    const batch = screenReputationBatch(valid);
+    expect(batch).toEqual(valid);
+    expect(batch && droppedCount(batch)).toBe(0);
+    expect(screenReputationBatch({ ...valid, reputations: {} })).toEqual({
+      ...valid,
+      reputations: {},
+    });
   });
 
-  it("rejects an entry with a non-numeric smoothed_bps", () => {
-    const bad = { ...rep, smoothed_bps: null };
-    expect(isReputationBatch({ ...valid, reputations: { agt_01: bad } })).toBe(
-      false,
+  it("rejects a batch without a numeric floor_bps or prior_bps", () => {
+    expect(screenReputationBatch({ ...valid, floor_bps: undefined })).toBe(
+      null,
     );
+    expect(screenReputationBatch({ ...valid, prior_bps: "7000" })).toBe(null);
   });
 
-  it("rejects a batch without a numeric floor_bps", () => {
-    expect(isReputationBatch({ ...valid, floor_bps: undefined })).toBe(false);
+  it("rejects a batch whose reputations are not a map", () => {
+    expect(screenReputationBatch({ ...valid, reputations: [rep] })).toBe(null);
+    expect(screenReputationBatch(null)).toBe(null);
   });
 
-  it("rejects a non-numeric disputed count (sorted on, NaN scrambles order)", () => {
-    const bad = { ...rep, disputed: "0" };
-    expect(isReputationBatch({ ...valid, reputations: { agt_01: bad } })).toBe(
-      false,
-    );
+  it("drops an entry with a non-numeric smoothed_bps", () => {
+    expect(keeps({ ...rep, smoothed_bps: null })).toBe(false);
+  });
+
+  it("drops a non-numeric disputed count (sorted on, NaN scrambles order)", () => {
+    expect(keeps({ ...rep, disputed: "0" })).toBe(false);
     const { disputed: _drop, ...missing } = rep;
-    expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: missing } }),
-    ).toBe(false);
+    expect(keeps(missing)).toBe(false);
   });
 
-  it("rejects a missing avg_bps", () => {
+  it("drops an entry with no avg_bps", () => {
     const { avg_bps: _drop, ...missing } = rep;
-    expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: missing } }),
-    ).toBe(false);
+    expect(keeps(missing)).toBe(false);
   });
 
-  it("rejects a source outside the backend literal", () => {
-    expect(
-      isReputationBatch({
-        ...valid,
-        reputations: { agt_01: { ...rep, source: "cached" } },
-      }),
-    ).toBe(false);
+  it("keeps an entry whose source this build does not know, as data", () => {
+    const cached = { ...rep, source: "cached" };
+    const batch = screenReputationBatch({
+      ...valid,
+      reputations: { agt_01: cached },
+    });
+    expect(batch?.reputations.agt_01).toEqual(cached);
+  });
+
+  it("drops an entry with no source, or a non-string one", () => {
     const { source: _drop, ...missing } = rep;
-    expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: missing } }),
-    ).toBe(false);
+    expect(keeps(missing)).toBe(false);
+    expect(keeps({ ...rep, source: null })).toBe(false);
   });
 
-  it("accepts an on-chain sourced entry", () => {
-    const onchain = { ...rep, source: "onchain", disputed: 2, avg_bps: 8100 };
+  it("keeps an on-chain sourced entry", () => {
     expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: onchain } }),
+      keeps({ ...rep, source: "onchain", disputed: 2, avg_bps: 8100 }),
     ).toBe(true);
   });
 
   // The ledger read failed and the service answered with the prior: the batch
   // has to carry that flag through, and only as a real boolean.
-  it("carries a degraded entry through and rejects a non-boolean flag", () => {
-    const fellBack = { ...rep, degraded: true };
-    expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: fellBack } }),
-    ).toBe(true);
-    expect(
-      isReputationBatch({
-        ...valid,
-        reputations: { agt_01: { ...rep, degraded: "true" } },
-      }),
-    ).toBe(false);
+  it("carries a degraded entry through and drops a non-boolean flag", () => {
+    expect(keeps({ ...rep, degraded: true })).toBe(true);
+    expect(keeps({ ...rep, degraded: "true" })).toBe(false);
+  });
+
+  it("drops only the unusable entry, keeps the rest, and counts the drop", () => {
+    const batch = screenReputationBatch({
+      ...valid,
+      reputations: {
+        agt_01: rep,
+        agt_02: { ...rep, smoothed_bps: "7000" },
+        agt_03: { ...rep, source: "cached" },
+        agt_04: "unavailable",
+      },
+    });
+    expect(batch && Object.keys(batch.reputations)).toEqual([
+      "agt_01",
+      "agt_03",
+    ]);
+    expect(batch?.floor_bps).toBe(5500);
+    expect(batch && droppedCount(batch)).toBe(2);
   });
 });
 
