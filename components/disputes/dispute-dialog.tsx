@@ -259,8 +259,8 @@ function walletFailure(err: unknown): Failure | null {
  * A refusal in the buyer's words, keyed on the machine-readable code and
  * never on the backend's own sentence, which may be reworded at any time.
  * Anything without a code this form knows — a dropped connection, a second
- * expired challenge, a malformed signature — is the generic, retryable
- * failure: the reason stays and the same button tries again.
+ * expired challenge — is the generic, retryable failure: the reason stays
+ * and the same button tries again.
  */
 function refusalFailure(err: unknown, payer: string): Failure {
   switch (disputeErrorCode(err)) {
@@ -284,6 +284,22 @@ function refusalFailure(err: unknown, payer: string): Failure {
       return closeOnly(
         "Nothing was charged for this step, so there is nothing to dispute on it.",
         true,
+      );
+    // The platform has no settlement under this job: the receipt on the page
+    // is the thing that is wrong, and signing again would ask the same
+    // question of the same missing record.
+    case "unknown_job":
+      return closeOnly(
+        "The platform has no record of this settlement, so this step can't be disputed from here. Nothing was sent.",
+        true,
+      );
+    // The wallet's signature could not be read. Another press costs another
+    // signature from the same wallet, which would come back the same way —
+    // so the form offers a way out, not a second prompt.
+    case "signature_malformed":
+      return closeOnly(
+        "Your wallet returned a signature the platform couldn't read, so nothing was sent. Signing again with it would fail the same way — check that the wallet is up to date, then raise the dispute again.",
+        false,
       );
     case "rate_limited":
       return retryable(

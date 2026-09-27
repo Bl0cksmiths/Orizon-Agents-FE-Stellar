@@ -734,6 +734,18 @@ describe("DisputeDialog — refusals, in plain words", () => {
       // The receipt is right; only the connected wallet is wrong.
       "dismissed",
     ],
+    [
+      // No settlement under this job: the receipt is what is wrong.
+      "unknown_job",
+      "The platform has no record of this settlement, so this step can't be disputed from here. Nothing was sent.",
+      "stale",
+    ],
+    [
+      // A retry would cost a second signature and fail the same way.
+      "signature_malformed",
+      "Your wallet returned a signature the platform couldn't read, so nothing was sent. Signing again with it would fail the same way — check that the wallet is up to date, then raise the dispute again.",
+      "dismissed",
+    ],
   ])(
     "%s: says so, keeps the reason, and offers only a way out",
     async (code, message, closeReason) => {
@@ -786,8 +798,6 @@ describe("DisputeDialog — refusals, in plain words", () => {
       new ApiError("Too Many Requests", 429),
       "Too many requests — wait a moment and try again. Nothing was lost.",
     ],
-    ["unknown_job", refused("unknown_job", 404), GENERIC],
-    ["signature_malformed", refused("signature_malformed", 400), GENERIC],
     ["a second expired challenge", refused("challenge_expired", 409), GENERIC],
     ["a code newer than this build", refused("dispute_frozen", 409), GENERIC],
     ["a dropped connection", new Error("Failed to fetch"), GENERIC],
