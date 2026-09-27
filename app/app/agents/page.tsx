@@ -354,7 +354,13 @@ export default function AgentsPage() {
                     <m.tr
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, delay: i * 0.03 }}
+                      // Capped: the cascade is a flourish for the first
+                      // screenful. Uncapped, row 400 of a large registry sat
+                      // invisible for twelve seconds after it had rendered.
+                      transition={{
+                        duration: 0.25,
+                        delay: Math.min(i, 10) * 0.03,
+                      }}
                       className="border-b border-border/50 last:border-0 hover:bg-violet/5 transition"
                     >
                       {/* The agent id identifies the row, so it is the row
