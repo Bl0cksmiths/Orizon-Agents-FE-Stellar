@@ -487,6 +487,73 @@ describe("ExecutionPlan · the unit on the amounts", () => {
   );
 });
 
+describe("ExecutionPlan · the cap the buyer signs", () => {
+  /** The "authorizing up to" line's figure, once the unit has landed. */
+  async function shownCap(container: HTMLElement) {
+    await screen.findAllByText(/XLM/);
+    const line = Array.from(container.querySelectorAll("div")).find((d) =>
+      d.textContent?.startsWith("Freighter will prompt"),
+    );
+    return line?.querySelectorAll("b")[1]?.textContent;
+  }
+
+  /** Signs as far as the build, then stops: the build call is the claim. */
+  async function signedCap() {
+    api.buildAuthorize.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(authorizeButton());
+    await waitFor(() => expect(api.buildAuthorize).toHaveBeenCalledTimes(1));
+    return api.buildAuthorize.mock.calls[0][0].max_amount_usdc;
+  }
+
+  it("signs exactly the cap it shows", async () => {
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    expect(await shownCap(container)).toBe("0.123 XLM");
+    expect(await signedCap()).toBe(0.123);
+  });
+
+  // The case the two used to disagree on: a plan priced at zero still signs a
+  // positive cap, and the sentence has to name that cap, not the zero.
+  it("shows the cap it signs on a zero-priced plan, never 0.000", async () => {
+    const { container } = render(
+      <ExecutionPlan plan={plan({ total_usdc: 0 })} />,
+    );
+    expect(await shownCap(container)).toBe("0.001 XLM");
+    expect(await signedCap()).toBe(0.001);
+    expect(container.textContent).not.toMatch(/up to\s*0\.000/);
+  });
+});
+
+describe("ExecutionPlan · a plan with no steps", () => {
+  const empty = () => plan({ steps: [], total_usdc: 0 });
+  const isDisabled = (name: RegExp) =>
+    screen.getByRole("button", { name }).hasAttribute("disabled");
+
+  it("will not take a signature or open the fiat ramp for it", () => {
+    const { container } = render(<ExecutionPlan plan={empty()} />);
+    expect(isDisabled(/authorize/i)).toBe(true);
+    expect(isDisabled(/pay with fiat/i)).toBe(true);
+    expect(isDisabled(/simulate/i)).toBe(true);
+    expect(container.textContent).toContain("nothing to authorize");
+    expect(container.textContent).not.toContain("authorizing up to");
+    fireEvent.click(authorizeButton());
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
+  });
+
+  it("says the same with no wallet connected", () => {
+    disconnect();
+    const { container } = render(<ExecutionPlan plan={empty()} />);
+    expect(isDisabled(/pay with fiat/i)).toBe(true);
+    expect(isDisabled(/simulate/i)).toBe(true);
+    expect(container.textContent).toContain("nothing to authorize");
+  });
+
+  it("leaves a plan with steps payable", () => {
+    render(<ExecutionPlan plan={plan()} />);
+    expect(isDisabled(/authorize/i)).toBe(false);
+    expect(isDisabled(/pay with fiat/i)).toBe(false);
+  });
+});
+
 describe("ExecutionPlan · each step's reputation badge", () => {
   /** What a screen reader hears from the step's chip: its sr-only words,
    *  found by what they say. The glyphs and figures beside them are hidden. */
