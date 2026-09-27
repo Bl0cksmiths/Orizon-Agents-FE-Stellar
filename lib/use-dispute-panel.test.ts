@@ -2076,6 +2076,22 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(spent + 2);
   });
 
+  it("resumes the wait for a sealed run's settlement on return, on its own cadence", async () => {
+    const { result } = await mountWith(answer(H, { settlement: null }));
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    setVisibility("hidden");
+    await advance(10 * S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    // Overdue by the time it is back: read at once, and the receipt with it.
+    fetchDisputes.mockResolvedValueOnce(answer(H));
+    setVisibility("visible");
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.view.kind).toBe("settled");
+  });
+
   it("stops the countdown in a hidden tab and catches it up on return", async () => {
     // The poll paused here and the tick did not: a backgrounded receipt woke
     // the page once a second, all night, to repaint a countdown nobody could

@@ -341,7 +341,6 @@ export type UseDisputePanelResult = {
  * with its id, or joins the list when there is none.
  */
 function withDisputes(disputes: Dispute[], adopted: Dispute[]): Dispute[] {
-  if (adopted.length === 0) return disputes;
   const ids = new Set(adopted.map((d) => d.id));
   return [...disputes.filter((d) => !ids.has(d.id)), ...adopted];
 }
