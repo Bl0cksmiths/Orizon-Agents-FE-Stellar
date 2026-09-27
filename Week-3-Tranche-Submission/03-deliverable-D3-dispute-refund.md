@@ -62,7 +62,7 @@ The frontend checks the challenge before the wallet is asked to sign it — the 
 
 **What can be disputed.** A step that was _settled_: a workflow is charged as a whole but disputed a step at a time, because a step is the unit with a price, an agent and an outcome. A step that never delivered was never charged, so there is nothing to credit and nothing to dispute — the settlement record keeps a `delivered` flag per step precisely so that stays answerable a day later, when the run's trace is long gone. One dispute per step: a second dispute against the same step returns **the original dispute, unchanged**, rather than an error the buyer must act on. A different step of the same workflow is a separate dispute and is allowed. A simulated run — no wallet, no authorization — charges nothing, settles nothing and has no window.
 
-**The reason is mandatory and is kept**, up to 500 characters; a longer one is refused outright rather than accepted and stored in part. It stays on the record whether the dispute is upheld or rejected, because it is the evidence trail an adjudication actually reads.
+**A written reason is required**, up to 500 characters; a longer one is refused rather than accepted and stored in part. The requirement is not yet airtight, and what is stored is not always what was sent: a reason made only of invisible characters is accepted as a reason (QA's D-059, open), and one containing a prompt-fence marker is stored altered and truncated (D-062, which the backend documents as an accepted edge). What is stored stays on the record whether the dispute is upheld or rejected, because it is the evidence trail an adjudication actually reads.
 
 ## What an upheld dispute pays, and who pays it
 
