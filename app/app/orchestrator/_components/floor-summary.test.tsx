@@ -28,6 +28,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import type { DecomposeResponse, PlanFloorNotice, PlanStep } from "@/lib/types";
+import { UNVERIFIED_BANNER_ID } from "./degraded-banner";
 import { FloorSummary } from "./floor-summary";
 
 afterEach(cleanup);
@@ -76,6 +77,14 @@ function text(over: Partial<DecomposeResponse> = {}): string {
   const { container } = render(<FloorSummary plan={plan(over)} />);
   return container.textContent ?? "";
 }
+
+/**
+ * Any count stated as a share of another: "3/12", "3 out of 12", "3 of 12",
+ * and the wordier "3 of the 12 agents" or "3 of all 12" — the phrasing the
+ * earlier pattern let through.
+ */
+const FRACTION =
+  /\b\d+(?:\.\d+)?\s*(?:\/|out of|of)\s*(?:(?:the|all|those|these)\s+)*\d/i;
 
 /** The plan-level disclosure that the backstop fired. */
 const RELAXED = /built under a relaxed floor/i;
@@ -190,17 +199,77 @@ describe("FloorSummary — what it counts", () => {
     expect(text({ notices: [notice()] })).not.toMatch(/no endpoint/);
   });
 
+  // A kind this build has no wording for is still a floor action the buyer
+  // should know about: counted, and pointed at the neutral row below.
+  it("counts a notice of an unknown kind and says it is listed below", () => {
+    const shown = text({
+      notices: [
+        notice({
+          kind: "delisted",
+          agent_id: "agt_gone",
+          reason: "withdrawn from routing by its operator",
+          reason_code: undefined,
+        }),
+      ],
+    });
+    expect(shown).toContain("the floor acted on 1 agent");
+    expect(shown).toContain(
+      "1 agent reported under a kind this card has no wording for, listed below",
+    );
+  });
+
+  it("counts several agents of unknown kinds as agents, not rows", () => {
+    const unknown = (id: string, kind: string) =>
+      notice({
+        kind,
+        agent_id: id,
+        reason: "withdrawn",
+        reason_code: undefined,
+      });
+    const shown = text({
+      notices: [
+        unknown("agt_a", "delisted"),
+        unknown("agt_b", "quarantined"),
+        unknown("agt_b", "delisted"),
+      ],
+    });
+    expect(shown).toContain(
+      "2 agents reported under a kind this card has no wording for",
+    );
+  });
+
+  it("says nothing about unknown kinds when every kind is known", () => {
+    expect(text({ notices: [notice()] })).not.toMatch(/no wording/);
+  });
+
   it("singularises a one-step plan", () => {
     expect(text({ steps: [step()] })).toContain("1 step planned");
+  });
+
+  // The pattern the two tests below lean on, checked against the phrasings
+  // it has to catch — and against the counts the card really prints.
+  it.each([
+    "3/12",
+    "3 out of 12",
+    "3 of 12",
+    "3 of the 12 agents",
+    "3 of all 12",
+  ])("the fraction pattern catches %j", (phrase) => {
+    expect(phrase).toMatch(FRACTION);
+  });
+  it("the fraction pattern passes the card's own counts", () => {
+    expect("2 steps planned · the floor acted on 1 agent").not.toMatch(
+      FRACTION,
+    );
   });
 
   it("never states a count as a fraction of a denominator it does not have", () => {
     // `steps.length` is how many agents were SELECTED and `notices.length` is
     // how many the floor acted on; neither is the size of the eligible set,
     // which the response never sends. Any "N of M" here is invented.
-    const fraction = /\b\d+(?:\.\d+)?\s*(?:\/|out of|of)\s*\d/i;
-    expect(text({ notices: [notice()] })).not.toMatch(fraction);
-    expect(text({ notices: [] })).not.toMatch(fraction);
+    expect(text({ notices: [notice()] })).not.toMatch(FRACTION);
+    expect(text({ notices: [] })).not.toMatch(FRACTION);
+    expect(text(COLD_START)).not.toMatch(FRACTION);
   });
 
   /**
@@ -216,7 +285,7 @@ describe("FloorSummary — what it counts", () => {
     const shown = text({ notices: [notice(), notice({ agent_id: "b" })] });
     expect(shown).toMatch(/steps planned/);
     expect(shown).toMatch(/the floor acted on/);
-    expect(shown).not.toMatch(/\b\d+(?:\.\d+)?\s*(?:\/|out of|of)\s*\d/i);
+    expect(shown).not.toMatch(FRACTION);
   });
 });
 
@@ -267,6 +336,100 @@ describe("FloorSummary — the relaxed floor", () => {
   });
 });
 
+/**
+ * What the backend sends on a cold start, when the ledger cannot be read: every
+ * step carries the prior (7000, lower bound 5677) with its own failed-read
+ * flag, the plan-level flag is set, and there are no notices — the prior's
+ * bound clears the 2.75 floor, so the floor acts on nobody.
+ */
+const coldStartStep = (over: Partial<PlanStep> = {}) =>
+  step({
+    rep_bps: 7000,
+    rep_source: "prior",
+    rep_lower_bound_bps: 5677,
+    rep_count: 0,
+    rep_dispute_rate_bps: 0,
+    rep_degraded: true,
+    ...over,
+  });
+const COLD_START: Partial<DecomposeResponse> = {
+  steps: [coldStartStep(), coldStartStep({ agent_id: "agt_price" })],
+  reputation_degraded: true,
+  notices: [],
+};
+
+/** The floor badge — the first claim the card makes. */
+function floorBadge(over: Partial<DecomposeResponse> = {}): HTMLElement {
+  render(<FloorSummary plan={plan(over)} />);
+  const badge = screen.getByText(/^floor \d/, { selector: "span" });
+  return badge;
+}
+
+describe("FloorSummary — a plan whose reputation could not be read", () => {
+  it("does not claim the floor was applied, and says unverified in the warning tone", () => {
+    const badge = floorBadge(COLD_START);
+    expect(badge.textContent).toBe("⚠floor 2.75 · unverified");
+    expect(badge.textContent).not.toMatch(/applied|✓/);
+    expect(badge.className).toContain("text-magenta");
+    expect(badge.className).not.toContain("text-cyan");
+    const section = screen.getByRole("region", { name: /routing floor/i });
+    expect(section.className).toContain("border-magenta/40");
+    expect(section.className).not.toContain("border-cyan/40");
+  });
+
+  it("says the floor compared estimates, not on-chain records", () => {
+    const shown = text(COLD_START);
+    expect(shown).toContain("Compared against estimates, not on-chain records");
+    expect(shown).toContain("the floor did not filter on evidence");
+    // The clean-plan claim, which is exactly what is false here.
+    expect(shown).not.toMatch(/checked against a 2\.75 routing floor before/);
+  });
+
+  it("links to the full warning above Authorize", () => {
+    render(<FloorSummary plan={plan(COLD_START)} />);
+    const link = screen.getByRole("link", { name: /before you authorize/i });
+    expect(link.getAttribute("href")).toBe(`#${UNVERIFIED_BANNER_ID}`);
+  });
+
+  // The plan flag and a step flag are the same fact at two scopes; either one
+  // on its own has to turn the claim.
+  it.each([
+    ["only the plan-level flag", { reputation_degraded: true }],
+    [
+      "only a step's own flag",
+      {
+        reputation_degraded: false,
+        steps: [step(), coldStartStep({ agent_id: "agt_price" })],
+      },
+    ],
+  ] satisfies [string, Partial<DecomposeResponse>][])(
+    "turns the claim on %s",
+    (_name, over) => {
+      expect(floorBadge(over).textContent).toContain("unverified");
+    },
+  );
+
+  it.each([
+    ["the reads held", { reputation_degraded: false }],
+    ["the backend predates the flag", { reputation_degraded: undefined }],
+  ] as const)("still says applied when %s", (_name, over) => {
+    const badge = floorBadge(over);
+    expect(badge.textContent).toBe("✓floor 2.75 · applied");
+    expect(badge.className).toContain("text-cyan");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("names both when the floor was relaxed on an unread plan", () => {
+    const badge = floorBadge({
+      ...COLD_START,
+      notices: [notice({ kind: "degraded", reason_code: "floor_relaxed" })],
+    });
+    expect(badge.textContent).toBe("⚠floor 2.75 · unverified · relaxed");
+    // …and the relaxed-floor disclosure still follows it.
+    expect(document.body.textContent).toMatch(RELAXED);
+  });
+});
+
 describe("FloorSummary — wording that has been wrong before", () => {
   const states: Array<[string, Partial<DecomposeResponse>]> = [
     ["a clean plan", {}],
@@ -294,6 +457,7 @@ describe("FloorSummary — wording that has been wrong before", () => {
       },
     ],
     ["a single step", { steps: [step()] }],
+    ["a cold start with every read unverified", COLD_START],
     [
       "an unbound agent",
       {

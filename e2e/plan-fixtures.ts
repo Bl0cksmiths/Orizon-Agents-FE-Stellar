@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import type { DecomposeResponse, StellarNetworkInfo } from "../lib/types";
 import { mockPlanExcluded } from "./mocks";
 
@@ -317,3 +317,82 @@ export const mockPlanPlannerAnswered = {
   reputation_degraded: false,
   planner_fallback: false,
 } satisfies DecomposeResponse;
+
+/**
+ * The backend's answer to running a plan it no longer holds: stored plans
+ * expire after 15 minutes, and `POST /orchestrator/execute` then refuses with
+ * 410 `plan_expired` — no task created, nothing charged. Shaped as the
+ * backend's envelope handler sends a coded refusal. Call AFTER `mockApi`.
+ */
+export async function mockExecuteExpired(page: Page): Promise<void> {
+  await page.route("**/api/orchestrator/execute", (route) =>
+    route.fulfill({
+      status: 410,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: "plan_expired",
+        error: {
+          code: "plan_expired",
+          message:
+            "this plan is too old to execute — build a fresh plan from the same intent and authorise that one",
+          request_id: "req_e2e_expired",
+        },
+      }),
+    }),
+  );
+}
+
+/**
+ * The on-chain authorize path up to a CONFIRMED transaction: the build
+ * answers an opaque XDR (the emulated wallet signs anything), and the submit
+ * answers SUCCESS with a 16-byte auth id. Call AFTER `mockApi`.
+ */
+export async function mockAuthorizeConfirmed(page: Page): Promise<void> {
+  await page.route("**/api/stellar/build/authorize", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ xdr: "AAAAAGUyZS1hdXRob3JpemUtdHg=" }),
+    }),
+  );
+  await page.route("**/api/stellar/submit", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "SUCCESS",
+        hash: "e2e0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e",
+        return_value: "0123456789abcdef0123456789abcdef",
+      }),
+    }),
+  );
+}
+
+/**
+ * Every element inside `container` whose box runs past the container's right
+ * edge, as readable descriptions. Empty means nothing sticks out.
+ *
+ * Element-level on purpose. The console sets `overflow-x: hidden` on html and
+ * body, so the page-level `scrollWidth - clientWidth` reads 0 however wide a
+ * child is — a check that can never fail. And the cards clip their own
+ * overflow with `clip-path`, so a badge past the edge is not scrolled to, it
+ * is simply gone. Comparing boxes finds both.
+ */
+export async function overflowingDescendants(
+  container: Locator,
+): Promise<string[]> {
+  return container.evaluate((root) => {
+    const edge = root.getBoundingClientRect().right;
+    const out: string[] = [];
+    for (const el of Array.from(root.querySelectorAll("*"))) {
+      const box = el.getBoundingClientRect();
+      if (box.width > 0 && box.right > edge + 0.5) {
+        const text = (el.textContent ?? "").trim().slice(0, 40);
+        out.push(
+          `<${el.tagName.toLowerCase()}> "${text}" ends at ${Math.round(box.right)}, past ${Math.round(edge)}`,
+        );
+      }
+    }
+    return out;
+  });
+}

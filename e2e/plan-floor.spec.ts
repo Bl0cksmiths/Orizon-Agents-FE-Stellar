@@ -17,7 +17,6 @@ import AxeBuilder from "@axe-core/playwright";
 import {
   mockApi,
   mockPlan,
-  mockPlanDegraded,
   mockPlanExcluded,
   mockPlanFloorRelaxed,
   mockPlanLegacy,
@@ -28,7 +27,15 @@ import {
   mockTestnetNetwork,
   mockPlanStepEvidence,
   mockPlanUnbound,
+  overflowingDescendants,
 } from "./plan-fixtures";
+import {
+  LONG_AGENT_ID,
+  mockPlanColdStart,
+  mockPlanLongNames,
+  mockPlanNoSteps,
+  mockPlanPartialOutage,
+} from "./plan-degraded-fixtures";
 import { assetLabel } from "../lib/money";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
@@ -44,8 +51,17 @@ type Box = { x: number; y: number; width: number; height: number };
  */
 const EVIDENCE_FRAME: Viewport = { width: 1440, height: 900 };
 
-/** The narrow end of the phones that reach this console. */
+/** A common phone width, and the one the layout was first tuned at. */
 const PHONE: Viewport = { width: 390, height: 844 };
+
+/** The narrow end of the phones that reach this console. */
+const NARROW_PHONE: Viewport = { width: 360, height: 740 };
+
+/** The plan card itself: the frame whose `clip-path` cuts off overflow. */
+const planCard = (page: Page) =>
+  page
+    .locator("div.glow-card")
+    .filter({ has: page.getByRole("heading", { name: /execution plan/i }) });
 
 /**
  * The exclusions disclosure. `<details>` is the contract rather than an
@@ -69,26 +85,37 @@ const exclusionRows = (page: Page) => exclusions(page).locator("li, tr");
  * The warning that the scores on this plan were estimated rather than read
  * from the ledger.
  *
- * Located by live-region role plus the one word the warning cannot mean
- * anything without — never by its sentence, which is under review and
- * deliberately avoids "degraded". The role is not a wording constraint either:
- * a warning painted into the page without one is never announced, so a
- * screen-reader buyer authorizes the payment without ever hearing it.
+ * Located by its id — the one the floor summary links to — never by its
+ * words. A locator that filters on the copy passes vacuously the day the copy
+ * is reworded, which is exactly when a negative control has to keep working.
  */
 const estimateBanner = (page: Page) =>
-  page
-    .locator('[role="status"], [role="alert"]')
-    .filter({ hasText: /estimat/i });
+  page.locator("#plan-reputation-unverified");
+
+/**
+ * The banner's one-sentence summary: its live region, and what each pay
+ * control is described by. The role is part of the contract, not a wording
+ * constraint — a warning with none is never announced, so a screen-reader
+ * buyer authorizes the payment without ever hearing it.
+ */
+const estimateSummary = (page: Page) =>
+  estimateBanner(page).getByRole("status");
 
 /** The plan's step rows — the first ordered list in the card. */
 const steps = (page: Page) => page.locator("ol").first().getByRole("listitem");
 
 /**
- * Per-agent reputation, found by its accessible label rather than its glyph or
- * its colour. The chip is what the SOW sentence means by "on-chain reputation
- * per agent", and a buyer using a screen reader has only this label to go on.
+ * Per-agent reputation, found by the words it carries for a screen reader (an
+ * sr-only span beside glyphs hidden from assistive technology) rather than by
+ * its glyph or its colour. The chip is what the SOW sentence means by
+ * "on-chain reputation per agent", and a buyer using a screen reader has only
+ * those words to go on.
  */
-const reputationChip = (step: Locator) => step.getByLabel(/reputation/i);
+const reputationChip = (step: Locator) => step.locator("span:has(> .sr-only)");
+
+/** What a screen reader hears from a chip: its sr-only words. */
+const chipWords = async (chip: Locator) =>
+  (await chip.locator("> .sr-only").textContent()) ?? "";
 
 /**
  * The deciding number, in bps or as the 0–5 score the UI may print it as.
@@ -257,7 +284,7 @@ test.describe("plan card — reputation, source and exclusions", () => {
     // The wallet has to be connected for the authorize control to exist at all:
     // the AC is about the moment money is committed, not about a disabled
     // button on a page nobody can pay from.
-    await decomposeWith(page, mockPlanDegraded, { wallet: true });
+    await decomposeWith(page, mockPlanPartialOutage, { wallet: true });
 
     const banner = estimateBanner(page);
     await expect(banner).toHaveCount(1);
@@ -341,6 +368,33 @@ test.describe("plan card — reputation, source and exclusions", () => {
     }
   });
 
+  // A focus ring is a paint question, so it is measured here rather than as
+  // a class name in jsdom: the cyber clip-path clips any shadow painted
+  // outside the element, and a ring the clip removes is no ring at all.
+  test("the exclusions disclosure shows a visible focus ring from the keyboard", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanExcluded);
+    const summary = exclusions(page).locator("summary");
+    await stableBox(summary);
+    const shadow = () =>
+      summary.evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(await shadow(), "no ring at rest").toBe("none");
+
+    // Reached by Tab, which is what makes the focus keyboard-visible.
+    await summary.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(summary).toBeFocused();
+    expect(await summary.evaluate((el) => el.matches(":focus-visible"))).toBe(
+      true,
+    );
+    // An inset ring, which survives the clip-path an outset one would not.
+    expect(await shadow()).toMatch(/inset/);
+    expect(await shadow()).not.toBe("none");
+  });
+
   test("AC-6 — the expanded exclusions fit a 390px viewport without sideways scroll", async ({
     page,
   }) => {
@@ -373,22 +427,22 @@ test.describe("plan card — reputation, source and exclusions", () => {
       );
     }
 
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
+    // Element by element, not `documentElement.scrollWidth`: the console's
+    // `overflow-x: hidden` makes that read 0 whatever overflows, so it could
+    // never fail. Nothing on the card may run past the card's own edge, and
+    // the card may not run past the frame.
     expect(
-      overflow,
-      "expanding the exclusions must not make the page scroll sideways",
-    ).toBeLessThanOrEqual(1);
+      await overflowingDescendants(planCard(page)),
+      "expanding the exclusions must not push anything past the card",
+    ).toEqual([]);
+    expectWithinWidth(await stableBox(planCard(page)), PHONE, "the plan card");
   });
 
   test("the expanded card, warning and all, has no WCAG A/AA violations", async ({
     page,
   }) => {
     await page.setViewportSize(EVIDENCE_FRAME);
-    await decomposeWith(page, mockPlanDegraded, { wallet: true });
+    await decomposeWith(page, mockPlanPartialOutage, { wallet: true });
 
     await exclusions(page).locator("summary").click();
     await expect(exclusions(page)).toHaveJSProperty("open", true);
@@ -471,13 +525,14 @@ test.describe("plan card — reputation, source and exclusions", () => {
     // `≈`, and neither reaches a buyer who is listening rather than looking, so
     // the accessible label is where the distinction has to survive.
     for (const [index, step] of mockPlan.steps.entries()) {
-      const chip = steps(page)
-        .nth(index)
-        .getByLabel(/reputation|estimat/i);
+      const chip = reputationChip(steps(page).nth(index));
       await expect(chip).toHaveCount(1);
       await expect(chip).toContainText(scoreOutOfFive(step.rep_bps));
 
-      const label = (await chip.getAttribute("aria-label")) ?? "";
+      const label = await chipWords(chip);
+      expect(label, `${step.agent_id}'s chip says nothing`).toMatch(
+        /reputation|estimat/i,
+      );
       // "no on-chain ratings yet" also contains "on-chain", so the prior is the
       // case that must name itself; an on-chain score is then whatever does not
       // describe itself as one.
@@ -499,6 +554,10 @@ test.describe("plan card — reputation, source and exclusions", () => {
 /** The routing-floor summary above the steps, by its accessible name. */
 const floorSummary = (page: Page) =>
   page.getByRole("region", { name: /routing floor/i });
+
+/** The summary's badge — the first claim the card makes about the floor. */
+const floorBadge = (page: Page) =>
+  floorSummary(page).locator("span", { hasText: /floor \d\.\d\d · / });
 
 /**
  * The claims the Epic 3 hardening pass corrected: which number the floor
@@ -593,11 +652,8 @@ test.describe("plan card — what each claim rests on", () => {
 
     /** The chip on one step, and what a screen reader hears from it. */
     const chipOf = (agentId: string) =>
-      steps(page)
-        .filter({ hasText: agentId })
-        .getByLabel(/reputation|estimat/i);
-    const labelOf = async (agentId: string) =>
-      (await chipOf(agentId).getAttribute("aria-label")) ?? "";
+      reputationChip(steps(page).filter({ hasText: agentId }));
+    const labelOf = async (agentId: string) => chipWords(chipOf(agentId));
     const stepOf = (agentId: string) => {
       const found = mockPlanStepEvidence.steps.find(
         (s) => s.agent_id === agentId,
@@ -684,8 +740,14 @@ test.describe("plan card — what each claim rests on", () => {
     // so it has to resolve to the warning itself, not to any element.
     const describedBy = await authorize.getAttribute("aria-describedby");
     expect(describedBy, "Authorize names no description").toBeTruthy();
-    await expect(estimateBanner(page)).toHaveAttribute("id", describedBy ?? "");
+    await expect(estimateSummary(page)).toHaveAttribute(
+      "id",
+      describedBy ?? "",
+    );
     await expect(authorize).toHaveAccessibleDescription(/estimat/i);
+    // The summary, not the banner: its closing paragraphs are not read out as
+    // the button's description.
+    await expect(authorize).not.toHaveAccessibleDescription(/yours to decide/i);
   });
 
   test("Authorize carries no description when every read held", async ({
@@ -720,80 +782,96 @@ test.describe("plan card — what each claim rests on", () => {
       plan: mockPlanUnbound,
       options: { network: true },
     },
+    {
+      name: "a cold start with every read unverified",
+      plan: mockPlanColdStart,
+      options: { wallet: true, network: true },
+    },
   ];
 
-  for (const { name, plan, options } of crowdedStates) {
-    test(`at 390px, ${name} fit without sideways scroll`, async ({ page }) => {
-      await page.setViewportSize(PHONE);
-      await decomposeWith(page, plan, options);
-      await exclusions(page).locator("summary").click();
-      await expect(exclusions(page)).toHaveJSProperty("open", true);
-
-      // Box by box, because the console hides sideways overflow: a row past
-      // the right edge is not scrolled to, it is cut off — and a cut-off chip
-      // or cap still looks like an answer.
-      expectWithinWidth(
-        await stableBox(floorSummary(page)),
-        PHONE,
-        "the floor summary",
-      );
-      for (const [index, step] of plan.steps.entries()) {
-        expectWithinWidth(
-          await stableBox(steps(page).nth(index)),
-          PHONE,
-          `the ${step.agent_id} step`,
-        );
-      }
-      for (const [index, notice] of (plan.notices ?? []).entries()) {
-        expectWithinWidth(
-          await stableBox(exclusionRows(page).nth(index)),
-          PHONE,
-          `the ${notice.agent_id} row`,
-        );
-      }
-      if (options.wallet) {
-        expectWithinWidth(
-          await stableBox(page.getByText(/authorizing up to/i)),
-          PHONE,
-          "the authorize line",
-        );
-
-        // The pay controls, measured against the row that holds them rather
-        // than the viewport: the card's clip-path cuts overflow off silently,
-        // so a button past its row is gone even while the page has room.
-        const controls = page
-          .locator("div")
-          .filter({ has: page.getByText(/authorizing up to/i) })
-          .filter({ has: page.getByRole("button", { name: /authorize/i }) })
-          .last();
-        const row = await stableBox(controls);
-        for (const name of [/simulate/i, /fiat/i, /authorize/i]) {
-          const button = await stableBox(
-            controls.getByRole("button", { name }),
-          );
-          expect(
-            button.x + button.width,
-            `the ${name.source} button runs past its row`,
-          ).toBeLessThanOrEqual(row.x + row.width + 0.5);
+  for (const frame of [PHONE, NARROW_PHONE]) {
+    for (const { name, plan, options } of crowdedStates) {
+      test(`at ${frame.width}px, ${name} fit without sideways scroll`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(frame);
+        await decomposeWith(page, plan, options);
+        // A plan with no notices has no disclosure to open.
+        if ((plan.notices ?? []).length > 0) {
+          await exclusions(page).locator("summary").click();
+          await expect(exclusions(page)).toHaveJSProperty("open", true);
+        } else {
+          await expect(exclusions(page)).toHaveCount(0);
         }
-      }
-      if (plan.reputation_degraded) {
-        expectWithinWidth(
-          await stableBox(estimateBanner(page)),
-          PHONE,
-          "the estimate warning",
-        );
-      }
 
-      const overflow = await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth -
-          document.documentElement.clientWidth,
-      );
-      expect(overflow, "the page must not scroll sideways").toBeLessThanOrEqual(
-        1,
-      );
-    });
+        // Box by box, because the console hides sideways overflow: a row past
+        // the right edge is not scrolled to, it is cut off — and a cut-off chip
+        // or cap still looks like an answer.
+        expectWithinWidth(
+          await stableBox(floorSummary(page)),
+          frame,
+          "the floor summary",
+        );
+        for (const [index, step] of plan.steps.entries()) {
+          expectWithinWidth(
+            await stableBox(steps(page).nth(index)),
+            frame,
+            `the ${step.agent_id} step`,
+          );
+        }
+        for (const [index, notice] of (plan.notices ?? []).entries()) {
+          expectWithinWidth(
+            await stableBox(exclusionRows(page).nth(index)),
+            frame,
+            `the ${notice.agent_id} row`,
+          );
+        }
+        if (options.wallet) {
+          expectWithinWidth(
+            await stableBox(page.getByText(/authorizing up to/i)),
+            frame,
+            "the authorize line",
+          );
+
+          // The pay controls, measured against the row that holds them rather
+          // than the viewport: the card's clip-path cuts overflow off silently,
+          // so a button past its row is gone even while the page has room.
+          const controls = page
+            .locator("div")
+            .filter({ has: page.getByText(/authorizing up to/i) })
+            .filter({ has: page.getByRole("button", { name: /authorize/i }) })
+            .last();
+          const row = await stableBox(controls);
+          for (const name of [/simulate/i, /fiat/i, /authorize/i]) {
+            const button = await stableBox(
+              controls.getByRole("button", { name }),
+            );
+            expect(
+              button.x + button.width,
+              `the ${name.source} button runs past its row`,
+            ).toBeLessThanOrEqual(row.x + row.width + 0.5);
+          }
+        }
+        if (plan.reputation_degraded) {
+          expectWithinWidth(
+            await stableBox(estimateBanner(page)),
+            frame,
+            "the estimate warning",
+          );
+        }
+
+        // Element by element, for the reason given in the AC-6 test above.
+        expect(
+          await overflowingDescendants(planCard(page)),
+          "nothing on the card may run past its edge",
+        ).toEqual([]);
+        expectWithinWidth(
+          await stableBox(planCard(page)),
+          frame,
+          "the plan card",
+        );
+      });
+    }
   }
 
   // The new marks — a muted "no endpoint" badge, a chip carrying a dispute
@@ -805,8 +883,10 @@ test.describe("plan card — what each claim rests on", () => {
     }) => {
       await page.setViewportSize(EVIDENCE_FRAME);
       await decomposeWith(page, plan, options);
-      await exclusions(page).locator("summary").click();
-      await expect(exclusions(page)).toHaveJSProperty("open", true);
+      if ((plan.notices ?? []).length > 0) {
+        await exclusions(page).locator("summary").click();
+        await expect(exclusions(page)).toHaveJSProperty("open", true);
+      }
 
       const { violations } = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -819,4 +899,224 @@ test.describe("plan card — what each claim rests on", () => {
       ).toEqual([]);
     });
   }
+});
+
+test.describe("plan card — at the narrow end of phone widths", () => {
+  // Agent names may be one unbroken token of up to 100 characters. At 360px a
+  // 56-character on-chain id used to run past its step row and be clipped by
+  // the card without a trace, and the page never scrolled to show it.
+  test("at 360px, long unbroken agent names wrap inside their step rows", async ({
+    page,
+  }) => {
+    await page.setViewportSize(NARROW_PHONE);
+    await decomposeWith(page, mockPlanLongNames, { wallet: true });
+
+    await expect(steps(page)).toHaveCount(mockPlanLongNames.steps.length);
+    for (const [index, step] of mockPlanLongNames.steps.entries()) {
+      const row = steps(page).nth(index);
+      await stableBox(row);
+      // The whole name is on the card, and nothing in the row sticks out.
+      await expect(row).toContainText(step.agent_id);
+      expect(
+        await overflowingDescendants(row),
+        `the ${index + 1}. step row`,
+      ).toEqual([]);
+    }
+    await expect(steps(page).first()).toContainText(`for ${LONG_AGENT_ID}`);
+    expect(await overflowingDescendants(planCard(page))).toEqual([]);
+  });
+});
+
+/**
+ * The degraded states as the backend sends them: every step carrying its own
+ * `rep_degraded` and the prior's lower bound. The cold start is the live case
+ * — the ledger unreadable, every agent on the prior, no notices, and the
+ * floor acting on nobody — and it is the one where the card's first claim
+ * used to be a cyan "✓ floor 2.75 · applied", with the only warning a
+ * phone-screen and more further down.
+ */
+test.describe("plan card — reputation that could not be read", () => {
+  const unreadStates = [
+    { name: "a cold start", plan: mockPlanColdStart },
+    { name: "a partial outage", plan: mockPlanPartialOutage },
+  ];
+
+  for (const frame of [NARROW_PHONE, EVIDENCE_FRAME]) {
+    for (const { name, plan } of unreadStates) {
+      test(`at ${frame.width}px, ${name} is flagged unverified before the steps, and before Authorize`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(frame);
+        await decomposeWith(page, plan, { wallet: true, network: true });
+
+        // The first claim on the card: the floor badge. Never "applied" and
+        // never the check mark, on a floor that compared estimates.
+        const summary = floorSummary(page);
+        const badge = floorBadge(page);
+        await expect(badge).toContainText(/unverified/i);
+        await expect(badge).not.toContainText(/applied|✓/);
+        await expect(summary).toContainText(/estimates, not on-chain records/i);
+
+        // Geometry, not DOM order: the warning is painted above the first
+        // step and above the pay controls.
+        const authorize = page.getByRole("button", { name: /authorize/i });
+        const badgeBox = await stableBox(badge);
+        const firstStep = await stableBox(steps(page).first());
+        const authorizeBox = await stableBox(authorize);
+        const bannerBox = await stableBox(estimateBanner(page));
+        const headingBox = await stableBox(
+          page.getByRole("heading", { name: /execution plan/i }),
+        );
+        expect(badgeBox.y + badgeBox.height).toBeLessThanOrEqual(firstStep.y);
+        expect(badgeBox.y + badgeBox.height).toBeLessThanOrEqual(
+          authorizeBox.y,
+        );
+        console.log(
+          `[positions] ${frame.width}px ${name}: heading y=${Math.round(headingBox.y)}, ` +
+            `unverified badge y=${Math.round(badgeBox.y)} (+${Math.round(badgeBox.y - headingBox.y)}), ` +
+            `banner y=${Math.round(bannerBox.y)} (+${Math.round(bannerBox.y - headingBox.y)}, h=${Math.round(bannerBox.height)}), ` +
+            `authorize y=${Math.round(authorizeBox.y)} (+${Math.round(authorizeBox.y - headingBox.y)})`,
+        );
+
+        // …and it leads to the full warning in one press.
+        await summary
+          .getByRole("link", { name: /before you authorize/i })
+          .click();
+        await expect(estimateBanner(page)).toBeInViewport();
+
+        // Every pay control carries the one-sentence summary, not the banner.
+        for (const control of [/simulate/i, /fiat/i, /authorize/i]) {
+          await expect(
+            page.getByRole("button", { name: control }),
+          ).toHaveAccessibleDescription(/estimates, not on-chain records/i);
+        }
+      });
+    }
+  }
+
+  test("a cold start carries no WCAG A/AA violations", async ({ page }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanColdStart, { wallet: true });
+    await stableBox(estimateBanner(page));
+    await expect(estimateSummary(page)).toHaveText(/estimates/);
+
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(
+      violations.map(
+        (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+      ),
+    ).toEqual([]);
+  });
+
+  test("with the reads held, the floor still reads applied", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanExcluded, { wallet: true });
+    const badge = floorBadge(page);
+    await expect(badge).toContainText(/applied/);
+    await expect(badge).not.toContainText(/unverified/);
+    await expect(estimateBanner(page)).toHaveCount(0);
+  });
+});
+
+/**
+ * Payload shapes the runtime guard lets through for the card to handle: a plan
+ * with nothing in it, and notices this build has no wording for. The backend
+ * may send any of these, so each has to render as a plan, not as an error.
+ */
+test.describe("plan card — shapes the backend may send", () => {
+  test("a plan with no steps renders, and offers nothing to pay", async ({
+    page,
+  }) => {
+    const crashes: string[] = [];
+    page.on("pageerror", (e) => crashes.push(e.message));
+    await page.setViewportSize(NARROW_PHONE);
+    await decomposeWith(page, mockPlanNoSteps, { wallet: true });
+
+    await expect(steps(page)).toHaveCount(0);
+    await expect(planCard(page)).toContainText(/nothing to authorize/i);
+    await expect(page.getByText(/authorizing up to/i)).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /authorize/i }),
+    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: /fiat/i })).toBeDisabled();
+    expect(crashes).toEqual([]);
+  });
+
+  /** A decompose answered with a raw payload, as a newer backend would send
+   *  it — typed as nothing, because it is not one of ours. */
+  async function decomposeRaw(page: Page, body: object) {
+    await mockApi(page);
+    await page.route("**/api/orchestrator/decompose", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      }),
+    );
+    await page.goto("/app/orchestrator");
+    await page.getByRole("textbox", { name: /intent/i }).fill("anything");
+    await page.getByRole("button", { name: /decompos/i }).click();
+    await expect(
+      page.getByRole("heading", { name: /execution plan/i }),
+    ).toBeVisible();
+  }
+
+  // One unknown kind used to fail the whole plan in the guard: the buyer got
+  // "malformed response" and no plan at all.
+  test("an unknown notice kind renders as a neutral row, and the plan with it", async ({
+    page,
+  }) => {
+    await page.setViewportSize(NARROW_PHONE);
+    await decomposeRaw(page, {
+      ...mockPlanExcluded,
+      notices: [
+        mockPlanExcluded.notices[0],
+        {
+          kind: "delisted",
+          agent_id: "summarize.pro",
+          agent_name: "summarize.pro",
+          reason: "withdrawn from routing by its operator",
+        },
+      ],
+    });
+
+    await expect(steps(page)).toHaveCount(mockPlanExcluded.steps.length);
+    await expect(exclusions(page).locator("summary")).toContainText(
+      /2 changes/,
+    );
+    await exclusions(page).locator("summary").click();
+    const row = exclusionRows(page).filter({ hasText: "summarize.pro" });
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText(/delisted/);
+    await expect(row).toContainText("withdrawn from routing by its operator");
+    await expect(floorSummary(page)).toContainText(/no wording for/);
+    expect(await overflowingDescendants(planCard(page))).toEqual([]);
+  });
+
+  // The summary above the steps and the panel below them count the same
+  // array with one rule, so an unknown reason code cannot make them disagree.
+  test("an unknown reason code is counted alike above and below the steps", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeRaw(page, {
+      ...mockPlanExcluded,
+      notices: [
+        {
+          ...mockPlanExcluded.notices[0],
+          reason: "quarantined by the incident switch",
+          reason_code: "quarantined",
+        },
+      ],
+    });
+
+    await expect(floorSummary(page)).toContainText(/acted on 1 agent(?!s)/);
+    await expect(exclusions(page).locator("summary")).toContainText(
+      /1 change(?!s)/,
+    );
+  });
 });
