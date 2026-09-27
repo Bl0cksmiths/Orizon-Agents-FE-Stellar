@@ -437,6 +437,18 @@ describe("RoutingStanding — a delisted agent", () => {
     expect(verdict()).toContain("Eligible — the planner selects per request.");
   });
 
+  // A status a newer backend added. The backend's own rule would call it
+  // listed, but it may be the backend's word for a withdrawal, so the panel
+  // neither promises eligibility nor calls the agent delisted.
+  it("cannot confirm the standing of a status it does not know", () => {
+    const { container } = renderStanding({ status: "suspended" });
+    expect(verdict()).toBe(
+      '⋯Standing not confirmed — its registry status "suspended" is not one this console knows.',
+    );
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/Eligible —|Delisted/);
+  });
+
   // The operator withdrew it; nothing failed. The panel keeps magenta for a
   // blocked gate, and a delisting is not one.
   it("says it is the operator's choice, calmly", () => {

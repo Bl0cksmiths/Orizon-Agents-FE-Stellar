@@ -37,6 +37,7 @@ import type { ReputationRead } from "@/components/agents/reputation-cell";
 import { listAgents, listReputation } from "@/lib/api";
 import { ownedAgents } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
+import { isAgentStatus } from "@/lib/types";
 import { useFetch } from "@/lib/use-fetch";
 import { useWallet } from "@/lib/wallet";
 import { AgentCard } from "./agent-card";
@@ -101,6 +102,9 @@ export default function OperatorPage() {
     ? owned.filter((a) => {
         const rep = repBatch.reputations[a.id];
         return (
+          // A status this build does not know is not counted: the panel for
+          // it says its standing cannot be confirmed, and the tile agrees.
+          isAgentStatus(a.status) &&
           isListed(a) &&
           binding.stateOf(a.id) === "bound" &&
           rep != null &&

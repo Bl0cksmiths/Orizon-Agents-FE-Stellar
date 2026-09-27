@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { focusRing } from "@/lib/ui";
-import type { Agent, ReputationInfo } from "@/lib/types";
+import { isAgentStatus, type Agent, type ReputationInfo } from "@/lib/types";
 import { BindingStateBadge } from "../agents/binding-notice";
 import { ManagePanel } from "../agents/manage-panel";
 import type { BindingState } from "../agents/use-binding-status";
@@ -71,7 +71,14 @@ export function AgentCard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={statusTone[agent.status]} dot>
+          {/* A status this build does not know is shown as sent, neutrally. */}
+          <Badge
+            tone={
+              isAgentStatus(agent.status) ? statusTone[agent.status] : "muted"
+            }
+            dot={isAgentStatus(agent.status)}
+            className="max-w-full whitespace-normal break-all"
+          >
             {agent.status}
           </Badge>
           {bindingState && <BindingStateBadge state={bindingState} />}

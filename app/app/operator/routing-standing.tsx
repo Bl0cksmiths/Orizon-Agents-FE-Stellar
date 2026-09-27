@@ -48,7 +48,7 @@ import { bindHref, UNBOUND_WARNING } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
 import type { BindingState } from "@/app/app/agents/use-binding-status";
 import type { ReputationRead } from "@/components/agents/reputation-cell";
-import type { AgentStatus, ReputationInfo } from "@/lib/types";
+import { isAgentStatus, type ReputationInfo } from "@/lib/types";
 
 /**
  * bps 0..10000 over a 0–100 rating scale → the familiar 0–5 score.
@@ -120,7 +120,7 @@ export function RoutingStanding({
   agentId: string;
   /** The agent's registry status. "offline" is how an operator's delisting
    *  syncs back, and the orchestrator routes a delisted agent on no path. */
-  status: AgentStatus;
+  status: string;
   bindingState: BindingState | null;
   reputation: ReputationInfo | null;
   /** Null when the reputation batch has not loaded. The floor and the score
@@ -173,6 +173,10 @@ export function RoutingStanding({
   // because it settles everything: the orchestrator drops a delisted agent
   // before either gate is consulted, and no fallback re-admits it.
   const listed = isListed({ status });
+  // A status this build does not know. The backend's own rule would call it
+  // listed, but the word may be its name for a withdrawal, so the panel
+  // neither promises eligibility nor calls it delisted: it says it cannot tell.
+  const knownStatus = isAgentStatus(status);
 
   // A failure outranks an unknown. Both gates must hold, so one confirmed
   // failure settles the verdict no matter what the other gate is doing.
@@ -180,7 +184,7 @@ export function RoutingStanding({
     ? "withdrawn"
     : bindingGate === "fail" || floorGate === "fail"
       ? "fail"
-      : bindingGate === "unknown" || floorGate === "unknown"
+      : bindingGate === "unknown" || floorGate === "unknown" || !knownStatus
         ? "unknown"
         : "pass";
 
@@ -199,6 +203,10 @@ export function RoutingStanding({
     blockers.push("its reputation lower bound is below the network floor");
 
   const unread: string[] = [];
+  if (!knownStatus)
+    unread.push(
+      `its registry status "${status}" is not one this console knows`,
+    );
   if (bindingGate === "unknown")
     unread.push(
       bindingState === "error"

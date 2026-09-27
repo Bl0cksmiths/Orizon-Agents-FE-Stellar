@@ -493,3 +493,52 @@ describe("RegistryStandingNotice — a failed request for the batch", () => {
     },
   );
 });
+
+// Entries the batch carried that no row can use are screened out one by one
+// rather than failing the whole read. Their agents then read "no score",
+// which is true — and this is where the page says why.
+describe("RegistryStandingNotice — entries it could not use", () => {
+  it("counts an unusable entry once, as its own neutral sentence", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")])}
+        entriesDropped={1}
+      />,
+    );
+    expect(text()).toContain(
+      "1 reputation entry could not be used — it was missing a field this page needs — so its agent shows no score rather than a guessed one.",
+    );
+    // Not a read failure: the chain may have been read perfectly well.
+    expect(text()).not.toMatch(/could not be read from the chain/);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("pluralises the count", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")])}
+        entriesDropped={3}
+      />,
+    );
+    expect(text()).toContain("3 reputation entries could not be used");
+    expect(text()).toContain("their agents show no score");
+  });
+
+  it("says nothing about dropped entries when none were", () => {
+    render(<RegistryStandingNotice batch={batchOf([rep("agt_a")])} />);
+    expect(text()).not.toMatch(/could not be used/);
+  });
+
+  // Even with no floor to state, the count is still news.
+  it("still reports dropped entries when the batch carried no floor", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")], {
+          floor_bps: undefined as unknown as number,
+        })}
+        entriesDropped={2}
+      />,
+    );
+    expect(text()).toContain("2 reputation entries could not be used");
+  });
+});

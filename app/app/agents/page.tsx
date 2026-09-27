@@ -14,12 +14,13 @@ import {
 } from "@/components/agents/reputation-cell";
 import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
+import { droppedCount } from "@/lib/guards";
 import { isOwnedBy } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
 import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { useWallet } from "@/lib/wallet";
-import type { Agent } from "@/lib/types";
+import { isAgentStatus, type Agent } from "@/lib/types";
 import { BindingStateBadge, UnboundNotice } from "./binding-notice";
 import { ManagePanel } from "./manage-panel";
 import { useBindingStatus } from "./use-binding-status";
@@ -29,6 +30,12 @@ const statusTone = {
   idle: "violet" as const,
   offline: "muted" as const,
 };
+
+/** The status badge's tone. A status this build does not know is shown as
+ *  the backend sent it, in the neutral tone: it is still a listed agent, and
+ *  guessing a colour for it would be guessing what it means. */
+const toneOf = (status: string) =>
+  isAgentStatus(status) ? statusTone[status] : ("muted" as const);
 
 export default function AgentsPage() {
   const {
@@ -110,6 +117,10 @@ export default function AgentsPage() {
   const bindingStateOf = binding.stateOf;
   const isRoutable = useCallback(
     (a: Agent): boolean => {
+      // A status this build does not know is not a claim it can make about
+      // routing: it may be the backend's word for a withdrawal. The row stays
+      // in the registry; it is only left out of the "routable" promise.
+      if (!isAgentStatus(a.status)) return false;
       if (!isListed(a)) return false;
       const lookup = bindingStateOf(a.id);
       if (lookup === "unbound") return false;
@@ -122,6 +133,14 @@ export default function AgentsPage() {
     },
     [repBatch, bindingStateOf],
   );
+
+  // Agents the registry sent that could not be shown — each missing a field
+  // the row needs. Screened out one by one, so a single malformed agent no
+  // longer empties the registry; counted, so it does not vanish unsaid.
+  const agentsDropped = agents ? droppedCount(agents) : 0;
+  // Reputation entries left out the same way. Their agents read "no score",
+  // which is true; the notice says why.
+  const entriesDropped = repBatch ? droppedCount(repBatch) : 0;
 
   const [filter, setFilter] = useState<
     "all" | "routable" | "online" | "idle" | "offline"
@@ -166,6 +185,7 @@ export default function AgentsPage() {
           rule from the verdicts. */}
       <RegistryStandingNotice
         batch={repBatch ?? null}
+        entriesDropped={entriesDropped}
         readError={repError}
         lastReadAt={repLastReadAt}
         onRetry={reloadReputation}
@@ -257,8 +277,26 @@ export default function AgentsPage() {
             onRetry={retry}
             retrying={loading || retrying}
           >
-            backend offline — {error}
+            {agents
+              ? "couldn't refresh the agent registry — the rows below are from the last read that succeeded."
+              : "couldn't load the agent registry."}{" "}
+            {error}
           </ErrorNote>
+        )}
+
+        {agentsDropped > 0 && (
+          // Polite, not an alert: the registry did load, and every agent it
+          // could read is listed. What is missing is said once, in words.
+          <p
+            role="status"
+            className="clip-cyber-sm mb-4 border border-border bg-white/5 px-3 py-2 font-mono text-[11px] leading-relaxed text-muted"
+          >
+            <span aria-hidden="true">⚠ </span>
+            {agentsDropped === 1
+              ? "1 agent in the registry could not be shown: its entry was missing a field this page needs."
+              : `${agentsDropped} agents in the registry could not be shown: their entries were missing fields this page needs.`}{" "}
+            Every other agent is listed below.
+          </p>
         )}
 
         {/* Focusable, and named, because it scrolls. The registry is wider
@@ -343,7 +381,7 @@ export default function AgentsPage() {
                     colSpan={8}
                     className="py-10 text-center text-muted font-mono text-xs"
                   >
-                    couldn&apos;t load agents — the registry is unreachable.
+                    no agents to show — the registry could not be read.
                   </td>
                 </tr>
               )}
@@ -450,8 +488,9 @@ export default function AgentsPage() {
                       </td>
                       <td className="py-3">
                         <Badge
-                          tone={statusTone[a.status]}
+                          tone={toneOf(a.status)}
                           dot={a.status === "online"}
+                          className="max-w-[10rem] whitespace-normal break-all"
                         >
                           {a.status}
                         </Badge>
