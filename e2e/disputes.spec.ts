@@ -823,6 +823,38 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
   });
 
+  // While the receipt loads, the region says so to assistive technology:
+  // busy, with a status line naming what is loading — and stops saying it
+  // once the receipt is in.
+  test("the loading receipt is marked busy, and says what is loading", async ({
+    page,
+  }) => {
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            async (route) => {
+              await answered;
+              await route.fallback();
+            },
+          );
+        },
+      },
+    );
+    const busy = page.locator("main [aria-busy='true']");
+    await expect(busy).toHaveCount(1);
+    await expect(busy.getByRole("status")).toHaveText("Loading the receipt…");
+
+    answer();
+    await expect(receipt(page)).toBeVisible();
+    await expect(busy).toHaveCount(0);
+  });
+
   // The skeleton is drawn in the panel's own line boxes, so the receipt
   // landing moves the trace below it by less than a line — the one step row
   // whose height the skeleton cannot know in advance (a failed step's
