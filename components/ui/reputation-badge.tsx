@@ -9,7 +9,9 @@ const score = (bps: number) => (bps / 2000).toFixed(2);
  * Cyan when the score is backed by on-chain evidence, violet-tinted with a
  * `≈` prefix when it is only the Bayesian prior, magenta when it sits below
  * the network floor. Meaning is never carried by color alone — the ≈ / ★ / ⚑
- * glyphs and the title/aria-label text carry it too.
+ * glyphs carry it for sighted readers, and an sr-only sentence (repeated as
+ * the tooltip) carries the source, the score, the floor verdict and the
+ * dispute rate for everyone else.
  *
  * The floor decision follows the backend's `passes_floor`: the Wilson lower
  * bound against the floor, never the displayed (smoothed) score. Callers
@@ -52,6 +54,8 @@ export function ReputationBadge({
   const floorUnjudged = floorBps != null && lowerBoundBps == null;
   const belowFloor =
     floorBps != null && lowerBoundBps != null && lowerBoundBps < floorBps;
+  const clearsFloor =
+    floorBps != null && lowerBoundBps != null && lowerBoundBps >= floorBps;
   const showCount = !prior && count != null && count > 0;
   const disputePct =
     disputeRateBps != null && disputeRateBps > 0
@@ -76,6 +80,7 @@ export function ReputationBadge({
         ? `on-chain reputation ${score(bps)} from ${count} rated job${count === 1 ? "" : "s"}`
         : `on-chain reputation ${score(bps)}`,
     belowFloor ? `below the ${score(floorBps)} network floor` : null,
+    clearsFloor ? `clears the ${score(floorBps)} network floor` : null,
     floorUnjudged
       ? `not judged against the ${score(floorBps)} network floor — its lower bound is not known`
       : null,
@@ -83,10 +88,14 @@ export function ReputationBadge({
   ].filter(Boolean);
   const label = parts.join(" · ");
 
+  // The words are the chip's accessible text, in an sr-only span, and every
+  // glyph and figure beside them is hidden from assistive technology. The
+  // label used to ride on `aria-label`, which ARIA prohibits on a role-less
+  // span: a screen reader that honours the prohibition heard only "3.50",
+  // with no source, no floor and nothing to say it was an estimate.
   return (
     <span
       title={label}
-      aria-label={label}
       className={cn(
         "inline-flex items-center gap-1 whitespace-nowrap border px-2 py-0.5 font-mono text-[10px] tracking-widest",
         belowFloor
@@ -97,10 +106,19 @@ export function ReputationBadge({
         className,
       )}
     >
+      <span className="sr-only">{label}</span>
       <span aria-hidden="true">{prior ? "≈" : ""}★</span>
-      {score(bps)}
-      {showCount && <span className="opacity-70">· {count}</span>}
-      {disputePct && <span className="text-magenta">⚑ {disputePct}%</span>}
+      <span aria-hidden="true">{score(bps)}</span>
+      {showCount && (
+        <span aria-hidden="true" className="opacity-70">
+          · {count}
+        </span>
+      )}
+      {disputePct && (
+        <span aria-hidden="true" className="text-magenta">
+          ⚑ {disputePct}%
+        </span>
+      )}
     </span>
   );
 }

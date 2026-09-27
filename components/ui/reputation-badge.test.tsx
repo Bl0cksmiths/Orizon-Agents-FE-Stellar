@@ -30,11 +30,24 @@ function chip(props: Partial<Props> = {}): HTMLElement {
   return el;
 }
 
-/** What a sighted reader sees: the chip's text. */
-const shown = (el: HTMLElement) => el.textContent ?? "";
+/** The chip's text with every subtree matching `skip` left out. */
+function textWithout(el: Node, skip: (e: Element) => boolean): string {
+  if (el instanceof Element && skip(el)) return "";
+  if (el.nodeType === Node.TEXT_NODE) return el.textContent ?? "";
+  return Array.from(el.childNodes)
+    .map((c) => textWithout(c, skip))
+    .join("");
+}
 
-/** What a listener is told. */
-const spoken = (el: HTMLElement) => el.getAttribute("aria-label") ?? "";
+/** What a sighted reader sees: the chip's text, less the sr-only words. */
+const shown = (el: HTMLElement) =>
+  textWithout(el, (e) => e.classList.contains("sr-only"));
+
+/** What a listener is told: the chip's text, less everything aria-hidden. It
+ * is read from the DOM, not from an attribute, so a label that assistive
+ * technology may ignore cannot pass for one it will read. */
+const spoken = (el: HTMLElement) =>
+  textWithout(el, (e) => e.getAttribute("aria-hidden") === "true");
 
 /** The tint classes that tell a prior from evidence at a glance. */
 const PRIOR_TINT = ["border-violet/25", "bg-violet/10", "text-muted"];
@@ -180,5 +193,56 @@ describe("ReputationBadge — the floor is judged on the lower bound only", () =
     const el = chip({ source: "onchain", bps: 5000, lowerBoundBps: 4000 });
     expect(spoken(el)).not.toMatch(/floor/);
     expect(hasAny(el, BELOW_TINT)).toBe(false);
+  });
+});
+
+describe("ReputationBadge — what assistive technology is told", () => {
+  it("puts no aria-label on the role-less chip", () => {
+    for (const source of ["prior", "onchain", "cached"]) {
+      const el = chip({ source, floorBps: 5500, lowerBoundBps: 6000 });
+      expect(el.hasAttribute("aria-label"), source).toBe(false);
+      expect(el.querySelector("[aria-label]"), source).toBeNull();
+    }
+  });
+
+  it("says the source, the score and the floor verdict in sr-only words", () => {
+    const el = chip({
+      source: "onchain",
+      bps: 9000,
+      lowerBoundBps: 8400,
+      floorBps: 5500,
+      count: 24,
+      disputeRateBps: 2500,
+    });
+    const words = el.querySelector(".sr-only")?.textContent ?? "";
+    expect(words).toBe(
+      "on-chain reputation 4.50 from 24 rated jobs · clears the 2.75 network floor · 25.0% disputed",
+    );
+    // Those words are ALL a listener gets: the figures beside them are hidden.
+    expect(spoken(el)).toBe(words);
+  });
+
+  it("tells a listener a prior is an estimate, and one below the floor so", () => {
+    const el = chip({ source: "prior", lowerBoundBps: 5000, floorBps: 5500 });
+    expect(spoken(el)).toBe(
+      "prior estimate 3.50 — no on-chain ratings yet · below the 2.75 network floor",
+    );
+  });
+
+  it("hides every glyph and figure, so none is read out of context", () => {
+    const el = chip({
+      source: "prior",
+      count: 3,
+      disputeRateBps: 900,
+    });
+    expect(spoken(el)).not.toMatch(/[≈★⚑]/);
+    expect(spoken(el)).not.toMatch(/^3\.50/);
+    // The sighted run still carries the marker, the score and the flag.
+    expect(shown(el)).toBe("≈★3.50⚑ 9.0%");
+  });
+
+  it("keeps the same sentence as the tooltip for mouse users", () => {
+    const el = chip({ source: "prior", degraded: true });
+    expect(el.getAttribute("title")).toBe(spoken(el));
   });
 });
