@@ -21,5 +21,9 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  // The weekly tranche bundles are submission evidence, not application
+  // sources: they carry the capture scripts the screenshots were made with,
+  // which are written to run from `e2e/` and do not resolve from where they
+  // are archived. Typechecking them fails the build for no benefit.
+  "exclude": ["node_modules", "Week-*-Tranche-Submission"]
 }

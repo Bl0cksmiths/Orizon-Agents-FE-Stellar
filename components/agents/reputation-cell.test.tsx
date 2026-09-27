@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
 import type { ReputationInfo } from "@/lib/types";
+import { scoreOutOfFive } from "@/lib/reputation-math";
 import { ReputationCell } from "./reputation-cell";
 
 afterEach(cleanup);
@@ -56,19 +57,22 @@ function renderCell(props: Partial<Parameters<typeof ReputationCell>[0]> = {}) {
     <ReputationCell
       agentName="design.figma"
       rep={onchainRep()}
-      floorBps={FLOOR_BPS}
       read="loaded"
       {...props}
     />,
   );
 }
 
-/** Everything the cell says, to a sighted reader or a screen reader. */
+/** Everything the cell says, to a sighted reader or a screen reader: its
+ *  text (sr-only words included), its titles and any label. */
 function said(container: HTMLElement): string {
-  const labels = Array.from(container.querySelectorAll("[aria-label]")).map(
-    (el) => el.getAttribute("aria-label") ?? "",
-  );
-  return [container.textContent ?? "", ...labels].join(" ");
+  const attrs = Array.from(
+    container.querySelectorAll("[aria-label], [title]"),
+  ).flatMap((el) => [
+    el.getAttribute("aria-label") ?? "",
+    el.getAttribute("title") ?? "",
+  ]);
+  return [container.textContent ?? "", ...attrs].join(" ");
 }
 
 describe("ReputationCell — a live entry", () => {
@@ -96,11 +100,15 @@ describe("ReputationCell — a live entry", () => {
     expect(said(container)).not.toContain("no on-chain ratings yet");
   });
 
-  it("judges the floor on the lower bound the entry carries", () => {
+  // The floor is one network-wide number the page states once, above the
+  // table. The chip used to repeat it on every row — to a screen reader and
+  // in its tooltip — and a below-floor verdict is the standing cell's to say.
+  it("leaves the floor and its value to the page", () => {
     const { container } = renderCell({
       rep: onchainRep({ smoothed_bps: 5992, lower_bound_bps: 5131 }),
     });
-    expect(said(container)).toContain("below the 2.75 network floor");
+    expect(said(container)).not.toMatch(/floor/i);
+    expect(said(container)).not.toContain(scoreOutOfFive(FLOOR_BPS));
   });
 });
 
@@ -121,7 +129,7 @@ describe("ReputationCell — no entry", () => {
     const { container } = renderCell({ rep: null, read: "loaded" });
     const text = said(container);
     expect(container.textContent).toContain("no score");
-    expect(text).toContain("carried no entry");
+    expect(text).toContain("carried no usable entry for it");
     expect(text).not.toMatch(NO_NUMBER);
     expect(text).not.toMatch(/no on-chain ratings|prior estimate/i);
   });

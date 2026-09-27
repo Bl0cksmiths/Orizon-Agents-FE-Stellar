@@ -28,6 +28,8 @@ import {
   MAX_DISPUTE_REASON_CHARS,
   openDispute,
   raiseDispute,
+  ratingStillComing,
+  receiptAwaitsChain,
   receiptBadgeStatus,
   serverClockOffsetMs,
 } from "./disputes";
@@ -226,6 +228,36 @@ describe("getTaskDisputes", () => {
     expect(initOf(1).headers).toEqual({ "X-Task-Token": "tok_abc" });
   });
 
+  // D-067: the payer's read grant rides on the read beside the task token,
+  // and only when the caller hands one over.
+  it("sends the payer's read grant when given one, beside any task token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, taskDisputes()));
+
+    await getTaskDisputes(TASK, "grant_abc");
+    expect(initOf(0).headers).toEqual({ "X-Dispute-Read-Grant": "grant_abc" });
+
+    rememberTaskToken(TASK, "tok_abc");
+    await getTaskDisputes(TASK, "grant_abc");
+    expect(initOf(1).headers).toEqual({
+      "X-Task-Token": "tok_abc",
+      "X-Dispute-Read-Grant": "grant_abc",
+    });
+
+    await getTaskDisputes(TASK, null);
+    expect(initOf(2).headers).toEqual({ "X-Task-Token": "tok_abc" });
+  });
+
+  it("reads reason_withheld where it is sent, and passes a backend without it", async () => {
+    const withheld = dispute(1, { reason: "", reason_withheld: true });
+    const legacy = dispute(2);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, taskDisputes({ disputes: [withheld, legacy] })),
+    );
+    const res = await getTaskDisputes(TASK);
+    expect(res.disputes).toEqual([withheld, legacy]);
+    expect(res.disputes[1]).not.toHaveProperty("reason_withheld");
+  });
+
   it("never replays a recent answer: every call is a fresh request", async () => {
     // The window's clock is measured on arrival, and a refresh after a submit
     // must see the dispute it opened — a deduped replay would get both wrong.
@@ -396,6 +428,15 @@ describe("getTaskDisputes", () => {
       "a rejection reason that is not a string",
       { ...dispute(0), rejection_reason: 42 },
     ],
+    // D-067: it decides whether the payer is offered a wallet signature.
+    [
+      "a reason_withheld of the truthy string 'false'",
+      { ...dispute(0), reason_withheld: "false" },
+    ],
+    [
+      "a reason_withheld sent as null",
+      { ...dispute(0), reason_withheld: null },
+    ],
     ["a fractional step index", { ...dispute(0), step_index: 1.5 }],
     ["nothing at all", null],
   ];
@@ -510,6 +551,11 @@ describe("createDisputeChallenge", () => {
       "a domain that merely starts with the right one",
       { ...challenge(2), message: `orizon-dispute-v2:v1:${JOB}:2:n0nce` },
     ],
+    [
+      // The nonce must BE the tail, not merely end it.
+      "a tail that only ends with the nonce",
+      { ...challenge(2), message: `orizon-dispute:v1:${JOB}:2:extra:n0nce` },
+    ],
   ];
 
   it.each(misaddressed)(
@@ -524,8 +570,14 @@ describe("createDisputeChallenge", () => {
   );
 
   it("refuses an empty nonce, which any message would end with", async () => {
+    // A message that really does end in an empty segment, so the parse alone
+    // would accept it: only the nonce guard stands in the way.
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { ...challenge(2), nonce: "" }),
+      jsonResponse(200, {
+        ...challenge(2),
+        message: `orizon-dispute:v1:${JOB}:2:`,
+        nonce: "",
+      }),
     );
 
     await expect(
@@ -562,27 +614,207 @@ describe("openDispute", () => {
     );
   });
 
-  it("rejects a duplicate as duplicate_dispute — the dispute is refetched, not read off the error", async () => {
+  /** The backend's `duplicate_dispute` 409: the envelope plus the dispute. */
+  const duplicate = (original: unknown) =>
+    jsonResponse(409, {
+      detail: "duplicate_dispute",
+      error: {
+        code: "duplicate_dispute",
+        message: "already disputed",
+        request_id: "req_1",
+      },
+      dispute: original,
+    });
+
+  it("rejects a duplicate as duplicate_dispute, carrying the original dispute off the 409", async () => {
+    const original = dispute(1, { id: "dsp_first", status: "upheld" });
+    fetchMock.mockResolvedValueOnce(duplicate(original));
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DisputeRefusal);
+    expect(disputeErrorCode(err)).toBe("duplicate_dispute");
+    expect(err).toMatchObject({ dispute: original });
+  });
+
+  it("reads the original on the listing's terms: a status this build cannot name is kept as open", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(409, {
-        detail: "duplicate_dispute",
+      duplicate({ ...dispute(1), status: "under_review" }),
+    );
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(err).toMatchObject({
+      code: "duplicate_dispute",
+      dispute: { ...dispute(1), status: "open" },
+    });
+  });
+
+  it.each([
+    ["no dispute at all", undefined],
+    ["a malformed dispute", { ...dispute(1), opened_at: "yesterday" }],
+    ["another step's dispute", dispute(2)],
+    ["another job's dispute", dispute(1, { job_id_hex: "e".repeat(32) })],
+  ])(
+    "still names a duplicate whose body carries %s, with no dispute to show",
+    async (_, original) => {
+      fetchMock.mockResolvedValueOnce(duplicate(original));
+
+      const err = await openDispute(req).catch((e: unknown) => e);
+      expect(disputeErrorCode(err)).toBe("duplicate_dispute");
+      expect(err).toMatchObject({ dispute: null });
+    },
+  );
+
+  /** A refusal carrying exactly this envelope message. */
+  const refusedWith = (status: number, code: string, message: string) =>
+    jsonResponse(status, {
+      detail: code,
+      error: { code, message, request_id: "req_1" },
+    });
+
+  it.each([
+    [
+      "the backend's one reason code",
+      refusedWith(
+        422,
+        "reason_invalid",
+        "a dispute reason must say what was wrong with the step in 1 to 500 characters, at least one of them visible",
+      ),
+      "A dispute reason must say what was wrong with the step in 1 to 500 characters, at least one of them visible.",
+    ],
+    [
+      "the deployed backend's blank-reason code",
+      refusedWith(422, "reason_required", "a dispute needs a reason."),
+      "A dispute needs a reason.",
+    ],
+    [
+      "an older backend's pydantic bound on the reason",
+      jsonResponse(422, {
+        detail: [
+          {
+            type: "string_too_long",
+            loc: ["body", "reason"],
+            msg: "String should have at most 500 characters",
+          },
+        ],
         error: {
-          code: "duplicate_dispute",
-          message: "already disputed",
+          code: "validation_error",
+          message: "request validation failed",
           request_id: "req_1",
         },
-        dispute: dispute(1),
+      }),
+      "String should have at most 500 characters.",
+    ],
+  ])(
+    "folds %s into one reason_invalid carrying the server's sentence",
+    async (_, answer, message) => {
+      fetchMock.mockResolvedValueOnce(answer);
+
+      const err = await openDispute(req).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(DisputeRefusal);
+      expect(disputeErrorCode(err)).toBe("reason_invalid");
+      expect(err).toMatchObject({ message, dispute: null });
+    },
+  );
+
+  it.each([
+    [
+      "a reason code with no sentence",
+      refusedWith(422, "reason_invalid", "  "),
+    ],
+    [
+      "a validation_error with no field list",
+      refusedWith(422, "validation_error", "request validation failed"),
+    ],
+    [
+      "a validation_error whose entries name no field",
+      jsonResponse(422, {
+        detail: [{ msg: "bad" }],
+        error: {
+          code: "validation_error",
+          message: "request validation failed",
+        },
+      }),
+    ],
+    [
+      "a reason entry with no message",
+      jsonResponse(422, {
+        detail: [{ loc: ["body", "reason"] }],
+        error: {
+          code: "validation_error",
+          message: "request validation failed",
+        },
+      }),
+    ],
+  ])("states the rule itself for %s, naming the limit", async (_, answer) => {
+    fetchMock.mockResolvedValueOnce(answer);
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe("reason_invalid");
+    expect(err).toMatchObject({
+      message: `Say what went wrong with this step in 1 to ${MAX_DISPUTE_REASON_CHARS} characters, at least one of them visible.`,
+    });
+  });
+
+  it("leaves a validation_error on another field alone: the reason was fine", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(422, {
+        detail: [
+          {
+            type: "string_pattern_mismatch",
+            loc: ["body", "payer"],
+            msg: "String should match pattern",
+          },
+        ],
+        error: {
+          code: "validation_error",
+          message: "request validation failed",
+        },
       }),
     );
 
     const err = await openDispute(req).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
-    expect(err).toMatchObject({ status: 409, code: "duplicate_dispute" });
+    expect(disputeErrorCode(err)).toBeNull();
+  });
+
+  it("leaves a 422 that is not validation_error alone", async () => {
+    fetchMock.mockResolvedValueOnce(refusal(422, "invented_later"));
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+  });
+
+  it("rejects every other refusal as the ApiError it was", async () => {
+    fetchMock.mockResolvedValueOnce(refusal(403, "not_the_payer"));
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 403, code: "not_the_payer" });
+  });
+
+  it("keeps a recorded dispute whose status this build cannot name, as the listing does", async () => {
+    // The dispute exists by the time this answer arrives. Refusing it as
+    // malformed invited a retry that cost a second signature and a 409.
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, { ...dispute(1), status: "closed" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          ...taskDisputes(),
+          disputes: [{ ...dispute(1), status: "closed" }],
+        }),
+      );
+
+    const opened = await openDispute(req);
+    const listed = await getTaskDisputes(TASK);
+    expect(opened).toEqual({ ...dispute(1), status: "open" });
+    expect(listed.disputes).toEqual([opened]);
   });
 
   it("rejects a malformed dispute rather than handing it to the panel", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { ...dispute(1), status: "closed" }),
+      jsonResponse(200, { ...dispute(1), step_index: "one" }),
     );
 
     await expect(openDispute(req)).rejects.toThrow(
@@ -609,6 +841,7 @@ describe("openDispute", () => {
 
 describe("disputeErrorCode", () => {
   const contract: [DisputeErrorCode, number][] = [
+    ["reason_invalid", 422],
     ["reason_required", 422],
     ["unknown_job", 404],
     ["signature_malformed", 400],
@@ -638,8 +871,14 @@ describe("disputeErrorCode", () => {
   });
 
   it("returns null for a code the contract does not name", () => {
+    // A bare `validation_error` names no field, so on its own it is not the
+    // reason's refusal: `openDispute`, which knows the route and reads the
+    // body, is what turns the reason's one into `reason_invalid`.
     expect(
       disputeErrorCode(new ApiError("bad", 422, undefined, "validation_error")),
+    ).toBeNull();
+    expect(
+      disputeErrorCode(new ApiError("new", 409, undefined, "invented_later")),
     ).toBeNull();
     expect(disputeErrorCode(new ApiError("down", 503))).toBeNull();
   });
@@ -660,8 +899,8 @@ describe("disputeErrorCode", () => {
   });
 
   it("names a client-side refusal by the code the server would have used", () => {
-    const early = new DisputeRefusal("reason_required", "say why");
-    expect(disputeErrorCode(early)).toBe("reason_required");
+    const early = new DisputeRefusal("reason_invalid", "say why");
+    expect(disputeErrorCode(early)).toBe("reason_invalid");
     expect(early).toBeInstanceOf(Error);
     expect(early).not.toBeInstanceOf(ApiError);
     expect(early.name).toBe("DisputeRefusal");
@@ -778,6 +1017,44 @@ describe("disputeView — disputes from another job", () => {
     expect(state?.kind).toBe("disputed");
     if (state?.kind !== "disputed") throw new Error("expected disputed");
     expect(state.dispute.id).toBe("dsp_mine");
+  });
+});
+
+// D-067: who is offered a signature to read their words again.
+describe("disputeView — reasons the backend withheld", () => {
+  const withheld = (over: Partial<Dispute> = {}) =>
+    taskDisputes({
+      disputes: [dispute(1, { reason: "", reason_withheld: true, ...over })],
+    });
+
+  it("tells the payer their words were withheld", () => {
+    expect(settled({ res: withheld() }).reasonsWithheld).toBe(true);
+  });
+
+  it.each<[string, string | null]>([
+    ["a wallet that did not pay", OTHER],
+    ["no wallet", null],
+  ])("never offers it to %s", (_, viewerAddress) => {
+    expect(settled({ res: withheld(), viewerAddress }).reasonsWithheld).toBe(
+      false,
+    );
+  });
+
+  it("offers nothing when nothing was withheld, or the backend cannot say", () => {
+    expect(
+      settled({ res: withheld({ reason_withheld: false }) }).reasonsWithheld,
+    ).toBe(false);
+    expect(
+      settled({ res: taskDisputes({ disputes: [dispute(1)] }) })
+        .reasonsWithheld,
+    ).toBe(false);
+  });
+
+  it("ignores another run's dispute, as every step does", () => {
+    expect(
+      settled({ res: withheld({ job_id_hex: "f".repeat(32) }) })
+        .reasonsWithheld,
+    ).toBe(false);
   });
 });
 
@@ -1156,6 +1433,25 @@ describe("disputeReceipt", () => {
     return disputeReceipt(dispute(1, over), viewer, policy);
   }
 
+  // D-069: stalled only for a rating still owed, and only once the panel
+  // has said it stopped reading for it.
+  it("calls an owed rating stalled only once the wait is over", () => {
+    const owed = dispute(1, {
+      status: "credited",
+      refund_tx: "tx_r",
+      rating_tx: null,
+      rating_confirmed: null,
+    });
+    expect(disputeReceipt(owed, "payer", policy).ratingStalled).toBe(false);
+    expect(disputeReceipt(owed, "payer", policy, true).ratingStalled).toBe(
+      true,
+    );
+    const rated = { ...owed, rating_tx: "tx_g", rating_confirmed: true };
+    expect(disputeReceipt(rated, "payer", policy, true).ratingStalled).toBe(
+      false,
+    );
+  });
+
   it("states a freshly opened dispute: when, how much it would credit, and nothing moved", () => {
     expect(receipt()).toEqual({
       status: "open",
@@ -1165,6 +1461,8 @@ describe("disputeReceipt", () => {
       fundedBy: "platform",
       refund: { txHash: null, state: "none" },
       rating: { txHash: null, state: "none" },
+      ratingStalled: false,
+      stoppedChecking: false,
       reason: "the summary was empty",
       rejectionReason: null,
     });
@@ -1431,8 +1729,19 @@ describe("disputeReceipt", () => {
       ["no rejection_reason key", { rejection_reason: undefined }],
       ["a null rejection_reason", { rejection_reason: null }],
       ["a rejection_reason of only whitespace", { rejection_reason: " \n " }],
+      ["a withheld (empty) rejection_reason", { rejection_reason: "" }],
     ])("reads a rejection with %s as no reason given", (_, over) => {
       expect(receipt({ ...rejected, ...over }).rejectionReason).toBeNull();
+    });
+
+    // D-068: the backend withholds the buyer's own words as "" — kept a
+    // string for older clients' type guards — and an empty quote under
+    // "Your reason" reads as though the buyer gave none.
+    it.each<[string, string]>([
+      ["withheld as an empty string", ""],
+      ["only whitespace", " \n\t "],
+    ])("gives the payer no reason at all when it is %s", (_, reason) => {
+      expect(receipt({ ...rejected, reason }).reason).toBeNull();
     });
 
     it.each<Dispute["status"]>(["open", "upheld", "crediting", "credited"])(
@@ -1547,34 +1856,203 @@ describe("raiseDispute", () => {
       .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
     const signMessage = wallet();
 
-    await raise({ signMessage, serverClockOffsetMs: 3_600_000 });
+    await raise({ signMessage, offsetMs: 3_600_000 });
 
     expect(signMessage).toHaveBeenCalledTimes(1);
     expect(signMessage).toHaveBeenCalledWith(alive.message);
   });
 
-  it("asks once and then signs: a dead second nonce is the server's to refuse", async () => {
-    const dead = (n: string) => ({
-      ...challenge(1, n),
-      expires_at: SETTLED_AT - 1,
+  // D-060: the window closes on the server's clock, and a dialog can sit
+  // open across it. Every refusal below costs the buyer nothing: no prompt.
+  describe("the window", () => {
+    const closed = (err: unknown) => {
+      expect(err).toBeInstanceOf(DisputeRefusal);
+      expect(disputeErrorCode(err)).toBe("dispute_window_closed");
+    };
+
+    it("refuses a closed window before asking for a challenge", async () => {
+      vi.setSystemTime(CLOSES_AT * 1_000);
+      const signMessage = wallet();
+
+      closed(await raise({ signMessage }).catch((e: unknown) => e));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(signMessage).not.toHaveBeenCalled();
     });
+
+    it("judges the close on the server's clock, not on this laptop's", async () => {
+      // The laptop reads a second before the close; the server, 2 s after.
+      vi.setSystemTime(CLOSES_AT * 1_000 - 1_000);
+      const signMessage = wallet();
+
+      closed(
+        await raise({ signMessage, offsetMs: 2_000 }).catch((e: unknown) => e),
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(signMessage).not.toHaveBeenCalled();
+    });
+
+    it("lets a laptop that runs fast still dispute a window the server holds open", async () => {
+      vi.setSystemTime(CLOSES_AT * 1_000 + 60_000);
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(200, { ...challenge(1), expires_at: CLOSES_AT + 300 }),
+        )
+        .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+
+      await expect(raise({ offsetMs: -120_000 })).resolves.toEqual(dispute(1));
+    });
+
+    it("refuses before the signature when the window closes while the challenge is out", async () => {
+      vi.setSystemTime(CLOSES_AT * 1_000 - 500);
+      fetchMock.mockImplementationOnce(async () => {
+        vi.setSystemTime(CLOSES_AT * 1_000);
+        return jsonResponse(200, {
+          ...challenge(1),
+          expires_at: CLOSES_AT + 300,
+        });
+      });
+      const signMessage = wallet();
+
+      closed(await raise({ signMessage }).catch((e: unknown) => e));
+      expect(paths()).toEqual(["/api/disputes/challenge"]);
+      expect(signMessage).not.toHaveBeenCalled();
+    });
+
+    it("refuses the retry's second signature once the window has closed", async () => {
+      vi.setSystemTime(CLOSES_AT * 1_000 - 5_000);
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(200, {
+            ...challenge(1, "a"),
+            expires_at: CLOSES_AT + 300,
+          }),
+        )
+        .mockImplementationOnce(async () => {
+          vi.setSystemTime(CLOSES_AT * 1_000 + 1);
+          return refusal(400, "challenge_expired");
+        });
+      const signMessage = wallet();
+
+      closed(await raise({ signMessage }).catch((e: unknown) => e));
+      expect(paths()).toEqual(["/api/disputes/challenge", "/api/disputes"]);
+      expect(signMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it("judges the exact close it is handed over the settlement's rounded one", async () => {
+      // The section rebuilds the settlement with the close rounded to the
+      // second; the view's own `closesAtMs` is exact.
+      const exact = CLOSES_AT * 1_000 - 400;
+      vi.setSystemTime(exact);
+      const signMessage = wallet();
+
+      closed(
+        await raise({ signMessage, windowClosesAtMs: exact }).catch(
+          (e: unknown) => e,
+        ),
+      );
+      expect(signMessage).not.toHaveBeenCalled();
+    });
+
+    it("fails shut on a close that is not a number", async () => {
+      const signMessage = wallet();
+
+      closed(
+        await raise({ signMessage, windowClosesAtMs: Number.NaN }).catch(
+          (e: unknown) => e,
+        ),
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // The mint asks the same rules as opening, so each of these can now come
+  // back from the CHALLENGE: an answer before any wallet is asked anything.
+  it.each([
+    "dispute_window_closed",
+    "step_not_settled",
+    "nothing_was_charged",
+  ] satisfies DisputeErrorCode[])(
+    "reads a challenge refused as %s by its code, and asks for no signature",
+    async (code) => {
+      fetchMock.mockResolvedValueOnce(refusal(409, code));
+      const signMessage = wallet();
+
+      const err = await raise({ signMessage }).catch((e: unknown) => e);
+      expect(disputeErrorCode(err)).toBe(code);
+      expect(paths()).toEqual(["/api/disputes/challenge"]);
+      expect(signMessage).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reads a throttled challenge mint as rate_limited, with the wait it asked for", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ...refusal(429, "dispute_challenge_rate_limited"),
+      headers: {
+        get: (name: string) => (name === "retry-after" ? "20" : null),
+      },
+    });
+    const signMessage = wallet();
+
+    const err = await raise({ signMessage }).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe("rate_limited");
+    expect(err).toMatchObject({ status: 429, retryAfterMs: 20_000 });
+    expect(paths()).toEqual(["/api/disputes/challenge"]);
+    expect(signMessage).not.toHaveBeenCalled();
+  });
+
+  const deadAt = (n: string) => ({
+    ...challenge(1, n),
+    expires_at: SETTLED_AT - 1,
+  });
+
+  it("asks once more and then stops: a dead second nonce is never signed on a measured clock", async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse(200, dead("first")))
-      .mockResolvedValueOnce(jsonResponse(200, dead("second")))
+      .mockResolvedValueOnce(jsonResponse(200, deadAt("first")))
+      .mockResolvedValueOnce(jsonResponse(200, deadAt("second")));
+    const signMessage = wallet();
+
+    const err = await raise({ signMessage, offsetMs: 0 }).catch(
+      (e: unknown) => e,
+    );
+
+    // Two challenges, never three: a third would mean the clocks disagree
+    // about more than latency, and looping on it would hang the dialog. Nor
+    // is the second signed: this build already knows the server refuses it.
+    expect(paths()).toEqual([
+      "/api/disputes/challenge",
+      "/api/disputes/challenge",
+    ]);
+    expect(err).toBeInstanceOf(DisputeRefusal);
+    expect(disputeErrorCode(err)).toBe("challenge_expired");
+    expect(signMessage).not.toHaveBeenCalled();
+  });
+
+  it("leaves a dead second nonce to the server when nothing measured its clock", async () => {
+    // On the laptop's own clock, "dead" may only mean it runs fast: refusing
+    // would lock that buyer out of every dispute.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, deadAt("first")))
+      .mockResolvedValueOnce(jsonResponse(200, deadAt("second")))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await expect(raise({ signMessage })).resolves.toEqual(dispute(1));
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(deadAt("second").message);
+  });
+
+  it("treats a nonce dying at this very moment as dead", async () => {
+    const now = { ...challenge(1, "now"), expires_at: SETTLED_AT };
+    const alive = { ...challenge(1, "alive"), expires_at: SETTLED_AT + 400 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, now))
+      .mockResolvedValueOnce(jsonResponse(200, alive))
       .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
     const signMessage = wallet();
 
     await raise({ signMessage });
-
-    // Two challenges, never three: a third would mean the clocks disagree
-    // about more than latency, and looping on it would hang the dialog.
-    expect(paths()).toEqual([
-      "/api/disputes/challenge",
-      "/api/disputes/challenge",
-      "/api/disputes",
-    ]);
     expect(signMessage).toHaveBeenCalledTimes(1);
-    expect(signMessage).toHaveBeenCalledWith(dead("second").message);
+    expect(signMessage).toHaveBeenCalledWith(alive.message);
   });
 
   it("asks for nothing extra when the nonce is alive", async () => {
@@ -1587,21 +2065,28 @@ describe("raiseDispute", () => {
     expect(paths()).toEqual(["/api/disputes/challenge", "/api/disputes"]);
   });
 
+  const EMPTY_REASON = "Say what went wrong with this step, in words.";
+
   it.each([
-    ["an empty reason", ""],
-    ["a reason of only whitespace", " \n\t "],
+    ["an empty reason", "", EMPTY_REASON],
+    ["a reason of only whitespace", " \n\t ", EMPTY_REASON],
     [
       "a reason one character over the limit",
       "x".repeat(MAX_DISPUTE_REASON_CHARS + 1),
+      `Keep the reason to ${MAX_DISPUTE_REASON_CHARS} characters — it is ${MAX_DISPUTE_REASON_CHARS + 1} now.`,
     ],
-  ])("refuses %s before any network call", async (_, reason) => {
-    const signMessage = wallet();
+  ])(
+    "refuses %s before any network call, in its own words",
+    async (_, reason, message) => {
+      const signMessage = wallet();
 
-    const err = await raise({ reason, signMessage }).catch((e: unknown) => e);
-    expect(disputeErrorCode(err)).toBe("reason_required");
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(signMessage).not.toHaveBeenCalled();
-  });
+      const err = await raise({ reason, signMessage }).catch((e: unknown) => e);
+      expect(disputeErrorCode(err)).toBe("reason_invalid");
+      expect(err).toMatchObject({ message });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(signMessage).not.toHaveBeenCalled();
+    },
+  );
 
   it("accepts a reason at exactly the limit once trimmed", async () => {
     const words = "x".repeat(MAX_DISPUTE_REASON_CHARS);
@@ -1822,13 +2307,22 @@ describe("formatUsdc", () => {
     expect(formatUsdc(0.0000001)).toBe("0.0000001 USDC");
   });
 
-  it("floors without letting binary noise eat a whole stroop", () => {
-    // 0.29 * 10_000_000 is 2899999.9999999995 in binary floating point; a
-    // bare floor would print 0.2899999.
-    expect(formatUsdc(0.29)).toBe("0.29 USDC");
-    expect(formatUsdc(0.07)).toBe("0.07 USDC");
-    expect(formatUsdc(8.22)).toBe("8.22 USDC");
-  });
+  it.each([
+    [0.57, "0.57 USDC"],
+    [1.13, "1.13 USDC"],
+    [2.01, "2.01 USDC"],
+  ])(
+    "floors %d without letting binary noise eat a whole stroop",
+    (n, label) => {
+      // The premise, checked rather than asserted in a comment: each of
+      // these lands BELOW its figure when scaled to stroops, so a bare floor
+      // prints a stroop short.
+      expect(Math.floor(n * 10_000_000)).toBeLessThan(
+        Math.round(n * 10_000_000),
+      );
+      expect(formatUsdc(n)).toBe(label);
+    },
+  );
 
   it.each([-0.005, -1, -0.0000001])(
     "prints %d as a dash: a negative refund is not a figure the receipt can state",
@@ -1862,6 +2356,98 @@ describe("formatUsdc", () => {
       expect(formatUsdc(n)).toBe("—");
     },
   );
+});
+
+// The two questions the poll asks of each dispute, asked directly: whether
+// something is in flight on the chain, and whether a rating is still owed
+// after a refund that landed. Each row is a record the backend can send.
+describe("receiptAwaitsChain and ratingStillComing", () => {
+  const TX = "a".repeat(64);
+  const table: [string, Partial<Dispute>, boolean, boolean][] = [
+    // [record, awaits the chain, rating still coming]
+    ["open", { status: "open" }, false, false],
+    ["rejected", { status: "rejected" }, false, false],
+    ["upheld, not yet sent", { status: "upheld" }, true, false],
+    [
+      "crediting, hash on record",
+      { status: "crediting", refund_tx: TX },
+      true,
+      false,
+    ],
+    ["crediting, no hash yet", { status: "crediting" }, true, false],
+    [
+      "credited with no transfer on record",
+      { status: "credited", refund_tx: null, rating_confirmed: null },
+      true,
+      false,
+    ],
+    [
+      "credited, the backend withdrawing its word",
+      {
+        status: "credited",
+        refund_tx: TX,
+        refund_confirmed: false,
+        rating_confirmed: null,
+      },
+      true,
+      false,
+    ],
+    [
+      "credited and confirmed, rating not yet written",
+      { status: "credited", refund_tx: TX, rating_confirmed: null },
+      false,
+      true,
+    ],
+    [
+      "credited and confirmed, rating field absent (older backend)",
+      { status: "credited", refund_tx: TX },
+      false,
+      false,
+    ],
+    [
+      "credited, rating in flight with its hash",
+      {
+        status: "credited",
+        refund_tx: TX,
+        rating_tx: TX,
+        rating_confirmed: false,
+      },
+      true,
+      false,
+    ],
+    [
+      "credited, a rating hash the backend cannot confirm either way",
+      {
+        status: "credited",
+        refund_tx: TX,
+        rating_tx: TX,
+        rating_confirmed: null,
+      },
+      false,
+      false,
+    ],
+    [
+      "credited, rating confirmed",
+      {
+        status: "credited",
+        refund_tx: TX,
+        rating_tx: TX,
+        rating_confirmed: true,
+      },
+      false,
+      false,
+    ],
+  ];
+
+  it.each(table)("%s", (_, over, awaits, ratingComing) => {
+    const d = dispute(0, over);
+    expect(receiptAwaitsChain(d)).toBe(awaits);
+    expect(ratingStillComing(d)).toBe(ratingComing);
+    // A receipt says it stopped reading for a rating only when one is owed.
+    expect(disputeReceipt(d, "payer", policy, true).ratingStalled).toBe(
+      ratingComing,
+    );
+  });
 });
 
 describe("receiptBadgeStatus", () => {
@@ -1901,11 +2487,24 @@ describe("formatCreditShare", () => {
     [0.0625, "6.25%"],
     [0, "0%"],
     [1, "100%"],
-    [0.29, "29%"],
-    [0.07, "7%"],
   ])("prints %d as %s", (fraction, label) => {
     expect(formatCreditShare(fraction)).toBe(label);
   });
+
+  it.each([
+    [0.57, "57%"],
+    [0.0113, "1.13%"],
+    [0.0029, "0.29%"],
+  ])(
+    "floors %d without letting binary noise eat a hundredth",
+    (fraction, label) => {
+      // As for `formatUsdc`: the premise is checked, not assumed.
+      expect(Math.floor(fraction * 10_000)).toBeLessThan(
+        Math.round(fraction * 10_000),
+      );
+      expect(formatCreditShare(fraction)).toBe(label);
+    },
+  );
 
   it("never rounds a share up — the buyer is never promised more than the policy pays", () => {
     // The receipt's Intl formatter at one decimal read this as "6.3%", a
@@ -1915,13 +2514,17 @@ describe("formatCreditShare", () => {
     expect(formatCreditShare(0.999999)).toBe("99.99%");
   });
 
-  it("is one definition for both the receipt and the dialog", () => {
-    // The two components quote the SAME policy at the same buyer; anything
-    // they could disagree on is a promise the buyer cannot rely on.
-    for (let bps = 0; bps <= 10_000; bps += 7) {
-      const label = formatCreditShare(bps / 10_000);
-      expect(label).toBe(formatCreditShare(bps / 10_000));
-      expect(Number(label.slice(0, -1))).toBeLessThanOrEqual(bps / 100);
+  it("prints every whole hundredth of a percent exactly — never one over, never one short", () => {
+    // Checked against the figure built from the integer, never from the
+    // function under test: a policy of N basis points reads N/100 percent.
+    for (let bps = 0; bps <= 10_000; bps += 1) {
+      const whole = Math.trunc(bps / 100);
+      const rest = bps % 100;
+      const expected =
+        rest === 0
+          ? `${whole}%`
+          : `${whole}.${String(rest).padStart(2, "0").replace(/0$/, "")}%`;
+      expect(formatCreditShare(bps / 10_000)).toBe(expected);
     }
   });
 

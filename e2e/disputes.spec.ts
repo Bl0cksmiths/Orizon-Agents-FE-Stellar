@@ -12,7 +12,15 @@
  * the UI's behaviour, not the SOW §6.1 recording, which must be made against
  * the deployed backend.
  */
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+} from "@playwright/test";
+import { disputeScan } from "./dispute-axe";
+import { horizontalOverflow } from "./dispute-layout";
 import {
   DISPUTE_WINDOW_S,
   mockApi,
@@ -22,9 +30,11 @@ import {
   mockDisputeTaskId,
   mockDisputesRouteMissing,
   mockOtherOwnerAddress,
+  mockReasonTooLongMessage,
   mockSettlementSteps,
   mockSettlementView,
   mockSignature,
+  mockTaskReadToken,
   mockTraceStream,
   mockWallet,
   mockWalletAddress,
@@ -53,13 +63,20 @@ async function openTrace(
   api: MockDisputeApiOptions,
   {
     wallet = true,
+    token = true,
     routes,
   }: {
     wallet?: boolean;
+    /**
+     * The tab holds the task's read token, as the one that ran the workflow
+     * does; without it the backend withholds the buyer's words.
+     */
+    token?: boolean;
     /** Routes registered last, so they win over the dispute mock. */
     routes?: (page: Page) => Promise<void>;
   } = {},
 ): Promise<void> {
+  if (token) await mockTaskReadToken(page);
   if (wallet) await mockWallet(page);
   await mockApi(page);
   await mockTraceStream(page, mockDisputeTaskId);
@@ -82,6 +99,24 @@ const stepRow = (page: Page, agent: string): Locator =>
 
 const dialog = (page: Page): Locator => page.getByRole("dialog");
 
+/**
+ * Waits until the connected wallet is restored AND the receipt has placed its
+ * viewer by it: the header shows the wallet, and the prompt an unplaced,
+ * anonymous viewer gets is gone. A count of zero taken before that is a
+ * count of a page that has not decided who is looking yet — true of every
+ * viewer, and so proof of nothing.
+ */
+async function walletPlaced(page: Page): Promise<void> {
+  await expect(
+    page
+      .getByRole("button", { name: new RegExp(mockWalletAddress.slice(0, 4)) })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    receipt(page).getByRole("button", { name: /connect/i }),
+  ).toHaveCount(0);
+}
+
 /** Opens the dispute form for one step. */
 async function openDialog(page: Page, agent: string): Promise<Locator> {
   await stepRow(page, agent)
@@ -89,34 +124,6 @@ async function openDialog(page: Page, agent: string): Promise<Locator> {
     .click();
   await expect(dialog(page)).toBeVisible();
   return dialog(page);
-}
-
-/**
- * Sideways overflow inside `root`, as the offending elements' own
- * descriptions. Width is the direction a phone cannot recover: the console
- * hides horizontal overflow on html and body, so content past the right edge
- * is not scrolled to — it is cut off.
- */
-async function horizontalOverflow(root: Locator): Promise<string[]> {
-  return root.evaluate((el) => {
-    const limit = document.documentElement.clientWidth + 1;
-    const offenders: string[] = [];
-    for (const node of [el, ...Array.from(el.querySelectorAll("*"))]) {
-      const box = node.getBoundingClientRect();
-      if (box.width === 0) continue;
-      const scrolls = node.scrollWidth > node.clientWidth + 1;
-      const style = getComputedStyle(node);
-      const scrollable =
-        scrolls && (style.overflowX === "auto" || style.overflowX === "scroll");
-      if (box.left < -1 || box.right > limit || scrollable) {
-        const text = (node.textContent ?? "").trim().slice(0, 40);
-        offenders.push(
-          `<${node.tagName.toLowerCase()}> ${Math.round(box.left)}–${Math.round(box.right)}px "${text}"`,
-        );
-      }
-    }
-    return offenders;
-  });
 }
 
 test.describe("dispute action on the trace / receipt view", () => {
@@ -152,10 +159,37 @@ test.describe("dispute action on the trace / receipt view", () => {
       settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
     });
 
+    // Placed as the payer first — the other two steps carry their actions —
+    // so the empty row below is the payer's, not an unplaced page's.
+    await walletPlaced(page);
+    await expect(disputeButtons(page)).toHaveCount(2);
     const row = stepRow(page, failedStep.agent_id);
     await expect(row).toBeVisible();
     await expect(row.getByRole("button")).toHaveCount(0);
     await expect(row).toContainText(/not charged|did not deliver/i);
+  });
+
+  // What pressing costs was on screen but not on the controls: a screen
+  // reader landing on the button heard its name and nothing of the credit or
+  // of the signature being free.
+  test("the Dispute action and Sign and submit carry what they credit and cost", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    await expect(
+      stepRow(page, codeStep.agent_id).getByRole("button", {
+        name: /dispute/i,
+      }),
+    ).toHaveAccessibleDescription("credits up to 0.027 USDC if upheld");
+
+    const form = await openDialog(page, codeStep.agent_id);
+    await expect(
+      form.getByRole("button", { name: /sign and submit/i }),
+    ).toHaveAccessibleDescription(
+      /Signing costs nothing, and no transaction is sent\.$/,
+    );
   });
 
   test("the reason is required: submit stays disabled until it is filled", async ({
@@ -227,14 +261,42 @@ test.describe("dispute action on the trace / receipt view", () => {
       await expect(form).toContainText(
         "The platform reviews the dispute and decides. There is no on-chain arbitration.",
       );
-      // And what that comes to for this step, as the backend computed it.
-      await expect(form).toContainText(credit);
+      // And what that comes to for this step, as the backend computed it —
+      // a ceiling, never an exact promise (D-071).
+      await expect(form).toContainText(`Up to ${credit}`);
+      await expect(
+        stepRow(page, codeStep.agent_id).getByText(/if upheld$/),
+      ).toHaveText(`credits up to ${credit} if upheld`);
       await expect(
         form.getByRole("button", { name: /sign and submit/i }),
       ).toBeDisabled();
       expect(opened).toEqual([]);
     });
   }
+
+  // A policy may credit nothing; every fixture above credits something, so
+  // "credits 0 USDC if upheld" beside the action went unseen.
+  test("a policy that credits nothing says so, on the row and in the form", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({
+        settledAtS: nowS() - HOUR_S,
+        creditedFraction: 0,
+      }),
+    });
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row.getByRole("button", { name: /dispute/i })).toBeVisible();
+    await expect(row).not.toContainText("if upheld");
+    await expect(receipt(page)).toContainText(
+      "Under the current terms an upheld dispute credits nothing back.",
+    );
+    await expect(receipt(page)).not.toContainText("0%");
+
+    const form = await openDialog(page, codeStep.agent_id);
+    await expect(form).toContainText("Nothing, under the current terms");
+    await expect(form).not.toContainText(/Up to 0|credits 0/);
+  });
 
   test("a closed window says it closed and when, and offers no action anywhere", async ({
     page,
@@ -256,7 +318,11 @@ test.describe("dispute action on the trace / receipt view", () => {
     const closedAt = receipt(page).locator(`time[datetime="${closesAtIso}"]`);
     await expect(closedAt).toBeVisible();
     const closedAtText = (await closedAt.textContent()) ?? "";
-    expect(closedAtText).not.toBe("");
+    // A deadline with its zone named: "2:05 PM" is a different moment for
+    // the buyer and for whoever they forward it to.
+    expect(closedAtText).toMatch(
+      /\d:\d{2}(?:\s?[AP]M)?\s(?:(?:GMT|UTC)(?:[+-]\d{1,2}(?::\d{2})?)?|(?![AP]M$)[A-Z]{2,5})$/,
+    );
     await expect(
       receipt(page)
         .getByRole("status")
@@ -291,6 +357,32 @@ test.describe("dispute action on the trace / receipt view", () => {
         name: /dispute/i,
       }),
     ).toBeVisible();
+  });
+
+  // The backend sends the buyer's words only to a read that proves it may
+  // see the task — the task's token, or a read grant. The mocks used to send
+  // them to every read, so nothing here ever met the empty reason the live
+  // backend gives the same payer in any other tab.
+  test("a tab without the task's token is not sent the buyer's words, and draws none", async ({
+    page,
+  }) => {
+    const settledAtS = nowS() - HOUR_S;
+    const reason = "the calculator app does not compute anything";
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({ settledAtS }),
+        disputes: [
+          mockDispute(codeStep, { openedAtS: settledAtS + 600, reason }),
+        ],
+      },
+      { token: false },
+    );
+
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row.getByText("Your reason")).toHaveCount(0);
+    expect(await page.content()).not.toContain(reason);
   });
 
   test("a wallet that did not pay sees no dispute affordance anywhere on the page", async ({
@@ -368,9 +460,15 @@ test.describe("dispute action on the trace / receipt view", () => {
       signature_b64: mockSignature,
     });
 
-    // Pending, then the dispute with its status, in the form itself…
+    // Pending, then the dispute with its status, in the form itself — and
+    // the sentence that says what was done, word for word: nothing has been
+    // paid, and the credit is a ceiling (D-071).
     await expect(form).toContainText("dispute raised");
     await expect(form).toContainText(/under review/i);
+    await expect(form.getByText(/is now under review/)).toHaveText(
+      `Step ${codeStep.step_index + 1} (${codeStep.agent_id}) is now under review. If the platform upholds your dispute, up to 0.027 USDC is credited to the wallet that paid. This receipt shows the outcome once it is decided.`,
+    );
+    await expect(form).not.toContainText(/has been credited|received/);
     await form.getByRole("button", { name: "Done" }).click();
     await expect(dialog(page)).toHaveCount(0);
 
@@ -418,6 +516,98 @@ test.describe("dispute action on the trace / receipt view", () => {
     }));
     expect(next.tag).not.toBe("BODY");
     expect(next.inReceipt).toBe(true);
+  });
+
+  /** Where keyboard focus is, as a tag and its text. */
+  const focused = (page: Page) =>
+    page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? "",
+      text: (document.activeElement?.textContent ?? "").trim(),
+    }));
+  const ON_RECEIPT = { tag: "H2", text: "Receipt" };
+
+  // Three more ways out of the dialog, each followed by a re-read that takes
+  // away the button focus was handed back to. Each left focus on <body>.
+  test("after a duplicate closes the form, focus lands on the receipt", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      open: "duplicate",
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(stepRow(page, codeStep.agent_id)).toContainText(
+      "raised from another tab",
+    );
+    await expect.poll(() => focused(page)).toEqual(ON_RECEIPT);
+  });
+
+  test("after Done is pressed before the re-read lands, focus lands on the receipt", async ({
+    page,
+  }) => {
+    let submitted = false;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route("**/api/disputes", async (route) => {
+            if (route.request().method() === "POST") submitted = true;
+            await route.fallback();
+          });
+          // The re-read after the submit is held until Done has been pressed.
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            async (route) => {
+              if (submitted) await held;
+              await route.fallback();
+            },
+          );
+        },
+      },
+    );
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await form.getByRole("button", { name: "Done" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+
+    release();
+    await expect(
+      stepRow(page, codeStep.agent_id).getByRole("button", {
+        name: /dispute/i,
+      }),
+    ).toHaveCount(0);
+    await expect.poll(() => focused(page)).toEqual(ON_RECEIPT);
+  });
+
+  test("after Back to the receipt on a closed window, focus lands on the receipt", async ({
+    page,
+  }) => {
+    let serverAheadMs = 0;
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      clock: () => Date.now() + serverAheadMs,
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    serverAheadMs = DISPUTE_WINDOW_S * 1000;
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await form.getByRole("button", { name: "Back to the receipt" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(0);
+    await expect.poll(() => focused(page)).toEqual(ON_RECEIPT);
   });
 
   // The press that opens the wallet prompt used to disable the button under
@@ -506,6 +696,104 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
   });
 
+  // D-057: the step was shown as disputed only once a re-read said so. With
+  // the re-read failing, it went on offering Dispute — and a second attempt
+  // cost a second signature for a step that already had its dispute.
+  test("a duplicate whose re-read fails still shows the step as disputed, and says why", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    let failing = false;
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+        open: "duplicate",
+      },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            (route) =>
+              failing
+                ? route.fulfill({
+                    status: 503,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                      detail: "Service Unavailable",
+                      error: {
+                        code: "service_unavailable",
+                        message: "service unavailable",
+                        request_id: "e2e0000000000503",
+                      },
+                    }),
+                  })
+                : route.fallback(),
+          );
+          await p.route("**/api/disputes", async (route) => {
+            // Every read after the refused submit fails.
+            if (route.request().method() === "POST") failing = true;
+            await route.fallback();
+          });
+        },
+      },
+    );
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    await expect(dialog(page)).toHaveCount(0);
+    // The re-read failed, and says so above the receipt…
+    await expect(page.locator("main").getByRole("alert")).toContainText(
+      "this receipt may be out of date",
+    );
+    // …yet the step shows the dispute it already had, and no action.
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row).toContainText("raised from another tab");
+    await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
+    await expect(
+      page.locator("main").getByRole("status").filter({
+        hasText: "already had a dispute",
+      }),
+    ).toHaveText(
+      `Step ${codeStep.step_index + 1} (${codeStep.agent_id}) already had a dispute, raised earlier — perhaps from another tab — so no second one was raised. It is shown below.`,
+    );
+    expect(await signatures(page)).toBe(1);
+  });
+
+  // D-061: the platform refusing the reason itself — FastAPI's 422 on the
+  // request's bounds — read as a generic failure with a retry that would send
+  // the same words again.
+  test("a reason the platform refuses is marked on the field, with the platform's words", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      open: "invalid",
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    const reasonBox = form.getByRole("textbox", { name: /your reason/i });
+    await reasonBox.fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    const alert = form.getByRole("alert");
+    await expect(alert).toHaveText(`${mockReasonTooLongMessage}.`);
+    await expect(reasonBox).toHaveAttribute("aria-invalid", "true");
+    await expect(reasonBox).toBeFocused();
+    const describedBy =
+      (await reasonBox.getAttribute("aria-describedby")) ?? "";
+    expect(describedBy.split(" ")).toContain(await alert.getAttribute("id"));
+    await expect(reasonBox).toHaveAccessibleDescription(
+      new RegExp(mockReasonTooLongMessage),
+    );
+    // Editing the words is what clears it.
+    await reasonBox.fill("the calculator app computes nothing");
+    await expect(reasonBox).toHaveAttribute("aria-invalid", "false");
+  });
+
   test("a refusal that dates the receipt re-reads it: the server says the window closed", async ({
     page,
   }) => {
@@ -527,11 +815,11 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(form.getByRole("alert")).toContainText(
       "The dispute window for this workflow has closed, so this step can no longer be disputed.",
     );
-    // The footer's Close — the header's ✕ shares the name and the path out.
-    await form
-      .getByRole("button", { name: "Close", exact: true })
-      .last()
-      .click();
+    // The footer's own way out — named apart from the header's ✕, which is
+    // "Close". This used to click "Close" and so exercised only the ✕.
+    const back = form.getByRole("button", { name: "Back to the receipt" });
+    await expect(back).toBeFocused();
+    await back.click();
     await expect(dialog(page)).toHaveCount(0);
 
     // Closed as stale, so the receipt re-read the server: it now says the
@@ -641,10 +929,15 @@ test.describe("dispute action on the trace / receipt view", () => {
       form.getByRole("textbox", { name: /your reason/i }),
     ).toHaveValue(reason);
 
-    // And the buyer's own way out still works, the receipt going with it.
+    // And the buyer's own way out still works. The receipt stays: a
+    // settlement never un-happens, so an answer without one is a lost
+    // record, said so above the receipt last read — never "no receipt".
     await form.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog(page)).toHaveCount(0);
-    await expect(receipt(page)).toHaveCount(0);
+    await expect(receipt(page)).toBeVisible();
+    const alert = page.locator("main").getByRole("alert");
+    await expect(alert).toContainText("this receipt may be out of date");
+    await expect(alert).toContainText("showing the receipt last read");
   });
 
   test("a failed re-read dates the receipt it is printed above, not denies it", async ({
@@ -692,9 +985,15 @@ test.describe("dispute action on the trace / receipt view", () => {
     const alert = page.locator("main").getByRole("alert");
     await expect(alert).toContainText("this receipt may be out of date");
     await expect(alert).not.toContainText("receipt unavailable");
-    // And it is: the receipt below the banner is still drawn in full.
+    // And it is: the receipt below the banner is still drawn in full — with
+    // the dispute just raised on its step, from the record the submit
+    // returned, though the re-read that should have shown it failed. The
+    // step's action does not come back to be pressed a second time.
     await expect(receipt(page)).toBeVisible();
-    await expect(disputeButtons(page)).toHaveCount(2);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(1);
   });
 
   test("a failed receipt read says so with a retry, and never blocks the trace", async ({
@@ -742,6 +1041,38 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(receipt(page)).toBeVisible();
     await expect(disputeButtons(page)).toHaveCount(2);
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+  });
+
+  // While the receipt loads, the region says so to assistive technology:
+  // busy, with a status line naming what is loading — and stops saying it
+  // once the receipt is in.
+  test("the loading receipt is marked busy, and says what is loading", async ({
+    page,
+  }) => {
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            async (route) => {
+              await answered;
+              await route.fallback();
+            },
+          );
+        },
+      },
+    );
+    const busy = page.locator("main [aria-busy='true']");
+    await expect(busy).toHaveCount(1);
+    await expect(busy.getByRole("status")).toHaveText("Loading the receipt…");
+
+    answer();
+    await expect(receipt(page)).toBeVisible();
+    await expect(busy).toHaveCount(0);
   });
 
   // The skeleton is drawn in the panel's own line boxes, so the receipt
@@ -883,6 +1214,120 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(disputeButtons(page)).toHaveCount(0);
   });
 
+  // The draft outlives an accidental close only because the section keeps
+  // the dialog mounted while a step can be disputed — which nothing tested
+  // through the section: the dialog's own test mounts it by hand.
+  test("a half-typed reason survives an accidental close, and a different step starts clean", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    const draft = "the calculator app does not";
+    const form = await openDialog(page, codeStep.agent_id);
+    await form.getByRole("textbox", { name: /your reason/i }).fill(draft);
+    await form.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+
+    const again = await openDialog(page, codeStep.agent_id);
+    await expect(
+      again.getByRole("textbox", { name: /your reason/i }),
+    ).toHaveValue(draft);
+    await again.getByRole("button", { name: "Cancel" }).click();
+
+    const other = await openDialog(page, briefStep.agent_id);
+    await expect(
+      other.getByRole("textbox", { name: /your reason/i }),
+    ).toHaveValue("");
+  });
+
+  // The status line is mounted empty so a screen reader is listening before
+  // its first message. Emptied out of the layout with `display: none`, it is
+  // out of the accessibility tree too, and that first message can be lost.
+  test("the form's status line is in the accessibility tree before it says anything", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    const status = form.getByRole("status");
+    await expect(status).toHaveCount(1);
+    await expect(status).toHaveText("");
+    expect(
+      await status.evaluate((el) => getComputedStyle(el).display),
+    ).not.toBe("none");
+  });
+
+  // No fixture had a long name, so a label set `whitespace-nowrap` in the
+  // row or the form ran off a phone's screen unseen.
+  test("at 360px a long unbroken agent name and id wrap in the row and the form", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    const base = mockSettlementView({ settledAtS: nowS() - HOUR_S });
+    const longStep = {
+      ...codeStep,
+      agent_id: `agent.${"k".repeat(60)}`,
+      agent_name: `Generator${"G".repeat(60)}`,
+    };
+    await openTrace(page, {
+      settlement: {
+        ...base,
+        steps: base.steps.map((s) =>
+          s.step_index === codeStep.step_index ? longStep : s,
+        ),
+      },
+    });
+    const row = stepRow(page, longStep.agent_id);
+    await expect(row).toContainText(longStep.agent_name);
+    expect(await horizontalOverflow(receipt(page))).toEqual([]);
+
+    const form = await openDialog(page, longStep.agent_id);
+    await expect(form).toContainText(longStep.agent_name);
+    expect(await horizontalOverflow(form)).toEqual([]);
+  });
+
+  // D-060: the row's action went away at the close, but a dialog already
+  // open kept its submit — and one press asked the wallet to sign a dispute
+  // the server then refused.
+  test("a form left open across the close says so, and never asks the wallet to sign", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    const settledAtS = Math.floor(start / 1000) - DISPUTE_WINDOW_S + 90;
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS }),
+      clock: () => page.evaluate(() => Date.now()),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    const reasonBox = form.getByRole("textbox", { name: /your reason/i });
+    await reasonBox.fill("the calculator app does not compute anything");
+    await expect(
+      form.getByRole("button", { name: /sign and submit/i }),
+    ).toBeEnabled();
+
+    // Two minutes on, the window closed thirty seconds ago.
+    await page.clock.runFor(120_000);
+
+    await expect(form.getByRole("alert")).toHaveText(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+    await expect(
+      form.getByRole("button", { name: /sign and submit/i }),
+    ).toHaveCount(0);
+    // Ctrl+Enter from the reason is the form's other way to submit.
+    await reasonBox.press("Control+Enter");
+    await networkBeat(page);
+    expect(await signatures(page)).toBe(0);
+
+    await form.getByRole("button", { name: "Back to the receipt" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(0);
+  });
+
   test("at 360px the receipt and the dispute form fit without sideways scroll", async ({
     page,
   }) => {
@@ -912,6 +1357,37 @@ test.describe("dispute action on the trace / receipt view", () => {
         document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(1);
+  });
+});
+
+/**
+ * The deadline in a zone this spec chooses, so its words can be asserted
+ * literally. The checks above compared the printed time with the page's own
+ * formatter — or with the `<time>` element's own text — and so passed with
+ * the zone dropped from the format altogether.
+ */
+test.describe("the dispute deadline, read in Manila", () => {
+  test.use({ timezoneId: "Asia/Manila", locale: "en-US" });
+
+  test("names its zone on the closing line and in the spoken summary", async ({
+    page,
+  }) => {
+    // Settled 02:00 UTC on 30 September; the window closes a day later,
+    // 10:00 on 1 October in Manila (UTC+8).
+    const settledAtMs = Date.UTC(2026, 8, 30, 2, 0, 0);
+    await page.clock.install({ time: settledAtMs + HOUR_S * 1000 });
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: settledAtMs / 1000 }),
+      clock: () => page.evaluate(() => Date.now()),
+    });
+
+    const closes = "Oct 1, 2026, 10:00 AM GMT+8";
+    await expect(receipt(page).locator("time").last()).toHaveText(closes);
+    await expect(
+      receipt(page)
+        .getByRole("status")
+        .filter({ hasText: /dispute window/i }),
+    ).toHaveText(`Dispute window open until ${closes}.`);
   });
 });
 
@@ -1037,5 +1513,670 @@ test.describe("the countdown's re-renders stay inside the receipt", () => {
     // None of it reached the page, or the trace log it renders.
     expect(seen.TracePageInner ?? 0).toBe(0);
     expect(seen.TraceRow ?? 0).toBe(0);
+  });
+});
+
+test.describe("the countdown's re-renders stay out of an open dispute form", () => {
+  test("a form open in the final hour does not re-render on the window's ticks", async ({
+    page,
+  }) => {
+    await page.addInitScript(installRenderCounter);
+    await openTrace(page, {
+      settlement: mockSettlementView({
+        settledAtS: nowS() - DISPUTE_WINDOW_S + 30 * 60,
+      }),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+
+    const counts = () =>
+      page.evaluate(() =>
+        (
+          window as unknown as { __renderCounts: RenderCounts }
+        ).__renderCounts.read(),
+      );
+    await page.evaluate(() =>
+      (
+        window as unknown as { __renderCounts: RenderCounts }
+      ).__renderCounts.reset(),
+    );
+
+    // The positive control: the section behind the form ticks every second.
+    await expect
+      .poll(async () => (await counts()).DisputeSection ?? 0, {
+        timeout: 15_000,
+      })
+      .toBeGreaterThanOrEqual(3);
+    const seen = await counts();
+    expect(seen.DisputeDialog ?? 0).toBe(0);
+    expect(seen.DisputeForm ?? 0).toBe(0);
+    expect(seen.Dialog ?? 0).toBe(0);
+  });
+});
+
+// ── D-067: the payer reads their own words again ────────────────────────
+//
+// The backend now withholds both reasons from anyone without the task's read
+// token — the payer too, in any tab but the one that ran the task — and marks
+// each dispute `reason_withheld`. The payer may sign a challenge for a read
+// grant, sent on each read after. The backend routes are not merged yet, so
+// they are stubbed here to the frozen contract.
+
+const PAYER_REASON = "the calculator app does not compute anything";
+const PLATFORM_REPLY =
+  "the brief asked for a four-function calculator, and that is what shipped";
+const GRANT = "grant_e2e_read";
+const GRANTS_KEY = "orizon.dispute-read-grants";
+
+type ReadGrantStub = {
+  /** Every disputes read, with the grant it presented (or null). */
+  reads: (string | null)[];
+  challenges: () => number;
+  grants: () => number;
+};
+
+/**
+ * The disputes read, the read challenge and the read grant, as the backend
+ * lane's contract states them. The read withholds the reason — `""` and
+ * `reason_withheld: true` — unless it presents the grant this stub issued.
+ */
+async function stubReadGrant(
+  page: Page,
+  {
+    payer = mockWalletAddress,
+    challengeRoute = "present",
+    sendsFlag = true,
+    clock = Date.now,
+    status = "open",
+    grantRoute = "issue",
+  }: {
+    payer?: string;
+    /** `missing` answers 404, as a backend without the route does. */
+    challengeRoute?: "present" | "missing";
+    /** False: a backend that predates `reason_withheld`. */
+    sendsFlag?: boolean;
+    clock?: () => number | Promise<number>;
+    /** `rejected` carries the platform's reply, withheld like the reason. */
+    status?: "open" | "rejected";
+    /** `refuse` answers 403 `not_the_payer`, as for a wallet it doubts. */
+    grantRoute?: "issue" | "refuse";
+  } = {},
+): Promise<ReadGrantStub> {
+  const reads: (string | null)[] = [];
+  let challenges = 0;
+  let grants = 0;
+  const settlement = mockSettlementView({ settledAtS: nowS() - HOUR_S, payer });
+  const fulfil = (route: Route, status: number, body: unknown) =>
+    route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+
+  await page.route(
+    (url) => DISPUTES_READ.test(url.pathname),
+    async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const grant =
+        (await route.request().headerValue("x-dispute-read-grant")) ?? null;
+      reads.push(grant);
+      const granted = grant === GRANT;
+      const dispute = {
+        ...mockDispute(codeStep, {
+          openedAtS: nowS() - 30 * 60,
+          reason: granted ? PAYER_REASON : "",
+          payer,
+          status,
+        }),
+        ...(status === "rejected"
+          ? {
+              resolved_at: nowS() - 10 * 60,
+              rejection_reason: granted ? PLATFORM_REPLY : "",
+            }
+          : {}),
+        ...(sendsFlag ? { reason_withheld: !granted } : {}),
+      };
+      return fulfil(route, 200, {
+        task_id: mockDisputeTaskId,
+        window_closes_at: settlement.window_closes_at,
+        now: Math.floor((await clock()) / 1000),
+        settlement,
+        disputes: [dispute],
+      });
+    },
+  );
+  await page.route("**/api/disputes/read-challenge", async (route) => {
+    challenges += 1;
+    if (challengeRoute === "missing") {
+      return fulfil(route, 404, { detail: "Not Found" });
+    }
+    const { task_id } = route.request().postDataJSON() as { task_id: string };
+    return fulfil(route, 200, {
+      nonce: "e2ereadnonce",
+      message: `orizon-dispute-read:v1:${task_id}:e2ereadnonce`,
+      expires_at: nowS() + 300,
+    });
+  });
+  await page.route("**/api/disputes/read-grant", async (route) => {
+    grants += 1;
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    expect(body).toEqual({
+      task_id: mockDisputeTaskId,
+      nonce: "e2ereadnonce",
+      signature_b64: mockSignature,
+    });
+    if (grantRoute === "refuse") {
+      return fulfil(route, 403, {
+        detail: "not_the_payer",
+        error: {
+          code: "not_the_payer",
+          message: "not the payer",
+          request_id: "req_e2e",
+        },
+      });
+    }
+    return fulfil(route, 200, { grant: GRANT, expires_at: nowS() + 3_600 });
+  });
+  return { reads, challenges: () => challenges, grants: () => grants };
+}
+
+/**
+ * Runs the page's clock on to the receipt's next read, and stops there.
+ *
+ * Not one `runFor` of a whole poll interval: the page arms its next read only
+ * once the last one's answer has been processed, so a second jump straight
+ * after a read was COUNTED can run the clock past a timer that is not armed
+ * yet — which then sits a whole interval beyond the time handed out, and the
+ * read never comes (8 runs in 12, at ten workers). Stepped a few seconds at a
+ * time, the clock only ever moves while the page is waiting on it.
+ */
+async function runToNextRead(page: Page, reads: () => number): Promise<void> {
+  const next = reads() + 1;
+  await expect
+    .poll(
+      async () => {
+        if (reads() < next) await page.clock.runFor(5_000);
+        return reads();
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(next);
+}
+
+/**
+ * A second of real time, for a count of zero to mean something: a request
+ * leaves the page at once but reaches the route over another channel.
+ */
+const networkBeat = (page: Page) => page.waitForTimeout(1_000);
+
+/** Counts every signature the page asks the wallet for. */
+function countSignatures(): void {
+  Object.assign(window, { __signs: 0 });
+  window.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as { source?: string; type?: string } | null;
+    if (
+      data?.source === "FREIGHTER_EXTERNAL_MSG_REQUEST" &&
+      data.type === "SUBMIT_BLOB"
+    ) {
+      const w = window as unknown as { __signs: number };
+      w.__signs += 1;
+    }
+  });
+}
+
+/**
+ * A wallet whose owner closes the signing prompt: answers every signature
+ * with Freighter's own refusal, ahead of `mockWallet`'s stand-in. Installed
+ * BEFORE it, so this listener runs first and stops the other replying.
+ */
+function declineSignatures(): void {
+  window.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as {
+      source?: string;
+      type?: string;
+      messageId?: unknown;
+    } | null;
+    if (
+      data?.source !== "FREIGHTER_EXTERNAL_MSG_REQUEST" ||
+      data.type !== "SUBMIT_BLOB"
+    ) {
+      return;
+    }
+    event.stopImmediatePropagation();
+    window.postMessage(
+      {
+        source: "FREIGHTER_EXTERNAL_MSG_RESPONSE",
+        messagedId: data.messageId,
+        apiError: { code: -4, message: "The user rejected this request." },
+      },
+      window.location.origin,
+    );
+  });
+}
+
+const signatures = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __signs: number }).__signs);
+
+const offer = (page: Page): Locator =>
+  receipt(page).getByRole("button", { name: /show my reason/i });
+
+test.describe("the payer's own reason, in a tab without the task's token", () => {
+  test("is offered, signed for once on a press, and then read with the grant on every poll", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    const clock = () => page.evaluate(() => Date.now());
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          stub = await stubReadGrant(p, { clock });
+        },
+      },
+    );
+    if (!stub) throw new Error("stub not installed");
+    const reads = stub;
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(offer(page)).toBeVisible();
+    await expect(receipt(page)).toContainText(
+      "it costs nothing and sends no transaction",
+    );
+    await expect(row.getByText("Your reason")).toHaveCount(0);
+
+    // Never on its own: a poll passes, and nothing is asked of the wallet.
+    await runToNextRead(page, () => reads.reads.length);
+    expect(reads.reads.length).toBe(2);
+    expect(await signatures(page)).toBe(0);
+    expect(reads.challenges()).toBe(0);
+
+    await offer(page).click();
+    await expect(row).toContainText(PAYER_REASON);
+    await expect(offer(page)).toHaveCount(0);
+    expect(await signatures(page)).toBe(1);
+    expect(reads.challenges()).toBe(1);
+    expect(reads.grants()).toBe(1);
+    expect(reads.reads.at(-1)).toBe(GRANT);
+    const held = await page.evaluate(
+      (key) => window.sessionStorage.getItem(key),
+      GRANTS_KEY,
+    );
+    expect(held).toContain(GRANT);
+
+    // Every later read presents the grant, and none signs again.
+    const before = reads.reads.length;
+    await runToNextRead(page, () => reads.reads.length);
+    await runToNextRead(page, () => reads.reads.length);
+    expect(reads.reads.slice(before)).toEqual([GRANT, GRANT]);
+    expect(await signatures(page)).toBe(1);
+    expect(reads.challenges()).toBe(1);
+    await expect(row).toContainText(PAYER_REASON);
+
+    // A reload in the same tab keeps the grant: the reason comes back with
+    // no offer and no signature, once the wallet has restored.
+    await page.reload();
+    await expect(row).toContainText(PAYER_REASON);
+    await expect(offer(page)).toHaveCount(0);
+    expect(await signatures(page)).toBe(0);
+    expect(reads.challenges()).toBe(1);
+  });
+
+  test("describes the offer by what signing costs", async ({ page }) => {
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          await stubReadGrant(p);
+        },
+      },
+    );
+    await expect(offer(page)).toHaveAccessibleDescription(
+      /it costs nothing and sends no transaction\.$/,
+    );
+  });
+
+  test("drops a grant the server stopped honouring and offers the signature again, without looping", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    await page.addInitScript(
+      ({ key, taskId, payer }) => {
+        window.sessionStorage.setItem(
+          key,
+          JSON.stringify([
+            {
+              taskId,
+              payer,
+              grant: "grant_from_before_the_restart",
+              expiresAtMs: Date.now() + 3_600_000,
+            },
+          ]),
+        );
+      },
+      { key: GRANTS_KEY, taskId: mockDisputeTaskId, payer: mockWalletAddress },
+    );
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          stub = await stubReadGrant(p, {
+            clock: () => p.evaluate(() => Date.now()),
+          });
+        },
+      },
+    );
+    if (!stub) throw new Error("stub not installed");
+    const reads = stub;
+    await expect(offer(page)).toBeVisible();
+    // Presented once the wallet restored, refused, and dropped.
+    await expect
+      .poll(() => reads.reads.includes("grant_from_before_the_restart"))
+      .toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate((key) => window.sessionStorage.getItem(key), GRANTS_KEY),
+      )
+      .toBeNull();
+    await expect(offer(page)).toBeVisible();
+
+    // The next poll goes without, and nothing is signed or asked for.
+    const settled = reads.reads.length;
+    await runToNextRead(page, () => reads.reads.length);
+    expect(reads.reads.length).toBe(settled + 1);
+    expect(reads.reads.at(-1)).toBeNull();
+    expect(await signatures(page)).toBe(0);
+    expect(reads.challenges()).toBe(0);
+    await expect(offer(page)).toBeVisible();
+  });
+
+  test("a backend without the challenge route: the offer goes away, and nothing is signed", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          stub = await stubReadGrant(p, { challengeRoute: "missing" });
+        },
+      },
+    );
+    await offer(page).click();
+    await expect(offer(page)).toHaveCount(0);
+    expect(stub?.challenges()).toBe(1);
+    expect(stub?.grants()).toBe(0);
+    expect(await signatures(page)).toBe(0);
+    await expect(receipt(page)).not.toContainText("sends no transaction");
+    await expect(page.getByText(/⚠/)).toHaveCount(0);
+  });
+
+  test("a backend that cannot say whether it withheld anything offers nothing", async ({
+    page,
+  }) => {
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          await stubReadGrant(p, { sendsFlag: false });
+        },
+      },
+    );
+    await expect(stepRow(page, codeStep.agent_id)).toContainText(
+      "Under review",
+    );
+    await expect(offer(page)).toHaveCount(0);
+  });
+
+  test("a declined prompt is a choice, not an error: the offer stays and no grant is kept", async ({
+    page,
+  }) => {
+    await page.addInitScript(declineSignatures);
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          stub = await stubReadGrant(p);
+        },
+      },
+    );
+    await offer(page).click();
+    await expect(receipt(page)).toContainText(
+      "Not signed. Your reason stays hidden until you choose to show it.",
+    );
+    await expect(offer(page)).toBeVisible();
+    expect(stub?.grants()).toBe(0);
+    // Next's route announcer is an empty alert on every page; no alert may
+    // SAY anything.
+    await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText(/⚠/)).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        (key) => window.sessionStorage.getItem(key),
+        GRANTS_KEY,
+      ),
+    ).toBeNull();
+  });
+
+  test("a wallet that did not pay is never offered it, and never receives the reason", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({
+          settledAtS: nowS() - HOUR_S,
+          payer: mockOtherOwnerAddress,
+        }),
+      },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          stub = await stubReadGrant(p, { payer: mockOtherOwnerAddress });
+        },
+      },
+    );
+    await expect(stepRow(page, codeStep.agent_id)).toContainText(
+      "Under review",
+    );
+    // Placed as the stranger it is before the offer is counted absent.
+    await walletPlaced(page);
+    await expect(offer(page)).toHaveCount(0);
+    expect(stub?.challenges()).toBe(0);
+    expect(await signatures(page)).toBe(0);
+    expect(await page.content()).not.toContain(PAYER_REASON);
+  });
+});
+
+/**
+ * A wallet whose prompt is left open: every signature request is swallowed,
+ * ahead of `mockWallet`'s stand-in, and never answered — so the page holds
+ * its signing state for as long as a test needs to look at it.
+ */
+function holdSignatures(): void {
+  window.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as { source?: string; type?: string } | null;
+    if (
+      data?.source === "FREIGHTER_EXTERNAL_MSG_REQUEST" &&
+      data.type === "SUBMIT_BLOB"
+    ) {
+      event.stopImmediatePropagation();
+    }
+  });
+}
+
+/**
+ * The show-my-reason control under axe, in every state it can be drawn in.
+ * The scan is `e2e/a11y.spec.ts`'s exactly — `disputeScan`, which judges the
+ * contrast a bare scan cannot see under the card's gradient — so the two
+ * gates cannot disagree about what a violation is.
+ */
+test.describe("accessibility — the show-my-reason control", () => {
+  /** The control's own live region: the panel has others (the window's).
+   * Found by attribute, not role: empty, it is not drawn, and the role query
+   * skips what is not drawn — but the region is mounted all the same. */
+  const outcome = (page: Page): Locator =>
+    receipt(page)
+      .locator(".clip-cyber-sm")
+      .filter({
+        has: page.getByRole("button", { name: /show my reason|signing/i }),
+      })
+      .locator('[role="status"]');
+
+  async function openWithheld(
+    page: Page,
+    stub: Parameters<typeof stubReadGrant>[1] = {},
+  ): Promise<void> {
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          await stubReadGrant(p, stub);
+        },
+      },
+    );
+    await expect(offer(page)).toBeVisible();
+  }
+
+  test("offered: no WCAG A/AA violations", async ({ page }) => {
+    await openWithheld(page);
+    expect(await disputeScan(page)).toEqual([]);
+  });
+
+  test("while the wallet is open: no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await page.addInitScript(holdSignatures);
+    await openWithheld(page);
+    await offer(page).click();
+    const signing = receipt(page).getByRole("button", { name: /signing/i });
+    await expect(signing).toHaveAttribute("aria-disabled", "true");
+    await expect(outcome(page)).toHaveText("Waiting for your wallet to sign…");
+    expect(await disputeScan(page)).toEqual([]);
+  });
+
+  test("after a declined prompt: no WCAG A/AA violations", async ({ page }) => {
+    await page.addInitScript(declineSignatures);
+    await openWithheld(page);
+    await offer(page).click();
+    await expect(outcome(page)).toHaveText(
+      "Not signed. Your reason stays hidden until you choose to show it.",
+    );
+    await expect(outcome(page)).toHaveAttribute("aria-live", "polite");
+    expect(await disputeScan(page)).toEqual([]);
+  });
+
+  test("after a refusal, the longest line it can say: no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await openWithheld(page, { grantRoute: "refuse" });
+    await offer(page).click();
+    await expect(outcome(page)).toHaveText(
+      "The platform did not recognise this wallet as the one that paid, so your reason stays hidden.",
+    );
+    expect(await disputeScan(page)).toEqual([]);
+  });
+
+  test("revealed, with the reason and the platform's reply: no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await openWithheld(page, { status: "rejected" });
+    await offer(page).click();
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText(PAYER_REASON);
+    await expect(row).toContainText(PLATFORM_REPLY);
+    await expect(row).toContainText("Why it was rejected");
+    await expect(offer(page)).toHaveCount(0);
+    expect(await disputeScan(page)).toEqual([]);
+  });
+
+  test("announces each outcome once, and nothing again on the polls that follow", async ({
+    page,
+  }) => {
+    await page.addInitScript(declineSignatures);
+    await page.clock.install({ time: Date.now() });
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
+        routes: async (p) => {
+          stub = await stubReadGrant(p, {
+            clock: () => p.evaluate(() => Date.now()),
+          });
+        },
+      },
+    );
+    if (!stub) throw new Error("stub not installed");
+    const reads = stub;
+    await expect(offer(page)).toBeVisible();
+    // Every text the region is given, in order: what a screen reader hears.
+    await outcome(page).evaluate((region) => {
+      const heard: string[] = [];
+      Object.assign(window, { __heard: heard });
+      new MutationObserver(() => {
+        const text = region.textContent ?? "";
+        if (text) heard.push(text);
+      }).observe(region, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+    const heard = () =>
+      page.evaluate(() => (window as unknown as { __heard: string[] }).__heard);
+
+    await offer(page).click();
+    await expect(outcome(page)).toHaveText(/^Not signed\./);
+    const declined = [
+      "Waiting for your wallet to sign…",
+      "Not signed. Your reason stays hidden until you choose to show it.",
+    ];
+    expect(await heard()).toEqual(declined);
+
+    // Two poll cycles re-render the panel; the region must say nothing more.
+    const before = reads.reads.length;
+    await runToNextRead(page, () => reads.reads.length);
+    await runToNextRead(page, () => reads.reads.length);
+    expect(reads.reads.length).toBe(before + 2);
+    await page.waitForTimeout(500);
+    expect(await heard()).toEqual(declined);
   });
 });

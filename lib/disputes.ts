@@ -24,6 +24,7 @@ import {
   post,
   taskAuthHeaders,
 } from "./api";
+import { DISPUTE_READ_GRANT_HEADER } from "./dispute-read-grant";
 import { STROOPS_PER_UNIT, formatSettled } from "./money";
 import type {
   CreditPolicy,
@@ -52,26 +53,45 @@ import type {
 export const MAX_DISPUTE_REASON_CHARS = 500;
 
 /**
- * A dispute refused on the client, before anything reached the network,
- * carrying the code the server would have answered with.
+ * A dispute refused, carrying its contract code, a message fit to show the
+ * buyer, and — for `duplicate_dispute` alone — the dispute that already
+ * exists.
  *
- * Not an `ApiError`: no request was made, so there is no status to report,
+ * Thrown on the client before anything reaches the network, carrying the code
+ * the server would have answered with; and by `openDispute` for the server's
+ * own refusals whose body says more than its code. Not an `ApiError` either
+ * way: an early refusal made no request, so there is no status to report,
  * and a fabricated one would read as the server's verdict. It exists so the
- * dialog handles an early refusal through the same `disputeErrorCode` switch
- * as a late one — an empty reason lands under the field whether the dialog or
- * the backend caught it.
+ * dialog handles every refusal through the same `disputeErrorCode` switch —
+ * a bad reason lands under the field whether the dialog or the backend
+ * caught it.
  */
 export class DisputeRefusal extends Error {
   readonly code: DisputeErrorCode;
+  /**
+   * On `duplicate_dispute`, the step's original dispute as the 409 body
+   * carried it, so the page can show it without a second read; null when the
+   * body held none this build can read, and on every other code.
+   */
+  readonly dispute: Dispute | null;
 
-  constructor(code: DisputeErrorCode, message: string) {
-    super(message);
+  constructor(
+    code: DisputeErrorCode,
+    message: string,
+    opts: { dispute?: Dispute | null; cause?: unknown } = {},
+  ) {
+    super(
+      message,
+      opts.cause === undefined ? undefined : { cause: opts.cause },
+    );
     this.name = "DisputeRefusal";
     this.code = code;
+    this.dispute = opts.dispute ?? null;
   }
 }
 
 const DISPUTE_ERROR_CODES: ReadonlySet<string> = new Set([
+  "reason_invalid",
   "reason_required",
   "unknown_job",
   "signature_malformed",
@@ -128,6 +148,8 @@ const isNullableStr = (v: unknown): v is string | null =>
 /** A finite number or an explicit null, on `isNullableStr`'s terms. */
 const isNullableNum = (v: unknown): v is number | null =>
   v === null || isNum(v);
+
+const isBool = (v: unknown): v is boolean => typeof v === "boolean";
 
 /** A boolean or an explicit null, on `isNullableStr`'s terms. */
 const isNullableBool = (v: unknown): v is boolean | null =>
@@ -229,7 +251,10 @@ function isDisputeRow(v: unknown): v is UnjudgedDispute {
     isAbsentOr(v.updated_at, isNullableNum) &&
     isAbsentOr(v.rating_confirmed, isNullableBool) &&
     isAbsentOr(v.rejection_reason, isNullableStr) &&
-    isAbsentOr(v.refund_confirmed, isNullableBool)
+    isAbsentOr(v.refund_confirmed, isNullableBool) &&
+    // D-067's: strictly boolean, since it decides whether the payer is
+    // offered a wallet signature, and the string "false" is truthy.
+    isAbsentOr(v.reason_withheld, isBool)
   );
 }
 
@@ -241,7 +266,7 @@ function isDispute(v: unknown): v is Dispute {
  * One dispute row as this build can use it, or null when it cannot use it at
  * all — so a row it fails to read costs that row and never the receipt.
  *
- * `isAbsentOr` buys forward-compatibility for four FIELDS and nothing else,
+ * `isAbsentOr` buys forward-compatibility for a few FIELDS and nothing else,
  * but this client deploys ahead of the backend in both directions: a newer
  * backend that names a new status, or widens a field, would otherwise fail
  * `ensure` and lose the whole payload — the settlement, every step and every
@@ -318,11 +343,20 @@ function isDisputeChallenge(v: unknown): v is DisputeChallenge {
  * nothing was charged.
  *
  * Sends the task read token like every other per-task read; the route is
- * gated by it once the backend's enforcement flag flips.
+ * gated by it once the backend's enforcement flag flips. Sends the payer's
+ * read grant too when the caller holds one (D-067): without either, the
+ * backend withholds both reasons.
  */
-export async function getTaskDisputes(taskId: string): Promise<TaskDisputes> {
+export async function getTaskDisputes(
+  taskId: string,
+  readGrant: string | null = null,
+): Promise<TaskDisputes> {
   const path = `/tasks/${encodeURIComponent(taskId)}/disputes`;
-  const headers = taskAuthHeaders(taskId);
+  const token = taskAuthHeaders(taskId);
+  const headers =
+    readGrant === null
+      ? token
+      : { ...token, [DISPUTE_READ_GRANT_HEADER]: readGrant };
   const res = await fetchWithTimeout(
     "GET",
     path,
@@ -385,18 +419,118 @@ export function createDisputeChallenge(
   });
 }
 
+/** A server sentence as the dialog shows it: capitalised, and ended. Only
+ * ever handed text that is not blank once trimmed. */
+function asSentence(text: string): string {
+  const t = text.trim();
+  const cased = t[0].toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(cased) ? cased : `${cased}.`;
+}
+
+/** What the reason must be, when no server sentence says so. */
+const REASON_RULE = `Say what went wrong with this step in 1 to ${MAX_DISPUTE_REASON_CHARS} characters, at least one of them visible.`;
+
+/**
+ * The sentence to show for a refused reason, or null when `err` is not a
+ * refusal of the reason at all.
+ *
+ * Three answers mean the same thing, and each is folded into the one
+ * `reason_invalid`:
+ * - `reason_invalid`, the backend's one code for every unusable reason; its
+ *   envelope message names the limit and quotes nothing the buyer sent.
+ * - `reason_required`, which the backend before it sent for a blank reason.
+ * - a 422 `validation_error`, which the backend before THAT answered its
+ *   pydantic bounds with. Its envelope message only says the request failed
+ *   validation, so the sentence is the reason field's own entry when the body
+ *   names one. A body naming ANOTHER field is not the reason's refusal and is
+ *   left alone: telling the buyer to fix words that were fine would send them
+ *   round the same failure again.
+ */
+function reasonRefusalMessage(err: ApiError): string | null {
+  const body = isRecord(err.body) ? err.body : {};
+  if (err.code === "reason_invalid" || err.code === "reason_required") {
+    const envelope = isRecord(body.error) ? body.error : {};
+    return isStr(envelope.message) && envelope.message.trim()
+      ? asSentence(envelope.message)
+      : REASON_RULE;
+  }
+  if (err.status !== 422 || err.code !== "validation_error") return null;
+  if (!Array.isArray(body.detail)) return REASON_RULE;
+  const fields = body.detail.filter(
+    (e): e is Record<string, unknown> => isRecord(e) && Array.isArray(e.loc),
+  );
+  if (fields.length === 0) return REASON_RULE;
+  const onReason = fields.find(
+    (e) => Array.isArray(e.loc) && e.loc.includes("reason"),
+  );
+  if (onReason === undefined) return null;
+  return isStr(onReason.msg) && onReason.msg.trim()
+    ? asSentence(onReason.msg)
+    : REASON_RULE;
+}
+
+/**
+ * The step's original dispute off a `duplicate_dispute` 409, or null.
+ *
+ * Read on the listing's terms (`acceptedDispute`), and only when it is the
+ * dispute of the step that was asked about: a body naming another job or
+ * another step is not this step's answer, whatever produced it.
+ */
+function duplicateOf(err: ApiError, req: OpenDisputeReq): Dispute | null {
+  const body = err.body;
+  if (!isRecord(body)) return null;
+  const original = acceptedDispute(body.dispute);
+  if (original === null) return null;
+  return original.job_id_hex === req.job_id_hex &&
+    original.step_index === req.step_index
+    ? original
+    : null;
+}
+
 /**
  * POST /api/disputes — open the dispute, presenting the payer's signature
  * over the challenge. Resolves to the stored dispute, status `open`.
  *
- * A `duplicate_dispute` 409 rejects like any other refusal. Its body carries
- * the original dispute, but `ApiError` keeps no body, so the caller refetches
- * the task's disputes instead — which is also the only read that shows the
- * step as the panel will draw it from then on.
+ * The answer is read on the listing's terms (`acceptedDispute`), not the
+ * strict guard: by the time it arrives the dispute is RECORDED, so a status
+ * this build cannot name is kept as `open` exactly as the next read of the
+ * listing will keep it. Refusing it as malformed told the buyer their
+ * dispute "couldn't be submitted", and the retry that invited cost a second
+ * signature to be answered `duplicate_dispute`.
+ *
+ * A `duplicate_dispute` 409 rejects as a `DisputeRefusal` of that code
+ * carrying the step's ORIGINAL dispute off the 409 body (`.dispute`), so the
+ * page can show the dispute the step already has even when the re-read that
+ * follows fails. A refused reason — however the backend worded it, see
+ * `reasonRefusalMessage` — rejects as one `DisputeRefusal("reason_invalid")`
+ * carrying the server's sentence. Every other refusal rejects as the
+ * `ApiError` it was.
  */
 export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
   const path = "/disputes";
-  return post<Dispute, OpenDisputeReq>(path, req, ensure(path, isDispute));
+  const parse = (v: unknown): Dispute => {
+    const recorded = acceptedDispute(v);
+    if (recorded === null) throw new Error(`malformed response from ${path}`);
+    return recorded;
+  };
+  return post<Dispute, OpenDisputeReq>(path, req, parse).catch(
+    (err: unknown) => {
+      if (err instanceof ApiError && err.code === "duplicate_dispute") {
+        throw new DisputeRefusal(
+          "duplicate_dispute",
+          "This step already has a dispute.",
+          { dispute: duplicateOf(err, req), cause: err },
+        );
+      }
+      if (err instanceof ApiError) {
+        const message = reasonRefusalMessage(err);
+        if (message !== null) {
+          throw new DisputeRefusal("reason_invalid", message, { cause: err });
+        }
+      }
+      throw err;
+    },
+  );
 }
 
 // ── the window's clock ──────────────────────────────────────────
@@ -573,6 +707,46 @@ export function receiptAwaitsChain(dispute: Dispute): boolean {
 }
 
 /**
+ * Whether this dispute's refund has landed and its rating is still owed: the
+ * gap between the two writes one uphold makes, the credit first and the
+ * rating a few seconds after it (D-069).
+ *
+ * Distinct from `receiptAwaitsChain` because it is not a transaction in
+ * flight. No hash is on record, so nothing is sure to land: a rating that
+ * failed, or timed out before it had a hash, leaves the record exactly like
+ * this until a person upholds again. So the panel waits for it on a bounded
+ * schedule (see `disputePollMs`), not for as long as the record stays put.
+ *
+ * `rating_confirmed` must be PRESENT. A backend that sends the field and
+ * leaves it null is saying "no rating yet", which becomes a yes; one that
+ * omits it cannot say anything, which never does, and is not waited on.
+ */
+export function ratingStillComing(dispute: Dispute): boolean {
+  return (
+    dispute.status === "credited" &&
+    refundArtifact(dispute).state === "confirmed" &&
+    dispute.rating_confirmed !== undefined &&
+    dispute.rating_confirmed !== true &&
+    !dispute.rating_tx
+  );
+}
+
+/**
+ * Whether this dispute's receipt can still change without the buyer touching
+ * anything: a decision still to come (`open`), something in flight on the
+ * chain (`receiptAwaitsChain`), or a rating still owed after its refund
+ * (`ratingStillComing`). What the poll reads for, and what a receipt must
+ * stop calling live once the poll has stopped.
+ */
+export function receiptStillMoving(dispute: Dispute): boolean {
+  return (
+    dispute.status === "open" ||
+    receiptAwaitsChain(dispute) ||
+    ratingStillComing(dispute)
+  );
+}
+
+/**
  * Everything the receipt says about one dispute, for this viewer, under this
  * policy: status, when it was raised and last changed, the amount and who
  * funds it, the refund and the rating each with how far the record vouches
@@ -586,15 +760,22 @@ export function receiptAwaitsChain(dispute: Dispute): boolean {
  * - The last change falls back from `updated_at` to `resolved_at` to
  *   `opened_at`: an older backend stamps no transitions, and the closest time
  *   it did record is still true.
+ * - A rating still owed is `ratingStalled` once the panel has given up
+ *   reading (`waitOver`), and never before; any receipt still moving is
+ *   `stoppedChecking` then.
  * - The buyer's reason and the adjudicator's rejection are both written for
  *   the buyer. Anyone else — including a connected wallet that did not pay —
  *   gets null for each, whatever the record holds, and a rejection reason
- *   exists only on a rejected dispute. A reason of only whitespace is none.
+ *   exists only on a rejected dispute. A reason of only whitespace is none,
+ *   and so is an empty one: the backend withholds free text as `""` rather
+ *   than null, and a "Your reason" heading drawn over nothing reads as though
+ *   the buyer gave none (D-068).
  */
 export function disputeReceipt(
   dispute: Dispute,
   viewer: DisputeViewer,
   policy: CreditPolicy,
+  waitOver = false,
 ): DisputeReceiptView {
   const refund = refundArtifact(dispute);
   const credited = dispute.credited_usdc;
@@ -612,7 +793,9 @@ export function disputeReceipt(
     fundedBy: policy.funded_by,
     refund,
     rating: ratingArtifact(dispute),
-    reason: isPayer ? dispute.reason : null,
+    ratingStalled: waitOver && ratingStillComing(dispute),
+    stoppedChecking: waitOver && receiptStillMoving(dispute),
+    reason: isPayer && dispute.reason.trim() ? dispute.reason : null,
     rejectionReason:
       isPayer && dispute.status === "rejected" && rejection?.trim()
         ? rejection
@@ -657,12 +840,18 @@ function stepState(
   settlement: SettlementView,
   open: boolean,
   viewer: DisputeViewer,
+  waitOver: boolean,
 ): StepDisputeState {
   const charged =
     step.delivered && step.price_usdc > 0 && settlement.settled_usdc > 0;
   if (!charged) return { kind: "not_charged" };
   if (dispute !== undefined) {
-    const receipt = disputeReceipt(dispute, viewer, settlement.policy);
+    const receipt = disputeReceipt(
+      dispute,
+      viewer,
+      settlement.policy,
+      waitOver,
+    );
     return viewer === "payer"
       ? { kind: "disputed", dispute, showReason: true, receipt }
       : {
@@ -691,6 +880,9 @@ function stepState(
  * - otherwise the receipt, with the window open strictly before its close on
  *   the server's clock. A `nowMs` that is not a number closes it: failing
  *   shut hides a button, failing open offers one the server will refuse.
+ *
+ * `waitOver` is the hook's word that it has stopped re-reading while a
+ * receipt was still moving; the receipts it concerns then say so.
  */
 export function disputeView(input: {
   res: TaskDisputes | null;
@@ -698,8 +890,10 @@ export function disputeView(input: {
   workflowDone: boolean;
   nowMs: number;
   demo: boolean;
+  waitOver?: boolean;
 }): DisputePanelView {
   const { res, viewerAddress, workflowDone, nowMs, demo } = input;
+  const waitOver = input.waitOver ?? false;
   if (demo || res === null) return HIDDEN;
   const settlement = res.settlement;
   if (settlement === undefined) return HIDDEN;
@@ -721,6 +915,7 @@ export function disputeView(input: {
         settlement,
         open,
         viewer,
+        waitOver,
       ),
     }));
 
@@ -736,6 +931,15 @@ export function disputeView(input: {
     proofTx: settlement.proof_tx,
     policy: settlement.policy,
     steps,
+    // Only the payer is ever offered the signature, and only when the backend
+    // said, in so many words, that it withheld something from them: an absent
+    // flag is a backend with no grant to give.
+    reasonsWithheld:
+      viewer === "payer" &&
+      res.disputes.some(
+        (d) =>
+          d.job_id_hex === settlement.job_id_hex && d.reason_withheld === true,
+      ),
   };
 }
 
@@ -747,16 +951,32 @@ export function disputeView(input: {
  *
  * Exactly one replacement is ever asked for. Both requests are cheap and
  * silent; a wallet prompt is neither, which is the whole point of checking
- * before one is raised.
+ * before one is raised — so a replacement that is dead too is refused as
+ * `challenge_expired` rather than signed. Signing it spent a prompt on a
+ * nonce this build already knew the server would refuse, and on a clock that
+ * disagrees by more than latency a second request cannot do better; a fresh
+ * attempt later, with a fresh measurement of the server's clock, can.
+ *
+ * Only when the caller MEASURED the server's clock, though. On the laptop's
+ * own clock "dead" may only mean the laptop runs fast, and refusing then would
+ * lock a buyer with a fast clock out of every dispute; the replacement is
+ * signed and the server, whose clock it is, decides.
  */
 async function liveChallenge(
   target: DisputeChallengeReq,
   clockOffsetMs: number,
+  clockMeasured: boolean,
 ): Promise<DisputeChallenge> {
+  const alive = (c: DisputeChallenge) =>
+    c.expires_at * 1_000 > Date.now() + clockOffsetMs;
   const challenge = await createDisputeChallenge(target);
-  const serverNowMs = Date.now() + clockOffsetMs;
-  if (challenge.expires_at * 1_000 > serverNowMs) return challenge;
-  return createDisputeChallenge(target);
+  if (alive(challenge)) return challenge;
+  const replacement = await createDisputeChallenge(target);
+  if (alive(replacement) || !clockMeasured) return replacement;
+  throw new DisputeRefusal(
+    "challenge_expired",
+    "The platform's signing challenge expired before it could be signed. Nothing was signed — try again in a moment.",
+  );
 }
 
 /**
@@ -764,7 +984,8 @@ async function liveChallenge(
  *
  * Refused before any network call, as a `DisputeRefusal` the dialog reads
  * through `disputeErrorCode` like a server refusal: a reason that is empty
- * once trimmed or longer than `MAX_DISPUTE_REASON_CHARS` (`reason_required`),
+ * once trimmed or longer than `MAX_DISPUTE_REASON_CHARS` (`reason_invalid`,
+ * each with its own sentence — an over-long reason is never told it is empty),
  * and a wallet that is not the recorded payer (`not_the_payer`) — the server
  * would refuse both, but only after the buyer had been asked to sign.
  *
@@ -779,15 +1000,23 @@ async function liveChallenge(
  * round trip, refused `challenge_expired`, and prompted a SECOND time for the
  * retry below — two wallet popups for one dispute. One re-request, not a
  * loop: if the replacement is dead too, the clocks disagree about more than
- * latency, and the server's own refusal is a better answer than spinning.
+ * latency, and — on a measured clock — it is refused as `challenge_expired`
+ * with nothing signed.
+ *
+ * The WINDOW is judged here too, on the server's clock, before a challenge
+ * is asked for and again immediately before every signature: a dialog left
+ * open across the close would otherwise put a prompt in front of the buyer
+ * for a dispute the server has already stopped taking, and answer their
+ * signature with `dispute_window_closed`. The refusal is the same code, so
+ * the dialog reaches the same screen as the server's own.
  *
  * One retry, on `challenge_expired` only: the nonce lives five minutes and a
  * wallet popup can sit open for longer, which is nobody's fault and is cured
  * by a fresh challenge and a second signature. A second expiry throws —
  * something other than a slow buyer is wrong. Nothing else is retried: every
  * other refusal is an answer, and `duplicate_dispute` in particular means the
- * step already has its dispute, which the caller refetches rather than reads
- * off the error (see `openDispute`).
+ * step already has its dispute, which the refusal carries (see
+ * `openDispute`).
  */
 export async function raiseDispute(args: {
   settlement: SettlementView;
@@ -796,25 +1025,44 @@ export async function raiseDispute(args: {
   payer: string;
   signMessage: (m: string) => Promise<string>;
   /**
-   * The server's clock minus this browser's, from `serverClockOffsetMs`. The
-   * nonce dies on the server's clock, so that is the one it is judged on; 0 —
-   * trust the local clock — when the caller holds no measurement.
+   * The server's clock minus this browser's — `useDisputePanel`'s `offsetMs`.
+   * The nonce dies and the window closes on the server's clock, so that is
+   * the one both are judged on; 0 — trust the local clock — when the caller
+   * holds no measurement.
    */
-  serverClockOffsetMs?: number;
+  offsetMs?: number;
+  /**
+   * When the window closes, in epoch ms on the server's clock — the panel
+   * view's `window.closesAtMs`, which is exact. Falls back to the
+   * settlement's own `window_closes_at`, which a caller may have rounded.
+   */
+  windowClosesAtMs?: number;
 }): Promise<Dispute> {
   const { settlement, step, payer, signMessage } = args;
-  const clockOffsetMs = args.serverClockOffsetMs ?? 0;
+  const clockOffsetMs = args.offsetMs ?? 0;
+  const closesAtMs =
+    args.windowClosesAtMs ?? settlement.window_closes_at * 1_000;
+  /** Refuses once the window has closed on the server's clock. Failing shut:
+   * a close that is not a number is a window this build cannot vouch for. */
+  const requireOpenWindow = () => {
+    if (!(closesAtMs > Date.now() + clockOffsetMs)) {
+      throw new DisputeRefusal(
+        "dispute_window_closed",
+        "The dispute window for this workflow has closed.",
+      );
+    }
+  };
   const reason = args.reason.trim();
   if (reason.length === 0) {
     throw new DisputeRefusal(
-      "reason_required",
-      "Say what went wrong with this step.",
+      "reason_invalid",
+      "Say what went wrong with this step, in words.",
     );
   }
   if (reason.length > MAX_DISPUTE_REASON_CHARS) {
     throw new DisputeRefusal(
-      "reason_required",
-      `Keep the reason to ${MAX_DISPUTE_REASON_CHARS} characters.`,
+      "reason_invalid",
+      `Keep the reason to ${MAX_DISPUTE_REASON_CHARS} characters — it is ${reason.length} now.`,
     );
   }
   if (payer !== settlement.payer) {
@@ -829,7 +1077,13 @@ export async function raiseDispute(args: {
     step_index: step.step_index,
   };
   for (let attempt = 1; ; attempt += 1) {
-    const challenge = await liveChallenge(target, clockOffsetMs);
+    requireOpenWindow();
+    const challenge = await liveChallenge(
+      target,
+      clockOffsetMs,
+      args.offsetMs !== undefined,
+    );
+    requireOpenWindow();
     const signature_b64 = await signMessage(challenge.message);
     try {
       return await openDispute({
@@ -904,8 +1158,8 @@ export function formatRemaining(ms: number): string {
  * moved or that the platform is about to move, and the chain moves whole
  * stroops: rounding half up printed a tenth of a millionth of a dollar that
  * no transfer could carry, which on a receipt is a promise. The nudge before
- * the floor is for binary floating point alone — 0.29 * 10_000_000 is
- * 2899999.9999999995 — and is a thousandth of a stroop, far below anything
+ * the floor is for binary floating point alone — 0.57 * 10_000_000 is
+ * 5699999.999999999 — and is a thousandth of a stroop, far below anything
  * the chain can express, so it restores the figure without inventing one.
  *
  * A value that is not a number prints as a dash, never "NaN USDC", and so
@@ -931,8 +1185,8 @@ export function formatUsdc(n: number): string {
  * the policy in force, and trailing zeros are dropped so an exact half is
  * "50%" and not "50.00%".
  *
- * The nudge before flooring is for binary floating point alone — 0.29 * 100
- * is 28.999999999999996 — and is far smaller than any share a policy can
+ * The nudge before flooring is for binary floating point alone — 0.57 *
+ * 10_000 is 5699.999999999999 — and is far smaller than any share a policy can
  * express, so it restores the figure without inventing a hundredth.
  * A value that is not a number prints as a dash, as `formatUsdc` does.
  */

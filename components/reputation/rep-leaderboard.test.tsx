@@ -63,10 +63,14 @@ function chipFor(container: HTMLElement, id: string): string {
   const row = Array.from(container.querySelectorAll("tr")).find((tr) =>
     tr.textContent?.includes(id),
   );
-  const chip = row?.querySelector(
-    "[aria-label*='estimate'], [aria-label*='reputation']",
-  );
-  return chip?.getAttribute("aria-label") ?? "";
+  // The badge's words live in an sr-only span, not an attribute: ARIA
+  // prohibits naming a role-less span, so the claim is its text.
+  const words = Array.from(row?.querySelectorAll(".sr-only") ?? [])
+    .map((el) => el.textContent ?? "")
+    .filter((w) => /estimate|reputation \d/.test(w));
+  // One chip per row at most; none is "" rather than a thrown lookup.
+  expect(words.length).toBeLessThanOrEqual(1);
+  return words[0] ?? "";
 }
 
 /** Everything a reader gets from one agent's row, screen-reader text included. */
@@ -111,6 +115,27 @@ describe("RepLeaderboard — what a prior chip claims", () => {
     const chip = chipFor(container, "unread_bot");
     expect(chip).toContain(FAILED_READ);
     expect(chip).not.toContain(COLD_START);
+  });
+
+  // A source a newer backend added is not evidence. The row must not style
+  // it as a measured score — with a settled weight printed beside a chip
+  // that calls the same number an estimate.
+  it("styles an unknown source as an estimate, not as on-chain evidence", () => {
+    const { container } = renderBoard({
+      agents: [agent("cached_bot")],
+      batch: batchOf([
+        prior("cached_bot", {
+          source: "cached",
+          weight: 12_000_000,
+          count: 6,
+        }),
+      ]),
+    });
+    const row = rowFor(container, "cached_bot");
+    expect(chipFor(container, "cached_bot")).toMatch(/^estimate /);
+    expect(row).not.toContain("USDC");
+    expect(container.querySelector(".bg-cyan")).toBeNull();
+    expect(container.querySelector(".bg-violet\\/50")).not.toBeNull();
   });
 
   // No batch at all: nobody read any score. The rows used to stand on the

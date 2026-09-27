@@ -75,6 +75,29 @@ function row(page: Page, agentId: string) {
   });
 }
 
+/**
+ * What a sighted reader sees in `scope`: its text with every `.sr-only` run
+ * removed. `getByText` also matches screen-reader-only text, and Playwright
+ * calls a 1×1 sr-only span visible, so a check meant to be about the screen
+ * could pass on words nobody can see.
+ */
+async function seenText(page: Page, selector = "main"): Promise<string> {
+  return page.locator(selector).evaluate((el) => {
+    const copy = el.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll(".sr-only").forEach((n) => n.remove());
+    return copy.textContent ?? "";
+  });
+}
+
+/** Resolves once the reputation batch has landed, which the page shows by
+ *  stating the floor above the table. An absence asserted before this passes
+ *  for the wrong reason: the marks it is about have not been computed yet. */
+async function batchLoaded(page: Page) {
+  await expect(
+    page.getByRole("heading", { name: "Selection floor" }),
+  ).toBeVisible();
+}
+
 /** Resolves once the registry has rendered — asserting an absence before the
  *  fetch lands would pass for the wrong reason. Every row carries a row
  *  header, and with no wallet connected nothing adds extra ones. */
@@ -95,12 +118,18 @@ test.describe("agent standing in the marketplace", () => {
     // 2.75 network floor" in its tooltip, and a buyer scanning the table with
     // a keyboard, a phone, or their eyes never sees a tooltip. An excluded
     // agent that looks identical to an available one is a buyer picking it.
-    await expect(
-      row(page, BELOW_FLOOR_ID).getByText(BELOW_FLOOR_MARK).first(),
-    ).toBeVisible();
+    // The visible label itself, exactly. A loose /floor/ also matched the
+    // mark's sr-only long form, so deleting the visible words left this
+    // passing — "in words, visibly" with no visible words.
+    const mark = row(page, BELOW_FLOOR_ID).getByText(
+      /^▾ below floor · not eligible$/,
+    );
+    await expect(mark).toBeVisible();
+    await expect(mark).toHaveAttribute("aria-hidden", "true");
 
     // And the mark is a verdict about this agent, not decoration on the table:
     // if it appeared on rows that clear the floor it would say nothing at all.
+    await batchLoaded(page);
     for (const id of [SEEDED_ID, BOUND_ID, UNBOUND_ID]) {
       await expect(row(page, id).getByText(BELOW_FLOOR_MARK)).toHaveCount(0);
     }
@@ -180,10 +209,19 @@ test.describe("agent standing in the marketplace", () => {
     // reads "3.50, on record" when the truth is "we could not reach the
     // ledger". It is stated once, for the page, because the condition is the
     // reputation service's and not any one agent's.
-    const estimate = page.getByText(ESTIMATE_MARK);
-    await expect(estimate).toHaveCount(1);
-    await expect(estimate).toBeVisible();
-    await expect(page.locator("table").getByText(ESTIMATE_MARK)).toHaveCount(0);
+    // Stated once, for the page, where a sighted reader can see it. Each chip
+    // also says "estimate" to a screen reader, in its own words; that is the
+    // row's fact, not the page's, so it is left out of the count.
+    await batchLoaded(page);
+    const statement = page
+      .getByRole("status")
+      .filter({ hasText: ESTIMATE_MARK });
+    await expect(statement).toHaveCount(1);
+    await expect(statement).toBeVisible();
+    expect(await seenText(page, "[role=status]:has-text('estimate')")).toMatch(
+      ESTIMATE_MARK,
+    );
+    expect(await seenText(page, "table")).not.toMatch(ESTIMATE_MARK);
   });
 
   test("AC-5 does not cry degraded when the batch is healthy", async ({
@@ -194,8 +232,14 @@ test.describe("agent standing in the marketplace", () => {
     await registryLoaded(page);
 
     // The negative half is what gives the notice its meaning. A banner that is
-    // always up is furniture, and the first real outage goes unread.
-    await expect(page.getByText(ESTIMATE_MARK)).toHaveCount(0);
+    // always up is furniture, and the first real outage goes unread. Checked
+    // only once the batch has landed: before it, the notice has nothing to
+    // count and would pass whatever it was about to say.
+    await batchLoaded(page);
+    expect(await seenText(page)).not.toMatch(ESTIMATE_MARK);
+    await expect(
+      page.getByRole("status").filter({ hasText: /could not be read/ }),
+    ).toHaveCount(0);
   });
 
   test("AC-6 keeps the below-floor agent's evidence on screen", async ({
@@ -268,6 +312,25 @@ test.describe("agent standing in the marketplace", () => {
     await registryLoaded(page);
   });
 
+  test("says which filter is on in words, not only in colour", async ({
+    page,
+  }) => {
+    await mockApi(page);
+    await page.goto("/app/agents");
+    await registryLoaded(page);
+
+    const group = page.getByRole("group", { name: "Filter agents" });
+    const pressed = group.getByRole("button", { pressed: true });
+    await expect(pressed).toHaveCount(1);
+    await expect(pressed).toHaveText("all");
+
+    await group.getByRole("button", { name: ROUTABLE_FILTER }).click();
+    await expect(pressed).toHaveCount(1);
+    await expect(pressed).toHaveText("routable");
+    // Every other option says it is off, rather than saying nothing.
+    await expect(group.getByRole("button", { pressed: false })).toHaveCount(4);
+  });
+
   test("the degraded, filtered registry has no WCAG A/AA violations", async ({
     page,
   }) => {
@@ -283,9 +346,11 @@ test.describe("agent standing in the marketplace", () => {
     // Narrowed, and never to nothing: a degraded read puts every score back on
     // the prior, whose lower bound clears the floor, so only the endpoint gate
     // still bites. Losing the ledger must not empty the marketplace.
+    // Exactly which: the prior's lower bound clears the floor, so
+    // `rated_down_bot` is back in, and `unbound_bot` is still out for want of
+    // an endpoint. A count alone passed with the wrong agents dropped.
     const rows = page.getByRole("rowheader");
-    await expect(rows).not.toHaveCount(mockAgents.length);
-    await expect(rows).not.toHaveCount(0);
+    await expect(rows).toHaveText([SEEDED_ID, BOUND_ID, BELOW_FLOOR_ID]);
 
     // `e2e/a11y.spec.ts` only ever sweeps this route in its default state, so
     // neither the degraded notice nor a filtered table has reached axe before.

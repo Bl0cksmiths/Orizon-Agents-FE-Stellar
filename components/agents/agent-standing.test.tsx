@@ -32,6 +32,7 @@ import { cleanup, render } from "@testing-library/react";
 
 import { UNBOUND_WARNING } from "@/lib/binding-status";
 import type { Agent, ReputationInfo } from "@/lib/types";
+import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { AgentStanding } from "./agent-standing";
 
 afterEach(cleanup);
@@ -119,7 +120,7 @@ function detail(container: HTMLElement): string {
 describe("AgentStanding — the floor verdict", () => {
   it("calls an agent under the floor not eligible, visibly in the row", () => {
     const { container } = renderCell({ rep: thinEvidence() });
-    expect(labels(container)).toContain("⚑ below floor · not eligible");
+    expect(labels(container)).toContain("▾ below floor · not eligible");
   });
 
   it("renders nothing for an agent that clears the floor", () => {
@@ -142,7 +143,7 @@ describe("AgentStanding — the floor verdict", () => {
     const { container } = renderCell({
       rep: rep({ smoothed_bps: 9600, lower_bound_bps: FLOOR_BPS - 1 }),
     });
-    expect(labels(container)).toContain("⚑ below floor · not eligible");
+    expect(labels(container)).toContain("▾ below floor · not eligible");
   });
 
   it("does not judge the headline score when the lower bound clears", () => {
@@ -222,7 +223,7 @@ describe("AgentStanding — degrees of not knowing", () => {
       rep: thinEvidence({ source: "prior", degraded: true }),
     });
     expect(labels(container)).toContain("⚠ provisional");
-    expect(labels(container)).toContain("⚑ below floor · not eligible");
+    expect(labels(container)).toContain("▾ below floor · not eligible");
   });
 
   it("explains that a degraded score is a read we could not get, not a new agent", () => {
@@ -257,7 +258,7 @@ describe("AgentStanding — degrees of not knowing", () => {
     const { container } = renderCell({
       rep: thinEvidence({ source: "prior" }),
     });
-    expect(labels(container)).toEqual(["⚑ below floor · not eligible"]);
+    expect(labels(container)).toEqual(["▾ below floor · not eligible"]);
   });
 });
 
@@ -304,6 +305,23 @@ describe("AgentStanding — provenance", () => {
       agent: seeded({ source: undefined, owner: "GABC" }),
     });
     expect(labels(container)).toContain("⬡ external");
+  });
+
+  // A provenance a newer backend added. Only "seeded" vouches for the
+  // first-party catalog, so an unknown value is read from `owner`, exactly as
+  // a response that predates the field is.
+  it("reads an unknown source from the owner, never as first-party", () => {
+    const { container } = renderCell({
+      agent: onchain({ source: "partner", owner: "GABC", bound: false }),
+    });
+    expect(labels(container)).toEqual(["⬡ external", "⊘ not yet operational"]);
+  });
+
+  it("makes no claim for an unknown source with no owner", () => {
+    const { container } = renderCell({
+      agent: seeded({ source: "partner", owner: null }),
+    });
+    expect(container.innerHTML).toBe("");
   });
 
   it("makes no provenance claim when neither source nor owner is present", () => {
@@ -357,7 +375,7 @@ describe("AgentStanding — endpoint binding", () => {
     expect(labels(container)).toEqual([
       "⬡ external",
       "⊘ not yet operational",
-      "⚑ below floor · not eligible",
+      "▾ below floor · not eligible",
     ]);
   });
 
@@ -385,7 +403,7 @@ describe("AgentStanding — endpoint binding", () => {
     });
     expect(labels(container)).toEqual([
       "⬡ external",
-      "⚑ below floor · not eligible",
+      "▾ below floor · not eligible",
     ]);
   });
 });
@@ -436,6 +454,39 @@ describe("AgentStanding — a delisted agent", () => {
 });
 
 describe("AgentStanding — the row it lives in", () => {
+  // The reputation chip in the same row marks its dispute rate with ⚑. The
+  // floor verdict had the same flag, so a disputed agent below the floor
+  // showed two ⚑s meaning two different things.
+  it("marks below-floor with a glyph the chip does not use for disputes", () => {
+    const { container } = render(
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <AgentStanding
+                agent={onchain()}
+                rep={thinEvidence({ dispute_rate_bps: 2500, disputed: 6 })}
+                floorBps={FLOOR_BPS}
+              />
+              <ReputationBadge
+                bps={9600}
+                lowerBoundBps={4100}
+                source="onchain"
+                disputeRateBps={2500}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const glyphs = labels(container)
+      .map((l) => l.split(" ")[0])
+      .filter((g) => g !== "" && !/^[\d.★≈·]+$/.test(g));
+    // Each mark's leading glyph appears once: no symbol means two things.
+    expect(new Set(glyphs).size).toBe(glyphs.length);
+    expect(labels(container)).toContain("▾ below floor · not eligible");
+  });
+
   it("nests inside a table cell without a DOM-nesting warning", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     render(
@@ -457,17 +508,8 @@ describe("AgentStanding — the row it lives in", () => {
     spy.mockRestore();
   });
 
-  // The registry scrolls sideways inside a page that hides horizontal
-  // overflow, so a cell that sizes to its content widens every row.
-  it("caps its own width so it cannot widen the registry", () => {
-    const { container } = renderCell({
-      agent: onchain({ bound: false }),
-      rep: thinEvidence({ degraded: true }),
-    });
-    const cell = container.firstElementChild as HTMLElement;
-    expect(cell.className).toContain("max-w-");
-    expect(cell.className).toContain("flex-wrap");
-  });
+  // The width cap is a layout claim, which jsdom cannot check: it lays
+  // nothing out. `e2e/agents-scale.spec.ts` measures it at 360px instead.
 
   // Meaning never by colour alone: every marker carries words, not just a
   // glyph and a tint, and every marker carries its reasoning for a reader who
@@ -517,12 +559,21 @@ describe("AgentStanding — wording", () => {
     }
   });
 
+  // Read from the visible labels, not the whole cell. The long form always
+  // says "not eligible for selection", so a check over `textContent` passed
+  // with the words gone from the label a sighted reader actually sees.
   it("says not eligible wherever it renders a floor verdict", () => {
+    let verdicts = 0;
     for (const state of STATES) {
       const { container } = renderCell(state);
-      const text = container.textContent ?? "";
-      if (text.includes("below floor")) expect(text).toContain("not eligible");
+      for (const label of labels(container)) {
+        if (!label.includes("floor")) continue;
+        verdicts += 1;
+        expect(label).toBe("▾ below floor · not eligible");
+      }
       cleanup();
     }
+    // The sweep has to have met the verdict, or it proved nothing.
+    expect(verdicts).toBeGreaterThan(0);
   });
 });

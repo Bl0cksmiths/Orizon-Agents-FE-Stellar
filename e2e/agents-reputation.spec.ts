@@ -66,10 +66,9 @@ test.describe("the marketplace reputation column", () => {
       mockUnratedCatalogAgent.rep.toFixed(2),
       asRendered,
     );
-    // And it is honestly a cold start, so the chip may say so.
-    await expect(
-      unrated.locator('[aria-label*="no on-chain ratings yet"]'),
-    ).toHaveCount(1);
+    // And it is honestly a cold start, so the chip may say so — in its
+    // sr-only words, which are the chip's accessible text.
+    await expect(unrated.getByText(/no on-chain ratings yet/)).toHaveCount(1);
   });
 
   test("invents no score for an agent the batch has no entry for", async ({
@@ -117,9 +116,9 @@ test.describe("the marketplace reputation column", () => {
 
     // And nobody is told they have no ratings. That is a claim about an
     // agent's history, and the read that could have supported it failed.
-    await expect(
-      page.locator('[aria-label*="no on-chain ratings yet"]'),
-    ).toHaveCount(0);
+    // Read from the chip's words, not an attribute: a selector for an
+    // attribute the chip no longer carries would pass whatever it said.
+    await expect(page.getByText(/no on-chain ratings yet/)).toHaveCount(0);
   });
 
   test("the failed-read marketplace is accessible and fits 390px", async ({

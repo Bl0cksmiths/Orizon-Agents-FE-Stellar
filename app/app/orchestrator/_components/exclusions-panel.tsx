@@ -41,6 +41,13 @@ import type {
   PlanFloorNotice,
   PlanFloorNoticeKind,
 } from "@/lib/types";
+import {
+  hiddenNotices,
+  hiddenNoticesText,
+  isFloorAction,
+  isUnbound,
+  knownKind,
+} from "./floor-notices";
 
 /** The order the closed summary counts kinds in: what was lost, what moved,
  *  what was kept anyway. The rows themselves stay in the backend's order,
@@ -87,6 +94,21 @@ const UNBOUND_MARK = {
   label: "no endpoint",
 } as const;
 
+/** What a notice of a kind this build does not know wears. Muted, like the
+ *  unbound mark, because nothing about it can be claimed beyond what the
+ *  backend's own `reason` prose says — no tone that implies a verdict, and no
+ *  glyph borrowed from a kind it may not be. The label is the backend's own
+ *  word for it, so the row still names what happened. */
+const unknownMark = (kind: string) =>
+  ({
+    tone: "muted",
+    glyph: "◇",
+    label: kind.replace(/_/g, " "),
+  }) as const;
+
+/** How unknown kinds are counted in the closed summary. */
+const OTHER_COUNT_LABEL = "other";
+
 /** The same three kinds, phrased to be counted in the closed summary. */
 const KIND_COUNT_LABEL: Record<PlanFloorNoticeKind, string> = {
   excluded: "excluded",
@@ -125,9 +147,8 @@ const REASON_COPY: Record<ExclusionReason, string> = {
 /**
  * Deliberately typed to return `string | undefined`.
  *
- * `isDecomposeResponse` set-checks `kind` but pointedly does NOT set-check
- * `reason_code`, so that a backend adding a fourth reason cannot blank this
- * panel. An unrecognised code therefore reaches this map, and indexing
+ * `screenDecomposeResponse` checks `reason_code` (like `kind`) only as a
+ * string, so that a backend adding a fourth reason cannot blank this panel. An unrecognised code therefore reaches this map, and indexing
  * `Record<ExclusionReason, string>` would have TypeScript promise a string
  * that is not there. The row falls back to the backend prose, which is
  * required on every notice and so always available.
@@ -146,11 +167,6 @@ const nameOf = (n: PlanFloorNotice) => n.agent_name ?? n.agent_id;
  *  replacement we cannot name is not one we should describe. */
 const replacementOf = (n: PlanFloorNotice) =>
   n.replacement_name ?? n.replacement_id ?? null;
-
-/** An agent left out for having no endpoint bound. It rides in the same list
- *  as the floor's actions and arrives as `kind: "excluded"`, but the floor
- *  never saw it: it was not a candidate to begin with. */
-const isUnbound = (n: PlanFloorNotice) => n.reason_code === "unbound_endpoint";
 
 const numbersRow =
   "flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] text-muted";
@@ -176,13 +192,16 @@ function NoticeRow({
   // its standing was never consulted and the backend leaves its bound null on
   // purpose. That null says nothing about its ratings.
   const unbound = isUnbound(notice);
+  const kind = knownKind(notice);
   const mark = unbound
     ? UNBOUND_MARK
-    : {
-        tone: KIND_TONE[notice.kind],
-        glyph: KIND_GLYPH[notice.kind],
-        label: KIND_LABEL[notice.kind],
-      };
+    : kind === null
+      ? unknownMark(notice.kind)
+      : {
+          tone: KIND_TONE[kind],
+          glyph: KIND_GLYPH[kind],
+          label: KIND_LABEL[kind],
+        };
 
   const bound = notice.lower_bound_bps;
   // null and undefined are different facts and must not collapse into one
@@ -202,7 +221,9 @@ function NoticeRow({
   return (
     <li className="clip-cyber-sm space-y-2 border border-border bg-bg/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={mark.tone}>
+        {/* max-w-full + break-all: an unknown kind's label is the backend's
+            own token, and nothing promises it has a break opportunity. */}
+        <Badge tone={mark.tone} className="max-w-full break-all">
           <span aria-hidden="true">{mark.glyph}</span>
           {mark.label}
         </Badge>
@@ -271,28 +292,41 @@ export function ExclusionsPanel({
   // Optional on the type, nullable through the guard, and both mean the same
   // thing here: there is nothing to disclose, so no disclosure renders.
   const notices = plan.notices ?? [];
-  if (notices.length === 0) return null;
+  // Notices the guard dropped as unusable. Not nothing: the backend reported
+  // something here, and a panel that vanished because every notice in it was
+  // malformed would tell the buyer the floor did nothing.
+  const hidden = hiddenNotices(plan);
+  if (notices.length === 0 && hidden === 0) return null;
 
   // Unbound agents are counted apart from what the floor did. The backend
   // names up to eight on every plan while any registered agent is unbound, so
   // folded into the kinds they would turn an untouched plan into "8 excluded".
-  const changes = notices.filter((n) => !isUnbound(n));
+  const changes = notices.filter(isFloorAction);
   const unbound = notices.length - changes.length;
 
-  // `kind` is safe to index with — unlike `reason_code`, the guard set-checks
-  // it, precisely because it picks a tone and a label that have no fallback.
+  // Only a kind this build knows indexes the per-kind counts. The guard lets
+  // any string through, so that one new kind cannot blank the plan; a kind
+  // with no arm is still counted, apart, and never silently left out of the
+  // total the buyer reads with the panel shut.
   const counts: Record<PlanFloorNoticeKind, number> = {
     excluded: 0,
     substituted: 0,
     degraded: 0,
   };
-  for (const n of changes) counts[n.kind] += 1;
+  let other = 0;
+  for (const n of changes) {
+    const kind = knownKind(n);
+    if (kind === null) other += 1;
+    else counts[kind] += 1;
+  }
 
   const breakdown = [
     ...KIND_ORDER.filter((k) => counts[k] > 0).map(
       (k) => `${counts[k]} ${KIND_COUNT_LABEL[k]}`,
     ),
+    ...(other > 0 ? [`${other} ${OTHER_COUNT_LABEL}`] : []),
     ...(unbound > 0 ? [`${unbound} with no endpoint bound`] : []),
+    ...(hidden > 0 ? [hiddenNoticesText(hidden)] : []),
   ].join(" · ");
 
   return (
@@ -339,6 +373,13 @@ export function ExclusionsPanel({
             were never candidates: they are registered on-chain but have no
             endpoint bound to dispatch a step to, so the floor did not judge
             them either way.
+          </p>
+        )}
+        {hidden > 0 && (
+          <p className="text-sm leading-relaxed text-muted">
+            {hiddenNoticesText(hidden)}: {hidden === 1 ? "it" : "they"} arrived
+            incomplete, so there is nothing reliable to say about{" "}
+            {hidden === 1 ? "it" : "them"} here.
           </p>
         )}
         <ul className="space-y-3">

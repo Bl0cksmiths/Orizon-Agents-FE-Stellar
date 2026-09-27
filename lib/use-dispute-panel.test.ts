@@ -16,6 +16,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
 import { ApiError } from "./api";
+import {
+  heldReadGrant,
+  noteServerClockOffset,
+  rememberReadGrant,
+} from "./dispute-read-grant";
 import { getTaskDisputes } from "./disputes";
 import type {
   Dispute,
@@ -29,19 +34,32 @@ import {
   COARSE_TICK_MS,
   CREDIT_POLL_MS,
   FINAL_HOUR_TICK_MS,
+  DECISION_WAIT_MS,
+  PENDING_FAST_WAIT_MS,
+  PENDING_WAIT_MS,
   SETTLEMENT_POLL_MS,
   SETTLEMENT_WAIT_MS,
   disputePollMs,
   disputeTickMs,
+  pendingKey,
   useDisputePanel,
 } from "./use-dispute-panel";
 
+// The wallet hands the hook a `signMessage` it must never call: a poll, a
+// refresh, a dropped grant — nothing here may put a prompt in front of the
+// buyer. Every test ends by checking it was not (see `afterEach`).
 const { wallet } = vi.hoisted(() => ({
-  wallet: { address: null as string | null },
+  wallet: {
+    address: null as string | null,
+    signMessage: vi.fn<(message: string) => Promise<string>>(),
+  },
 }));
 
 vi.mock("./wallet", () => ({
-  useWallet: () => ({ address: wallet.address }),
+  useWallet: () => ({
+    address: wallet.address,
+    signMessage: wallet.signMessage,
+  }),
 }));
 
 vi.mock("./disputes", async (importOriginal) => ({
@@ -71,12 +89,19 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(T0);
   wallet.address = PAYER;
+  wallet.signMessage.mockReset();
+  wallet.signMessage.mockImplementation(async (m) => `sig(${m})`);
   fetchDisputes.mockReset();
 });
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  expect(wallet.signMessage).not.toHaveBeenCalled();
+  // A read grant one test keeps must not ride on the next test's reads, and
+  // nor may the server clock one test measured.
+  window.sessionStorage.clear();
+  noteServerClockOffset(0);
 });
 
 function deferred<T>() {
@@ -201,6 +226,13 @@ async function advance(ms: number) {
   });
 }
 
+/** `advance`, a second at a time: every answer that lands re-arms the poll
+ * before the next timer is due, as it does in a browser. One large advance
+ * fires at most one poll, and would "prove" a stop that never happened. */
+async function stepThrough(ms: number) {
+  for (let t = 0; t < ms; t += S) await advance(S);
+}
+
 function settledOf(view: DisputePanelView) {
   if (view.kind !== "settled")
     throw new Error(`expected settled, got ${view.kind}`);
@@ -223,6 +255,7 @@ describe("disputeTickMs", () => {
     proofTx: null,
     policy: settlement(T0).policy,
     steps: [],
+    reasonsWithheld: false,
   });
 
   it("runs no timer when nothing on the panel can change with time", () => {
@@ -261,7 +294,11 @@ describe("disputePollMs", () => {
    * settlement — when it has one — arrived with the first read. */
   const pollFor = (
     res: TaskDisputes | null,
-    over: Partial<{ doneAtRequest: boolean; awaitedMs: number }> = {},
+    over: Partial<{
+      doneAtRequest: boolean;
+      awaitedMs: number;
+      pendingAwaitedMs: number;
+    }> = {},
   ) =>
     disputePollMs(
       res === null ? null : { res, doneAtRequest: true, awaitedMs: 0, ...over },
@@ -319,15 +356,17 @@ describe("disputePollMs", () => {
     },
   );
 
-  it("re-reads a credited dispute whose refund has not landed", () => {
+  it("re-reads a credited dispute whose refund has not landed, within its wait", () => {
     // `credited` was treated as final, but a record with no transfer on it is
     // one the receipt itself calls pending — the copy is hedged, the badge
     // reads "Refund in progress", and nothing was ever going to re-read it.
-    expect(
-      pollFor(
-        answer(H, { disputes: [dsp(0, "credited", { refund_tx: null })] }),
-      ),
-    ).toBe(CREDIT_POLL_MS);
+    // Nor is anything sure to: the operator reconciles it by hand, so the
+    // wait is bounded like every other.
+    const res = answer(H, {
+      disputes: [dsp(0, "credited", { refund_tx: null })],
+    });
+    expect(pollFor(res)).toBe(CREDIT_POLL_MS);
+    expect(pollFor(res, { pendingAwaitedMs: PENDING_WAIT_MS })).toBeNull();
   });
 
   it("re-reads a credited dispute whose backend has withdrawn its word", () => {
@@ -372,6 +411,59 @@ describe("disputePollMs", () => {
     ).toBeNull();
   });
 
+  // D-069: the refund has landed and the backend says, by sending the field
+  // as null, that it has no rating YET. One uphold writes the rating seconds
+  // after the credit, so a poll in that gap must not read it as final.
+  const ratingOwed = (over: Partial<Dispute> = {}) =>
+    answer(H, {
+      disputes: [
+        dsp(0, "credited", {
+          refund_tx: "tx_0",
+          rating_tx: null,
+          rating_confirmed: null,
+          ...over,
+        }),
+      ],
+    });
+
+  it("re-reads a refund that landed before its rating: fast, then slow, then not at all", () => {
+    expect(pollFor(ratingOwed())).toBe(CREDIT_POLL_MS);
+    expect(
+      pollFor(ratingOwed(), { pendingAwaitedMs: PENDING_FAST_WAIT_MS - 1 }),
+    ).toBe(CREDIT_POLL_MS);
+    expect(
+      pollFor(ratingOwed(), { pendingAwaitedMs: PENDING_FAST_WAIT_MS }),
+    ).toBe(ADJUDICATION_POLL_MS);
+    expect(
+      pollFor(ratingOwed(), { pendingAwaitedMs: PENDING_WAIT_MS - 1 }),
+    ).toBe(ADJUDICATION_POLL_MS);
+    expect(
+      pollFor(ratingOwed(), { pendingAwaitedMs: PENDING_WAIT_MS }),
+    ).toBeNull();
+  });
+
+  it("keeps the rating's bounds inside the backend's own worst case and an operator's re-run", () => {
+    // About a minute is the backend's worst case for one rating (two 15 s
+    // posts and a 30 s confirmation poll); fifteen minutes is an operator
+    // upholding again. Far past either, a receipt must stop reading.
+    expect(PENDING_FAST_WAIT_MS).toBe(90 * S);
+    expect(PENDING_WAIT_MS).toBe(15 * M);
+  });
+
+  it("does not wait on a rating an older backend cannot report at all", () => {
+    // ABSENT, not null: this backend never says, and it never becomes a yes.
+    const { rating_confirmed: _absent, ...legacy } = dsp(0, "credited", {
+      refund_tx: "tx_0",
+    });
+    expect(pollFor(answer(H, { disputes: [legacy] }))).toBeNull();
+  });
+
+  it("stops once the rating is recorded and confirmed", () => {
+    expect(
+      pollFor(ratingOwed({ rating_tx: "tx_rating", rating_confirmed: true })),
+    ).toBeNull();
+  });
+
   it.each(
     mixes(
       ["upheld"],
@@ -386,6 +478,128 @@ describe("disputePollMs", () => {
       expect(pollFor(withStatuses(...statuses))).toBe(CREDIT_POLL_MS);
     },
   );
+
+  // Every wait is bounded, as D-069 bounded the rating's: none of these is
+  // sure to resolve, and each read every five seconds for the life of the
+  // tab — 1,400 reads in two hours, in the probe that found it.
+  it.each([
+    ["credited with no transfer on record", dsp(0, "credited")],
+    ["upheld, waiting on an operator", dsp(0, "upheld")],
+    ["crediting", dsp(0, "crediting", { refund_tx: "tx_0" })],
+    [
+      "credited, the backend withdrawing its word",
+      dsp(0, "credited", { refund_tx: "tx_0", refund_confirmed: false }),
+    ],
+    [
+      "a rating in flight with its hash",
+      dsp(0, "credited", {
+        refund_tx: "tx_0",
+        rating_tx: "tx_rating",
+        rating_confirmed: false,
+      }),
+    ],
+  ])("reads %s fast, then slow, then not at all", (_, dispute) => {
+    const res = answer(H, { disputes: [dispute] });
+    const at = (pendingAwaitedMs: number) => pollFor(res, { pendingAwaitedMs });
+    expect(at(0)).toBe(CREDIT_POLL_MS);
+    expect(at(PENDING_FAST_WAIT_MS - 1)).toBe(CREDIT_POLL_MS);
+    expect(at(PENDING_FAST_WAIT_MS)).toBe(ADJUDICATION_POLL_MS);
+    expect(at(PENDING_WAIT_MS - 1)).toBe(ADJUDICATION_POLL_MS);
+    expect(at(PENDING_WAIT_MS)).toBeNull();
+  });
+
+  it("reads an open dispute every 30 s for half an hour, then not at all", () => {
+    const res = withStatuses("open");
+    expect(DECISION_WAIT_MS).toBe(30 * M);
+    expect(pollFor(res, { pendingAwaitedMs: 0 })).toBe(ADJUDICATION_POLL_MS);
+    expect(pollFor(res, { pendingAwaitedMs: DECISION_WAIT_MS - 1 })).toBe(
+      ADJUDICATION_POLL_MS,
+    );
+    expect(pollFor(res, { pendingAwaitedMs: DECISION_WAIT_MS })).toBeNull();
+  });
+
+  it("keeps an open dispute read slowly once a credit beside it has run its wait out", () => {
+    const res = withStatuses("open", "upheld");
+    expect(pollFor(res, { pendingAwaitedMs: PENDING_WAIT_MS })).toBe(
+      ADJUDICATION_POLL_MS,
+    );
+    expect(pollFor(res, { pendingAwaitedMs: DECISION_WAIT_MS })).toBeNull();
+  });
+
+  it("never reads on for another job's dispute, which the view never shows", () => {
+    // A task that ran twice holds two jobs' disputes; the receipt is one.
+    const other = { job_id_hex: JOB_B };
+    expect(
+      pollFor(answer(H, { disputes: [dsp(0, "credited", other)] })),
+    ).toBeNull();
+    expect(
+      pollFor(answer(H, { disputes: [dsp(0, "open", other)] })),
+    ).toBeNull();
+    expect(
+      pollFor(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", {
+              ...other,
+              refund_tx: "tx_0",
+              rating_confirmed: null,
+            }),
+          ],
+        }),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("pendingKey", () => {
+  it("is empty when nothing on the receipt can move", () => {
+    expect(pendingKey(answer(H))).toBe("");
+    expect(
+      pendingKey(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", { refund_tx: "tx_0" }),
+            dsp(1, "rejected"),
+          ],
+        }),
+      ),
+    ).toBe("");
+    expect(pendingKey(answer(H, { settlement: null }))).toBe("");
+  });
+
+  it("changes whenever a moving dispute moves, and not otherwise", () => {
+    const key = (d: Dispute) => pendingKey(answer(H, { disputes: [d] }));
+    const open = key(dsp(0, "open"));
+    expect(open).not.toBe("");
+    expect(key(dsp(0, "open"))).toBe(open);
+    // A reason unlocked, or a stamp moved, is not the receipt moving.
+    expect(key(dsp(0, "open", { reason: "", updated_at: 1 }))).toBe(open);
+
+    const upheld = key(dsp(0, "upheld"));
+    const crediting = key(dsp(0, "crediting"));
+    const withHash = key(dsp(0, "crediting", { refund_tx: "tx_0" }));
+    expect(new Set([open, upheld, crediting, withHash]).size).toBe(4);
+    const confirming = key(
+      dsp(0, "credited", {
+        refund_tx: "tx_0",
+        rating_tx: "tx_r",
+        rating_confirmed: false,
+      }),
+    );
+    const rated = key(
+      dsp(0, "credited", { refund_tx: "tx_0", refund_confirmed: false }),
+    );
+    expect(confirming).not.toBe(rated);
+  });
+
+  it("ignores another job's disputes and the order they arrive in", () => {
+    const a = dsp(0, "open");
+    const b = dsp(1, "upheld");
+    const other = dsp(0, "crediting", { id: "dsp_x", job_id_hex: JOB_B });
+    expect(pendingKey(answer(H, { disputes: [a, b, other] }))).toBe(
+      pendingKey(answer(H, { disputes: [b, a] })),
+    );
+  });
 });
 
 describe("useDisputePanel — what it fetches", () => {
@@ -417,7 +631,7 @@ describe("useDisputePanel — what it fetches", () => {
     fetchDisputes.mockReturnValueOnce(d.promise);
     const { result } = mount();
 
-    expect(fetchDisputes).toHaveBeenCalledWith("task_a");
+    expect(fetchDisputes).toHaveBeenCalledWith("task_a", null);
     expect(result.current).toMatchObject({
       view: { kind: "hidden" },
       loading: true,
@@ -462,6 +676,46 @@ describe("useDisputePanel — what it fetches", () => {
       error: null,
     });
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // B-4 (the `disputes.spec.ts:559` flake): the first 404 LANDS, then the
+  // run seals, or the page refreshes. The route is as missing as it was.
+  it("reads a second 404 after the no-route stub as the same missing route, when the run seals", async () => {
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    const { result, rerender } = mount({ workflowDone: false });
+    await act(async () => {});
+    expect(result.current.error).toBeNull();
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    rerender({ ...DEFAULTS, workflowDone: true });
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: false,
+      error: null,
+    });
+  });
+
+  it("reads a 404 on a refresh after the no-route stub the same way", async () => {
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    const { result } = mount();
+    await act(async () => {});
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.view).toEqual({ kind: "hidden" });
   });
 
   it("hides the panel for a backend that predates the settlement field", async () => {
@@ -794,7 +1048,7 @@ describe("useDisputePanel — task changes", () => {
     const { result, rerender } = mount();
 
     rerender({ ...DEFAULTS, taskId: "task_b" });
-    expect(fetchDisputes).toHaveBeenLastCalledWith("task_b");
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_b", null);
 
     await land(a, answer(10 * M, { job: JOB_A }));
     expect(result.current.loading).toBe(true);
@@ -1005,6 +1259,48 @@ describe("useDisputePanel — the run finishing", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
   });
 
+  it("spends a seal recorded against a read that then FAILS on a read of its own", async () => {
+    // The seal was not spent on a request of its own because a read was out;
+    // that read failed, so nothing else would ever ask for the settlement.
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount({ workflowDone: false });
+    rerender({ ...DEFAULTS, workflowDone: true });
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    const again = nextRead();
+    await act(async () => {
+      first.reject(new ApiError("GET /tasks/task_a/disputes → 503", 503));
+    });
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    // Nothing is on screen, so the new attempt is loading, not failing.
+    expect(result.current).toMatchObject({ loading: true, error: null });
+
+    await land(again, answer(23 * H));
+    expect(result.current.view.kind).toBe("settled");
+    expect(result.current.error).toBeNull();
+  });
+
+  it("spends that seal once: a second failure is an error to retry by hand", async () => {
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount({ workflowDone: false });
+    rerender({ ...DEFAULTS, workflowDone: true });
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 503", 503),
+    );
+    await act(async () => {
+      first.reject(new ApiError("GET /tasks/task_a/disputes → 503", 503));
+    });
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
+
+    await advance(10 * M);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
   it("reads again when the run finishes after an answer has landed", async () => {
     // The ordinary case, and the one the skip above must not swallow.
     const { rerender } = await mountWith(answer(H, { settlement: null }), {
@@ -1034,6 +1330,113 @@ describe("useDisputePanel — the run finishing", () => {
     rerender(DEFAULTS);
     await act(async () => {});
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── the payer's read grant (D-067) ─────────────────────────────
+
+describe("useDisputePanel — the payer's read grant", () => {
+  const GRANT = { grant: "grant-token", expires_at: T0 / 1_000 + H / 1_000 };
+
+  it("presents a held grant on the first read and on every poll, never asking for another", async () => {
+    rememberReadGrant("task_a", PAYER, GRANT);
+    await mountWith(answer(-H, { disputes: [dsp(1, "open")] }));
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", "grant-token");
+
+    fetchDisputes.mockResolvedValue(answer(-H, { disputes: [dsp(1, "open")] }));
+    await advance(ADJUDICATION_POLL_MS);
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    for (const call of fetchDisputes.mock.calls) {
+      expect(call).toEqual(["task_a", "grant-token"]);
+    }
+  });
+
+  it("keeps a grant signed for on a laptop an hour fast, judged on the server's measured clock", async () => {
+    // The receipt measured the server an hour behind this laptop; the grant
+    // the payer then signed for expires an hour after the SERVER's now.
+    const { result } = await mountWith(
+      answer(-H, { skewMs: -H, disputes: [dsp(1, "open")] }),
+    );
+    rememberReadGrant("task_a", PAYER, {
+      grant: "grant-token",
+      expires_at: (T0 - H + H) / 1_000,
+    });
+
+    fetchDisputes.mockResolvedValueOnce(
+      answer(-H, { skewMs: -H, disputes: [dsp(1, "open")] }),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", "grant-token");
+    expect(heldReadGrant("task_a", PAYER)).toBe("grant-token");
+  });
+
+  it("presents nothing for a wallet other than the one that signed", async () => {
+    rememberReadGrant("task_a", PAYER, GRANT);
+    wallet.address = OTHER;
+    await mountWith(answer(-H, { disputes: [dsp(1, "open")] }));
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
+  });
+
+  it("drops a grant the server no longer honours, once, and reads on without it", async () => {
+    rememberReadGrant("task_a", PAYER, GRANT);
+    const withheld = answer(-H, {
+      disputes: [dsp(1, "open", { reason: "", reason_withheld: true })],
+    });
+    const { result } = await mountWith(withheld);
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", "grant-token");
+    expect(heldReadGrant("task_a", PAYER)).toBeNull();
+    // The payer is offered the signature again — by the receipt, on a click.
+    expect(settledOf(result.current.view).reasonsWithheld).toBe(true);
+
+    fetchDisputes.mockResolvedValue(withheld);
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
+  });
+
+  it("reads again with the grant once the payer's wallet restores, and only once", async () => {
+    // The wallet restores after the first read. Without a re-read, a payer
+    // who had signed and then reloaded a settled receipt — which nothing
+    // polls — was offered the signature again for a grant they held.
+    rememberReadGrant("task_a", PAYER, GRANT);
+    wallet.address = null;
+    const { result, rerender } = await mountWith(
+      answer(-H, {
+        disputes: [dsp(1, "rejected", { reason: "", reason_withheld: true })],
+      }),
+    );
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
+
+    const withGrant = nextRead();
+    wallet.address = PAYER;
+    rerender(DEFAULTS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", "grant-token");
+    await land(
+      withGrant,
+      answer(-H, {
+        disputes: [dsp(1, "rejected", { reason_withheld: false })],
+      }),
+    );
+    expect(settledOf(result.current.view).reasonsWithheld).toBe(false);
+    expect(receiptOf(result.current.view).reason).toBe("empty summary");
+
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a grant the server honoured", async () => {
+    rememberReadGrant("task_a", PAYER, GRANT);
+    const { result } = await mountWith(
+      answer(-H, {
+        disputes: [dsp(1, "open", { reason_withheld: false })],
+      }),
+    );
+    expect(heldReadGrant("task_a", PAYER)).toBe("grant-token");
+    expect(settledOf(result.current.view).reasonsWithheld).toBe(false);
   });
 });
 
@@ -1068,7 +1471,7 @@ describe("useDisputePanel — live updates", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(1);
     await advance(1);
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
-    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a");
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
 
     await land(poll, closedWith(dsp(1, "open")));
     nextRead();
@@ -1174,7 +1577,9 @@ describe("useDisputePanel — live updates", () => {
       loading: false,
       error: "Failed to fetch",
     });
-    expect(result.current.view).toBe(onScreen);
+    // Equal, not identical: a failed read still moves the clock the bounded
+    // waits run on, so the view is recomputed — to the same receipt.
+    expect(result.current.view).toEqual(onScreen);
 
     const poll = nextRead();
     await advance(ADJUDICATION_POLL_MS);
@@ -1184,10 +1589,11 @@ describe("useDisputePanel — live updates", () => {
     expect(receiptOf(result.current.view).status).toBe("upheld");
   });
 
-  it("goes on reading a credited receipt whose refund has not landed", async () => {
+  it("goes on reading a credited receipt whose refund has not landed, until it does", async () => {
     // The only unresolved states the hook never polled: the copy says the
     // transfer is pending and nothing was ever going to ask again, so the
-    // receipt could not resolve without a reload.
+    // receipt could not resolve without a reload. (Bounded: see "reads a
+    // receipt left on credited with no transfer on record…" below.)
     const { result } = await mountWith(
       closedWith(dsp(1, "credited", { refund_tx: null })),
     );
@@ -1210,6 +1616,178 @@ describe("useDisputePanel — live updates", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(spent);
   });
 
+  // D-069, through the hook: the gap between the credit and the rating.
+  const creditedOwingRating = () =>
+    dsp(1, "credited", {
+      refund_tx: "tx_r",
+      rating_tx: null,
+      rating_confirmed: null,
+    });
+
+  it("keeps reading a refund that landed before its rating until the rating appears, then stops", async () => {
+    const { result } = await mountWith(closedWith(creditedOwingRating()));
+    expect(receiptOf(result.current.view)).toMatchObject({
+      refund: { state: "confirmed" },
+      rating: { state: "none" },
+      ratingStalled: false,
+    });
+
+    fetchDisputes.mockResolvedValue(closedWith(creditedOwingRating()));
+    for (let i = 0; i < 3; i += 1) await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(4);
+
+    const rated = nextRead();
+    await advance(CREDIT_POLL_MS);
+    await land(
+      rated,
+      closedWith(
+        dsp(1, "credited", {
+          refund_tx: "tx_r",
+          rating_tx: "tx_rating",
+          rating_confirmed: true,
+        }),
+      ),
+    );
+    expect(receiptOf(result.current.view).rating).toEqual({
+      txHash: "tx_rating",
+      state: "confirmed",
+    });
+
+    const spent = fetchDisputes.mock.calls.length;
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  /** Moves the clock a second at a time, so every answer that lands re-arms
+   * the poll before the next timer is due — as it does in a browser. */
+  async function walk(ms: number) {
+    for (let t = 0; t < ms; t += S) await advance(S);
+  }
+
+  it("backs off, then stops reading for a rating that never lands, and says it stopped", async () => {
+    const { result } = await mountWith(closedWith(creditedOwingRating()));
+    fetchDisputes.mockResolvedValue(closedWith(creditedOwingRating()));
+
+    // The fast wait: every 5 s.
+    await walk(PENDING_FAST_WAIT_MS);
+    const fast = fetchDisputes.mock.calls.length;
+    expect(fast).toBe(1 + PENDING_FAST_WAIT_MS / CREDIT_POLL_MS);
+
+    // Then every 30 s: a minute holds two reads, not twelve.
+    await walk(M);
+    expect(fetchDisputes.mock.calls.length - fast).toBe(2);
+    expect(receiptOf(result.current.view).ratingStalled).toBe(false);
+
+    // Past the whole wait nothing more is read, and the receipt says so.
+    await walk(PENDING_WAIT_MS);
+    const spent = fetchDisputes.mock.calls.length;
+    expect(vi.getTimerCount()).toBe(0);
+    expect(receiptOf(result.current.view).ratingStalled).toBe(true);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("does not let a failing backend hold the rating's wait open for ever", async () => {
+    const { result } = await mountWith(closedWith(creditedOwingRating()));
+    fetchDisputes.mockRejectedValue(new Error("Failed to fetch"));
+
+    await walk(PENDING_WAIT_MS + M);
+    const spent = fetchDisputes.mock.calls.length;
+    expect(receiptOf(result.current.view).ratingStalled).toBe(true);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("never reads again for a credited receipt from a backend that cannot report its rating", async () => {
+    const { rating_confirmed: _absent, ...legacy } = creditedOwingRating();
+    await mountWith(closedWith(legacy));
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  // The bound, through the hook. Walked one second at a time: a single large
+  // advance fires at most one poll, because the next one is armed by an
+  // effect after the act flush — it would "prove" a stop that never happened.
+  it.each([
+    ["credited with no transfer on record", () => dsp(1, "credited")],
+    ["upheld, waiting on an operator", () => dsp(1, "upheld")],
+    ["a transfer in flight", () => dsp(1, "crediting", { refund_tx: "tx_r" })],
+  ])(
+    "reads a receipt left on %s fast, then slow, then stops and says so",
+    async (_, pending) => {
+      const { result } = await mountWith(closedWith(pending()));
+      fetchDisputes.mockResolvedValue(closedWith(pending()));
+
+      await walk(PENDING_FAST_WAIT_MS);
+      const fast = fetchDisputes.mock.calls.length;
+      expect(fast).toBe(1 + PENDING_FAST_WAIT_MS / CREDIT_POLL_MS);
+
+      await walk(M);
+      expect(fetchDisputes.mock.calls.length - fast).toBe(2);
+      expect(receiptOf(result.current.view).stoppedChecking).toBe(false);
+
+      await walk(PENDING_WAIT_MS);
+      const spent = fetchDisputes.mock.calls.length;
+      expect(spent).toBeLessThan(60);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(receiptOf(result.current.view).stoppedChecking).toBe(true);
+      await walk(10 * M);
+      expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+    },
+  );
+
+  it("reads an open dispute for half an hour, then stops and says so", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    fetchDisputes.mockResolvedValue(closedWith(dsp(1, "open")));
+
+    await walk(DECISION_WAIT_MS - ADJUDICATION_POLL_MS);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(false);
+    await walk(2 * ADJUDICATION_POLL_MS);
+    const spent = fetchDisputes.mock.calls.length;
+    expect(spent).toBe(1 + DECISION_WAIT_MS / ADJUDICATION_POLL_MS);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(true);
+    await walk(10 * M);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("restarts the wait each time the record moves", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "upheld")));
+    fetchDisputes.mockResolvedValue(closedWith(dsp(1, "upheld")));
+    await walk(PENDING_WAIT_MS - M);
+
+    // Fourteen minutes in, the transfer is sent: progress, and fast again.
+    fetchDisputes.mockResolvedValue(
+      closedWith(dsp(1, "crediting", { refund_tx: "tx_r" })),
+    );
+    // At most one slow interval until a read sees it.
+    await walk(ADJUDICATION_POLL_MS);
+    expect(receiptOf(result.current.view).status).toBe("crediting");
+    const before = fetchDisputes.mock.calls.length;
+    await walk(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes.mock.calls.length - before).toBe(
+      ADJUDICATION_POLL_MS / CREDIT_POLL_MS,
+    );
+
+    // And its own wait runs from that change, not from the uphold.
+    await walk(PENDING_WAIT_MS - M);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(false);
+    await walk(2 * M);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(true);
+  });
+
+  it("never polls for another job's dispute, which the receipt does not show", async () => {
+    await mountWith(
+      closedWith(
+        dsp(1, "crediting", { refund_tx: "tx_r", job_id_hex: JOB_B }),
+        dsp(0, "open", { id: "dsp_b0", job_id_hex: JOB_B }),
+      ),
+    );
+    expect(vi.getTimerCount()).toBe(0);
+    await walk(M);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps a live receipt when one re-read 404s, and goes on polling", async () => {
     // One Render redeploy blip mid-poll used to replace the held answer with
     // a settlement-less stub: the section rendered null, `error` was null so
@@ -1223,7 +1801,9 @@ describe("useDisputePanel — live updates", () => {
     );
     await advance(CREDIT_POLL_MS);
 
-    expect(result.current.view).toBe(onScreen);
+    // Equal, not identical: a failed read still moves the clock the bounded
+    // waits run on, so the view is recomputed — to the same receipt.
+    expect(result.current.view).toEqual(onScreen);
     expect(result.current.error).toBe("GET /tasks/task_a/disputes → 404");
 
     const poll = nextRead();
@@ -1232,6 +1812,81 @@ describe("useDisputePanel — live updates", () => {
     await land(poll, closedWith(dsp(1, "credited", { refund_tx: "tx_r" })));
     expect(result.current.error).toBeNull();
     expect(receiptOf(result.current.view).status).toBe("credited");
+  });
+
+  // A settlement never un-happens: a re-read without one is a lost RECORD —
+  // an in-memory store that restarted, or an older backend behind the same
+  // proxy — and must not become "nothing was charged".
+  const LOST =
+    "GET /tasks/task_a/disputes answered with no settlement on record — showing the receipt last read";
+
+  it.each([
+    ["settlement: null (a store that lost its records)", { settlement: null }],
+    ["no settlement key (an older backend)", { settlement: undefined }],
+  ])(
+    "keeps a receipt with a dispute in flight when a poll answers %s, and goes on polling",
+    async (_, over) => {
+      const { result } = await mountWith(closedWith(dsp(1, "open")));
+      const onScreen = result.current.view;
+
+      const lost = { ...closedWith(), ...over };
+      if (over.settlement === undefined) delete lost.settlement;
+      fetchDisputes.mockResolvedValue(lost);
+      await advance(ADJUDICATION_POLL_MS);
+      expect(fetchDisputes).toHaveBeenCalledTimes(2);
+      expect(result.current.view).toEqual(onScreen);
+      expect(result.current.error).toBe(LOST);
+
+      // Long past the settlement wait: still the receipt, never "nothing
+      // was charged", and still reading at the receipt's cadence.
+      for (let i = 0; i < 4; i += 1) await advance(ADJUDICATION_POLL_MS);
+      expect(fetchDisputes).toHaveBeenCalledTimes(6);
+      expect(result.current.view).toEqual(onScreen);
+      expect(receiptOf(result.current.view).status).toBe("open");
+
+      fetchDisputes.mockResolvedValue(
+        closedWith(dsp(1, "credited", { refund_tx: "tx_r" })),
+      );
+      await advance(ADJUDICATION_POLL_MS);
+      expect(result.current.error).toBeNull();
+      expect(receiptOf(result.current.view).status).toBe("credited");
+    },
+  );
+
+  it("keeps a settled receipt when a refresh answers without its settlement", async () => {
+    const { result } = await mountWith(answer(H));
+    const onScreen = result.current.view;
+
+    fetchDisputes.mockResolvedValueOnce(answer(H, { settlement: null }));
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.view).toEqual(onScreen);
+    expect(result.current.error).toBe(LOST);
+    // Nothing on this receipt changes on its own, so nothing polls it; the
+    // error's retry is the way back.
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("does not loop on a grant the settlement-less answer dropped", async () => {
+    rememberReadGrant("task_a", PAYER, {
+      grant: "grant-token",
+      expires_at: T0 / 1_000 + H / 1_000,
+    });
+    // Honoured on the first read; the answer that lost the settlement is
+    // also the one that no longer honours the grant.
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    expect(heldReadGrant("task_a", PAYER)).toBe("grant-token");
+
+    fetchDisputes.mockResolvedValue({
+      ...closedWith(dsp(1, "open", { reason: "", reason_withheld: true })),
+      settlement: null,
+    });
+    await advance(ADJUDICATION_POLL_MS);
+    await act(async () => {});
+    expect(result.current.error).toBe(LOST);
+    expect(heldReadGrant("task_a", PAYER)).toBeNull();
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the receipt when the refresh after a submit 404s", async () => {
@@ -1400,6 +2055,41 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
     await advance(1);
     expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("reads a stopped receipt at once when the buyer comes back, and waits again", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "upheld")));
+    fetchDisputes.mockResolvedValue(closedWith(dsp(1, "upheld")));
+    await stepThrough(PENDING_WAIT_MS + M);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(true);
+    const spent = fetchDisputes.mock.calls.length;
+
+    setVisibility("hidden");
+    await advance(H);
+    setVisibility("visible");
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent + 1);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(false);
+
+    // And the fast cadence again, from the answer that return fetched.
+    await stepThrough(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent + 2);
+  });
+
+  it("resumes the wait for a sealed run's settlement on return, on its own cadence", async () => {
+    const { result } = await mountWith(answer(H, { settlement: null }));
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    setVisibility("hidden");
+    await advance(10 * S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    // Overdue by the time it is back: read at once, and the receipt with it.
+    fetchDisputes.mockResolvedValueOnce(answer(H));
+    setVisibility("visible");
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.view.kind).toBe("settled");
   });
 
   it("stops the countdown in a hidden tab and catches it up on return", async () => {
@@ -1628,5 +2318,255 @@ describe("useDisputePanel — the poll across task changes and unmount", () => {
     await land(poll, closedWith(dsp(1, "crediting")));
     expect(vi.getTimerCount()).toBe(0);
     expect(errors).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDisputePanel — the contract the dialog reads", () => {
+  it("exposes the measured server clock offset, and 0 before any answer", async () => {
+    const d = nextRead();
+    const { result } = mount();
+    expect(result.current.offsetMs).toBe(0);
+
+    await land(d, answer(H, { skewMs: 90 * S }));
+    expect(result.current.offsetMs).toBe(90 * S);
+  });
+
+  it("folds an adopted dispute into the view at once, without a read", async () => {
+    const { result } = await mountWith(answer(H));
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+
+    act(() => result.current.adopt(dsp(1, "open")));
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an adopted dispute through a re-read that fails (D-057)", async () => {
+    const { result } = await mountWith(answer(H));
+    act(() => result.current.adopt(dsp(1, "open")));
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 503", 503),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+  });
+
+  it("keeps an adopted dispute through an answer asked for before it existed", async () => {
+    const { result } = await mountWith(answer(H));
+    const older = nextRead();
+    let pending: Promise<void> = Promise.resolve();
+    act(() => {
+      pending = result.current.refresh();
+    });
+
+    act(() => result.current.adopt(dsp(1, "open")));
+    await land(older, answer(H));
+    await act(async () => {
+      await pending;
+    });
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+  });
+
+  it("lets a read that lists the dispute speak for it from then on", async () => {
+    const { result } = await mountWith(answer(H));
+    act(() => result.current.adopt(dsp(1, "open")));
+
+    fetchDisputes.mockResolvedValueOnce(
+      answer(H, { disputes: [dsp(1, "upheld")] }),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(receiptOf(result.current.view).status).toBe("upheld");
+
+    // Listed once, it is no longer held: the record is the read's to state.
+    fetchDisputes.mockResolvedValueOnce(answer(H));
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+  });
+
+  it("holds a dispute adopted before the first answer until that answer lands", async () => {
+    const first = nextRead();
+    const { result } = mount();
+
+    act(() => result.current.adopt(dsp(1, "open")));
+    expect(result.current.loading).toBe(true);
+    await land(first, answer(H));
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+  });
+
+  it("ignores a dispute of another task", async () => {
+    const { result } = await mountWith(answer(H));
+
+    act(() => result.current.adopt(dsp(1, "open", { task_id: "task_b" })));
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+  });
+
+  it("adopts nothing in demo mode", async () => {
+    const { result } = mount({ demo: true });
+
+    act(() => result.current.adopt(dsp(1, "open")));
+    expect(result.current.view).toEqual({ kind: "hidden" });
+    expect(fetchDisputes).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDisputePanel — what it must never do, and whose answer wins", () => {
+  const E503 = () => new ApiError("GET /tasks/task_a/disputes → 503", 503);
+  const crediting = () =>
+    closedWith(dsp(1, "crediting", { refund_tx: "tx_r" }));
+
+  it("polls, presents a grant, and drops it when dishonoured, without once asking the wallet to sign", async () => {
+    rememberReadGrant("task_a", PAYER, {
+      grant: "grant-token",
+      expires_at: (T0 + H) / 1_000,
+    });
+    const withheld = () =>
+      closedWith(
+        dsp(1, "crediting", {
+          refund_tx: "tx_r",
+          reason: "",
+          reason_withheld: true,
+        }),
+      );
+    await mountWith(withheld());
+    fetchDisputes.mockResolvedValue(withheld());
+
+    for (let i = 0; i < 5; i += 1) await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(6);
+    expect(fetchDisputes.mock.calls[0]).toEqual(["task_a", "grant-token"]);
+    expect(heldReadGrant("task_a", PAYER)).toBeNull();
+    // Named here as well as after every test: this is the test about it.
+    expect(wallet.signMessage).not.toHaveBeenCalled();
+  });
+
+  it("lets the newer of two reads of one task win when they land out of order", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    const older = nextRead();
+    const newer = nextRead();
+    let first: Promise<void> = Promise.resolve();
+    let second: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current.refresh();
+    });
+    act(() => {
+      second = result.current.refresh();
+    });
+
+    await land(newer, closedWith(dsp(1, "credited", { refund_tx: "tx_r" })));
+    await land(older, closedWith(dsp(1, "open")));
+    await act(async () => {
+      await first;
+      await second;
+    });
+    expect(receiptOf(result.current.view).status).toBe("credited");
+  });
+
+  it("keeps the error that dates the view on screen while the next read is out", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    fetchDisputes.mockRejectedValueOnce(E503());
+    await advance(ADJUDICATION_POLL_MS);
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
+
+    nextRead();
+    act(() => {
+      void result.current.refresh();
+    });
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("does not let an older read landing late clear the flag the newer one holds", async () => {
+    const { result } = await mountWith(crediting());
+    const older = nextRead();
+    const newer = nextRead();
+    act(() => {
+      void result.current.refresh();
+    });
+    act(() => {
+      void result.current.refresh();
+    });
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+
+    await land(older, crediting());
+    // The newer read is still out: a poll falling due now must be skipped.
+    fetchDisputes.mockResolvedValue(crediting());
+    await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+
+    await land(newer, crediting());
+    await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not carry a seal recorded against one task's read into the next task's answer", async () => {
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount({ workflowDone: false });
+    // The seal lands while task A's read is out, and is recorded against it.
+    rerender({ ...DEFAULTS, workflowDone: true });
+
+    const b = nextRead();
+    rerender({ taskId: "task_b", workflowDone: false, demo: false });
+    await land(b, { ...answer(H, { settlement: null }), task_id: "task_b" });
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    // Task B is still running, so nothing asks for its settlement yet.
+    fetchDisputes.mockResolvedValue({
+      ...answer(H, { settlement: null }),
+      task_id: "task_b",
+    });
+    for (let i = 0; i < 3; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops an answer that lands while the page has no task, and loads afresh when it returns", async () => {
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount();
+    rerender({ ...DEFAULTS, demo: true });
+    await land(first, answer(H, { disputes: [dsp(1, "open")] }));
+    expect(result.current.view).toEqual({ kind: "hidden" });
+
+    const again = nextRead();
+    rerender(DEFAULTS);
+    expect(result.current.loading).toBe(true);
+    expect(result.current.view).toEqual({ kind: "hidden" });
+
+    await land(again, answer(H));
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+  });
+
+  it("shows only the task it was asked for when the task changes mid-read", async () => {
+    const a = nextRead();
+    const { result, rerender } = mount();
+    const b = nextRead();
+    rerender({ ...DEFAULTS, taskId: "task_b" });
+
+    await land(a, answer(H, { disputes: [dsp(1, "open")] }));
+    expect(result.current.loading).toBe(true);
+
+    await land(b, {
+      ...answer(H, { job: JOB_B }),
+      task_id: "task_b",
+    });
+    expect(settledOf(result.current.view).jobIdHex).toBe(JOB_B);
   });
 });

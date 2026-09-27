@@ -27,8 +27,8 @@ type StatusLook = {
 
 /**
  * Every colour below clears WCAG AA (4.5:1) for this 10px text against the
- * badge's own tint over the card: cyan 13.0, amber-300 11.7, emerald-300
- * 11.7, violet-readable 6.3, magenta 4.8. The console has one theme —
+ * badge's own tint over the card: amber-300 11.7, emerald-300 11.7, muted
+ * 7.2, violet-readable 6.3, magenta 4.8. The console has one theme —
  * globals.css pins the dark palette on html and body whatever the OS
  * prefers — so that one background is the only one these have to hold
  * against.
@@ -39,10 +39,14 @@ const LOOKS: Record<DisputeStatus, StatusLook> = {
     tone: "violet",
     mark: { kind: "live", dotClassName: "bg-violet shadow-[0_0_8px_#B026FF]" },
   },
+  // Decided in the buyer's favour, but no money has moved (D-070): the tick
+  // and the cyan are what "✓ Confirmed on Stellar" wears, and a record with
+  // nothing paid must not share them. Grey and an open circle — settled as
+  // a decision, empty as a payment.
   upheld: {
     label: "Upheld",
-    tone: "cyan",
-    mark: { kind: "glyph", glyph: "✓" },
+    tone: "muted",
+    mark: { kind: "glyph", glyph: "○" },
   },
   // Not "crediting": that is the store's name for a payout it is holding so a
   // retry can never pay twice. What the buyer needs to know is that their

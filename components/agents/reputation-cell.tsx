@@ -34,15 +34,12 @@ export type ReputationRead = "loading" | "failed" | "loaded";
 export function ReputationCell({
   agentName,
   rep,
-  floorBps,
   read,
 }: {
   /** Names the row for a screen reader, which meets this cell out of context. */
   agentName: string;
   /** This agent's entry in the live reputation batch, or null when it has none. */
   rep: ReputationInfo | null;
-  /** The network floor from the same batch, or null when it has not loaded. */
-  floorBps: number | null;
   read: ReputationRead;
 }): JSX.Element {
   if (rep !== null) {
@@ -57,7 +54,11 @@ export function ReputationCell({
         count={rep.count}
         disputeRateBps={rep.dispute_rate_bps}
         degraded={rep.degraded}
-        floorBps={floorBps ?? undefined}
+        // No floor, deliberately. The page states the floor once, above the
+        // table, and the row's own standing cell says "below floor" in words
+        // when it applies. Handed the floor, the chip repeats its value on
+        // every row ("clears the 2.75 network floor"), which is N chances to
+        // disagree with the notice after a deployment moves it.
       />
     );
   }
@@ -73,6 +74,9 @@ export function ReputationCell({
     );
   }
 
+  // "No usable entry" rather than "no entry": the page screens the batch per
+  // entry, so an agent whose entry arrived malformed lands here too, and the
+  // read did carry something for it — just nothing a score can be read from.
   // No score, and none invented. Both cases below used to render the catalog's
   // seeded rating as a "prior estimate … no on-chain ratings yet" chip: a
   // number nothing routes on, captioned with a claim about the agent's history
@@ -80,7 +84,7 @@ export function ReputationCell({
   const failed = read === "failed";
   const detail = failed
     ? `Reputation unavailable for ${agentName}: the reputation read failed, so no score is shown rather than a guessed one. This says nothing about the agent's record.`
-    : `No reputation score is known for ${agentName}: the reputation read carried no entry for it, so no score is shown rather than a guessed one.`;
+    : `No reputation score is known for ${agentName}: the reputation read carried no usable entry for it, so no score is shown rather than a guessed one.`;
 
   return (
     <span

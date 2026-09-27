@@ -1,0 +1,246 @@
+/**
+ * The address-book drift gate (check-contract-addresses.mjs), run end to end.
+ *
+ * The script is a CLI whose inputs are files — the frontend's fallback ids,
+ * README.md and the contract repo's two address books — so each case builds
+ * those files in a scratch root, copies the script beside them, and runs it
+ * as CI does. The verdict is the exit code; the output says why.
+ *
+ * The README cases are the reason this file exists. The gate used to accept
+ * any README id that was deployed on EITHER network, so two ids swapped
+ * between rows, or a mainnet id behind a testnet link, passed while sending a
+ * reader to the wrong contract. Each of those is pinned here.
+ *
+ * The ids are synthetic: shaped like contract strkeys, obviously not deployed.
+ *
+ * Run: node --test scripts/check-contract-addresses.test.mjs
+ */
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { after, test } from "node:test";
+
+const SCRIPT = fileURLToPath(
+  new URL("./check-contract-addresses.mjs", import.meta.url),
+);
+
+/** @param {string} tag  base32 characters padded into a strkey shape */
+const id = (tag) => `C${tag.padEnd(55, tag.at(-1))}`;
+
+const TESTNET = Object.freeze({
+  network: "testnet",
+  admin: `G${"A".repeat(55)}`,
+  asset: "native",
+  asset_sac: id("TS"),
+  agent_registry: id("TR"),
+  reputation_ledger: id("TL"),
+  payment_escrow: id("TE"),
+  attestation_registry: id("TA"),
+});
+
+const MAINNET = Object.freeze({
+  network: "mainnet",
+  admin: `G${"A".repeat(55)}`,
+  asset: "native",
+  asset_sac: id("MS"),
+  agent_registry: id("MR"),
+  reputation_ledger: id("ML"),
+  payment_escrow: id("ME"),
+  attestation_registry: id("MA"),
+});
+
+const FALLBACKS = {
+  reputation_ledger: {
+    public: MAINNET.reputation_ledger,
+    testnet: TESTNET.reputation_ledger,
+  },
+};
+
+const link = (segment, contract) =>
+  `https://stellar.expert/explorer/${segment}/contract/${contract}`;
+const cell = (segment, contract) =>
+  `[\`${contract}\`](${link(segment, contract)})`;
+
+/**
+ * A README shaped like the real one: a badge with no contract named, a
+ * summary row with a truncated id, and one table per network.
+ */
+function readme({
+  testnet = TESTNET,
+  mainnet = MAINNET,
+  badge = TESTNET.payment_escrow,
+} = {}) {
+  const short = `${mainnet.payment_escrow.slice(0, 8)}…${mainnet.payment_escrow.slice(-5)}`;
+  return [
+    `# Orizon [![Testnet](https://img.shields.io/badge/x)](${link("testnet", badge)})`,
+    "",
+    `| **PaymentEscrow:** [\`${short}\`](${link("public", mainnet.payment_escrow)}) |`,
+    "",
+    "## Testnet",
+    `| **PaymentEscrow** (x402) | ${cell("testnet", testnet.payment_escrow)} |`,
+    `| **AgentRegistry** | ${cell("testnet", testnet.agent_registry)} |`,
+    `| **AttestationRegistry** | ${cell("testnet", testnet.attestation_registry)} |`,
+    `| **ReputationLedger** | ${cell("testnet", testnet.reputation_ledger)} |`,
+    `| Asset SAC (native XLM) | ${cell("testnet", testnet.asset_sac)} |`,
+    "",
+    "## Mainnet",
+    `| **PaymentEscrow** (x402) | ${cell("public", mainnet.payment_escrow)} |`,
+    `| **AgentRegistry** | ${cell("public", mainnet.agent_registry)} |`,
+    `| **AttestationRegistry** | ${cell("public", mainnet.attestation_registry)} |`,
+    `| **ReputationLedger** | ${cell("public", mainnet.reputation_ledger)} |`,
+    `| Asset SAC (native XLM) | ${cell("public", mainnet.asset_sac)} |`,
+    "",
+  ].join("\n");
+}
+
+const scratch = mkdtempSync(join(tmpdir(), "check-addresses-"));
+after(() => rmSync(scratch, { recursive: true, force: true }));
+let runs = 0;
+
+/**
+ * Lays the inputs out as the script expects them and runs it.
+ * @param {{ readmeText?: string, fallbacks?: object, books?: { testnet?: object, mainnet?: object } | null }} [inputs]
+ */
+function check({
+  readmeText = readme(),
+  fallbacks = FALLBACKS,
+  books = {},
+} = {}) {
+  const root = join(scratch, String((runs += 1)));
+  mkdirSync(join(root, "scripts"), { recursive: true });
+  mkdirSync(join(root, "lib"), { recursive: true });
+  copyFileSync(SCRIPT, join(root, "scripts", "check-contract-addresses.mjs"));
+  writeFileSync(join(root, "README.md"), readmeText);
+  writeFileSync(
+    join(root, "lib", "contract-addresses.json"),
+    JSON.stringify(fallbacks),
+  );
+  const contracts = join(root, "contracts");
+  if (books !== null) {
+    mkdirSync(contracts);
+    writeFileSync(
+      join(contracts, "addresses.json"),
+      JSON.stringify(books.testnet ?? TESTNET),
+    );
+    writeFileSync(
+      join(contracts, "addresses.mainnet.json"),
+      JSON.stringify(books.mainnet ?? MAINNET),
+    );
+  }
+  const run = spawnSync(
+    process.execPath,
+    [join(root, "scripts", "check-contract-addresses.mjs")],
+    {
+      encoding: "utf8",
+      env: { ...process.env, ORIZON_CONTRACTS_DIR: contracts },
+    },
+  );
+  return { status: run.status, out: `${run.stdout}${run.stderr}` };
+}
+
+test("passes when every id sits under its own network and contract", () => {
+  const { status, out } = check();
+  assert.equal(status, 0, out);
+  // Each README link is its own comparison, not one line of the total.
+  assert.match(out, /All 2 fallback contract ids and 12 README ids match/);
+});
+
+// Passed before the fix: both ids are deployed testnet contracts, so the
+// union check found each of them "somewhere" and was satisfied.
+test("fails when two testnet ids trade rows", () => {
+  const swapped = {
+    ...TESTNET,
+    payment_escrow: TESTNET.agent_registry,
+    agent_registry: TESTNET.payment_escrow,
+  };
+  const { status, out } = check({ readmeText: readme({ testnet: swapped }) });
+  assert.equal(status, 1, out);
+  assert.match(out, /FAIL {2}README\.md:6 \(testnet\).*payment_escrow/);
+  assert.match(out, /FAIL {2}README\.md:7 \(testnet\).*agent_registry/);
+});
+
+// Passed before the fix: the mainnet id is deployed, just not on testnet.
+test("fails when a testnet link carries a mainnet id", () => {
+  const crossed = { ...TESTNET, reputation_ledger: MAINNET.reputation_ledger };
+  const { status, out } = check({ readmeText: readme({ testnet: crossed }) });
+  assert.equal(status, 1, out);
+  assert.match(out, /README\.md:9 \(testnet\).*a mainnet id in a testnet link/);
+});
+
+// A link that names no contract — the CI badge — can still only point at a
+// contract deployed on its own network.
+test("fails when an unlabelled link points at the other network", () => {
+  const { status, out } = check({
+    readmeText: readme({ badge: MAINNET.payment_escrow }),
+  });
+  assert.equal(status, 1, out);
+  assert.match(
+    out,
+    /README\.md:1 \(testnet\).*not a deployed testnet contract/,
+  );
+});
+
+test("fails when a link's text shows a different id from its target", () => {
+  const text = readme().replace(
+    `[\`${TESTNET.agent_registry}\`]`,
+    `[\`${TESTNET.payment_escrow}\`]`,
+  );
+  const { status, out } = check({ readmeText: text });
+  assert.equal(status, 1, out);
+  assert.match(out, /README\.md:7 \(testnet\).*link text shows/);
+});
+
+test("fails when a truncated id does not abbreviate its target", () => {
+  const text = readme().replace(
+    `${MAINNET.payment_escrow.slice(0, 8)}…`,
+    `${MAINNET.agent_registry.slice(0, 8)}…`,
+  );
+  const { status, out } = check({ readmeText: text });
+  assert.equal(status, 1, out);
+  assert.match(out, /README\.md:3 \(public\).*link text shows/);
+});
+
+test("fails on a README id deployed on neither network", () => {
+  const stray = id("ZZ");
+  const { status, out } = check({
+    readmeText: `${readme()}\nSee ${stray} for details.\n`,
+  });
+  assert.equal(status, 1, out);
+  assert.match(out, new RegExp(`${stray} != not a deployed address`));
+});
+
+test("fails when a fallback id drifts from its book", () => {
+  const { status, out } = check({
+    fallbacks: {
+      reputation_ledger: {
+        public: MAINNET.reputation_ledger,
+        testnet: MAINNET.reputation_ledger,
+      },
+    },
+  });
+  assert.equal(status, 1, out);
+  assert.match(out, /FAIL {2}reputation_ledger \(testnet\)/);
+});
+
+test("fails, never skips, when the address books are missing", () => {
+  const { status, out } = check({ books: null });
+  assert.equal(status, 1, out);
+  assert.match(out, /does not exist/);
+});
+
+test("fails when a book declares the other network", () => {
+  const { status, out } = check({
+    books: { testnet: { ...TESTNET, network: "mainnet" } },
+  });
+  assert.equal(status, 1, out);
+  assert.match(out, /addresses\.json declares network "mainnet"/);
+});

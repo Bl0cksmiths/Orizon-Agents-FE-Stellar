@@ -22,8 +22,15 @@
  *   on screen may be stale.
  * - `refresh()` refetches and resolves once the answer is on screen. It never
  *   rejects: a failure lands in `error`. The page calls it after a submit and
- *   on `duplicate_dispute`, whose original dispute must be re-read because
- *   the error carries no body.
+ *   on `duplicate_dispute`.
+ * - `adopt(dispute)` folds a dispute the server itself returned — the one a
+ *   submit resolved to, or the original a `duplicate_dispute` refusal
+ *   carries — into the view at once, without a read. It holds until a read
+ *   lists that dispute: an answer that was already on its way, or a re-read
+ *   that fails, can no longer show its step as disputable again.
+ * - `offsetMs` is the server's clock minus this browser's, as last measured,
+ *   for `raiseDispute`: the window and the nonce are judged on the server's
+ *   clock. 0 until an answer carrying the server's clock has landed.
  * - While a dispute is unresolved the hook re-reads on its own (story 4.06,
  *   see `disputePollMs`), on the same terms as `refresh()`: the view stays up,
  *   and a failure lands in `error`.
@@ -32,12 +39,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "./api";
 import {
+  forgetReadGrant,
+  heldReadGrant,
+  noteServerClockOffset,
+} from "./dispute-read-grant";
+import {
   disputeView,
   getTaskDisputes,
+  ratingStillComing,
   receiptAwaitsChain,
+  receiptStillMoving,
   serverClockOffsetMs,
 } from "./disputes";
-import type { DisputePanelView, TaskDisputes } from "./types";
+import type { Dispute, DisputePanelView, TaskDisputes } from "./types";
 import { toMessage } from "./use-async-action";
 import { useWallet } from "./wallet";
 
@@ -71,6 +85,38 @@ export const ADJUDICATION_POLL_MS = 30_000;
  * in seconds, and the buyer is watching for it. */
 export const CREDIT_POLL_MS = 5_000;
 
+/**
+ * How long a receipt waiting on a transfer or a rating is read for at
+ * `CREDIT_POLL_MS`, from the first answer that showed it waiting so — the
+ * clock restarts whenever the record moves (see `pendingKey`).
+ *
+ * Both are written by the uphold, one straight after the other, and each is
+ * a Soroban submit whose worst case on the backend is two 15 s posts and a
+ * 30 s confirmation poll: about a minute before it is recorded or given up
+ * on (D-069). Ninety seconds covers that with room for the read that noticed.
+ */
+export const PENDING_FAST_WAIT_MS = 90_000;
+/**
+ * How long, in all, a receipt waiting on a transfer or a rating is read for
+ * before the panel stops and says so. Past the minute above, nothing is in
+ * flight any more: a refund `upheld` but not sent, or `credited` with no
+ * transfer to show, waits on an operator, and so does a rating that failed
+ * without a hash. Fifteen minutes at `ADJUDICATION_POLL_MS` covers one acting
+ * on the script's own "uphold again" line, for about thirty reads. Beyond
+ * that the wait is open-ended — a record the operator must reconcile by hand
+ * can sit for days — and a receipt left open must not read it for ever: the
+ * probe that found this counted 1,400 reads in two hours.
+ */
+export const PENDING_WAIT_MS = 15 * 60_000;
+/**
+ * How long an `open` dispute is read for, at `ADJUDICATION_POLL_MS`, before
+ * the panel stops and says so. Adjudication is a person and takes hours; a
+ * tab left open on the receipt overnight read it every thirty seconds, some
+ * thousand reads for one decision. Half an hour follows a buyer who stays to
+ * watch; after that the receipt says it stopped checking and how to look.
+ */
+export const DECISION_WAIT_MS = 30 * 60_000;
+
 /** Cadence while the settlement a sealed run should have has not appeared. */
 export const SETTLEMENT_POLL_MS = 3_000;
 /**
@@ -91,7 +137,49 @@ export type DisputePollState = {
   doneAtRequest: boolean;
   /** Local ms since the panel first went looking for the settlement. */
   awaitedMs: number;
+  /**
+   * Local ms since the receipt was last seen to move while something on it
+   * was still moving (`pendingKey`); 0 when nothing is.
+   */
+  pendingAwaitedMs?: number;
 };
+
+/**
+ * This job's disputes. The read answers with every dispute the TASK has, and
+ * a task that ran twice holds another job's too: the view already draws only
+ * this job's, and the poll must not read on for a dispute it never shows.
+ */
+function jobDisputes(res: TaskDisputes): Dispute[] {
+  const settlement = res.settlement;
+  if (!settlement) return [];
+  return res.disputes.filter((d) => d.job_id_hex === settlement.job_id_hex);
+}
+
+/**
+ * Everything on this receipt that can still change on its own, as one string
+ * two answers can be compared by — "" when nothing can.
+ *
+ * The bounded waits are measured from the last time this CHANGED, not from
+ * the first sight of a pending state: a dispute that goes open → upheld →
+ * crediting → credited is progress at every step, and each step earns the
+ * fast cadence again. It is a record that stays put that runs its wait out.
+ */
+export function pendingKey(res: TaskDisputes): string {
+  return jobDisputes(res)
+    .filter(receiptStillMoving)
+    .map((d) =>
+      [
+        d.id,
+        d.status,
+        d.refund_tx,
+        d.refund_confirmed,
+        d.rating_tx,
+        d.rating_confirmed,
+      ].join("|"),
+    )
+    .sort()
+    .join(",");
+}
 
 /**
  * How long until the receipt should be re-read, or null for "never" (story
@@ -99,10 +187,22 @@ export type DisputePollState = {
  * does would fetch again, so without this the receipt would sit on the state
  * it was raised in while the dispute moved underneath it.
  *
- * Only an unresolved dispute can change on its own, so only one keeps a poll
- * alive: `CREDIT_POLL_MS` while any receipt is still waiting on the chain,
- * else `ADJUDICATION_POLL_MS` while any dispute is `open`. A task whose
- * receipts have all settled — or that has no dispute at all — is not polled.
+ * Only a dispute of THIS job that can still change on its own
+ * (`receiptStillMoving`) keeps a poll alive, and every wait is bounded, the
+ * way D-069 first bounded the rating's — fast, then slow, then not at all —
+ * on `pendingAwaitedMs`, the time since the receipt last moved:
+ *
+ * - waiting on a transfer or a rating (`receiptAwaitsChain`,
+ *   `ratingStillComing`): `CREDIT_POLL_MS` for `PENDING_FAST_WAIT_MS`, then
+ *   `ADJUDICATION_POLL_MS` until `PENDING_WAIT_MS`.
+ * - waiting on a decision (`open`): `ADJUDICATION_POLL_MS` until
+ *   `DECISION_WAIT_MS`.
+ *
+ * Nothing in either is sure to come — `upheld` and `credited` without a
+ * transfer wait on an operator, and one that must reconcile by hand can take
+ * days — so a receipt left open stops reading, and says so, rather than
+ * reading every five seconds for the life of the tab. A task whose receipts
+ * have all settled, or that has no dispute, is not polled at all.
  *
  * Judged on `receiptAwaitsChain`, not on the raw status: a `credited` record
  * with no transfer on it is one the receipt itself draws as pending, and
@@ -130,10 +230,15 @@ export function disputePollMs(state: DisputePollState | null): number | null {
     if (!state.doneAtRequest) return null;
     return state.awaitedMs < SETTLEMENT_WAIT_MS ? SETTLEMENT_POLL_MS : null;
   }
+  const waitedMs = state.pendingAwaitedMs ?? 0;
   let ms: number | null = null;
-  for (const dispute of res.disputes) {
-    if (receiptAwaitsChain(dispute)) return CREDIT_POLL_MS;
-    if (dispute.status === "open") ms = ADJUDICATION_POLL_MS;
+  for (const dispute of jobDisputes(res)) {
+    if (receiptAwaitsChain(dispute) || ratingStillComing(dispute)) {
+      if (waitedMs < PENDING_FAST_WAIT_MS) return CREDIT_POLL_MS;
+      if (waitedMs < PENDING_WAIT_MS) ms = ADJUDICATION_POLL_MS;
+    } else if (dispute.status === "open" && waitedMs < DECISION_WAIT_MS) {
+      ms = ADJUDICATION_POLL_MS;
+    }
   }
   return ms;
 }
@@ -148,8 +253,11 @@ export function disputePollMs(state: DisputePollState | null): number | null {
  * session holds no token for a trace it was sent. Neither is something the
  * viewer can act on, and neither may banner an error across every trace.
  *
- * Only ever used for a FIRST read of a task. A route that answered once
- * exists, so a later 404 is a blip — a redeploy, a proxy — not a backend
+ * Only ever used while no receipt of the task is on screen: a first read, or
+ * one after this stub (a later 404 from a route that already 404'd is the
+ * same missing route, and bannered it as "receipt unavailable" when the run
+ * sealed). A route that answered with a receipt exists, so a later 404 is a
+ * blip — a redeploy, a proxy — not a backend
  * that predates receipts, and standing in this stub for a receipt already on
  * screen would erase it: the view would go `hidden`, `error` would be null so
  * nothing explained it, and the poll would never re-arm, because a stub with
@@ -157,6 +265,27 @@ export function disputePollMs(state: DisputePollState | null): number | null {
  */
 function noReceiptRoute(taskId: string): TaskDisputes {
   return { task_id: taskId, window_closes_at: null, disputes: [] };
+}
+
+/**
+ * When the wait for a moving receipt started: carried from the answer before
+ * while what is pending is unchanged, restarted at `nowMs` when it changed,
+ * and null when nothing is pending.
+ */
+function pendingSince(
+  held: Snapshot | null,
+  key: string,
+  nowMs: number,
+): number | null {
+  if (key === "") return null;
+  if (held !== null && held.pendingKey === key && held.pendingSinceMs !== null)
+    return held.pendingSinceMs;
+  return nowMs;
+}
+
+/** The error a re-read that lost the settlement on screen is reported as. */
+function lostSettlement(taskId: string): string {
+  return `GET /tasks/${encodeURIComponent(taskId)}/disputes answered with no settlement on record — showing the receipt last read`;
 }
 
 type Snapshot = {
@@ -172,6 +301,19 @@ type Snapshot = {
    * on each answer inside it.
    */
   awaitingSinceMs: number | null;
+  /**
+   * The local clock when the receipt was last seen to MOVE while something
+   * on it was still moving, carried the same way; null when nothing is.
+   */
+  pendingSinceMs: number | null;
+  /** `pendingKey` of `res`: what `pendingSinceMs` was started for. */
+  pendingKey: string;
+  /**
+   * The payer's read grant this answer was read with, or null for none —
+   * and null too once the server showed it no longer honours it, so a
+   * dropped grant is never mistaken for one still to be presented.
+   */
+  grant: string | null;
 };
 
 type FetchState = {
@@ -188,7 +330,20 @@ export type UseDisputePanelResult = {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  /** Server clock minus local clock, in ms; 0 while nothing measured it. */
+  offsetMs: number;
+  /** Fold a dispute the server returned into the view, without a read. */
+  adopt: (dispute: Dispute) => void;
 };
+
+/**
+ * `disputes` with `adopted` folded in: each adopted dispute replaces the row
+ * with its id, or joins the list when there is none.
+ */
+function withDisputes(disputes: Dispute[], adopted: Dispute[]): Dispute[] {
+  const ids = new Set(adopted.map((d) => d.id));
+  return [...disputes.filter((d) => !ids.has(d.id)), ...adopted];
+}
 
 export function useDisputePanel(
   taskId: string | null,
@@ -203,16 +358,22 @@ export function useDisputePanel(
   // The local clock as of the last tick or arrival; the server's is this plus
   // the snapshot's offset.
   const [clockMs, setClockMs] = useState(() => Date.now());
+  // When the buyer last came back to this tab. The bounded waits are for a
+  // receipt nobody is attending to, and a hidden tab reads nothing, so a
+  // return restarts the wait of a receipt still moving (see the poll).
+  const [attendedAtMs, setAttendedAtMs] = useState(0);
 
   // Read by callbacks that must not re-subscribe on every render. Synced in an
   // effect, not during render, and declared before the effects that read them.
   const targetRef = useRef(target);
   const doneRef = useRef(workflowDone);
   const stateRef = useRef(state);
+  const addressRef = useRef(address);
   useEffect(() => {
     targetRef.current = target;
     doneRef.current = workflowDone;
     stateRef.current = state;
+    addressRef.current = address;
   });
 
   // The latest request wins: an older one settling later — for this task or
@@ -232,6 +393,10 @@ export function useDisputePanel(
   // to declare — so the answer inherits it instead of the seal costing a
   // second request.
   const sealedInFlightRef = useRef(false);
+  // Disputes the server handed back outside a read (`adopt`), each held until
+  // a read of its task lists it. A read that does not is older than the
+  // dispute, or failed to see it; either way the dispute exists.
+  const adoptedRef = useRef<Dispute[]>([]);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -245,11 +410,17 @@ export function useDisputePanel(
       const epoch = ++epochRef.current;
       lastReadAtMs.current = Date.now();
       sealedInFlightRef.current = false;
-      // Whether this task already has an answer on screen, read before the
-      // state below is touched: it decides what a 404 means (see
-      // `noReceiptRoute`).
+      // Whether this task already has a receipt answer on screen, read
+      // before the state below is touched: it decides what a 404 means (see
+      // `noReceiptRoute`). An answer with no settlement KEY is not one — it
+      // is the stub a first 404 left, or a backend with no receipts — so a
+      // route that 404'd once and 404s again when the run seals, or on a
+      // refresh, is still the route that is missing, never an error.
       const held = stateRef.current;
-      const firstRead = held.taskId !== id || held.snapshot === null;
+      const firstRead =
+        held.taskId !== id ||
+        held.snapshot === null ||
+        held.snapshot.res.settlement === undefined;
       inFlightRef.current = true;
       const isLatest = () =>
         mountedRef.current &&
@@ -268,9 +439,12 @@ export function useDisputePanel(
       // Taken before the request leaves: the offset is measured against it,
       // so a slow exchange can only ever understate the window.
       const sentAtMs = Date.now();
+      // The payer's read grant, if this tab holds one for this wallet: read
+      // from storage on every read, so a poll presents it and never signs.
+      const grant = heldReadGrant(id, addressRef.current);
       let res: TaskDisputes;
       try {
-        res = await getTaskDisputes(id);
+        res = await getTaskDisputes(id, grant);
       } catch (err) {
         if (!isLatest()) return;
         if (err instanceof ApiError && err.status === 404 && firstRead) {
@@ -280,13 +454,24 @@ export function useDisputePanel(
           // other load has started since), and the error dates it.
           const error = toMessage(err);
           setState((s) => ({ ...s, error }));
-          // While the panel is waiting for a settlement, time passed whether
-          // or not the answer came: that wait is bounded on this clock, and a
-          // backend failing every read must not hold it open for ever. The
-          // clock is left alone otherwise, so a failed poll of a settled
-          // receipt leaves the view it dates untouched, object and all.
-          if ((stateRef.current.snapshot?.awaitingSinceMs ?? null) !== null) {
+          // While the panel is waiting for a settlement or a rating, time
+          // passed whether or not the answer came: both waits are bounded on
+          // this clock, and a backend failing every read must not hold either
+          // open for ever. The clock is left alone otherwise, so a failed poll
+          // of a settled receipt leaves the view it dates untouched.
+          const waiting = stateRef.current.snapshot;
+          if (
+            (waiting?.awaitingSinceMs ?? null) !== null ||
+            (waiting?.pendingSinceMs ?? null) !== null
+          ) {
             setClockMs((prev) => Math.max(prev, Date.now()));
+          }
+          // The run sealed while this read was out, and the seal was recorded
+          // against it rather than spent on a read of its own. It failed, so
+          // the seal is spent now: nothing else would ever ask again, and the
+          // settlement the seal says is coming would never be read.
+          if (sealedInFlightRef.current && !doneAtRequest) {
+            void load(id, true);
           }
           return;
         }
@@ -298,23 +483,65 @@ export function useDisputePanel(
       // Measured before anything else runs: the clock restarts here, and it
       // is only as good as the moment it is taken.
       const receivedAtMs = Date.now();
+      const offsetMs = serverClockOffsetMs(res, sentAtMs);
+      // A grant kept from now on is judged on this clock too (D-067): its
+      // expiry is the server's, and a laptop an hour fast dropped every
+      // fresh grant on its first read without it.
+      if (typeof res.now === "number") noteServerClockOffset(offsetMs);
+      // A grant that still came back withheld is one the server no longer
+      // honours — it restarted, and its key rotated. Dropped, so the payer is
+      // offered the signature again, once, by the receipt; never re-asked
+      // for here, which would loop a wallet prompt on every poll.
+      const dishonoured =
+        grant !== null && res.disputes.some((d) => d.reason_withheld);
+      if (dishonoured) forgetReadGrant(id);
       if (!isLatest()) return;
+      // What this read lists speaks for itself from now on; what it does not
+      // is still folded in.
+      const listed = new Set(res.disputes.map((d) => d.id));
+      adoptedRef.current = adoptedRef.current.filter((d) => !listed.has(d.id));
+      const adopted = adoptedRef.current.filter((d) => d.task_id === id);
+      if (adopted.length > 0) {
+        res = { ...res, disputes: withDisputes(res.disputes, adopted) };
+      }
       const sealed = doneAtRequest || sealedInFlightRef.current;
       setState((s) => {
         const held = s.taskId === id ? s.snapshot : null;
+        // A settlement never un-happens. An answer without one — `null` from
+        // a store that restarted and lost its records, or no key at all from
+        // an older backend behind the same proxy — says the RECORD is
+        // missing, not that the charge is: it may not replace a receipt on
+        // screen, least of all one with a dispute in flight, which it would
+        // have turned into "nothing was charged" some thirty seconds later
+        // with no error and no further read. The receipt stays, the error
+        // dates it, and the poll goes on at the receipt's own cadence. Only
+        // the grant is taken from the answer, so a grant it dropped is not
+        // presented — and re-read for — again.
+        if (held !== null && held.res.settlement && !res.settlement) {
+          return {
+            taskId: id,
+            snapshot: { ...held, grant: dishonoured ? null : grant },
+            error: lostSettlement(id),
+          };
+        }
         // A sealed run whose settlement has not appeared: the wait starts at
         // the first such answer and is carried by every one after it, so a
         // run of re-reads cannot extend its own deadline.
         const awaiting = sealed && res.settlement === null;
+        // The bounded waits restart whenever what is pending changes.
+        const key = pendingKey(res);
         return {
           taskId: id,
           snapshot: {
             res,
-            offsetMs: serverClockOffsetMs(res, sentAtMs),
+            offsetMs,
             doneAtRequest: sealed,
             awaitingSinceMs: awaiting
               ? (held?.awaitingSinceMs ?? receivedAtMs)
               : null,
+            pendingSinceMs: pendingSince(held, key, receivedAtMs),
+            pendingKey: key,
+            grant: dishonoured ? null : grant,
           },
           error: null,
         };
@@ -351,11 +578,53 @@ export function useDisputePanel(
     void load(target, workflowDone);
   }, [target, workflowDone, load]);
 
+  // Reads again when the grant this tab holds for the connected wallet is
+  // not the one the answer on screen was read with. The wallet restores
+  // AFTER the first read, so a payer who signed for a grant and then
+  // reloaded was read without it and offered the signature again — on a
+  // settled receipt nothing polls, so it stayed that way. It also covers a
+  // grant expiring, and another wallet connecting: the payer's words go the
+  // moment the grant stops being theirs to present.
+  //
+  // Settles in one read: that answer records the grant it presented, and a
+  // grant the server refused is dropped from both sides at once.
+  useEffect(() => {
+    if (target === null || inFlightRef.current) return;
+    const held = state.taskId === target ? state.snapshot : null;
+    if (held === null) return;
+    if (heldReadGrant(target, address) === held.grant) return;
+    void load(target, doneRef.current);
+  }, [target, address, state, load]);
+
   const refresh = useCallback(async (): Promise<void> => {
     const id = targetRef.current;
     if (id === null) return;
     await load(id, doneRef.current);
   }, [load]);
+
+  const adopt = useCallback((dispute: Dispute): void => {
+    const id = targetRef.current;
+    if (id === null || dispute.task_id !== id) return;
+    adoptedRef.current = withDisputes(adoptedRef.current, [dispute]);
+    setState((s) => {
+      if (s.taskId !== id || s.snapshot === null) return s;
+      const res = {
+        ...s.snapshot.res,
+        disputes: withDisputes(s.snapshot.res.disputes, [dispute]),
+      };
+      // A dispute just raised is the receipt moving: its wait starts now.
+      const key = pendingKey(res);
+      return {
+        ...s,
+        snapshot: {
+          ...s.snapshot,
+          res,
+          pendingSinceMs: pendingSince(s.snapshot, key, Date.now()),
+          pendingKey: key,
+        },
+      };
+    });
+  }, []);
 
   const current = target !== null && state.taskId === target ? state : null;
   const snapshot = current?.snapshot ?? null;
@@ -369,6 +638,27 @@ export function useDisputePanel(
     awaitingSinceMs === null ? 0 : Math.max(0, clockMs - awaitingSinceMs);
   const stillLooking =
     awaitingSinceMs !== null && awaitedMs < SETTLEMENT_WAIT_MS;
+  // The same, for a receipt still moving: how long since it last moved, or
+  // since the buyer last came back to it, whichever is later.
+  const movedAtMs = snapshot?.pendingSinceMs ?? null;
+  const pendingSinceMs =
+    movedAtMs === null ? null : Math.max(movedAtMs, attendedAtMs);
+  const pendingAwaitedMs =
+    pendingSinceMs === null ? 0 : Math.max(0, clockMs - pendingSinceMs);
+  const pollMs = disputePollMs(
+    snapshot === null
+      ? null
+      : {
+          res: snapshot.res,
+          doneAtRequest: snapshot.doneAtRequest,
+          awaitedMs,
+          pendingAwaitedMs,
+        },
+  );
+  // The very condition that ends the poll, so a receipt says it stopped
+  // reading exactly when it did: something is still moving, and nothing
+  // reads for it any more.
+  const waitOver = pendingSinceMs !== null && pollMs === null;
 
   const view = useMemo(
     () =>
@@ -386,8 +676,9 @@ export function useDisputePanel(
           workflowDone && (snapshot?.doneAtRequest ?? false) && !stillLooking,
         nowMs: clockMs + (snapshot?.offsetMs ?? 0),
         demo,
+        waitOver,
       }),
-    [snapshot, address, workflowDone, stillLooking, clockMs, demo],
+    [snapshot, address, workflowDone, stillLooking, clockMs, demo, waitOver],
   );
 
   // `clockMs` is a dependency only to re-arm: each tick moves the clock, and
@@ -457,17 +748,18 @@ export function useDisputePanel(
   // were seven reads against a thirty-second cadence, which is how a perfectly
   // good receipt ends up under a rate-limited banner. A return inside the
   // interval arms what is left of it instead.
-  const pollMs = disputePollMs(
-    snapshot === null
-      ? null
-      : {
-          res: snapshot.res,
-          doneAtRequest: snapshot.doneAtRequest,
-          awaitedMs,
-        },
-  );
+  //
+  // Every wait is bounded (`disputePollMs`), and a return to the tab restarts
+  // the wait of a receipt still moving: the bounds are for a receipt left
+  // unattended, and a buyer who comes back is watching again. So the listener
+  // stays while anything is still moving, even once the poll has stopped, and
+  // a return to a stopped receipt reads it at once — "stopped checking" is
+  // never left standing over a buyer who has just looked.
+  //
+  // `pollMs` is computed above, with the view that reports its stopping.
+  const moving = pendingSinceMs !== null;
   useEffect(() => {
-    if (target === null || pollMs === null) return;
+    if (target === null || (pollMs === null && !moving)) return;
     const id = target;
     // Undefined while paused, and between a poll firing and its answer
     // landing — which re-runs this effect and arms the next one.
@@ -477,26 +769,39 @@ export function useDisputePanel(
       if (!inFlightRef.current) void load(id, doneRef.current);
     };
     const hidden = () => document.visibilityState === "hidden";
-    /** What is left of the cadence since the last read, never negative. */
+    /** What is left of the cadence since the last read, never negative;
+     * 0 once the poll has stopped, since a return is then overdue. */
     const dueInMs = () =>
-      Math.max(0, pollMs - (Date.now() - lastReadAtMs.current));
+      pollMs === null
+        ? 0
+        : Math.max(0, pollMs - (Date.now() - lastReadAtMs.current));
     const onVisibilityChange = () => {
       if (hidden()) {
         clearTimeout(timer);
         timer = undefined;
-      } else if (timer === undefined) {
+        return;
+      }
+      if (moving) setAttendedAtMs(Date.now());
+      if (timer === undefined) {
         const leftMs = dueInMs();
         if (leftMs === 0) poll();
         else timer = setTimeout(poll, leftMs);
       }
     };
-    if (!hidden()) timer = setTimeout(poll, pollMs);
+    if (!hidden() && pollMs !== null) timer = setTimeout(poll, pollMs);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [target, pollMs, state, load]);
+  }, [target, pollMs, moving, state, load]);
 
-  return { view, loading, error, refresh };
+  return {
+    view,
+    loading,
+    error,
+    refresh,
+    offsetMs: snapshot?.offsetMs ?? 0,
+    adopt,
+  };
 }

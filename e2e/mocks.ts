@@ -1,4 +1,4 @@
-import type { Page, Route } from "@playwright/test";
+import type { Page, Request, Route } from "@playwright/test";
 import type {
   CreditPolicy,
   DecomposeResponse,
@@ -623,6 +623,22 @@ export const mockOtherOwnerAddress =
   "GCXQ7T5LMJ4RZB2NPKAH6WVUE3SFDYG2CQ5TMXJ7RLB4NZKAH6WVUE3S";
 
 /**
+ * One registry row as these fixtures spell it: the wire's `Agent`, narrowed to
+ * the statuses and provenances this build knows. The wire type takes any
+ * string for both (a newer backend may add values), which would let a typo in
+ * a fixture — `status: "onlien"` — compile and quietly test the unknown-value
+ * path instead of the one the spec meant. A deliberately unknown value lives
+ * in `agents-guard-fixtures.ts`, typed as the wire's `Agent`.
+ *
+ * Written with `import()` type expressions so this section needs no edit to
+ * the module's shared import block.
+ */
+export type AgentFixture = import("../lib/types").Agent & {
+  status: import("../lib/types").AgentStatus;
+  source?: import("../lib/types").AgentSource | null;
+};
+
+/**
  * The marketplace as an operator sees it: one seeded catalog agent that needs
  * no endpoint, and two the connected wallet owns on-chain — one of which is
  * deliberately left unbound, because that is the state story 2.05 exists to
@@ -643,7 +659,7 @@ export const mockOtherOwnerAddress =
  * endpoint, so `null` means the question does not apply, and only `false` on an
  * on-chain agent reports a registration that cannot yet be routed to.
  */
-export const mockAgents = [
+export const mockAgents: readonly AgentFixture[] = [
   {
     id: "agt_11c0",
     name: "code.gen",
@@ -725,7 +741,7 @@ export const mockAgents = [
  * changes under the specs that already rely on that list. A spec opts in with
  * `mockApi(page, { agents: [...mockAgents, mockDelistedAgent] })`.
  */
-export const mockDelistedAgent = {
+export const mockDelistedAgent: AgentFixture = {
   id: "paused_bot",
   name: "Paused Bot",
   skills: ["translation"],
@@ -746,7 +762,7 @@ export const mockDelistedAgent = {
  * 7230 (3.62) — well clear of the 5500 floor. Its reputation is not why it is
  * out of the candidate pool.
  */
-export const mockDelistedReputation = {
+export const mockDelistedReputation: import("../lib/types").ReputationInfo = {
   agent_id: mockDelistedAgent.id,
   smoothed_bps: 8000,
   lower_bound_bps: 7230,
@@ -755,7 +771,7 @@ export const mockDelistedReputation = {
   weight: 15,
   disputed: 0,
   dispute_rate_bps: 0,
-  source: "onchain" as const,
+  source: "onchain",
   degraded: false,
 };
 
@@ -774,7 +790,7 @@ export const mockDelistedReputation = {
  * above rate `design.figma` on-chain, and one file must not hold two
  * contradictory histories for the same agent.
  */
-export const mockUnratedCatalogAgent = {
+export const mockUnratedCatalogAgent: AgentFixture = {
   id: "agt_09l5",
   name: "research.pro",
   skills: ["research", "citations"],
@@ -791,18 +807,19 @@ export const mockUnratedCatalogAgent = {
 /** The live prior for `research.pro`: 7000 bps (3.50) with the 5677 lower
  *  bound `lowerBoundBps(7000, 0)` returns. Honest cold start, not a failed
  *  read. */
-export const mockUnratedCatalogReputation = {
-  agent_id: mockUnratedCatalogAgent.id,
-  smoothed_bps: 7000,
-  lower_bound_bps: 5677,
-  avg_bps: 7000,
-  count: 0,
-  weight: 0,
-  disputed: 0,
-  dispute_rate_bps: 0,
-  source: "prior" as const,
-  degraded: false,
-};
+export const mockUnratedCatalogReputation: import("../lib/types").ReputationInfo =
+  {
+    agent_id: mockUnratedCatalogAgent.id,
+    smoothed_bps: 7000,
+    lower_bound_bps: 5677,
+    avg_bps: 7000,
+    count: 0,
+    weight: 0,
+    disputed: 0,
+    dispute_rate_bps: 0,
+    source: "prior",
+    degraded: false,
+  };
 
 /**
  * An agent the registry lists but the reputation batch carries no entry for —
@@ -810,7 +827,7 @@ export const mockUnratedCatalogReputation = {
  * and the fixture exists to prove none is invented: its catalog rating is
  * set to a figure no batch entry anywhere in this file uses.
  */
-export const mockUnscoredAgent = {
+export const mockUnscoredAgent: AgentFixture = {
   id: "fresh_listing",
   name: "Fresh Listing",
   skills: ["summarize"],
@@ -823,9 +840,6 @@ export const mockUnscoredAgent = {
   source: "onchain",
   bound: true,
 };
-
-/** One registry row as these fixtures spell it. */
-export type AgentFixture = (typeof mockAgents)[number];
 
 /**
  * What the emulated wallet answers a signMessage request with. The spec
@@ -924,6 +938,115 @@ export const mockExistingBinding = {
   replaced: false,
 };
 
+/**
+ * A `CodeArtifact` as the backend's `code.gen` worker returns it
+ * (`CodeArtifact` in app/schemas.py): the files the code viewer lists and the
+ * `preview_html` the sandboxed iframe renders. It is the calculator
+ * `mockSettlementSteps` describes ("calculator app, 3 files").
+ *
+ * Served only when a spec asks for it (`mockApi(page, { artifact:
+ * mockArtifactResponse })`): an artifact moves the trace page onto its
+ * artifact tab, which is the point of a spec about the artifact and would
+ * hide the trace every dispute spec reads.
+ */
+export const mockArtifact = {
+  title: "Calculator",
+  summary:
+    "A four-function calculator: keyboard and click input, a running expression line, and divide-by-zero guarded.",
+  entry: "index.html",
+  files: [
+    {
+      path: "index.html",
+      language: "html",
+      content:
+        '<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <title>Calculator</title>\n    <link rel="stylesheet" href="styles.css" />\n  </head>\n  <body>\n    <main class="calc">\n      <output id="display">0</output>\n      <div class="keys"></div>\n    </main>\n    <script src="app.js"></script>\n  </body>\n</html>\n',
+    },
+    {
+      path: "styles.css",
+      language: "css",
+      content:
+        ".calc { max-width: 18rem; margin: 2rem auto; font-family: system-ui; }\n#display { display: block; padding: 1rem; text-align: right; font-size: 2rem; }\n.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }\n",
+    },
+    {
+      path: "app.js",
+      language: "javascript",
+      content:
+        'const display = document.getElementById("display");\nconst keys = "789/456*123-0.=+";\nfor (const k of keys) {\n  const b = document.createElement("button");\n  b.textContent = k;\n  b.onclick = () => press(k);\n  document.querySelector(".keys").append(b);\n}\nlet expr = "";\nfunction press(k) {\n  if (k === "=") {\n    const r = Function(`return (${expr})`)();\n    expr = Number.isFinite(r) ? String(r) : "";\n  } else expr += k;\n  display.textContent = expr || "0";\n}\n',
+    },
+  ],
+  preview_html:
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Calculator</title><style>.calc{max-width:18rem;margin:2rem auto;font-family:system-ui}#display{display:block;padding:1rem;text-align:right;font-size:2rem}</style></head><body><main class="calc"><output id="display">0</output></main></body></html>',
+} satisfies import("../lib/types").CodeArtifact;
+
+/** The settlement hashes the artifact route carries beside the artifact. */
+export const mockChargeTx =
+  "9b1f4c2e7a0d5836c4e2f1a9b7d3c5e8f0a2b4c6d8e1f3a5b7c9d0e2f4a6b8c1";
+export const mockProofTx =
+  "2d7e9f1a3b5c7d9e0f2a4b6c8d1e3f5a7b9c0d2e4f6a8b1c3d5e7f9a0b2c4d6e";
+
+/** A settled workflow that shipped the calculator. Opt-in, see above. */
+export const mockArtifactResponse = {
+  artifact: mockArtifact,
+  charge_tx: mockChargeTx,
+  proof_tx: mockProofTx,
+} satisfies import("../lib/types").ArtifactResponse;
+
+/**
+ * What `GET /api/tasks/{id}/artifact` answers by default (`ArtifactResponse`
+ * in app/routers/tasks.py): a settled workflow's charge and seal hashes, and
+ * no artifact.
+ *
+ * `null` because that is what the backend answers for the run the dispute
+ * fixtures script. It captures an artifact only when a worker returns one,
+ * and when it does it writes an `artifact`-level trace line — which
+ * `mockDisputeTrace` does not carry. Before this, the route fell through to a
+ * `{}` catch-all the guard happened to accept as "no artifact".
+ */
+export const mockSettledNoArtifact = {
+  artifact: null,
+  charge_tx: mockChargeTx,
+  proof_tx: mockProofTx,
+} satisfies import("../lib/types").ArtifactResponse;
+
+const ARTIFACT_RE = /^\/api\/tasks\/([^/]+)\/artifact$/;
+
+/**
+ * The PDAX reads `/app/pdax` makes on mount, as the backend answers them on
+ * the UAT sandbox (app/routers/pdax.py): `/environment` and `/health` report
+ * settings and never dial PDAX; `/balances` is the `BalancesResponse`
+ * envelope of `Balance` rows, amounts as decimal strings. UAT settles play
+ * money, which is the environment every deployment of this sprint runs.
+ */
+export const mockPdaxEnvironment = {
+  environment: "uat",
+  base_url: "https://uat.services.sandbox.pdax.ph/api/pdax-api",
+  configured: true,
+} satisfies import("../lib/pdax-types").PdaxEnvironment;
+
+export const mockPdaxHealth = {
+  status: "ok",
+  environment: "uat",
+} satisfies import("../lib/pdax-types").PdaxHealth;
+
+export const mockPdaxBalances = {
+  balances: [
+    {
+      currency: "PHP",
+      available: "25000.00",
+      hold: "0",
+      total: "25000.00",
+      asset_type: "FIAT",
+    },
+    {
+      currency: "USDC",
+      available: "412.500000",
+      hold: "12.500000",
+      total: "425.000000",
+      asset_type: "CRYPTO",
+    },
+  ],
+} satisfies { balances: import("../lib/pdax-types").PdaxBalance[] };
+
 export type MockApiOptions = {
   /**
    * What `POST /api/orchestrator/decompose` answers with. Defaults to
@@ -956,13 +1079,19 @@ export type MockApiOptions = {
    * editing the shared list other specs count against.
    */
   agents?: readonly AgentFixture[];
+  /**
+   * What `GET /api/tasks/{id}/artifact` answers. Defaults to
+   * `mockSettledNoArtifact`; pass `mockArtifactResponse` for a workflow that
+   * shipped code, which puts the trace page on its artifact tab.
+   */
+  artifact?: import("../lib/types").ArtifactResponse;
 };
 
 export async function mockApi(
   page: Page,
   options: MockApiOptions = {},
 ): Promise<void> {
-  await page.route("**/api/**", (route) => {
+  await page.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
 
@@ -1050,9 +1179,75 @@ export async function mockApi(
     ) {
       return json(route, { available: true });
     }
-    // Anything else gets an empty-but-valid JSON body so stray fetches
-    // resolve instead of hanging or erroring.
-    return json(route, {});
+    if (method === "GET" && ARTIFACT_RE.test(pathname)) {
+      return json(route, options.artifact ?? mockSettledNoArtifact);
+    }
+    if (method === "GET" && pathname === "/api/pdax/environment") {
+      return json(route, mockPdaxEnvironment);
+    }
+    if (method === "GET" && pathname === "/api/pdax/health") {
+      return json(route, mockPdaxHealth);
+    }
+    if (method === "GET" && pathname === "/api/pdax/balances") {
+      return json(route, mockPdaxBalances);
+    }
+    // Both fixtures existed and nothing served them: under the old `{}`
+    // catch-all /app/flow and /app/reputation were only ever swept by axe in
+    // their "malformed response" state.
+    if (method === "GET" && pathname === "/api/flow/default") {
+      return json(route, mockFlow);
+    }
+    if (method === "GET" && pathname === "/api/stellar/reputation/params") {
+      return json(route, mockReputationParams);
+    }
+    // The warmup ping `BackendWarmup` fires on every page. Fire-and-forget,
+    // so any healthy answer will do.
+    if (method === "GET" && pathname === "/api/health") {
+      return json(route, { status: "ok" });
+    }
+    // Network meta, read by the top bar on every console page. By default it
+    // is NOT known — a spec that needs the asset or contract ids serves them
+    // (`mockNetwork` in plan-fixtures.ts, registered after this). Answered as
+    // the backend answers a missing resource, which `useFetch` does not retry,
+    // so the pages render exactly as they did under the old `{}` catch-all:
+    // the read failed, and nothing is invented in its place.
+    if (method === "GET" && pathname === "/api/stellar/network") {
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "Not Found",
+          error: {
+            code: "not_found",
+            message: "network info is not mocked by default",
+            request_id: "e2e0000000000010",
+          },
+        }),
+      });
+    }
+
+    // Anything else is a gap in the fixtures, and it fails the spec that hit
+    // it. This used to answer `{}` with a 200, which every guard rejects — so
+    // a missing mock surfaced as the page's own "malformed response" state,
+    // and a spec could pass while asserting against an error frame it never
+    // meant to test. The request is still answered, with a status no real
+    // route returns, so the page does not hang; the throw is what fails the
+    // test, naming the route.
+    await route.fulfill({
+      status: 599,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: "unmocked route",
+        error: {
+          code: "unmocked_route",
+          message: `mockApi has no fixture for ${method} ${pathname}`,
+          request_id: "e2e00000000000ff",
+        },
+      }),
+    });
+    throw new Error(
+      `mockApi has no fixture for ${method} ${pathname} — add one, or route it in the spec`,
+    );
   });
 }
 
@@ -1344,6 +1539,55 @@ export async function mockTraceStream(
   );
 }
 
+/**
+ * The task's read token, as the tab that ran the task holds it: the
+ * execute response hands it over and `lib/task-tokens` keeps it in session
+ * storage, from where every task read sends it as `X-Task-Token`.
+ */
+export const mockDisputeReadToken = "tok_e2e_dispute_read";
+
+/**
+ * Seeds `mockDisputeReadToken` for the dispute task before any page script
+ * runs, so the page reads as the tab that ran the workflow — the one tab the
+ * backend sends the buyer's words to without a signed read grant.
+ */
+export async function mockTaskReadToken(page: Page): Promise<void> {
+  await page.addInitScript(
+    ({ taskId, token }) => {
+      window.sessionStorage.setItem(
+        "orizon.task-tokens",
+        JSON.stringify([[taskId, token]]),
+      );
+    },
+    { taskId: mockDisputeTaskId, token: mockDisputeReadToken },
+  );
+}
+
+/**
+ * The disputes read, held to what the backend sends a caller of this
+ * proof. The human-written fields — the buyer's `reason` and a rejection's
+ * `rejection_reason` — go only to a read that proves it may see the task
+ * (`DisputeResponse.of(free_text=…)`): the task's read token, or a read
+ * grant. Anyone else gets the reason as `""` and no rejection reason, and a
+ * mock that served them to every read let the page pass tests the backend
+ * would fail.
+ */
+async function asServedTo(
+  request: Request,
+  disputes: readonly Dispute[],
+): Promise<Dispute[]> {
+  const token = await request.headerValue("x-task-token");
+  const grant = await request.headerValue("x-dispute-read-grant");
+  if (token === mockDisputeReadToken || grant) return [...disputes];
+  return disputes.map((dispute) => ({
+    ...dispute,
+    reason: "",
+    ...(dispute.rejection_reason !== undefined
+      ? { rejection_reason: null }
+      : {}),
+  }));
+}
+
 export type MockDisputeApiOptions = {
   /** The workflow's settlement; null while it has not settled. */
   settlement: SettlementView | null;
@@ -1368,10 +1612,16 @@ export type MockDisputeApiOptions = {
    * returns it. `duplicate` answers the backend's 409 `duplicate_dispute`,
    * whose body carries the dispute that already exists — one raised from the
    * buyer's other tab — and every later read includes it, as the server's
-   * would.
+   * would. `invalid` answers the 422 `validation_error` FastAPI gives a
+   * body outside `OpenDisputeReq`'s bounds — a reason over the cap — with
+   * the field's own error in `detail`, and records nothing.
    */
-  open?: "created" | "duplicate";
+  open?: "created" | "duplicate" | "invalid";
 };
+
+/** The `msg` FastAPI puts on a reason over `OpenDisputeReq`'s 500 cap. */
+export const mockReasonTooLongMessage =
+  "String should have at most 500 characters";
 
 const DISPUTES_RE = /^\/api\/tasks\/([^/]+)\/disputes$/;
 const disputeNonce = "e2edisputenonce000000000000000000";
@@ -1404,7 +1654,7 @@ export async function mockDisputeApi(
       const legacy = {
         task_id: decodeURIComponent(disputesFor[1]),
         window_closes_at: settlement?.window_closes_at ?? null,
-        disputes: recorded,
+        disputes: await asServedTo(request, recorded),
       };
       if (options.legacy) return json(route, legacy);
       const body: TaskDisputes = {
@@ -1449,6 +1699,30 @@ export async function mockDisputeApi(
               code: "dispute_window_closed",
               message: "the dispute window for this workflow has closed",
               request_id: "e2e0000000000409",
+            },
+          }),
+        });
+      }
+      if (options.open === "invalid") {
+        // `validation_exception_handler`: FastAPI's own 422 body under
+        // `detail`, plus the envelope's code.
+        return route.fulfill({
+          status: 422,
+          contentType: "application/json",
+          body: JSON.stringify({
+            detail: [
+              {
+                type: "string_too_long",
+                loc: ["body", "reason"],
+                msg: mockReasonTooLongMessage,
+                input: body.reason,
+                ctx: { max_length: 500 },
+              },
+            ],
+            error: {
+              code: "validation_error",
+              message: "request validation failed",
+              request_id: "e2e0000000000422",
             },
           }),
         });
@@ -1643,7 +1917,7 @@ export async function mockDisputeReads(
       reads += 1;
       // Taken as the request arrives, before the clock is awaited: a spec
       // that moves the answer on right after this read must not change it.
-      const disputes = [...current];
+      const disputes = await asServedTo(request, current);
       const { pathname } = new URL(request.url());
       const taskId = decodeURIComponent(DISPUTES_RE.exec(pathname)?.[1] ?? "");
       const nowMs = await (options.clock ?? Date.now)();

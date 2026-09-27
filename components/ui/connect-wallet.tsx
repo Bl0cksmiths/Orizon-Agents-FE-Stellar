@@ -12,9 +12,13 @@ function short(addr: string) {
 export function ConnectWallet({
   size = "sm",
   className,
+  describedBy,
 }: {
   size?: "sm" | "md";
   className?: string;
+  /** Ids of notices the connect button is described by, when connecting is
+   *  the first step of a payment those notices are about. */
+  describedBy?: string;
 }) {
   const {
     connected,
@@ -77,6 +81,7 @@ export function ConnectWallet({
         onClick={connect}
         disabled={loading}
         title={error?.detail}
+        aria-describedby={describedBy}
       >
         {loading ? "◉ …" : "Connect Wallet"}
       </Button>

@@ -7,11 +7,13 @@ import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import type {
+  Dispute,
   DisputePanelView,
   SettlementStepView,
   SettlementView,
 } from "@/lib/types";
 import { useDisputePanel } from "@/lib/use-dispute-panel";
+import { useReasonUnlock } from "@/lib/use-reason-unlock";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 
@@ -46,8 +48,16 @@ function settlementOf(view: SettledView): SettlementView {
   };
 }
 
-/** The step a dialog is about, and the settlement it was charged under. */
-type DisputeTarget = { step: SettlementStepView; settlement: SettlementView };
+/**
+ * The step a dialog is about, the settlement it was charged under, and the
+ * exact instant its window closes — the view's, in ms, where the settlement
+ * rebuilt above rounds it to whole seconds.
+ */
+type DisputeTarget = {
+  step: SettlementStepView;
+  settlement: SettlementView;
+  closesAtMs: number;
+};
 
 /**
  * A skeleton bar centred in a line box of the text it stands in for, so each
@@ -201,7 +211,8 @@ function ReceiptSkeleton({ steps }: { steps: number }) {
                 </div>
                 <div className="break-all text-right">
                   <Ghost text={value} />
-                  {link && <Line box="mt-1 h-5 justify-end" bar="h-2.5 w-36" />}
+                  {/* h-6: the explorer link's 24px target (WCAG 2.5.8). */}
+                  {link && <Line box="mt-1 h-6 justify-end" bar="h-2.5 w-36" />}
                 </div>
               </div>
             ))}
@@ -279,11 +290,21 @@ export const DisputeSection = memo(function DisputeSection({
   workflowDone,
   demo,
 }: Props) {
-  const { view, loading, error, refresh } = useDisputePanel(taskId, {
-    workflowDone,
-    demo,
-  });
+  const { view, loading, error, refresh, offsetMs, adopt } = useDisputePanel(
+    taskId,
+    {
+      workflowDone,
+      demo,
+    },
+  );
   const { connect } = useWallet();
+  // The payer's own words, withheld from a tab without the task's token,
+  // shown again on their signature (D-067). Only a click signs.
+  const unlock = useReasonUnlock(demo ? null : taskId, refresh);
+  const { unlock: runUnlock } = unlock;
+  const onUnlock = useCallback(() => {
+    void runUnlock();
+  }, [runUnlock]);
   const skeletonSteps = useSkeletonSteps(
     demo ? null : taskId,
     view.kind === "settled" ? view.steps.length : null,
@@ -309,9 +330,19 @@ export const DisputeSection = memo(function DisputeSection({
     if (canDispute) void loadDisputeDialog();
   }, [canDispute]);
 
+  // Said once a submit turned out to be a second dispute on a step that
+  // already had one: the dialog closes itself on that answer, and the step
+  // swapping its action for a receipt is not, by itself, an explanation.
+  const [alreadyDisputed, setAlreadyDisputed] = useState<string | null>(null);
+
   const onDispute = (step: SettlementStepView) => {
     if (view.kind !== "settled") return;
-    setTarget({ step, settlement: settlementOf(view) });
+    setAlreadyDisputed(null);
+    setTarget({
+      step,
+      settlement: settlementOf(view),
+      closesAtMs: view.window.closesAtMs,
+    });
   };
   const onConnect = useCallback(() => {
     void connect();
@@ -321,17 +352,57 @@ export const DisputeSection = memo(function DisputeSection({
   // refusal that proves the window or the step is not what it shows. The
   // re-read is what makes the step show that dispute, or lose its action,
   // instead of offering one the server would refuse.
+  //
+  // A `duplicate_dispute` comes with the step's ORIGINAL dispute when the 409
+  // carried one: it is shown on the step at once, whether or not the re-read
+  // lands (D-057). Waiting on the re-read alone left a step whose re-read
+  // failed offering Dispute again — and a second signature for nothing.
+  // Focus, once a re-read that a close or a submit asked for has landed. The
+  // dialog hands focus back to the Dispute button it was opened from — and
+  // then the re-read takes that button away (the step is disputed now, or
+  // the window has closed), leaving focus on <body>, from where the next Tab
+  // starts the whole page again (WCAG 2.4.3). The receipt's heading is the
+  // one node that outlives the swap. Only a focus that was lost is moved: a
+  // buyer already somewhere else keeps their place.
+  //
+  // Checked in an effect, after the commit, never straight off the resolved
+  // promise: the answer can resolve before React has drawn it, and the button
+  // is only gone — and focus only lost — once it has.
+  const [refocusAfter, setRefocusAfter] = useState(0);
+  const keepFocus = useCallback(() => setRefocusAfter((n) => n + 1), []);
+  useEffect(() => {
+    if (refocusAfter === 0) return;
+    const active = document.activeElement;
+    if (active === null || active === document.body || !active.isConnected) {
+      receiptHeadingRef.current?.focus();
+    }
+  }, [refocusAfter]);
+
   const onClose = useCallback(
-    (reason: DisputeDialogCloseReason) => {
+    (reason: DisputeDialogCloseReason, existing?: Dispute | null) => {
+      if (reason === "duplicate_dispute") {
+        if (existing) adopt(existing);
+        setAlreadyDisputed(
+          existing
+            ? `Step ${existing.step_index + 1} (${existing.agent_id}) already had a dispute, raised earlier — perhaps from another tab — so no second one was raised. It is shown below.`
+            : "This step already had a dispute, raised earlier — perhaps from another tab — so no second one was raised.",
+        );
+      }
       setTarget(null);
-      if (reason !== "dismissed") void refresh();
+      if (reason !== "dismissed") void refresh().then(keepFocus);
     },
-    [refresh],
+    [refresh, adopt, keepFocus],
   );
-  // A dispute raised here: the step shows it from the server's own record.
-  const onSubmitted = useCallback(() => {
-    void refresh();
-  }, [refresh]);
+  // A dispute raised here is shown on its step at once, from the record the
+  // server returned, and then re-read: a re-read that fails cannot put the
+  // step's Dispute action back.
+  const onSubmitted = useCallback(
+    (dispute: Dispute) => {
+      adopt(dispute);
+      void refresh().then(keepFocus);
+    },
+    [refresh, adopt, keepFocus],
+  );
   // `refresh` never rejects and resolves once its answer is on screen, so the
   // retry control can say it is working and not take a second press.
   const [retrying, setRetrying] = useState(false);
@@ -377,11 +448,22 @@ export const DisputeSection = memo(function DisputeSection({
             : `⚠ this receipt may be out of date — ${error}`}
         </ErrorNote>
       )}
+      {alreadyDisputed && (
+        <p
+          role="status"
+          className="clip-cyber-sm border border-violet/40 bg-violet/5 px-4 py-3 text-xs leading-relaxed text-text/90"
+        >
+          {alreadyDisputed}
+        </p>
+      )}
       <ReceiptPanel
         view={view}
         headingRef={receiptHeadingRef}
         onDispute={onDispute}
         onConnect={onConnect}
+        reasonUnlock={
+          unlock.unavailable ? null : { status: unlock.status, onUnlock }
+        }
       />
       {/* Mounted while a step can be disputed — which keeps a half-typed
           reason across an accidental close — or while its dialog is still
@@ -394,6 +476,13 @@ export const DisputeSection = memo(function DisputeSection({
           onClose={onClose}
           onSubmitted={onSubmitted}
           returnFocusRef={receiptHeadingRef}
+          // The panel's own verdict, on the server-corrected clock: a dialog
+          // left open across the close stops offering a signature (D-060).
+          // A view that is not a settled one says nothing about the window,
+          // and the dialog's own guards on the server's clock still hold.
+          windowOpen={view.kind === "settled" ? view.window.open : true}
+          offsetMs={offsetMs}
+          windowClosesAtMs={target?.closesAtMs ?? 0}
         />
       )}
     </div>

@@ -28,16 +28,26 @@ import type {
   StepDisputeState,
 } from "@/lib/types";
 
+import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
+
 import { DisputeReceipt } from "./dispute-receipt";
+import { ReasonUnlock } from "./reason-unlock";
 import { WindowState, formatLocalTime } from "./window-state";
 
 type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
+
+/** The payer's offer to sign for their withheld words, as the page runs it. */
+export type ReasonUnlockControl = {
+  status: ReasonUnlockStatus;
+  onUnlock: () => void;
+};
 
 export function ReceiptPanel({
   view,
   headingRef,
   onDispute,
   onConnect,
+  reasonUnlock = null,
 }: {
   view: DisputePanelView;
   /**
@@ -51,6 +61,11 @@ export function ReceiptPanel({
   onDispute: (step: SettlementStepView) => void;
   /** An anonymous viewer asked to connect the wallet that paid. */
   onConnect: () => void;
+  /**
+   * The page's "show my reason" action, or null where it has none to give —
+   * drawn only when the view also says the payer's words were withheld.
+   */
+  reasonUnlock?: ReasonUnlockControl | null;
 }) {
   // Called before any early return: hooks run in the same order every render.
   const headingId = useId();
@@ -66,6 +81,7 @@ export function ReceiptPanel({
       headingRef={headingRef}
       onDispute={onDispute}
       onConnect={onConnect}
+      reasonUnlock={reasonUnlock}
     />
   );
 }
@@ -101,9 +117,12 @@ function NotSettled({
           Receipt
         </h2>
         <p className="text-xs leading-relaxed text-muted">
+          {/* What is known, not more: the panel has found no charge on
+              record, which is not proof that nothing was ever charged — a
+              record can be lost, or land after the wait was spent. */}
           {running
             ? "The receipt appears here once this workflow settles, and disputes open then."
-            : "Nothing on this workflow was charged, so there is nothing to dispute."}
+            : "No charge is on record for this workflow, so there is nothing to dispute."}
         </p>
       </div>
     </section>
@@ -131,7 +150,12 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
       {hash ? (
         <>
           <span className="block break-all">{hash}</span>
-          <StellarExpertLink kind="tx" id={hash} className="mt-1 inline-block">
+          {/* At least 24px tall (WCAG 2.5.8), not the 20px its text made. */}
+          <StellarExpertLink
+            kind="tx"
+            id={hash}
+            className="mt-1 inline-flex min-h-6 items-center gap-[1ch]"
+          >
             view {label} on stellar.expert
             <span aria-hidden="true"> ▸</span>
           </StellarExpertLink>
@@ -181,12 +205,14 @@ function SettledReceipt({
   headingRef,
   onDispute,
   onConnect,
+  reasonUnlock,
 }: {
   view: SettledView;
   headingId: string;
   headingRef?: RefObject<HTMLHeadingElement>;
   onDispute: (step: SettlementStepView) => void;
   onConnect: () => void;
+  reasonUnlock: ReasonUnlockControl | null;
 }) {
   // "Settled 3h ago" is measured on the server's clock where the view carries
   // it — an open window is closesAt minus what is left — so a skewed laptop
@@ -259,7 +285,7 @@ function SettledReceipt({
               <StellarExpertLink
                 kind="account"
                 id={view.payer}
-                className="mt-1 inline-block"
+                className="mt-1 inline-flex min-h-6 items-center gap-[1ch]"
               >
                 view payer on stellar.expert
                 <span aria-hidden="true"> ▸</span>
@@ -275,6 +301,15 @@ function SettledReceipt({
           {promptToConnect && <ConnectPrompt onConnect={onConnect} />}
 
           {canDispute && <CreditTerms policy={view.policy} />}
+
+          {/* Above the steps whose words it would show. `reasonsWithheld` is
+              the payer alone, so no one else is ever offered a signature. */}
+          {view.reasonsWithheld && reasonUnlock !== null && (
+            <ReasonUnlock
+              status={reasonUnlock.status}
+              onUnlock={reasonUnlock.onUnlock}
+            />
+          )}
 
           <div className="space-y-3 border-t border-border/60 pt-5">
             <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
@@ -355,8 +390,18 @@ function CreditTerms({ policy }: { policy: CreditPolicy }) {
       <span className="font-mono text-[10px] uppercase tracking-widest text-cyan">
         terms ·{" "}
       </span>
-      An upheld dispute credits {formatCreditShare(policy.credited_fraction)} of
-      that step&apos;s charge back to you, {FUNDED_BY[policy.funded_by]}.{" "}
+      {/* A policy that credits nothing is stated as nothing — the form says
+          it the same way — never as "0%" of a charge, which reads as a
+          figure still owed. */}
+      {policy.credited_fraction > 0 ? (
+        <>
+          An upheld dispute credits{" "}
+          {formatCreditShare(policy.credited_fraction)} of that step&apos;s
+          charge back to you, {FUNDED_BY[policy.funded_by]}.
+        </>
+      ) : (
+        "Under the current terms an upheld dispute credits nothing back."
+      )}{" "}
       {ADJUDICATED_BY[policy.adjudicated_by]}
     </p>
   );
@@ -469,6 +514,8 @@ function StepAction({
   state: StepDisputeState;
   onDispute: (step: SettlementStepView) => void;
 }) {
+  // Before the switch: a hook, called whichever state the step is in.
+  const creditId = useId();
   switch (state.kind) {
     case "disputable":
       return (
@@ -481,13 +528,17 @@ function StepAction({
             variant="outline"
             size="sm"
             aria-label={`Dispute step ${stepNumber(step)}, ${agentLabel(step)}`}
+            // What an uphold would credit is read with the action it follows.
+            aria-describedby={step.creditable_usdc > 0 ? creditId : undefined}
             onClick={() => onDispute(step)}
           >
             Dispute
           </Button>
+          {/* "up to": the credit is a ceiling the backend bounds by what the
+              settlement moved (D-071), as the dispute receipt says it. */}
           {step.creditable_usdc > 0 && (
-            <span className="font-mono text-[10px] text-muted">
-              credits {formatUsdc(step.creditable_usdc)} if upheld
+            <span id={creditId} className="font-mono text-[10px] text-muted">
+              credits up to {formatUsdc(step.creditable_usdc)} if upheld
             </span>
           )}
         </div>

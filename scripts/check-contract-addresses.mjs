@@ -163,40 +163,126 @@ if (compared === 0) {
 // the same failure mode as a stale fallback — a live link to the wrong contract
 // — over five times the surface.
 //
-// Matched by shape rather than by position, deliberately. Asserting "the id on
-// line 13 is the mainnet escrow" would break every time someone reflows a
-// table; asserting "every full-length strkey in this file is a real deployed
-// address" survives any amount of prose editing while still catching the one
-// thing that matters. Truncated display forms (`CBJCQBA4…R5CNF`) do not match
-// the 56-character pattern, so they are ignored rather than flagged.
+// Every explorer link is checked against ITS OWN network's book, never the
+// union of both. The union let a testnet link carry a mainnet id, and let two
+// testnet ids trade places, and still pass: each was "some deployed address".
+// Where the link's table row names exactly one contract, the id must be that
+// contract's; where it names none (a badge, a prose mention) it must at least
+// be deployed on the link's network. A full-length id shown as a link's text
+// must be the id the link goes to, and a truncated one (`CBJCQBA4…R5CNF`) must
+// be a head and tail of it.
+//
+// Matched per link rather than by line number, so reflowing a table does not
+// break the check. A bare full-length strkey outside any link cannot be tied to
+// a network, so it is held to the weaker rule: deployed on one of them.
 const README = "README.md";
 const readmeText = readFileSync(join(root, README), "utf8");
-const deployed = new Set(
-  MIRRORS.flatMap(({ file }) =>
-    Object.entries(readJson(join(contractsDir, file), `canonical ${file}`))
-      .filter(
-        ([, value]) =>
-          typeof value === "string" && /^C[A-Z2-7]{55}$/.test(value),
-      )
-      .map(([, value]) => value),
+
+/** Explorer segment → the canonical book for that network. */
+const books = Object.fromEntries(
+  MIRRORS.map(({ segment, file }) => [
+    segment,
+    readJson(join(contractsDir, file), `canonical ${file}`),
+  ]),
+);
+const strkeyValues = (book) =>
+  Object.values(book).filter(
+    (value) => typeof value === "string" && /^C[A-Z2-7]{55}$/.test(value),
+  );
+/** Which network each deployed id belongs to, to say so when one is misfiled. */
+const networkOf = new Map(
+  MIRRORS.flatMap(({ segment, network }) =>
+    strkeyValues(books[segment]).map((id) => [id, network]),
   ),
 );
-const strays = [...new Set(readmeText.match(/C[A-Z2-7]{55}/g) ?? [])].filter(
-  (id) => !deployed.has(id),
-);
-if (strays.length > 0) {
-  failed = true;
-  for (const id of strays) {
+
+/** How the README's tables name each contract, against its book key. */
+const README_LABELS = [
+  ["PaymentEscrow", "payment_escrow"],
+  ["AgentRegistry", "agent_registry"],
+  ["AttestationRegistry", "attestation_registry"],
+  ["ReputationLedger", "reputation_ledger"],
+  ["Asset SAC", "asset_sac"],
+];
+
+const EXPLORER_LINK =
+  /(?:\[`?([^\]`]*)`?\]\()?https:\/\/stellar\.expert\/explorer\/([a-z]+)\/contract\/(C[A-Z2-7]{55})/g;
+
+const readmeLines = readmeText.split("\n");
+const linked = new Set();
+let readmeChecked = 0;
+
+readmeLines.forEach((line, index) => {
+  const where = `${README}:${index + 1}`;
+  const labels = README_LABELS.filter(([label]) =>
+    new RegExp(`\\b${label}\\b`).test(line),
+  );
+  for (const match of line.matchAll(EXPLORER_LINK)) {
+    const [, text, segment, id] = match;
+    linked.add(id);
+    readmeChecked += 1;
+    const book = books[segment];
+    const mirror = MIRRORS.find((m) => m.segment === segment);
+    const problems = [];
+
+    if (book === undefined || mirror === undefined) {
+      problems.push(`unknown explorer segment "${segment}"`);
+    } else {
+      const expectedKey = labels.length === 1 ? labels[0][1] : null;
+      if (expectedKey !== null) {
+        if (book[expectedKey] !== id) {
+          problems.push(
+            `the ${mirror.network} ${expectedKey} is ${book[expectedKey] ?? "absent"}`,
+          );
+        }
+      } else if (!strkeyValues(book).includes(id)) {
+        problems.push(`not a deployed ${mirror.network} contract`);
+      }
+      const home = networkOf.get(id);
+      if (home !== undefined && home !== mirror.network) {
+        problems.push(`it is a ${home} id in a ${segment} link`);
+      }
+    }
+
+    if (text !== undefined && text !== "") {
+      const shown = text.trim();
+      if (/^C[A-Z2-7]{55}$/.test(shown)) {
+        if (shown !== id) problems.push(`the link text shows ${shown}`);
+      } else {
+        const truncated = /^(C[A-Z2-7]+)…([A-Z2-7]+)$/.exec(shown);
+        if (
+          truncated !== null &&
+          !(id.startsWith(truncated[1]) && id.endsWith(truncated[2]))
+        ) {
+          problems.push(`the link text shows ${shown}`);
+        }
+      }
+    }
+
+    const ok = problems.length === 0;
+    if (!ok) failed = true;
     rows.push({
-      ok: false,
-      contract: README,
-      segment: "link",
+      ok,
+      contract: where,
+      segment,
       mine: id,
-      theirs: "not a deployed address",
+      theirs: problems.join("; "),
     });
   }
-} else {
-  compared += 1;
+});
+
+for (const id of new Set(readmeText.match(/C[A-Z2-7]{55}/g) ?? [])) {
+  if (linked.has(id)) continue;
+  readmeChecked += 1;
+  const ok = networkOf.has(id);
+  if (!ok) failed = true;
+  rows.push({
+    ok,
+    contract: README,
+    segment: "bare id",
+    mine: id,
+    theirs: "not a deployed address",
+  });
 }
 
 for (const { ok, contract, segment, mine, theirs } of rows) {
@@ -207,12 +293,15 @@ for (const { ok, contract, segment, mine, theirs } of rows) {
 
 if (failed) {
   fail(
-    "Fallback contract ids have drifted from the deployment address book.\n" +
-      "The frontend renders these as explorer links, so a stale one sends operators\n" +
-      "to the wrong contract. Copy the canonical values into lib/contract-addresses.json.",
+    "Contract ids have drifted from the deployment address book.\n" +
+      "The frontend and README render these as explorer links, so a stale or\n" +
+      "misplaced one sends operators to the wrong contract. Copy the canonical\n" +
+      "values into lib/contract-addresses.json or README.md, each under its own\n" +
+      "network and its own contract.",
   );
 }
 
 console.log(
-  `\nAll ${compared} fallback contract ids match the canonical address book.`,
+  `\nAll ${compared} fallback contract ids and ${readmeChecked} README ids ` +
+    "match the canonical address book for their network.",
 );

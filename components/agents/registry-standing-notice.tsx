@@ -62,8 +62,24 @@ export function RegistryStandingNotice({
   lastReadAt = null,
   onRetry,
   retrying = false,
+  entriesDropped = 0,
+  agentIds,
 }: {
   batch: ReputationBatch | null;
+  /**
+   * How many entries the batch carried that could not be used — each missing
+   * a field or carrying one of the wrong type (`droppedCount` on the batch).
+   * Their agents read "no score" in the column, which is true; this says why,
+   * once, instead of leaving a buyer to guess that the agent is unrated.
+   */
+  entriesDropped?: number;
+  /**
+   * The agents whose rows are on screen. The failure count below says "on
+   * this page", so it counts exactly these: not agents a search or filter
+   * hid, and not batch entries for agents the registry does not list.
+   * Omitted, every entry in the batch is counted.
+   */
+  agentIds?: readonly string[];
   /**
    * Why the latest reputation request failed, or null when it did not. The
    * request is best-effort — the registry renders without it — which is
@@ -103,15 +119,19 @@ export function RegistryStandingNotice({
   // rows already hold a placeholder for the scores that are on their way.
   if (batch === null) return null;
 
+  // Always a number: `screenReputationBatch` rejects a batch without one,
+  // since no score can be judged against a floor that did not arrive. A floor
+  // of 0 is a real configuration — the floor that admits everyone — and is
+  // stated like any other.
   const floorBps = batch.floor_bps;
 
-  // `== null` is the absence check, never `!floorBps`. A floor of 0 is a real
-  // configuration — the floor that admits everyone — and it is exactly the
-  // setting a buyer most needs told about, so falsiness would suppress the one
-  // value worth shouting about.
-  const hasFloor = floorBps != null;
-
-  const entries = Object.values(batch.reputations ?? {});
+  const entries =
+    agentIds === undefined
+      ? Object.values(batch.reputations)
+      : agentIds.flatMap((id) => {
+          const entry = batch.reputations[id];
+          return entry === undefined ? [] : [entry];
+        });
   const total = entries.length;
   // Counted on `degraded` alone. Counting `source === "prior"` instead would
   // accuse every honest never-rated agent on the page of being a failed read.
@@ -124,8 +144,9 @@ export function RegistryStandingNotice({
   // floor — read off the bounds we were actually handed rather than assumed
   // from the shipped config, so a config change cannot turn the sentence it
   // guards into a false claim.
-  const estimateClearsFloor =
-    hasFloor && failedReads.every((r) => r.lower_bound_bps >= floorBps);
+  const estimateClearsFloor = failedReads.every(
+    (r) => r.lower_bound_bps >= floorBps,
+  );
 
   let readFailure: string | null = null;
   if (allFailed) {
@@ -146,15 +167,18 @@ export function RegistryStandingNotice({
       " The failure is on our side, and it says nothing about the agents it landed on.";
   }
 
+  // Entries the batch sent that no row can use. Not a read failure — the
+  // chain may well have been read — so it is its own sentence, and neutral.
+  const droppedNote =
+    entriesDropped > 0
+      ? `${entriesDropped === 1 ? "1 reputation entry" : `${entriesDropped} reputation entries`} could not be used — ${entriesDropped === 1 ? "it was" : "they were"} missing a field this page needs — so ${entriesDropped === 1 ? "its agent shows" : "their agents show"} no score rather than a guessed one.`
+      : null;
+
   // A batch is on screen, but the latest attempt to refresh it failed. What is
   // shown is still a real reading — `useFetch` keeps the last good payload —
   // so nothing is blanked; it is dated instead, because a frozen floor and
   // frozen scores present themselves as live.
   const refreshFailed = readError !== null;
-
-  // Nothing was sent worth stating. Better an absent notice than an empty
-  // frame implying the page knows something it does not.
-  if (!hasFloor && readFailure === null && !refreshFailed) return null;
 
   return (
     <Card className="space-y-3 p-4 sm:p-6">
@@ -168,40 +192,45 @@ export function RegistryStandingNotice({
           this page are from the last one that succeeded. {readError}
         </ErrorNote>
       )}
-      {hasFloor && (
-        <div>
-          {/* The page's only h1 is "Agent Registry", and nothing else on it
+      <div>
+        {/* The page's only h1 is "Agent Registry", and nothing else on it
               opens a section, so this is an h2 — the notice sits beside the
               table rather than inside it. */}
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
-            <h2 className="text-base font-semibold tracking-tight">
-              Selection floor
-            </h2>
-            {/* The same ★ and the same 0–5 scale as the chips in the
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+          <h2 className="text-base font-semibold tracking-tight">
+            Selection floor
+          </h2>
+          {/* The same ★ and the same 0–5 scale as the chips in the
                 reputation column, because the whole point of the number is
                 that it is the line those chips are measured against. The word
                 "floor" rides in the badge text: the violet tint is decoration,
                 and a threshold stated only in a colour is not stated at all. */}
-            <Badge tone="violet">
-              <span aria-hidden="true">★</span> floor {scoreOutOfFive(floorBps)}
-            </Badge>
-            {/* Beside the number it dates: after a failed refresh this floor
+          <Badge tone="violet">
+            <span aria-hidden="true">★</span> floor {scoreOutOfFive(floorBps)}
+          </Badge>
+          {/* Beside the number it dates: after a failed refresh this floor
                 is the last one read, and a deployment can have moved it. */}
-            <StaleBadge
-              stale={refreshFailed}
-              lastSuccessAt={lastReadAt}
-              what="reputation scores and selection floor"
-            />
-          </div>
-          <p className={`mt-2 max-w-[72ch] ${body}`}>
-            The floor decides which agents the orchestrator will consider when
-            it builds a plan. It is checked against each agent&apos;s reputation
-            lower bound — what a score is worth once it has been discounted for
-            how few rated jobs stand behind it — and never against the headline
-            score in the reputation column. An agent can show a strong score and
-            still sit below the floor.
-          </p>
+          <StaleBadge
+            stale={refreshFailed}
+            lastSuccessAt={lastReadAt}
+            what="reputation scores and selection floor"
+          />
         </div>
+        <p className={`mt-2 max-w-[72ch] ${body}`}>
+          The floor decides which agents the orchestrator will consider when it
+          builds a plan. It is checked against each agent&apos;s reputation
+          lower bound — what a score is worth once it has been discounted for
+          how few rated jobs stand behind it — and never against the headline
+          score in the reputation column. An agent can show a strong score and
+          still sit below the floor.
+        </p>
+      </div>
+
+      {droppedNote !== null && (
+        <p className={`max-w-[72ch] ${body}`}>
+          <span aria-hidden="true">⚠ </span>
+          {droppedNote}
+        </p>
       )}
 
       {/* A live region, mounted whether or not it has anything to say.

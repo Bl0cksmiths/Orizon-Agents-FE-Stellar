@@ -36,8 +36,9 @@ import type {
   SettlementStepView,
   StepDisputeState,
 } from "@/lib/types";
+import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
 import { ReceiptPanel } from "./receipt-panel";
-import { WindowState, formatLocalTime } from "./window-state";
+import { WindowState } from "./window-state";
 
 afterEach(cleanup);
 
@@ -148,6 +149,7 @@ function settled(
     proofTx: PROOF_TX,
     policy: POLICY,
     steps: rows,
+    reasonsWithheld: false,
     ...over,
   };
 }
@@ -193,11 +195,14 @@ describe("ReceiptPanel — not settled", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("says nothing was charged when a finished workflow never settled", () => {
+  // Hedged to what the panel knows: no charge ON RECORD, never "nothing was
+  // charged", which a lost record or a late one would make false.
+  it("says no charge is on record when a finished workflow never settled", () => {
     renderPanel({ kind: "not_settled", running: false });
     expect(text()).toContain(
-      "Nothing on this workflow was charged, so there is nothing to dispute.",
+      "No charge is on record for this workflow, so there is nothing to dispute.",
     );
+    expect(text()).not.toContain("was charged");
     expect(text()).not.toContain("once this workflow settles");
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
@@ -289,6 +294,62 @@ describe("ReceiptPanel — the step list", () => {
     expect(onDispute).toHaveBeenCalledWith(second);
   });
 
+  // A policy that credits nothing is possible, and the dialog handles it;
+  // the row printed "credits 0 USDC if upheld" beside the action.
+  it("offers no credit hint beside a step an uphold would credit nothing for", () => {
+    renderPanel(
+      settled([
+        {
+          step: step(0, { creditable_usdc: 0 }),
+          state: { kind: "disputable" },
+        },
+      ]),
+    );
+    expect(
+      screen.getByRole("button", { name: "Dispute step 1, Agent 0" }),
+    ).toBeTruthy();
+    expect(text()).not.toContain("if upheld");
+    expect(text()).not.toMatch(/credits (up to )?0 USDC/);
+  });
+
+  // The struck figure is for the eye; the ear hears what it means. And the
+  // prices a screen reader is told were charged add up to what the header
+  // says was charged — a receipt that sums to more is not a receipt.
+  it("voices an uncharged step's price as not charged, and hides the struck figure", () => {
+    renderPanel(
+      settled(
+        [
+          { step: step(0), state: { kind: "disputable" } },
+          {
+            step: step(1, {
+              price_usdc: 0.012,
+              delivered: false,
+              creditable_usdc: 0,
+            }),
+            state: { kind: "not_charged" },
+          },
+        ],
+        { settledUsdc: 0.054 },
+      ),
+    );
+    const [, uncharged] = screen.getAllByRole("listitem");
+    expect(
+      within(uncharged).getByText("Not charged, priced at 0.012 USDC"),
+    ).toBeTruthy();
+    const struck = within(uncharged).getByText("0.012 USDC");
+    expect(struck.closest("[aria-hidden='true']")).not.toBeNull();
+
+    const heard = Array.from(screen.getByRole("list").querySelectorAll("span"))
+      .filter(
+        (el) =>
+          /^\d+(\.\d+)? USDC$/.test(el.textContent ?? "") &&
+          el.closest("[aria-hidden='true']") === null,
+      )
+      .map((el) => parseFloat(el.textContent ?? ""));
+    expect(heard).toEqual([0.054]);
+    expect(heard.reduce((a, b) => a + b, 0)).toBeCloseTo(0.054, 9);
+  });
+
   it("shows what an upheld dispute would credit next to the action", () => {
     renderPanel(
       settled([
@@ -298,7 +359,9 @@ describe("ReceiptPanel — the step list", () => {
         },
       ]),
     );
-    expect(text()).toContain(`credits ${formatUsdc(0.027)} if upheld`);
+    // A ceiling, never an exact promise (D-071).
+    expect(text()).toContain(`credits up to ${formatUsdc(0.027)} if upheld`);
+    expect(text()).not.toContain(`credits ${formatUsdc(0.027)} if upheld`);
   });
 
   it("shows a disputed step's status and never a second Dispute button", () => {
@@ -580,6 +643,24 @@ describe("ReceiptPanel — the terms", () => {
     expect(text()).toContain("The platform decides each dispute");
   });
 
+  it("states a policy that credits nothing as nothing, never as 0%", () => {
+    renderPanel(
+      settled(
+        [
+          {
+            step: step(0, { creditable_usdc: 0 }),
+            state: { kind: "disputable" },
+          },
+        ],
+        { policy: { ...POLICY, credited_fraction: 0 } },
+      ),
+    );
+    expect(text()).toContain(
+      "Under the current terms an upheld dispute credits nothing back.",
+    );
+    expect(text()).not.toContain("0%");
+  });
+
   it("leaves the terms out when there is nothing to act on", () => {
     renderPanel(
       settled([
@@ -607,6 +688,17 @@ describe("WindowState", () => {
     vi.useRealTimers();
   });
 
+  /**
+   * A printed instant ending in its zone — "GMT+8", "UTC", "PDT", never a
+   * bare "PM" — in whichever zone the suite runs. Asserted as a pattern, never against
+   * `formatLocalTime` itself: a check that compares the component's output
+   * with the component's own formatter passes with the zone dropped.
+   */
+  const ZONED =
+    /^Sep 2[23], 2026, \d{1,2}:\d{2}(?:\s?[AP]M)?\s(?:(?:GMT|UTC)(?:[+-]\d{1,2}(?::\d{2})?)?|(?![AP]M$)[A-Z]{2,5})$/;
+  const closingText = (root: ParentNode) =>
+    root.querySelector("time")?.textContent ?? "";
+
   const FOUR_MIN = 4 * 60_000 + 12_000;
 
   function open(remainingMs: number) {
@@ -619,7 +711,7 @@ describe("WindowState", () => {
     );
     expect(container.textContent).toContain("Dispute window open");
     expect(container.textContent).toContain(formatRemaining(FOUR_MIN));
-    expect(container.textContent).toContain(formatLocalTime(CLOSES_AT));
+    expect(closingText(container)).toMatch(ZONED);
     expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(
       new Date(CLOSES_AT).toISOString(),
     );
@@ -630,7 +722,7 @@ describe("WindowState", () => {
       <WindowState window={CLOSED} settledAtMs={SETTLED_AT} />,
     );
     expect(container.textContent).toContain("Dispute window closed");
-    expect(container.textContent).toContain(formatLocalTime(CLOSES_AT));
+    expect(closingText(container)).toMatch(ZONED);
     expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(
       new Date(CLOSES_AT).toISOString(),
     );
@@ -650,7 +742,10 @@ describe("WindowState", () => {
 
     const status = screen.getByRole("status");
     const summary = status.textContent;
-    expect(summary).toContain(formatLocalTime(CLOSES_AT));
+    expect(closingText(container)).toMatch(ZONED);
+    expect(summary).toBe(
+      `Dispute window open until ${closingText(container)}.`,
+    );
     expect(summary).not.toContain(formatRemaining(FOUR_MIN));
     expect(status.contains(countdown)).toBe(false);
 
@@ -689,5 +784,75 @@ describe("WindowState", () => {
     const after = screen.getByRole("status");
     expect(after).toBe(before);
     expect(after.textContent).toContain("closed");
+  });
+});
+
+// D-067: the payer's offer to sign for words the backend withheld.
+describe("ReceiptPanel — reasons the backend withheld", () => {
+  const OFFER = /Show my reason/;
+
+  /** The offer's own live region: the panel has others (the window's). */
+  const outcome = () =>
+    screen
+      .getByRole("button", { name: OFFER })
+      .closest(".clip-cyber-sm")
+      ?.querySelector('[role="status"]')?.textContent;
+
+  function renderWithUnlock(
+    over: Partial<SettledView>,
+    status: ReasonUnlockStatus = "idle",
+    offered = true,
+  ) {
+    const onUnlock = vi.fn();
+    render(
+      <ReceiptPanel
+        view={settled([], over)}
+        onDispute={vi.fn()}
+        onConnect={vi.fn()}
+        reasonUnlock={offered ? { status, onUnlock } : null}
+      />,
+    );
+    return onUnlock;
+  }
+
+  it("offers the payer a signature that costs nothing, and asks for it only on a press", () => {
+    const onUnlock = renderWithUnlock({ reasonsWithheld: true });
+    expect(text()).toContain("it costs nothing and sends no transaction");
+    expect(onUnlock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: OFFER }));
+    expect(onUnlock).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers nothing when nothing was withheld from the payer", () => {
+    renderWithUnlock({ reasonsWithheld: false });
+    expect(screen.queryByRole("button", { name: OFFER })).toBeNull();
+  });
+
+  it("offers nothing when the page has no grant to ask for", () => {
+    renderWithUnlock({ reasonsWithheld: true }, "idle", false);
+    expect(screen.queryByRole("button", { name: OFFER })).toBeNull();
+  });
+
+  it("stays put while the wallet is open, and takes no press", () => {
+    const onUnlock = renderWithUnlock({ reasonsWithheld: true }, "signing");
+    const button = screen.getByRole("button", { name: /Signing/ });
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(button);
+    expect(onUnlock).not.toHaveBeenCalled();
+    expect(
+      button.closest(".clip-cyber-sm")?.querySelector('[role="status"]')
+        ?.textContent,
+    ).toContain("Waiting for your wallet");
+  });
+
+  it("states a declined prompt quietly, never as an error", () => {
+    renderWithUnlock({ reasonsWithheld: true }, "declined");
+    expect(outcome()).toBe(
+      "Not signed. Your reason stays hidden until you choose to show it.",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(text()).not.toMatch(/error|failed|⚠/i);
+    // The offer stands: declining is not the end of it.
+    expect(screen.getByRole("button", { name: OFFER })).toBeTruthy();
   });
 });

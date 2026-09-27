@@ -152,6 +152,9 @@ function renderDialog(overrides: Partial<DisputeDialogProps> = {}) {
     settlement: settlementWith(),
     onClose: vi.fn(),
     onSubmitted: vi.fn(),
+    windowOpen: true,
+    offsetMs: 0,
+    windowClosesAtMs: settlementWith().window_closes_at * 1_000,
     ...overrides,
   };
   const view = render(<DisputeDialog {...props} />);
@@ -255,7 +258,7 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
       screen.getByText("Code Gen"),
       screen.getByText("calculator app, 3 files"),
       screen.getByText("0.054 USDC"),
-      screen.getByText("0.027 USDC"),
+      screen.getByText("Up to 0.027 USDC"),
       screen.getByText(/credits 50% of this step's charge/),
       reasonBox(),
       screen.getByText(/to sign a message/),
@@ -268,11 +271,19 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
     }
   });
 
-  it("labels the charge and the credit", () => {
+  // The values, not only the labels: a credit printed as the full price
+  // passed a labels-only check. And the credit is a ceiling (D-071).
+  it("labels the charge and the credit, and states the credit as a ceiling", () => {
     renderDialog();
 
-    expect(screen.getByText("Charged for this step")).toBeTruthy();
-    expect(screen.getByText("Credited if upheld")).toBeTruthy();
+    const row = (label: string) =>
+      screen.getByText(label).closest("div")?.textContent ?? "";
+    expect(row("Charged for this step")).toBe(
+      "Charged for this step0.054 USDC",
+    );
+    expect(row("Credited if upheld")).toBe(
+      "Credited if upheldUp to 0.027 USDC",
+    );
   });
 
   it("says plainly when no summary of the step's output was recorded", () => {
@@ -307,9 +318,10 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
     ).toBeTruthy();
   });
 
-  it("says so when the policy credits nothing", () => {
+  it("says so when the policy credits nothing, and never offers 'up to 0'", () => {
     renderDialog({
       settlement: settlementWith({ ...POLICY, credited_fraction: 0 }),
+      step: { ...STEP, creditable_usdc: 0 },
     });
 
     expect(
@@ -317,6 +329,25 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
         "Under the current terms an upheld dispute credits nothing back.",
       ),
     ).toBeTruthy();
+    expect(
+      screen.getByText("Credited if upheld").closest("div")?.textContent,
+    ).toBe("Credited if upheldNothing, under the current terms");
+    expect(dialog().textContent).not.toMatch(/Up to 0|0 USDC/);
+  });
+
+  it("says a raised dispute under a zero-credit policy credits nothing", async () => {
+    raiseThen(async () => ({ ...DISPUTE, creditable_usdc: 0 }));
+    renderDialog({
+      settlement: settlementWith({ ...POLICY, credited_fraction: 0 }),
+      step: { ...STEP, creditable_usdc: 0 },
+    });
+
+    await submitWith();
+
+    expect(screen.getByText(/is now under review/).textContent).toBe(
+      "Step 2 (Code Gen) is now under review. Under the current terms an upheld dispute credits nothing back. This receipt shows the outcome once it is decided.",
+    );
+    expect(dialog().textContent).not.toMatch(/up to 0|Up to 0/);
   });
 
   it("says who pays the credit and who decides, from the policy", () => {
@@ -466,6 +497,81 @@ describe("DisputeDialog — the reason", () => {
     expect(
       screen.getByText("500 / 500 characters · limit reached"),
     ).toBeTruthy();
+  });
+});
+
+describe("DisputeDialog — the window closing under it (D-060)", () => {
+  it("stops offering a signature once the window has closed, and says so", async () => {
+    const { props, rerender } = renderDialog();
+    typeReason(REASON);
+    expect(submitButton().disabled).toBe(false);
+
+    rerender({ windowOpen: false });
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+    expect(screen.queryByRole("button", { name: /sign|submit/i })).toBeNull();
+    // Ctrl+Enter from the reason is a submit too, and asks for nothing.
+    fireEvent.keyDown(reasonBox(), { key: "Enter", ctrlKey: true });
+    expect(raiseDispute).not.toHaveBeenCalled();
+    expect(wallet.signMessage).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Back to the receipt" }),
+    );
+    expect(props.onClose).toHaveBeenCalledWith("stale");
+  });
+
+  it("takes back a retry it was offering once the window closes", async () => {
+    raiseThen(async () => {
+      throw new ApiError("Too Many Requests", 429);
+    });
+    const { rerender } = renderDialog();
+    await submitWith();
+    expect(
+      screen.getByRole("button", { name: "Sign and submit again" }),
+    ).toBeTruthy();
+
+    rerender({ windowOpen: false });
+
+    expect(screen.queryByRole("button", { name: /sign|submit/i })).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+  });
+
+  it("refuses the signature itself when the window closes while the challenge is fetched", async () => {
+    const challenge = deferred<void>();
+    raiseDispute.mockImplementation(async ({ signMessage }: RaiseArgs) => {
+      await challenge.promise;
+      await signMessage(CHALLENGE);
+      return DISPUTE;
+    });
+    const { rerender } = renderDialog();
+    await submitWith();
+
+    rerender({ windowOpen: false });
+    await act(async () => {
+      challenge.resolve();
+    });
+
+    expect(wallet.signMessage).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+  });
+
+  it("judges the window on the server's clock and the exact close", async () => {
+    raiseThen();
+    renderDialog({ offsetMs: -4_200, windowClosesAtMs: 1_790_086_400_250 });
+
+    await submitWith();
+
+    expect(raiseDispute.mock.calls[0][0]).toMatchObject({
+      offsetMs: -4_200,
+      windowClosesAtMs: 1_790_086_400_250,
+    });
   });
 });
 
@@ -637,6 +743,14 @@ describe("DisputeDialog — submitting", () => {
 
     expect(screen.getByText("dispute raised")).toBeTruthy();
     expect(screen.getByText("Under review")).toBeTruthy();
+    // The one sentence that says what was just done, word for word: nothing
+    // has been paid, and the figure is a ceiling (D-071). "has been credited
+    // to your wallet" survived every check that read only the badge.
+    const sentence = screen.getByText(/is now under review/);
+    expect(sentence.textContent).toBe(
+      "Step 2 (Code Gen) is now under review. If the platform upholds your dispute, up to 0.027 USDC is credited to the wallet that paid. This receipt shows the outcome once it is decided.",
+    );
+    expect(dialog().textContent).not.toMatch(/has been credited|received/);
     // Same name, so a screen reader is not told it is somewhere new; the
     // description says where things now stand.
     expect(
@@ -734,6 +848,18 @@ describe("DisputeDialog — refusals, in plain words", () => {
       // The receipt is right; only the connected wallet is wrong.
       "dismissed",
     ],
+    [
+      // No settlement under this job: the receipt is what is wrong.
+      "unknown_job",
+      "The platform has no record of this settlement, so this step can't be disputed from here. Nothing was sent.",
+      "stale",
+    ],
+    [
+      // A retry would cost a second signature and fail the same way.
+      "signature_malformed",
+      "Your wallet returned a signature the platform couldn't read, so nothing was sent. Signing again with it would fail the same way — check that the wallet is up to date, then raise the dispute again.",
+      "dismissed",
+    ],
   ])(
     "%s: says so, keeps the reason, and offers only a way out",
     async (code, message, closeReason) => {
@@ -786,8 +912,6 @@ describe("DisputeDialog — refusals, in plain words", () => {
       new ApiError("Too Many Requests", 429),
       "Too many requests — wait a moment and try again. Nothing was lost.",
     ],
-    ["unknown_job", refused("unknown_job", 404), GENERIC],
-    ["signature_malformed", refused("signature_malformed", 400), GENERIC],
     ["a second expired challenge", refused("challenge_expired", 409), GENERIC],
     ["a code newer than this build", refused("dispute_frozen", 409), GENERIC],
     ["a dropped connection", new Error("Failed to fetch"), GENERIC],
@@ -822,19 +946,79 @@ describe("DisputeDialog — refusals, in plain words", () => {
     },
   );
 
-  it("sends the buyer back to the reason when it is the reason that was refused", async () => {
+  // D-061: a refused reason used to read as a generic, retryable failure,
+  // with focus on the retry that would send the same words again.
+  it.each([
+    [
+      "the platform's bound",
+      new DisputeRefusal(
+        "reason_invalid",
+        "String should have at most 500 characters.",
+      ),
+      "String should have at most 500 characters.",
+    ],
+    [
+      "the client's own check",
+      new DisputeRefusal(
+        "reason_invalid",
+        "Keep the reason to 500 characters — it is 512 now.",
+      ),
+      "Keep the reason to 500 characters — it is 512 now.",
+    ],
+    [
+      "a bare reason_invalid from the envelope",
+      refused("reason_invalid", 422),
+      "The platform couldn't accept this reason. Say what went wrong with this step, in words, in at most 500 characters.",
+    ],
+  ])(
+    "%s: marks the reason invalid, describes it by the refusal, and sends focus there",
+    async (_label, error, message) => {
+      raiseThen(async () => {
+        throw error;
+      });
+      renderDialog();
+
+      await submitWith();
+
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toBe(message);
+      const box = reasonBox();
+      expect(box.getAttribute("aria-invalid")).toBe("true");
+      expect((box.getAttribute("aria-describedby") ?? "").split(" ")).toContain(
+        alert.id,
+      );
+      expect(alert.id).not.toBe("");
+      expect(document.activeElement).toBe(box);
+      expect(box.readOnly).toBe(false);
+      expect(box.value).toBe(REASON);
+    },
+  );
+
+  it("describes the reason by its hint alone while nothing has refused it", () => {
+    renderDialog();
+    expect(reasonBox().getAttribute("aria-invalid")).toBe("false");
+    expect(
+      (reasonBox().getAttribute("aria-describedby") ?? "").split(" "),
+    ).toHaveLength(2);
+  });
+
+  it("says in its own words that a second challenge expired", async () => {
     raiseThen(async () => {
-      throw refused("reason_required", 422);
+      throw new DisputeRefusal(
+        "challenge_expired",
+        "The second signature request expired before it could be used. Nothing was sent — try again.",
+      );
     });
     renderDialog();
 
     await submitWith();
 
     expect(alertText()).toBe(
-      "Say what went wrong with this step, in words, before submitting.",
+      "The second signature request expired before it could be used. Nothing was sent — try again.",
     );
-    expect(reasonBox().getAttribute("aria-invalid")).toBe("true");
-    expect(document.activeElement).toBe(reasonBox());
+    expect(
+      screen.getByRole("button", { name: "Sign and submit again" }),
+    ).toBeTruthy();
   });
 
   it("retires the error once the reason is edited", async () => {
@@ -999,10 +1183,35 @@ describe("DisputeDialog — closing, and a step already disputed", () => {
     await submitWith();
 
     expect(props.onClose).toHaveBeenCalledTimes(1);
-    expect(props.onClose).toHaveBeenCalledWith("duplicate_dispute");
+    // No original on a bare refusal: nothing to show, only a re-read.
+    expect(props.onClose).toHaveBeenCalledWith("duplicate_dispute", null);
     expect(props.onSubmitted).not.toHaveBeenCalled();
     // An answer, not an error.
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // D-057: the 409 carries the step's original dispute. The page is handed
+  // it, so the step shows as disputed whether or not the re-read lands.
+  it("hands the page the original dispute a duplicate refusal carries", async () => {
+    const original = {
+      ...DISPUTE,
+      id: "dsp_other_tab",
+      reason: "raised first",
+    };
+    raiseThen(async () => {
+      throw new DisputeRefusal(
+        "duplicate_dispute",
+        "This step already has a dispute.",
+        { dispute: original },
+      );
+    });
+    const { props } = renderDialog();
+
+    await submitWith();
+
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledWith("duplicate_dispute", original);
+    expect(props.onSubmitted).not.toHaveBeenCalled();
   });
 
   it.each([

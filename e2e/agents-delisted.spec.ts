@@ -102,6 +102,11 @@ test.describe("a delisted agent in the marketplace", () => {
 
     const delisted = row(page, DELISTED_ID);
     await expect(delisted.getByText(/delisted by operator/i)).toBeVisible();
+    // The absences below are about marks computed from the reputation batch;
+    // asserted before it lands they pass whatever the page would say.
+    await expect(
+      page.getByRole("heading", { name: "Selection floor" }),
+    ).toBeVisible();
     // One reason, not a pile of them. Its gates are healthy anyway, but the
     // point is that none of their verdicts belongs on a withdrawn agent.
     await expect(delisted.getByText(/not\s+yet\s+operational/i)).toHaveCount(0);

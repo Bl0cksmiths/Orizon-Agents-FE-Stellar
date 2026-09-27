@@ -271,8 +271,11 @@ export function Dialog({
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           className="clip-cyber relative flex max-h-[calc(100dvh-0.75rem)] flex-col border border-border bg-surface sm:max-h-[min(46rem,calc(100dvh-4rem))]"
         >
+          {/* data-decor: the scan in e2e/dispute-axe.ts flattens it, since
+              axe gives up on contrast over any gradient. */}
           <div
             aria-hidden
+            data-decor
             className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet/10 via-transparent to-cyan/5"
           />
           <header className="relative flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">

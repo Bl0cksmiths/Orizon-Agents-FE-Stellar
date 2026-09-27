@@ -1,0 +1,236 @@
+{
+  "b1-adr-0008-claim-before-signing.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0008-refund-execution.md",
+    "capturedAt": "2026-09-26T12:16:10.768Z",
+    "width": 861,
+    "height": 981,
+    "scale": 2,
+    "marks": []
+  },
+  "b2-disputes-runbook-credit.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/disputes.md",
+    "capturedAt": "2026-09-26T12:05:38.769Z",
+    "width": 861,
+    "height": 927,
+    "scale": 2,
+    "marks": []
+  },
+  "b3-disputes-runbook-operators.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/disputes.md",
+    "capturedAt": "2026-09-26T12:05:43.353Z",
+    "width": 861,
+    "height": 843,
+    "scale": 2,
+    "marks": []
+  },
+  "b4-adr-0007-window-stamped.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0007-dispute-window.md",
+    "capturedAt": "2026-09-26T12:05:48.395Z",
+    "width": 861,
+    "height": 895,
+    "scale": 2,
+    "marks": []
+  },
+  "c1-api-network.png": {
+    "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/network",
+    "capturedAt": "2026-09-26T12:06:58.203Z",
+    "width": 811,
+    "height": 453,
+    "scale": 2,
+    "marks": []
+  },
+  "c2-api-readiness.png": {
+    "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
+    "capturedAt": "2026-09-26T12:06:59.417Z",
+    "width": 794,
+    "height": 525,
+    "scale": 2,
+    "marks": []
+  },
+  "c3-openapi-facts.png": {
+    "url": "https://orizon-agents-be-stellar.onrender.com/openapi.json",
+    "capturedAt": "2026-09-26T12:07:00.678Z",
+    "width": 1140,
+    "height": 532,
+    "scale": 2,
+    "marks": []
+  },
+  "c4-docs-dispute-routes.png": {
+    "url": "https://orizon-agents-be-stellar.onrender.com/docs",
+    "capturedAt": "2026-09-26T12:01:32.757Z",
+    "width": 1224,
+    "height": 417,
+    "scale": 2,
+    "marks": []
+  },
+  "c5-uphold-refunds-disabled.png": {
+    "url": "https://orizon-agents-be-stellar.onrender.com/docs",
+    "capturedAt": "2026-09-26T12:07:01.912Z",
+    "width": 1001,
+    "height": 451,
+    "scale": 2,
+    "marks": []
+  },
+  "c6-drill-refund-tx.png": {
+    "url": "https://stellar.expert/explorer/testnet/tx/a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8",
+    "capturedAt": "2026-09-26T12:01:40.362Z",
+    "width": 1280,
+    "height": 534,
+    "scale": 2,
+    "marks": [
+      {
+        "x": 121.6,
+        "y": 201.6,
+        "width": 72.2,
+        "height": 25.6
+      },
+      {
+        "x": 50,
+        "y": 454.7,
+        "width": 1180,
+        "height": 38.4
+      }
+    ]
+  },
+  "c7-drill-rating-tx.png": {
+    "url": "https://stellar.expert/explorer/testnet/tx/7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184",
+    "capturedAt": "2026-09-26T12:01:46.063Z",
+    "width": 1280,
+    "height": 546,
+    "scale": 2,
+    "marks": [
+      {
+        "x": 121.6,
+        "y": 201.6,
+        "width": 72.2,
+        "height": 25.6
+      },
+      {
+        "x": 50,
+        "y": 454.7,
+        "width": 1180,
+        "height": 50.7
+      }
+    ]
+  },
+  "c8-qa-deliverable-3-evidence.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03-dispute-refund-rating.md",
+    "capturedAt": "2026-09-26T12:06:09.099Z",
+    "width": 861,
+    "height": 555,
+    "scale": 2,
+    "marks": []
+  },
+  "d1-uat-repository.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar",
+    "capturedAt": "2026-09-26T12:05:53.989Z",
+    "width": 904,
+    "height": 452,
+    "scale": 2,
+    "marks": []
+  },
+  "d2-defect-d-067.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/defects.md",
+    "capturedAt": "2026-09-26T12:05:59.691Z",
+    "width": 861,
+    "height": 1557,
+    "scale": 2,
+    "marks": []
+  },
+  "d3-qa-recommendation.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/evidence/6.03-dispute-refund-rating.md",
+    "capturedAt": "2026-09-26T12:06:04.628Z",
+    "width": 861,
+    "height": 475,
+    "scale": 2,
+    "marks": []
+  },
+  "d4-defect-issue-table.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/defects.md",
+    "capturedAt": "2026-09-26T12:23:22.062Z",
+    "width": 861,
+    "height": 1555,
+    "scale": 2,
+    "marks": []
+  },
+  "e1-be-issue-67.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/67",
+    "capturedAt": "2026-09-26T12:17:58.818Z",
+    "width": 1280,
+    "height": 2250,
+    "scale": 2,
+    "marks": []
+  },
+  "e2-contracts-issue-3.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/issues/3",
+    "capturedAt": "2026-09-26T12:18:05.239Z",
+    "width": 1280,
+    "height": 2250,
+    "scale": 2,
+    "marks": []
+  },
+  "f1-week-2-video-post.png": {
+    "url": "https://x.com/OrizonAgents402/status/2101103657043255772",
+    "via": "https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772",
+    "capturedAt": "2026-09-26T12:02:45.943Z",
+    "width": 550,
+    "height": 697,
+    "scale": 1,
+    "marks": [
+      {
+        "x": 16.7,
+        "y": 277.7,
+        "width": 516.6,
+        "height": 290.6
+      }
+    ]
+  },
+  "local-01-dispute-action-open-window.png": {
+    "url": "https://orizons.xyz/app/trace?task=<task_id>",
+    "local": true,
+    "fixture": true,
+    "source": "../screenshots/local-01-dispute-action-open-window.png",
+    "capturedAt": "2026-09-26T11:42:01.306995Z",
+    "marks": []
+  },
+  "local-02-dispute-dialog.png": {
+    "url": "https://orizons.xyz/app/trace?task=<task_id>",
+    "local": true,
+    "fixture": true,
+    "source": "../screenshots/local-02-dispute-dialog.png",
+    "capturedAt": "2026-09-26T11:39:07.307022Z",
+    "marks": []
+  },
+  "local-03-receipt-open-dispute.png": {
+    "url": "https://orizons.xyz/app/trace?task=<task_id>",
+    "local": true,
+    "fixture": true,
+    "source": "../screenshots/local-03-receipt-open-dispute.png",
+    "capturedAt": "2026-09-26T11:41:45.618993Z",
+    "marks": []
+  },
+  "local-04-receipt-credited.png": {
+    "url": "https://orizons.xyz/app/trace?task=<task_id>",
+    "local": true,
+    "fixture": true,
+    "source": "../screenshots/local-04-receipt-credited.png",
+    "capturedAt": "2026-09-26T11:41:02.983011Z",
+    "marks": []
+  },
+  "local-05-receipt-crediting-unconfirmed.png": {
+    "url": "https://orizons.xyz/app/trace?task=<task_id>",
+    "local": true,
+    "fixture": true,
+    "source": "../screenshots/local-05-receipt-crediting-unconfirmed.png",
+    "capturedAt": "2026-09-26T11:41:14.403007Z",
+    "marks": []
+  },
+  "local-06-receipt-rejected.png": {
+    "url": "https://orizons.xyz/app/trace?task=<task_id>",
+    "local": true,
+    "fixture": true,
+    "source": "../screenshots/local-06-receipt-rejected.png",
+    "capturedAt": "2026-09-26T11:43:42.986986Z",
+    "marks": []
+  }
+}

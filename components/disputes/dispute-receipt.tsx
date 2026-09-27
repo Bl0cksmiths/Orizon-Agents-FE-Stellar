@@ -250,20 +250,48 @@ function Moment({
  * that says what it cost the agent, and says it only as far as the rating
  * transaction vouches for: a rating not yet confirmed is not yet a cost.
  */
+/**
+ * The end of a sentence about something still pending once the panel has
+ * stopped reading for it (`stoppedChecking`): it may have moved since, and
+ * the page will not show that on its own. Worded as the stalled rating's
+ * sentence already is, so the receipt says it the same way everywhere.
+ */
+const STOPPED_CHECKING =
+  "this page has stopped checking — reload to check again.";
+
 function nextStep(
   view: DisputeReceiptView,
   agent: string,
   voice: Voice,
 ): string {
+  const sentence = pendingStep(view, agent, voice);
+  if (sentence === null) return settledStep(view, agent, voice);
+  return view.stoppedChecking
+    ? sentence.replace(/\.$/, `; ${STOPPED_CHECKING}`)
+    : sentence;
+}
+
+/**
+ * The sentence for a receipt still waiting on something — a decision, a
+ * refund, a transfer's confirmation — or null once nothing is pending but,
+ * at most, the rating (which says its own stall).
+ */
+function pendingStep(
+  view: DisputeReceiptView,
+  agent: string,
+  voice: Voice,
+): string | null {
   switch (view.status) {
     case "open":
       return `The platform is reviewing this dispute; if it is upheld, the step's credit is paid to ${voice.wallet} and ${agent}'s reputation records the dispute.`;
     case "upheld":
-      // Decided, not paid. `refundArtifact` reads `upheld` as pending with
-      // never a hash — the transfer has not been attempted — so a sentence
-      // saying the credit "is being sent" sends a buyer to Stellar Expert
-      // looking for a transaction that does not exist and was never made.
-      return `The platform upheld this dispute; the credit has not been sent yet — the transfer to ${voice.wallet} is queued, and there is no transaction to look up until the platform submits it.`;
+      // Decided, not paid. The backend leaves a dispute here in two ways it
+      // does not tell apart on the record: no transfer was ever attempted,
+      // or one failed and its claim was released, hash and all. Nothing
+      // retries either on its own — a person upholds it again — so the
+      // sentence promises no queue and no time, only what is true of both:
+      // nothing was paid, nothing can be looked up, and the platform owes it.
+      return `The platform upheld this dispute, but the credit has not been paid — there is no transaction to look up yet, and the platform has to send it to ${voice.wallet}.`;
     case "crediting": {
       // `refund_tx` is nullable on a crediting record: the platform can be
       // holding the payout before it has a transaction to show for it. The
@@ -283,20 +311,39 @@ function nextStep(
       if (view.refund.state !== "confirmed") {
         return `The platform recorded this credit as paid, but the refund transfer is not confirmed on Stellar yet; the platform reconciles it by hand — ${voice.who} will not be paid twice, and will not be skipped.`;
       }
-      // A promise is never restated as a payment: without the settled figure
-      // the sentence says the credit arrived, not how much.
-      const paid = view.amount.final
-        ? formatUsdc(view.amount.usdc)
-        : "the credit";
-      return view.rating.state === "confirmed"
-        ? `Done: ${voice.who} received ${paid}, and it cost ${agent} a dispute rating on its reputation.`
-        : `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is not confirmed yet.`;
+      return null;
     }
     case "rejected":
-      return `The platform did not uphold this dispute: no credit was issued, ${agent}'s reputation is unchanged${
-        view.rejectionReason !== null ? ", and the reason is below" : ""
-      }.`;
+      return null;
   }
+}
+
+/**
+ * What a receipt with nothing left pending but, at most, the rating says: a
+ * rejection, or a credit whose refund is confirmed on Stellar.
+ */
+function settledStep(
+  view: DisputeReceiptView,
+  agent: string,
+  voice: Voice,
+): string {
+  if (view.status === "rejected") {
+    return `The platform did not uphold this dispute: no credit was issued, ${agent}'s reputation is unchanged${
+      view.rejectionReason !== null ? ", and the reason is below" : ""
+    }.`;
+  }
+  // A promise is never restated as a payment: without the settled figure
+  // the sentence says the credit arrived, not how much.
+  const paid = view.amount.final ? formatUsdc(view.amount.usdc) : "the credit";
+  if (view.rating.state === "confirmed") {
+    return `Done: ${voice.who} received ${paid}, and it cost ${agent} a dispute rating on its reputation.`;
+  }
+  // "Not confirmed yet" promises the page will say when it is. Once the
+  // panel has stopped reading for the rating, that promise is withdrawn
+  // in words, and the buyer is told how to look again.
+  return view.ratingStalled
+    ? `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is still not recorded, and this page has stopped checking for it — reload to check again.`
+    : `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is not confirmed yet.`;
 }
 
 /**
@@ -421,7 +468,12 @@ function Artifacts({
           of the receipt. */}
       <dl className="space-y-2">
         {rows.map(({ key, artifact, copy }) => (
-          <ArtifactRow key={key} artifact={artifact} copy={copy} />
+          <ArtifactRow
+            key={key}
+            artifact={artifact}
+            copy={copy}
+            stalled={key === "rating" && view.ratingStalled}
+          />
         ))}
       </dl>
     </div>
@@ -431,15 +483,22 @@ function Artifacts({
 function ArtifactRow({
   artifact,
   copy,
+  stalled = false,
 }: {
   artifact: DisputeArtifact;
   copy: ArtifactCopy;
+  /** Nothing is reading for this artifact any more: "yet" would be live. */
+  stalled?: boolean;
 }) {
   if (artifact.state === "none") {
     return (
       <div className="text-xs leading-relaxed text-muted">
         <dt className="inline">{copy.title}</dt>{" "}
-        <dd className="inline">— not recorded on-chain yet.</dd>
+        <dd className="inline">
+          {stalled
+            ? "— not recorded on-chain when this page last checked."
+            : "— not recorded on-chain yet."}
+        </dd>
       </div>
     );
   }
@@ -469,10 +528,12 @@ function ArtifactRow({
               <span className="sr-only">Transaction hash </span>
               {artifact.txHash}
             </p>
+            {/* At least 24px tall (WCAG 2.5.8): the 10px text alone made a
+                15px target on a phone, for the link a reviewer taps. */}
             <StellarExpertLink
               kind="tx"
               id={artifact.txHash}
-              className="inline-block"
+              className="inline-flex min-h-6 items-center gap-[1ch]"
             >
               {copy.link}
               <span aria-hidden="true"> ▸</span>
@@ -486,7 +547,8 @@ function ArtifactRow({
 
 /**
  * An artifact's state in TxStatus's visual language — a cyan ✓ once
- * confirmed, a pulsing violet dot while in flight — but not TxStatus itself:
+ * confirmed, a pulsing violet dot while in flight, a still hollow one when
+ * nothing is on record — but not TxStatus itself:
  * its Build → Sign → Broadcast trail narrates a transaction the USER signs,
  * and the platform's settler signs these. That trail here would tell the
  * buyer they had signed something they never saw.
@@ -510,13 +572,22 @@ function ArtifactMark({ artifact }: { artifact: DisputeArtifact }) {
       </p>
     );
   }
+  // Only a transaction on its way pulses. With no hash nothing is in flight —
+  // on an upheld dispute nothing may ever be sent without a person — and a
+  // throbbing dot beside "No transaction on record" read as a queue (D-070).
+  const inFlight = artifact.txHash !== null;
   return (
     <p className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-violet-readable">
       <span
         aria-hidden="true"
-        className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-violet shadow-[0_0_8px_#B026FF] motion-reduce:animate-none"
+        className={cn(
+          "h-1.5 w-1.5 shrink-0 rounded-full",
+          inFlight
+            ? "animate-pulse bg-violet shadow-[0_0_8px_#B026FF] motion-reduce:animate-none"
+            : "border border-violet",
+        )}
       />
-      {artifact.txHash
+      {inFlight
         ? "Submitted, waiting for confirmation"
         : "No transaction on record"}
     </p>

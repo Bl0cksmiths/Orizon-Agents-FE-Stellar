@@ -23,7 +23,8 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
-import type { Dispute } from "../lib/types";
+import type { Dispute, DisputeStatus, SettlementStepView } from "../lib/types";
+import { horizontalOverflow } from "./dispute-layout";
 import {
   mockApi,
   mockDispute,
@@ -36,8 +37,10 @@ import {
   mockRejectionReason,
   mockSettlementSteps,
   mockSettlementView,
+  mockTaskReadToken,
   mockTraceStream,
   mockWallet,
+  mockWalletAddress,
   type MockDisputeReads,
 } from "./mocks";
 
@@ -68,6 +71,8 @@ type ReceiptSetup = {
   payer?: string;
   /** The server's clock; see `MockDisputeApiOptions.clock`. */
   clock?: () => number | Promise<number>;
+  /** The settled steps, when a test needs others than the fixture's. */
+  steps?: SettlementStepView[];
 };
 
 /**
@@ -77,13 +82,17 @@ type ReceiptSetup = {
  */
 async function openReceipt(
   page: Page,
-  { disputes, settledAtS = nowS() - HOUR_S, payer, clock }: ReceiptSetup,
+  { disputes, settledAtS = nowS() - HOUR_S, payer, clock, steps }: ReceiptSetup,
 ): Promise<MockDisputeReads> {
+  // The tab that ran the workflow, holding its read token: the one the
+  // backend sends the buyer's words to.
+  await mockTaskReadToken(page);
   await mockWallet(page);
   await mockApi(page);
   await mockTraceStream(page, mockDisputeTaskId);
+  const settlement = mockSettlementView({ settledAtS, payer });
   const reads = await mockDisputeReads(page, {
-    settlement: mockSettlementView({ settledAtS, payer }),
+    settlement: steps ? { ...settlement, steps } : settlement,
     disputes,
     clock,
   });
@@ -121,35 +130,6 @@ async function attachShot(
   await testInfo.attach(name, {
     body: await target.screenshot({ animations: "disabled" }),
     contentType: "image/png",
-  });
-}
-
-/**
- * Sideways overflow inside `root`, as the offending elements' own
- * descriptions — the measure the story 4.05 spec takes of the receipt, for
- * the same reason: the console hides horizontal overflow on html and body,
- * so on a phone anything past the right edge is not scrolled to, it is cut
- * off. A 64-character hash that does not wrap is the classic offender.
- */
-async function horizontalOverflow(root: Locator): Promise<string[]> {
-  return root.evaluate((el) => {
-    const limit = document.documentElement.clientWidth + 1;
-    const offenders: string[] = [];
-    for (const node of [el, ...Array.from(el.querySelectorAll("*"))]) {
-      const box = node.getBoundingClientRect();
-      if (box.width === 0) continue;
-      const scrolls = node.scrollWidth > node.clientWidth + 1;
-      const style = getComputedStyle(node);
-      const scrollable =
-        scrolls && (style.overflowX === "auto" || style.overflowX === "scroll");
-      if (box.left < -1 || box.right > limit || scrollable) {
-        const text = (node.textContent ?? "").trim().slice(0, 40);
-        offenders.push(
-          `<${node.tagName.toLowerCase()}> ${Math.round(box.left)}–${Math.round(box.right)}px "${text}"`,
-        );
-      }
-    }
-    return offenders;
   });
 }
 
@@ -245,6 +225,61 @@ test.describe("dispute status and refund receipt", () => {
     // Nothing was paid, so nothing may be linked as if it had been.
     await expect(row.getByRole("link")).toHaveCount(0);
     await attachShot(testInfo, "receipt — rejected", row);
+  });
+
+  test("a reason the backend withheld is never drawn as an empty quote, on either side", async ({
+    page,
+  }) => {
+    // D-068: the payer, in a tab without the task's read token. The backend
+    // withholds both reasons as "", and an empty "Your reason" reads as
+    // though the buyer gave none.
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "rejected",
+          openedAtS: nowS() - 40 * 60,
+          reason: "",
+          rejection_reason: "",
+        }),
+      ],
+    });
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Rejected");
+    await expect(row.getByText("Your reason")).toHaveCount(0);
+    await expect(row.getByText("Why it was rejected")).toHaveCount(0);
+    await expect(row.locator("blockquote")).toHaveCount(0);
+  });
+
+  test("upheld with no transfer on record promises no queue and wears no success", async ({
+    page,
+  }, testInfo) => {
+    // D-070: where a refused or failed transfer leaves a dispute once its
+    // claim is released. Nothing re-sends it on its own.
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "upheld",
+          openedAtS: nowS() - 40 * 60,
+        }),
+      ],
+    });
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Upheld");
+    await expect(row).toContainText("No transaction on record");
+    await expect(row).toContainText(
+      "the credit has not been paid — there is no transaction to look up yet, and the platform has to send it to your wallet.",
+    );
+    await expect(row).not.toContainText(
+      /queued|Refunded|Confirmed on Stellar|Done:|✓/,
+    );
+    // No success colour on the badge: the tick's cyan is "confirmed", and
+    // the green is "refunded".
+    const badge = row.getByText("Upheld", { exact: true }).locator("..");
+    const colour = await badge.evaluate((el) => getComputedStyle(el).color);
+    const cyan = "rgb(0, 255, 209)";
+    const emerald = "rgb(110, 231, 183)";
+    expect([cyan, emerald]).not.toContain(colour);
+    await attachShot(testInfo, "receipt — upheld, nothing paid", row);
   });
 
   test("a refund or a rating still in flight reads as pending, never as done", async ({
@@ -432,6 +467,21 @@ test.describe("dispute status and refund receipt", () => {
       ],
     });
 
+    // The connected wallet restored and placed as the stranger it is: the
+    // header shows it, and the anonymous viewer's prompt is gone. Before
+    // that, every check below is true of any page that has not yet decided
+    // who is looking.
+    await expect(
+      page
+        .getByRole("button", {
+          name: new RegExp(mockWalletAddress.slice(0, 4)),
+        })
+        .first(),
+    ).toBeVisible();
+    await expect(
+      receipt(page).getByRole("button", { name: /connect/i }),
+    ).toHaveCount(0);
+
     // THAT the steps were disputed, and how it went, is public — and so are
     // the refund and the rating: they are transactions on a public ledger.
     await expect(stepRow(page, briefStep.agent_id)).toContainText("Rejected");
@@ -450,6 +500,65 @@ test.describe("dispute status and refund receipt", () => {
     const dom = await page.content();
     for (const reason of [...buyerReasons, mockRejectionReason]) {
       expect(dom).not.toContain(reason);
+    }
+  });
+
+  // Every fixture reason was one short line, so a quote that dropped its
+  // line breaks or let one long word run off a phone went unseen.
+  test("at 360px a reason of several lines and one long word keeps its breaks and fits", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    const link = `https://calc.example/${"x".repeat(80)}`;
+    const reason = `the calculator does not compute\nthe build it shipped is at ${link}`;
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "open",
+          openedAtS: nowS() - 40 * 60,
+          reason,
+        }),
+      ],
+    });
+    const quote = stepRow(page, codeStep.agent_id).locator("blockquote");
+    await expect(quote).toContainText(link);
+    // The line break the buyer typed is still a line break on screen.
+    expect(await quote.evaluate((el) => (el as HTMLElement).innerText)).toBe(
+      reason,
+    );
+    expect(await horizontalOverflow(receipt(page))).toEqual([]);
+  });
+
+  // D-072: the explorer links are the receipt's evidence, and on a phone they
+  // were 15px tall (the refund and the rating) and 20px (payer, charge,
+  // seal) — under WCAG 2.5.8's 24px minimum for a target.
+  test("at 360px every explorer link on the receipt is at least 24px tall", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS: nowS() - 40 * 60,
+        }),
+      ],
+    });
+    const links = receipt(page).getByRole("link", { name: /stellar\.expert/ });
+    await expect(links).toHaveCount(5);
+    const sizes = await links.evaluateAll((els) =>
+      els.map((el) => {
+        const box = el.getBoundingClientRect();
+        return {
+          name: (el.textContent ?? "").trim(),
+          width: Math.round(box.width),
+          height: Math.round(box.height),
+        };
+      }),
+    );
+    for (const size of sizes) {
+      expect(size.height, size.name).toBeGreaterThanOrEqual(24);
+      expect(size.width, size.name).toBeGreaterThanOrEqual(24);
     }
   });
 
@@ -477,6 +586,126 @@ test.describe("dispute status and refund receipt", () => {
     );
     expect(overflow).toBeLessThanOrEqual(1);
     await attachShot(testInfo, "receipt — credited at 360px", row);
+  });
+});
+
+/**
+ * How each status LOOKS, measured in the browser. These were class-name
+ * checks in the unit suite — a `text-` class distinct per status, no class
+ * matching /cyan|emerald/ on upheld, a `motion-reduce:` class present on the
+ * pulse — and a class name is not a colour: a theme token remapped, a
+ * specificity loss or a typo in the config passes every one of them. So the
+ * receipt is drawn with all five statuses at once and asked for its computed
+ * colours and its running animations.
+ */
+test.describe("dispute statuses as the browser draws them", () => {
+  const STATUSES: DisputeStatus[] = [
+    "open",
+    "upheld",
+    "crediting",
+    "credited",
+    "rejected",
+  ];
+  const LABEL: Record<DisputeStatus, string> = {
+    open: "Under review",
+    upheld: "Upheld",
+    crediting: "Refund in progress",
+    credited: "Refunded",
+    rejected: "Rejected",
+  };
+  /** What a confirmed transaction (cyan) and a refund (emerald) wear. */
+  const CYAN = "rgb(0, 255, 209)";
+  const EMERALD = "rgb(110, 231, 183)";
+
+  /** One delivered step per status, each carrying that status's dispute. */
+  async function openAllStatuses(page: Page): Promise<void> {
+    const steps = STATUSES.map((_, i) => ({
+      ...mockSettlementSteps[i % 2],
+      step_index: i,
+      agent_id: `agent.${i}`,
+      agent_name: `agent.${i}`,
+    }));
+    const openedAtS = nowS() - 40 * 60;
+    await openReceipt(page, {
+      steps,
+      disputes: STATUSES.map((status, i) =>
+        mockReceiptDispute(steps[i], {
+          status,
+          openedAtS,
+          ...(status === "crediting" ? { refund_tx: mockRefundTx } : {}),
+        }),
+      ),
+    });
+    await expect(
+      receipt(page).getByRole("group", { name: /dispute receipt/i }),
+    ).toHaveCount(STATUSES.length);
+  }
+
+  /** The badge of one step's dispute, by the agent it is filed against. */
+  const badge = (page: Page, status: DisputeStatus) =>
+    stepRow(page, `agent.${STATUSES.indexOf(status)}`)
+      .getByText(LABEL[status], { exact: true })
+      .locator("..");
+
+  test("gives each of the five statuses its own rendered colour, and upheld none of success's", async ({
+    page,
+  }) => {
+    await openAllStatuses(page);
+    const colours: Record<string, string> = {};
+    for (const status of STATUSES) {
+      colours[status] = await badge(page, status).evaluate(
+        (el) => getComputedStyle(el).color,
+      );
+    }
+    expect(new Set(Object.values(colours)).size).toBe(STATUSES.length);
+    // Upheld moved no money: neither its badge nor its refund mark nor the
+    // row around that mark may wear what confirmed or refunded wears.
+    expect([CYAN, EMERALD]).not.toContain(colours.upheld);
+    const upheld = stepRow(page, "agent.1");
+    await expect(upheld).not.toContainText("✓");
+    const mark = upheld.getByText("No transaction on record");
+    for (const el of [mark, mark.locator("xpath=ancestor::div[1]")]) {
+      const { color, borderColor } = await el.evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { color: style.color, borderColor: style.borderTopColor };
+      });
+      expect([CYAN, EMERALD]).not.toContain(color);
+      expect(borderColor).not.toMatch(/0, 255, 209|110, 231, 183/);
+    }
+  });
+
+  /** The receipt's running animations, by the element each belongs to. */
+  const running = (page: Page) =>
+    receipt(page).evaluate((root) =>
+      root
+        .getAnimations({ subtree: true })
+        .filter((a) => a.playState === "running")
+        .map((a) => {
+          const target = (a.effect as KeyframeEffect | null)?.target;
+          return target instanceof Element ? target.className.toString() : "";
+        }),
+    );
+
+  test("pulses only what is in flight, and stills every pulse for anyone who asked for less motion", async ({
+    page,
+  }) => {
+    await openAllStatuses(page);
+    // The positive control: the open dispute's dot, the refund in flight's
+    // dot and its submitted transfer's mark are all moving.
+    await expect
+      .poll(async () => (await running(page)).length)
+      .toBeGreaterThanOrEqual(3);
+    // Upheld is decided and still: nothing on its row moves.
+    const upheldMoving = await stepRow(page, "agent.1").evaluate(
+      (row) =>
+        row
+          .getAnimations({ subtree: true })
+          .filter((a) => a.playState === "running").length,
+    );
+    expect(upheldMoving).toBe(0);
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect.poll(() => running(page)).toEqual([]);
   });
 });
 
@@ -707,6 +936,98 @@ test.describe("dispute receipt while the page stays open", () => {
     await page.clock.runFor(60_000);
     await networkBeat(page);
     expect(reads.count()).toBe(loaded + 3);
+  });
+
+  /**
+   * D-069: one uphold writes the credit, then the rating seconds later. A
+   * read landing between the two sees the refund confirmed and no rating —
+   * `rating_confirmed` sent, and null — and that is not a final receipt.
+   */
+  const owingRating = (openedAtS: number) =>
+    mockReceiptDispute(codeStep, {
+      status: "credited",
+      openedAtS,
+      rating_tx: null,
+      rating_confirmed: null,
+    });
+
+  test("a rating that lands after the refund reaches the open receipt without a reload", async ({
+    page,
+  }) => {
+    const { reads, openedAtS } = await openOnFakeClock(page, (openedAtS) => [
+      owingRating(openedAtS),
+    ]);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText(
+      `the dispute rating it costs ${codeStep.agent_id} is not confirmed yet.`,
+    );
+    await expect(artifact(row, "Dispute rating")).toContainText(
+      "not recorded on-chain yet",
+    );
+    await freezeClock(page);
+    await page.evaluate(() => Object.assign(window, { __sameDocument: true }));
+    const loaded = reads.count();
+
+    // Still read for, on the fast cadence: the rating is seconds behind.
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await networkBeat(page);
+    expect(reads.count()).toBe(loaded + 1);
+
+    reads.answer([
+      mockReceiptDispute(codeStep, { status: "credited", openedAtS }),
+    ]);
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await expect(row.getByRole("link", { name: /rating/i })).toHaveAttribute(
+      "href",
+      testnetTx(mockRatingTx),
+    );
+    await expect(row).toContainText(
+      `and it cost ${codeStep.agent_id} a dispute rating on its reputation.`,
+    );
+    expect(reads.count()).toBe(loaded + 2);
+    expect(
+      await page.evaluate(
+        () => (window as { __sameDocument?: boolean }).__sameDocument,
+      ),
+    ).toBe(true);
+
+    // Both on-chain facts are in: nothing is read again.
+    await page.clock.runFor(60_000);
+    await networkBeat(page);
+    expect(reads.count()).toBe(loaded + 2);
+  });
+
+  test("a rating that never lands is read for a while, then not at all, and the receipt says it stopped", async ({
+    page,
+  }) => {
+    const { reads } = await openOnFakeClock(page, (openedAtS) => [
+      owingRating(openedAtS),
+    ]);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("is not confirmed yet.");
+    await freezeClock(page);
+    const loaded = reads.count();
+
+    // Sixteen minutes, walked in half-minutes with a beat for each read to
+    // land and re-arm the next: past the fast minute and a half, and past the
+    // fifteen-minute wait that ends the reading.
+    for (let i = 0; i < 32; i += 1) {
+      await page.clock.runFor(OPEN_POLL_MS);
+      await page.waitForTimeout(150);
+    }
+    expect(reads.count()).toBeGreaterThan(loaded + 20);
+    await expect(row).toContainText(
+      "is still not recorded, and this page has stopped checking for it — reload to check again.",
+    );
+    await expect(artifact(row, "Dispute rating")).toContainText(
+      "not recorded on-chain when this page last checked.",
+    );
+    await expect(row).not.toContainText("is not confirmed yet.");
+
+    const stopped = reads.count();
+    await page.clock.runFor(5 * 60_000);
+    await networkBeat(page);
+    expect(reads.count()).toBe(stopped);
   });
 
   test("a hidden tab reads nothing, and reads at once when it is shown again", async ({

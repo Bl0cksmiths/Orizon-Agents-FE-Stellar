@@ -38,30 +38,86 @@
  * everything out instead — and the copy has to be revisited.
  */
 
+"use client";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { DecomposeResponse } from "@/lib/types";
 
 /**
- * The banner's id, for the Authorize control's `aria-describedby`. A polite
- * status is announced once, when it renders, and a keyboard buyer tabbing from
- * the exclusions panel straight to Authorize never passes through it — so the
- * button names it as its description, and the warning is read at the moment
- * of the decision it is about.
+ * The banner's id: the target of the floor summary's "what this means" link
+ * near the top of the card.
  *
  * One plan card renders at a time, so a fixed id cannot collide. It avoids the
  * word "degraded" for the same reason the copy does.
  */
 export const UNVERIFIED_BANNER_ID = "plan-reputation-unverified";
 
+/**
+ * The id of the banner's one-sentence summary, for every pay control's
+ * `aria-describedby`. A keyboard buyer tabbing from the exclusions panel
+ * straight to a pay control never passes through the banner, so the control
+ * carries the warning as its description — but the summary, not the banner:
+ * four paragraphs read out as a button's description is a lecture at the
+ * moment of the decision, and the one sentence is what the decision needs.
+ */
+export const UNVERIFIED_SUMMARY_ID = "plan-reputation-unverified-summary";
+
+/** The sentence that is announced, and that describes every pay control. */
+export const UNVERIFIED_SUMMARY =
+  "The routing floor on this plan compared reputation estimates, not on-chain records.";
+
+/** How long the live region sits empty in the page before it is filled. */
+export const ANNOUNCE_DELAY_MS = 100;
+
+/**
+ * A polite live region that mounts EMPTY and is filled a beat later.
+ *
+ * A live region inserted with its text already in it is often not announced
+ * at all: screen readers watch regions they already know about for changes,
+ * and one that arrives full has no change to report. So the region lands in
+ * the accessibility tree first and the sentence follows it, which is the
+ * change that is announced. Its own component so the delay restarts whenever
+ * the banner itself mounts, not only when the card does.
+ *
+ * Which readers announce it is still unverified without a screen reader in
+ * the loop; this is the pattern that gives them the best chance.
+ */
+function AnnouncedSummary(): JSX.Element {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setText(UNVERIFIED_SUMMARY),
+      ANNOUNCE_DELAY_MS,
+    );
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <p
+      id={UNVERIFIED_SUMMARY_ID}
+      role="status"
+      className="mt-2 text-sm font-semibold leading-relaxed"
+    >
+      {text}
+    </p>
+  );
+}
+
 /** Whether the banner renders for this plan — exported so the Authorize
  *  control points `aria-describedby` at it only when it exists; a reference to
- *  an absent id describes nothing and is flagged by accessibility audits.
+ *  an absent id describes nothing and is flagged by accessibility audits. The
+ *  floor summary reads it too, so the card's first claim and its warning can
+ *  never disagree about whether the reads held.
  *
- *  Strict `=== true` rather than a truthy check: the field is optional, so a
+ *  Either flag is enough. The plan-level one is what the backend sets when any
+ *  read failed; a step's own `rep_degraded` is that same fact about one agent,
+ *  and a plan carrying one has had a read fail whatever the plan flag says.
+ *
+ *  Strict `=== true` rather than a truthy check: both fields are optional, so a
  *  backend predating story 3.03 sends nothing at all, and "we have no idea
  *  whether the reads succeeded" must never render as "they failed". */
 export const hasUnverifiedReputation = (plan: DecomposeResponse): boolean =>
-  plan.reputation_degraded === true;
+  plan.reputation_degraded === true ||
+  plan.steps.some((s) => s.rep_degraded === true);
 
 export function DegradedBanner({
   plan,
@@ -71,25 +127,24 @@ export function DegradedBanner({
   if (!hasUnverifiedReputation(plan)) return null;
 
   return (
-    // `role="status"` (polite), NOT `role="alert"` (assertive), and the choice
-    // is deliberate. An assertive alert cuts off whatever a screen reader is
-    // mid-sentence on, which is the right trade only for something that arrives
-    // unbidden after the user's attention has moved on — a signature that just
-    // failed, say. This renders as part of the plan itself and sits in document
-    // order above the Authorize control, so reading the page reaches it before
-    // the button — and Tab, which jumps straight past it to the button, meets
-    // it there instead, as the button's `aria-describedby`. Interrupting here
-    // would truncate the reading of the very plan the warning is about, and
-    // would do it on every plan render. Polite says the same words without
-    // that cost.
+    // Only the one-sentence summary is a live region, and it is `role="status"`
+    // (polite), NOT `role="alert"` (assertive), deliberately. An assertive
+    // alert cuts off whatever a screen reader is mid-sentence on, which is the
+    // right trade only for something that arrives unbidden after the user's
+    // attention has moved on — a signature that just failed, say. This renders
+    // as part of the plan itself and sits in document order above the pay
+    // controls, so reading the page reaches it before them — and Tab, which
+    // jumps straight past it, meets the summary there instead, as each
+    // control's `aria-describedby`. The paragraphs are not live: announcing
+    // all four would bury the plan under the warning about it.
     //
     // Tone mirrors the cyan Authorize panel it sits directly above — same
     // `clip-cyber-sm` frame, same padding, same `mt-6` rhythm — so the two read
     // as one decision point in two tones rather than as unrelated furniture.
+    // `scroll-mt-4` so the floor summary's link lands on the frame, not flush.
     <div
       id={UNVERIFIED_BANNER_ID}
-      role="status"
-      className="mt-6 clip-cyber-sm border border-magenta/40 bg-magenta/5 p-4 text-magenta"
+      className="mt-6 scroll-mt-4 clip-cyber-sm border border-magenta/40 bg-magenta/5 p-4 text-magenta"
     >
       {/* Glyph and word together, never the tint alone: the magenta is
           decoration, and a warning that is only magenta says nothing to a
@@ -104,6 +159,8 @@ export function DegradedBanner({
           Reputation could not be read
         </h3>
       </div>
+
+      <AnnouncedSummary />
 
       <div className="mt-2 space-y-2 text-sm leading-relaxed">
         <p>

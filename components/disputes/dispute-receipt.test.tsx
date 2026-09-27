@@ -18,7 +18,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
-import { formatUsdc } from "@/lib/disputes";
+import { disputeReceipt, formatUsdc } from "@/lib/disputes";
 import type {
   DisputeArtifact,
   DisputeReceiptView,
@@ -60,6 +60,7 @@ function receipt(
     fundedBy: "platform",
     refund: NONE,
     rating: NONE,
+    ratingStalled: false,
     reason: REASON,
     rejectionReason: null,
   };
@@ -197,15 +198,26 @@ describe("DisputeReceipt — what happens next", () => {
     );
   });
 
-  it("upheld: says the credit has not been sent, and why nothing links", () => {
+  // D-070: `upheld` with no transfer is where a refused or failed transfer
+  // leaves a dispute once its claim is released, as well as one never tried.
+  // Nothing re-sends it on its own, so no queue may be promised, and nothing
+  // on a record where no money moved may look like a success.
+  it("upheld: says the credit has not been paid, and promises no queue", () => {
     renderReceipt(receipt("upheld"));
     expect(text()).toContain(
-      "The platform upheld this dispute; the credit has not been sent yet — the transfer to your wallet is queued, and there is no transaction to look up until the platform submits it.",
+      "The platform upheld this dispute, but the credit has not been paid — there is no transaction to look up yet, and the platform has to send it to your wallet.",
     );
-    // An upheld dispute has no transfer on record, so a sentence claiming one
-    // is on its way sends a buyer hunting the explorer for nothing.
-    expect(text()).not.toContain("the credit is being sent");
-    expect(text()).not.toContain("was submitted");
+    expect(text()).not.toMatch(/queued|being sent|was submitted|on its way/);
+  });
+
+  // Its colours, and that nothing on it moves, are measured in the browser
+  // (e2e/dispute-receipt.spec.ts): a class name is not a colour.
+  it("upheld: wears no tick and says nothing of success", () => {
+    renderReceipt(receipt("upheld"));
+    expect(text()).toContain("Upheld");
+    expect(text()).toContain("No transaction on record");
+    expect(text()).not.toContain("✓");
+    expect(text()).not.toMatch(/Refunded|Confirmed on Stellar|Done:/);
   });
 
   it("crediting: waiting on Stellar, reconciled by hand, never twice", () => {
@@ -274,6 +286,57 @@ describe("DisputeReceipt — what happens next", () => {
     renderReceipt(receipt("rejected", { rejectionReason: null }));
     expect(text()).toContain(`${AGENT}'s reputation is unchanged.`);
     expect(text()).not.toContain("below");
+  });
+});
+
+describe("DisputeReceipt — once the page has stopped checking", () => {
+  const STOPPED = "; this page has stopped checking — reload to check again.";
+  /** The next-step sentence: the receipt's first paragraph of prose. */
+  const sentence = () =>
+    Array.from(document.querySelectorAll("p")).find((p) =>
+      /dispute|refund|credit/.test(p.textContent ?? ""),
+    )?.textContent ?? "";
+
+  // A pending sentence reads as though the page will say when it moves;
+  // once the bounded poll has stopped, it says it will not.
+  it.each([
+    ["open", receipt("open", { stoppedChecking: true })],
+    ["upheld", receipt("upheld", { stoppedChecking: true })],
+    ["crediting", receipt("crediting", { stoppedChecking: true })],
+    [
+      "credited, refund unconfirmed",
+      receipt("credited", { ...UNRECONCILED, stoppedChecking: true }),
+    ],
+  ])("%s: ends by saying the page stopped checking", (_label, view) => {
+    renderReceipt(view);
+    expect(sentence().endsWith(STOPPED)).toBe(true);
+    expect(sentence().match(/stopped checking/g)).toHaveLength(1);
+  });
+
+  it.each([
+    ["open", receipt("open")],
+    ["upheld", receipt("upheld")],
+    ["crediting", receipt("crediting")],
+  ])(
+    "%s: says nothing of it while the page is still reading",
+    (_label, view) => {
+      renderReceipt(view);
+      expect(text()).not.toContain("stopped checking");
+    },
+  );
+
+  it("a credited receipt says its stalled rating once, in its own words", () => {
+    renderReceipt(
+      receipt("credited", {
+        rating: { txHash: null, state: "none" },
+        ratingStalled: true,
+        stoppedChecking: true,
+      }),
+    );
+    expect(text().match(/stopped checking/g)).toHaveLength(1);
+    expect(text()).toContain(
+      "is still not recorded, and this page has stopped checking for it — reload to check again.",
+    );
   });
 });
 
@@ -468,6 +531,19 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
     expect(txHrefs()).toHaveLength(1);
   });
 
+  // D-069: once the panel stops reading for an owed rating, neither line may
+  // go on reading as live — "yet" there promised an update nothing will make.
+  it("says it stopped checking for a rating that never landed", () => {
+    renderReceipt(receipt("credited", { rating: NONE, ratingStalled: true }));
+    expect(text()).toContain(
+      `Done: you received ${formatUsdc(0.027)}; the dispute rating it costs ${AGENT} is still not recorded, and this page has stopped checking for it — reload to check again.`,
+    );
+    expect(text()).not.toContain("is not confirmed yet");
+    expect(artifactRow(/^Dispute rating/).textContent).toBe(
+      `Dispute rating against ${AGENT} — not recorded on-chain when this page last checked.`,
+    );
+  });
+
   it("leaves out an absent rating while the dispute is still moving", () => {
     renderReceipt(receipt("crediting"));
     expect(text()).not.toContain("Dispute rating");
@@ -499,6 +575,43 @@ describe("DisputeReceipt — reasons", () => {
     expect(text()).not.toContain("Your reason");
     expect(text()).not.toContain("Why it was rejected");
     expect(screen.queryAllByRole("blockquote")).toHaveLength(0);
+    expect(document.querySelectorAll("blockquote")).toHaveLength(0);
+  });
+});
+
+describe("DisputeReceipt — a reason the backend withheld (D-068)", () => {
+  // Drawn from the view the data layer derives from a withheld record, so a
+  // regression in either layer shows here as the empty quote the payer saw.
+  it("draws no heading and no empty quote for either reason", () => {
+    const derived = disputeReceipt(
+      {
+        id: "dsp_1",
+        job_id_hex: "a".repeat(32),
+        task_id: "task_a",
+        step_index: 1,
+        agent_id: "agt_1",
+        payer: "G".repeat(56),
+        reason: "",
+        status: "rejected",
+        charged_usdc: 0.01,
+        creditable_usdc: 0.005,
+        opened_at: OPENED_AT / 1_000,
+        resolved_at: CHANGED_AT / 1_000,
+        refund_tx: null,
+        rating_tx: null,
+        rejection_reason: "",
+      },
+      "payer",
+      {
+        credited_fraction: 0.5,
+        funded_by: "platform",
+        adjudicated_by: "platform",
+      },
+    );
+    renderReceipt(derived);
+    expect(text()).toContain("Rejected");
+    expect(text()).not.toContain("Your reason");
+    expect(text()).not.toContain("Why it was rejected");
     expect(document.querySelectorAll("blockquote")).toHaveLength(0);
   });
 });
@@ -655,15 +768,6 @@ describe("DisputeReceipt — accessibility", () => {
     }
     for (const link of screen.getAllByRole("link")) {
       expect((link.textContent ?? "").trim()).not.toBe("");
-    }
-  });
-
-  it("stills the pending pulse for anyone who asked for less motion", () => {
-    const { container } = renderReceipt(receipt("crediting"));
-    const pulses = container.querySelectorAll(".animate-pulse");
-    expect(pulses.length).toBeGreaterThan(0);
-    for (const pulse of pulses) {
-      expect(pulse.className).toContain("motion-reduce:animate-none");
     }
   });
 });

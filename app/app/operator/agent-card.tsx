@@ -17,10 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { focusRing } from "@/lib/ui";
-import type { Agent, ReputationInfo } from "@/lib/types";
+import { isAgentStatus, type Agent, type ReputationInfo } from "@/lib/types";
 import { BindingStateBadge } from "../agents/binding-notice";
 import { ManagePanel } from "../agents/manage-panel";
 import type { BindingState } from "../agents/use-binding-status";
+import type { ReputationRead } from "@/components/agents/reputation-cell";
 import { RoutingStanding } from "./routing-standing";
 import { SettlementPanel } from "./settlement-panel";
 
@@ -37,6 +38,7 @@ export function AgentCard({
   reputation,
   floorBps,
   priorBps,
+  reputationRead,
   onChanged,
 }: {
   agent: Agent;
@@ -47,6 +49,8 @@ export function AgentCard({
   reputation: ReputationInfo | null;
   floorBps: number | null;
   priorBps: number | null;
+  /** Whether the batch behind `reputation` is loading, failed or landed. */
+  reputationRead: ReputationRead;
   onChanged: () => void;
 }) {
   const [managing, setManaging] = useState(false);
@@ -67,7 +71,14 @@ export function AgentCard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={statusTone[agent.status]} dot>
+          {/* A status this build does not know is shown as sent, neutrally. */}
+          <Badge
+            tone={
+              isAgentStatus(agent.status) ? statusTone[agent.status] : "muted"
+            }
+            dot={isAgentStatus(agent.status)}
+            className="max-w-full whitespace-normal break-all"
+          >
             {agent.status}
           </Badge>
           {bindingState && <BindingStateBadge state={bindingState} />}
@@ -101,6 +112,7 @@ export function AgentCard({
           reputation={reputation}
           floorBps={floorBps}
           priorBps={priorBps}
+          read={reputationRead}
         />
       </div>
 

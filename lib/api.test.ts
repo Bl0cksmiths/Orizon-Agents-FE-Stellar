@@ -42,6 +42,7 @@ import {
   submitSigned,
   syncAgents,
 } from "./api";
+import { droppedCount } from "./guards";
 import { rememberTaskToken } from "./task-tokens";
 import type { TraceLine } from "./types";
 
@@ -99,7 +100,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Guarded by isAgentList, so the fixture carries every field the agents
+// Screened by screenAgentList, so the fixture carries every field the agents
 // table computes with (price/rep/runs/skills/status).
 const agentFixture = {
   id: "agt_01",
@@ -164,6 +165,30 @@ describe("get (via listAgents)", () => {
       status: 409,
       code: "id_taken",
     });
+  });
+
+  it("keeps the parsed body, for refusals that carry more than the envelope", async () => {
+    const body = {
+      detail: "duplicate_dispute",
+      error: { code: "duplicate_dispute", message: "already disputed" },
+      dispute: { id: "dsp_1" },
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(409, body));
+
+    await expect(listAgents()).rejects.toMatchObject({ status: 409, body });
+  });
+
+  it("leaves the body undefined when the answer was not JSON", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: () => Promise.reject(new SyntaxError("not json")),
+      text: () => Promise.resolve("<html>bad gateway</html>"),
+    });
+
+    const err = await listAgents().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 502, body: undefined });
   });
 
   it("leaves the code undefined when the envelope has none", async () => {
@@ -327,6 +352,19 @@ describe("listReputation", () => {
     );
   });
 
+  it("drops an unusable entry rather than every score, and counts it", async () => {
+    const batch = {
+      reputations: { agt_01h8: repInfo, agt_02: { ...repInfo, count: "3" } },
+      floor_bps: 5500,
+      prior_bps: 7000,
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, batch));
+
+    const screened = await listReputation();
+    expect(Object.keys(screened.reputations)).toEqual(["agt_01h8"]);
+    expect(droppedCount(screened)).toBe(1);
+  });
+
   it("rejects on a non-OK response with method, path and status in the message", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(502, { detail: "horizon down" }),
@@ -409,14 +447,24 @@ describe("getReputationParams", () => {
 });
 
 describe("response guards", () => {
-  it("rejects a malformed agent list as a normal request error", async () => {
+  it("rejects an agent list that is not a list as a normal request error", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, [{ id: "agt_01", name: "copywrite.v3" }]),
+      jsonResponse(200, { detail: "upstream returned HTML" }),
     );
 
     await expect(listAgents()).rejects.toThrow(
       "malformed response from /agents",
     );
+  });
+
+  it("drops an unusable agent rather than the whole list, and counts it", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, [agentFixture, { id: "agt_02", name: "copywrite.v3" }]),
+    );
+
+    const agents = await listAgents();
+    expect(agents).toEqual([agentFixture]);
+    expect(droppedCount(agents)).toBe(1);
   });
 
   it("rejects a flow payload with no edges as a normal request error", async () => {
@@ -446,6 +494,28 @@ describe("response guards", () => {
     await expect(getOverview()).rejects.toThrow(
       "malformed response from /metrics/overview",
     );
+  });
+
+  it("drops an unusable floor notice rather than the plan, and counts it", async () => {
+    const notice = {
+      kind: "delisted",
+      agent_id: "agt_02",
+      reason: "delisted by its operator",
+    };
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        plan_id: "pln_1",
+        intent: "x",
+        steps: [],
+        total_usdc: 0.03,
+        total_eta: 4.5,
+        notices: [notice, { kind: "excluded", agent_id: "agt_03" }],
+      }),
+    );
+
+    const plan = await decompose("x");
+    expect(plan.notices).toEqual([notice]);
+    expect(droppedCount(plan)).toBe(1);
   });
 
   it("rejects a malformed decompose payload as a normal request error", async () => {

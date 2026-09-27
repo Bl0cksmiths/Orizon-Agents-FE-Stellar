@@ -12,6 +12,7 @@
  */
 
 import {
+  memo,
   useEffect,
   useId,
   useRef,
@@ -27,6 +28,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import {
+  DisputeRefusal,
   MAX_DISPUTE_REASON_CHARS,
   agentLabel,
   disputeErrorCode,
@@ -56,10 +58,12 @@ import { disputeStatusLabel } from "./dispute-status-badge";
  *   Done after a dispute was raised (which `onSubmitted` already reported).
  *   Nothing changed that the page does not know about.
  * - `"duplicate_dispute"` — the step already had a dispute: raised from
- *   another tab, or by a submit that raced this one. Not a failure, and there
- *   is no `Dispute` to hand to `onSubmitted` (the 409's body is not kept), so
- *   the dialog closes ITSELF at once with this reason. The page must refetch
- *   the task's disputes; the step then shows the dispute it already has.
+ *   another tab, or by a submit that raced this one. Not a failure, and not
+ *   this dialog's dispute to hand to `onSubmitted`, so the dialog closes
+ *   ITSELF at once with this reason — and with the original dispute the 409
+ *   carried, when it carried one this build can read. The page shows that
+ *   dispute on the step at once (D-057) and refetches; a re-read that fails
+ *   must not leave the step offering a second one.
  * - `"stale"` — the buyer closed it after a refusal that proves the page's
  *   picture of this step is out of date: the window has closed, or the step
  *   was never settled or never charged. The page should refetch.
@@ -79,7 +83,11 @@ export type DisputeDialogProps = {
    * on any reason but `"dismissed"` (see DisputeDialogCloseReason). A handler
    * that takes no argument still type-checks — it just cannot refetch.
    */
-  onClose: (reason: DisputeDialogCloseReason) => void;
+  onClose: (
+    reason: DisputeDialogCloseReason,
+    /** On `"duplicate_dispute"`, the step's original dispute, if known. */
+    existing?: Dispute | null,
+  ) => void;
   /** Called once, with the stored dispute, when the backend accepts it. */
   onSubmitted: (dispute: Dispute) => void;
   /**
@@ -89,6 +97,21 @@ export type DisputeDialogProps = {
    * before the buyer presses Done. Without it focus lands on `document.body`.
    */
   returnFocusRef?: RefObject<HTMLElement>;
+  /**
+   * Whether the dispute window is still open, as the page's panel judges it
+   * on the server-corrected clock. A dialog left open across the close must
+   * not go on offering a signature the server will refuse (D-060): once this
+   * is false the form says the window has closed, offers only a way out, and
+   * never asks the wallet for anything.
+   */
+  windowOpen: boolean;
+  /** The server's clock minus this browser's, for `raiseDispute`. */
+  offsetMs: number;
+  /**
+   * When the window closes, in epoch ms on the server's clock — exact, where
+   * the settlement's `window_closes_at` may have been rounded to seconds.
+   */
+  windowClosesAtMs: number;
 };
 
 /**
@@ -259,8 +282,8 @@ function walletFailure(err: unknown): Failure | null {
  * A refusal in the buyer's words, keyed on the machine-readable code and
  * never on the backend's own sentence, which may be reworded at any time.
  * Anything without a code this form knows — a dropped connection, a second
- * expired challenge, a malformed signature — is the generic, retryable
- * failure: the reason stays and the same button tries again.
+ * expired challenge — is the generic, retryable failure: the reason stays
+ * and the same button tries again.
  */
 function refusalFailure(err: unknown, payer: string): Failure {
   switch (disputeErrorCode(err)) {
@@ -271,10 +294,7 @@ function refusalFailure(err: unknown, payer: string): Failure {
         false,
       );
     case "dispute_window_closed":
-      return closeOnly(
-        "The dispute window for this workflow has closed, so this step can no longer be disputed.",
-        true,
-      );
+      return closeOnly(WINDOW_CLOSED, true);
     case "step_not_settled":
       return closeOnly(
         "This step was never settled, so there is nothing to dispute on it.",
@@ -285,19 +305,48 @@ function refusalFailure(err: unknown, payer: string): Failure {
         "Nothing was charged for this step, so there is nothing to dispute on it.",
         true,
       );
+    // The platform has no settlement under this job: the receipt on the page
+    // is the thing that is wrong, and signing again would ask the same
+    // question of the same missing record.
+    case "unknown_job":
+      return closeOnly(
+        "The platform has no record of this settlement, so this step can't be disputed from here. Nothing was sent.",
+        true,
+      );
+    // The wallet's signature could not be read. Another press costs another
+    // signature from the same wallet, which would come back the same way —
+    // so the form offers a way out, not a second prompt.
+    case "signature_malformed":
+      return closeOnly(
+        "Your wallet returned a signature the platform couldn't read, so nothing was sent. Signing again with it would fail the same way — check that the wallet is up to date, then raise the dispute again.",
+        false,
+      );
     case "rate_limited":
       return retryable(
         rateLimitMessage(err) ??
           "Too many requests — wait a moment and try again. Nothing was lost.",
       );
-    case "reason_required":
+    // The reason itself was refused — blank, too long, or refused by the
+    // platform's own bounds (D-061). A field failure, not a generic one: it
+    // is marked on the field, described by the platform's own sentence, and
+    // focus goes to the words that have to change, not to a retry that would
+    // send them unchanged.
+    case "reason_invalid":
       return {
         message:
-          "Say what went wrong with this step, in words, before submitting.",
+          err instanceof DisputeRefusal
+            ? err.message
+            : "The platform couldn't accept this reason. Say what went wrong with this step, in words, in at most 500 characters.",
         next: "retry",
         field: true,
         stale: false,
       };
+    // A second challenge died before it could be signed. The refusal says
+    // so in its own words; anything that is not one of those is generic.
+    case "challenge_expired":
+      return err instanceof DisputeRefusal
+        ? retryable(err.message)
+        : GENERIC_FAILURE;
     default:
       return GENERIC_FAILURE;
   }
@@ -341,13 +390,22 @@ function DisputeRaised({
             is present but empty passed the nullish check and printed "Step 2
             () is now under review." — an empty parenthesis in the record of a
             consequential action. */}
-        Step {stepNumber(step)} ({agentLabel(step)}) is now under review. If the
-        platform upholds your dispute,{" "}
-        <span className="font-mono text-cyan">
-          {formatUsdc(dispute.creditable_usdc)}
-        </span>{" "}
-        is credited to the wallet that paid. This receipt shows the outcome once
-        it is decided.
+        {/* "Up to": the figure is a ceiling, bounded by what the settlement
+            actually moved, never a promise of that exact sum (D-071) — the
+            receipt below says it the same way. */}
+        Step {stepNumber(step)} ({agentLabel(step)}) is now under review.{" "}
+        {dispute.creditable_usdc > 0 ? (
+          <>
+            If the platform upholds your dispute, up to{" "}
+            <span className="font-mono text-cyan">
+              {formatUsdc(dispute.creditable_usdc)}
+            </span>{" "}
+            is credited to the wallet that paid.
+          </>
+        ) : (
+          "Under the current terms an upheld dispute credits nothing back."
+        )}{" "}
+        This receipt shows the outcome once it is decided.
       </p>
       <dl className="space-y-2 font-mono text-sm">
         <KVRow k="Status">
@@ -360,7 +418,7 @@ function DisputeRaised({
         <KVRow k="Charged" value={formatUsdc(dispute.charged_usdc)} />
         <KVRow
           k="Credited if upheld"
-          value={formatUsdc(dispute.creditable_usdc)}
+          value={upTo(dispute.creditable_usdc)}
           valueClassName="text-cyan"
         />
       </dl>
@@ -373,6 +431,15 @@ function DisputeRaised({
 
 /** Steps count from 0 on the wire, as the backend enumerates the plan. */
 const stepNumber = (step: SettlementStepView) => step.step_index + 1;
+
+/**
+ * An upheld dispute's credit, as the ceiling it is (D-071). The backend
+ * bounds it by what the settlement actually moved, so the figure is the most
+ * that can be credited, never a sum the buyer is owed to the unit — and the
+ * receipt already prints it as "Up to".
+ */
+const upTo = (usdc: number) =>
+  usdc > 0 ? `Up to ${formatUsdc(usdc)}` : "Nothing, under the current terms";
 
 /** GABC…WXYZ — enough of a G-address to recognise the wallet by. */
 const shortAddress = (address: string) =>
@@ -423,15 +490,27 @@ function creditTerms(policy: CreditPolicy): string[] {
  * One draft per step. The page may hand back `null` between opens, so the key
  * only moves when a DIFFERENT step arrives: closing by accident and reopening
  * the same step finds the reason still there, while a new step starts clean.
+ *
+ * Memoized: the section that mounts it re-renders on every tick of the
+ * window's countdown — once a second in the final hour — and every prop it
+ * passes here is state, a ref, a memoized callback or a number that only moves
+ * with a read, so a tick has nothing to tell the form. It re-rendered with each
+ * one all the same, the whole form included, while the buyer typed.
  */
-export function DisputeDialog(props: DisputeDialogProps) {
+export const DisputeDialog = memo(function DisputeDialog(
+  props: DisputeDialogProps,
+) {
   const { step, settlement } = props;
   const targetKey =
     step && settlement ? `${settlement.job_id_hex}:${step.step_index}` : null;
   const [draftKey, setDraftKey] = useState(targetKey);
   if (targetKey !== null && targetKey !== draftKey) setDraftKey(targetKey);
   return <DisputeForm key={draftKey ?? "none"} {...props} />;
-}
+});
+
+/** What the form says once the window has closed under it. */
+const WINDOW_CLOSED =
+  "The dispute window for this workflow has closed, so this step can no longer be disputed.";
 
 function DisputeForm({
   open,
@@ -440,6 +519,9 @@ function DisputeForm({
   onClose,
   onSubmitted,
   returnFocusRef,
+  windowOpen,
+  offsetMs,
+  windowClosesAtMs,
 }: DisputeDialogProps) {
   const wallet = useWallet();
   const shown = open && step !== null && settlement !== null;
@@ -461,6 +543,8 @@ function DisputeForm({
     reason: `${uid}-reason`,
     reasonHint: `${uid}-reason-hint`,
     reasonCount: `${uid}-reason-count`,
+    error: `${uid}-error`,
+    signing: `${uid}-signing`,
   };
   // Counted exactly as `maxLength` counts (UTF-16 units), so the counter and
   // the field's own limit can never disagree about what fits.
@@ -472,7 +556,31 @@ function DisputeForm({
     state.kind === "done" ||
     (state.kind === "error" && state.failure.next === "close");
   const canSubmit =
-    reason.trim().length > 0 && !busy && !finished && wallet.address !== null;
+    reason.trim().length > 0 &&
+    !busy &&
+    !finished &&
+    windowOpen &&
+    wallet.address !== null;
+  // Read by the signing wrapper at the moment it would prompt, not at the
+  // press: the window can close while the challenge is being fetched.
+  const windowOpenRef = useRef(windowOpen);
+  windowOpenRef.current = windowOpen;
+
+  // The window closing under a form that is waiting on the buyer — fresh,
+  // or showing a failure it offers to retry — is an answer, not a disabled
+  // button with no reason given: it says so, and offers only the way back to
+  // a receipt that now needs reading again. A sequence already running is
+  // left to finish — the wrapper below refuses its signature itself — and a
+  // raised dispute stays raised.
+  useEffect(() => {
+    if (windowOpen) return;
+    setState((current) =>
+      current.kind === "idle" ||
+      (current.kind === "error" && current.failure.next === "retry")
+        ? { kind: "error", failure: closeOnly(WINDOW_CLOSED, true) }
+        : current,
+    );
+  }, [windowOpen]);
 
   // The submit button is disabled while the sequence runs, and browsers drop
   // focus from a control the moment it is disabled — a keyboard user would be
@@ -522,6 +630,16 @@ function DisputeForm({
     // form can follow the sequence it runs: the prompt opening, the signature
     // coming back, and a second prompt if the first challenge expired.
     const signMessage = async (message: string): Promise<string> => {
+      // Never a prompt for a window the page has watched close: the server
+      // would refuse the signature, and the buyer would have signed for
+      // nothing (D-060). Refused as the server would refuse it, so it lands
+      // on the same screen.
+      if (!windowOpenRef.current) {
+        throw new DisputeRefusal(
+          "dispute_window_closed",
+          "The dispute window for this workflow has closed.",
+        );
+      }
       attempt.signatures += 1;
       setState({
         kind: "signing",
@@ -545,6 +663,9 @@ function DisputeForm({
         reason,
         payer,
         signMessage,
+        // Judged on the server's clock, as the server will judge it.
+        offsetMs,
+        windowClosesAtMs,
       });
       setState({ kind: "done", dispute });
       onSubmitted(dispute);
@@ -558,9 +679,12 @@ function DisputeForm({
         );
       } else if (disputeErrorCode(err) === "duplicate_dispute") {
         // The step already has its dispute: an answer, not an error. The
-        // page refetches on this reason and shows the dispute on the receipt.
+        // page shows the one the 409 carried at once, and refetches.
         setState(IDLE);
-        onClose("duplicate_dispute");
+        onClose(
+          "duplicate_dispute",
+          err instanceof DisputeRefusal ? err.dispute : null,
+        );
       } else {
         setState({
           kind: "error",
@@ -607,10 +731,13 @@ function DisputeForm({
   }
 
   const status = statusLine(state, wallet.walletName);
+  const reasonRefused = state.kind === "error" && state.failure.field;
 
   const footer = (
     <div className="space-y-3">
-      {state.kind === "error" && <ErrorNote>{state.failure.message}</ErrorNote>}
+      {state.kind === "error" && (
+        <ErrorNote id={ids.error}>{state.failure.message}</ErrorNote>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Always mounted, so a screen reader is already listening when the
             text changes; out of the layout while it has nothing to say. */}
@@ -666,6 +793,9 @@ function DisputeForm({
                 ref={primaryRef}
                 type="submit"
                 form={ids.form}
+                // What pressing it costs — nothing, and no transaction — is
+                // read with the button, not only in the body above it.
+                aria-describedby={ids.signing}
                 disabled={!canSubmit && !busy}
                 aria-disabled={busy || undefined}
                 className="flex-1 aria-disabled:opacity-50 sm:flex-none"
@@ -752,7 +882,7 @@ function DisputeForm({
                 />
                 <KVRow
                   k="Credited if upheld"
-                  value={formatUsdc(step.creditable_usdc)}
+                  value={upTo(step.creditable_usdc)}
                   valueClassName="text-cyan"
                 />
               </dl>
@@ -793,15 +923,24 @@ function DisputeForm({
                 // Read-only rather than disabled while signing, so focus and
                 // the text stay put and the words remain selectable.
                 readOnly={busy || finished}
-                aria-invalid={state.kind === "error" && state.failure.field}
+                aria-invalid={reasonRefused}
                 maxLength={MAX_DISPUTE_REASON_CHARS}
                 required
                 rows={4}
-                aria-describedby={`${ids.reasonHint} ${ids.reasonCount}`}
+                // A refused reason is described by the refusal, so the words
+                // that must change are read with why.
+                aria-describedby={
+                  reasonRefused
+                    ? `${ids.reasonHint} ${ids.error} ${ids.reasonCount}`
+                    : `${ids.reasonHint} ${ids.reasonCount}`
+                }
                 placeholder="e.g. the calculator it built does not compute anything"
+                // Full muted, not muted/70: at 70% the placeholder measured
+                // 4.33:1 on the field, under the 4.5:1 that WCAG 1.4.3 asks
+                // of it. Typed text is `text`, so the two still differ.
                 className={cn(
                   inputCls,
-                  "min-h-[6.5rem] resize-y font-sans leading-relaxed placeholder:text-muted/70 read-only:opacity-70",
+                  "min-h-[6.5rem] resize-y font-sans leading-relaxed placeholder:text-muted read-only:opacity-70",
                 )}
               />
               <p
@@ -827,7 +966,7 @@ function DisputeForm({
             </section>
 
             <div className="space-y-2 border border-cyan/30 bg-cyan/5 px-3 py-2.5 text-xs leading-relaxed text-text">
-              <p>
+              <p id={ids.signing}>
                 Submitting asks the wallet that paid,{" "}
                 <span className="font-mono text-cyan" title={settlement.payer}>
                   {shortAddress(settlement.payer)}

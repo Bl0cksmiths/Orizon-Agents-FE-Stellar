@@ -20,7 +20,7 @@ import { useFetch } from "@/lib/use-fetch";
 import {
   DegradedBanner,
   hasUnverifiedReputation,
-  UNVERIFIED_BANNER_ID,
+  UNVERIFIED_SUMMARY_ID,
 } from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
@@ -34,6 +34,8 @@ import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
+import { isPlanExpired } from "./plan-errors";
+import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -45,6 +47,14 @@ const STEP_LABEL: Record<Exclude<ExecStep, "">, string> = {
   broadcast: "◉ Broadcasting…",
   execute: "◉ Launching…",
 };
+
+/** The smallest cap an authorization is signed for. A plan priced at zero
+ *  still needs a positive cap to authorize against. */
+const MIN_CAP = 0.001;
+
+/** What the pay panel says in place of a cap when there is nothing to pay. */
+const EMPTY_PLAN =
+  "This plan has no steps, so there is nothing to authorize or run.";
 
 /** Normalize the 16-byte auth_id a tx returns (hex, base64, or byte list). */
 function bytesToHex(v: unknown): string | null {
@@ -93,6 +103,10 @@ export function ExecutionPlan({
     null,
   );
   const [authorizeHash, setAuthorizeHash] = useState<string | null>(null);
+  // Set when the backend refused to run this plan because it had expired.
+  // The plan cannot run again, so the controls that run it stay disabled and
+  // the notice offers a fresh plan instead.
+  const [expired, setExpired] = useState<ExpiredRun | null>(null);
 
   // What every amount on this card is actually denominated in. `total_usdc`
   // is a legacy field name, not a currency: the cap the buyer signs is that
@@ -108,10 +122,25 @@ export function ExecutionPlan({
   const priced = (value: number) =>
     unit ? `${value.toFixed(3)} ${unit}` : value.toFixed(3);
 
+  // The cap the buyer signs, computed ONCE and used for both the sentence
+  // they read and the authorization they sign. They used to be computed
+  // apart, so a zero-priced plan read "authorizing up to 0.000" while 0.001
+  // was signed — a cap on the page that was not the cap in the wallet.
+  const cap = plan.total_usdc > 0 ? plan.total_usdc : MIN_CAP;
+  // A plan with no steps has nothing to pay for. The guard accepts one, so
+  // the card has to refuse to take money for it.
+  const empty = plan.steps.length === 0;
+
   /** Simulated path — no wallet required. */
   const simulate = useAsyncAction(async () => {
-    const { task_id } = await execute(plan.plan_id);
-    router.push(`/app/trace?task=${task_id}`);
+    try {
+      const { task_id } = await execute(plan.plan_id);
+      router.push(`/app/trace?task=${task_id}`);
+    } catch (e) {
+      // Not an error to print: the notice below says it in plain words.
+      if (isPlanExpired(e)) setExpired("simulate");
+      else throw e;
+    }
   });
 
   /** Real on-chain path: wallet signs authorize, backend charges + seals. */
@@ -124,7 +153,7 @@ export function ExecutionPlan({
       const { xdr } = await buildAuthorize({
         payer,
         agent_id: "orizon_batch",
-        max_amount_usdc: plan.total_usdc || 0.001,
+        max_amount_usdc: cap,
         ttl_seconds: 600,
       });
 
@@ -158,6 +187,15 @@ export function ExecutionPlan({
       });
       router.push(`/app/trace?task=${task_id}`);
     } catch (e) {
+      // Refused at `execute`, AFTER the authorization was confirmed on-chain.
+      // Not a payment failure, and the failure card would say it was one: the
+      // confirmed transaction stays shown as confirmed, and the notice says
+      // the plan was too old to run and that nothing was charged.
+      if (isPlanExpired(e)) {
+        setExpired("authorize");
+        setStep("");
+        return;
+      }
       const friendly = classifyError(e);
       setFriendlyError(friendly);
       setTxState("failed");
@@ -177,33 +215,44 @@ export function ExecutionPlan({
   const authorizeDescribedBy =
     [
       isPlannerFallback(plan) && PLANNER_FALLBACK_NOTICE_ID,
-      hasUnverifiedReputation(plan) && UNVERIFIED_BANNER_ID,
+      // The banner's one-sentence summary, not the banner: four paragraphs
+      // read out as a button's description bury the decision under them.
+      hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
     ]
       .filter(Boolean)
       .join(" ") || undefined;
 
   const executing = simulate.pending || authorize.pending;
+  // The controls that run the plan. An expired plan cannot run again, and a
+  // second signature against it would only draw the same refusal.
+  const cannotRun = executing || expired !== null || empty;
   // Authorize failures render in the TxStatus FailedCard (via friendlyError);
   // only the simulate path reports through the alert below.
   const error = simulate.error;
 
   const onSimulate = () => {
+    if (cannotRun) return;
     authorize.reset();
     void simulate.run();
   };
 
   const onAuthorize = () => {
-    if (!wallet.connected || !wallet.address) return;
+    if (cannotRun || !wallet.connected || !wallet.address) return;
     simulate.reset();
     void authorize.run(wallet.address);
   };
 
+  // Every control on the pay panel starts a payment, or a run of the plan,
+  // so each one carries the notices as its description — not only Authorize.
+  // A buyer with no wallet connected used to reach Connect Wallet, Pay with
+  // Fiat and simulate with none of them describing anything.
   const fiatToggle = (
     <Button
       variant="primary"
       onClick={() => setShowFiat((v) => !v)}
-      disabled={executing}
+      disabled={executing || empty}
       size="md"
+      aria-describedby={authorizeDescribedBy}
     >
       {showFiat ? "▾ Hide Fiat" : "Pay with Fiat ▸"}
     </Button>
@@ -266,7 +315,13 @@ export function ExecutionPlan({
                 {String(i + 1).padStart(2, "0")}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="violet">{s.agent_name ?? s.agent_id}</Badge>
+                {/* max-w-full + break-all, as the exclusions panel's names:
+                    an agent name may be one unbroken token of up to 100
+                    characters, and at 360px it was clipped silently by the
+                    card rather than wrapped. */}
+                <Badge tone="violet" className="max-w-full break-all">
+                  {s.agent_name ?? s.agent_id}
+                </Badge>
                 {/* The floor goes in ONLY beside the step's own lower bound.
 
                     ReputationBadge decides below-floor with
@@ -305,9 +360,13 @@ export function ExecutionPlan({
                 )}
                 {s.substituted_for && (
                   <span
+                    className="max-w-full"
                     title={`Routed in place of ${s.substituted_for}, which scored below the routing floor.`}
                   >
-                    <Badge tone="cyan">⇄ for {s.substituted_for}</Badge>
+                    {/* The replaced agent's name is as long as any other. */}
+                    <Badge tone="cyan" className="max-w-full break-all">
+                      ⇄ for {s.substituted_for}
+                    </Badge>
                   </span>
                 )}
                 {s.degraded && (
@@ -365,11 +424,15 @@ export function ExecutionPlan({
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan mb-1">
                   ▸ ready to authorize on-chain
                 </div>
-                <div className="text-sm">
-                  Freighter will prompt for{" "}
-                  <b className="text-text">one signature</b> authorizing up to{" "}
-                  <b className="text-text">{priced(plan.total_usdc)}</b>.
-                </div>
+                {empty ? (
+                  <div className="text-sm">{EMPTY_PLAN}</div>
+                ) : (
+                  <div className="text-sm">
+                    Freighter will prompt for{" "}
+                    <b className="text-text">one signature</b> authorizing up to{" "}
+                    <b className="text-text">{priced(cap)}</b>.
+                  </div>
+                )}
               </div>
               {/* flex-wrap: three buttons are wider than a 390px card, and the
                   card's clip-path cuts off whatever overflows it — at phone
@@ -378,8 +441,9 @@ export function ExecutionPlan({
                 <Button
                   variant="outline"
                   onClick={onSimulate}
-                  disabled={executing}
+                  disabled={cannotRun}
                   size="md"
+                  aria-describedby={authorizeDescribedBy}
                 >
                   simulate
                 </Button>
@@ -387,7 +451,7 @@ export function ExecutionPlan({
                 <Button
                   variant="cyan"
                   onClick={onAuthorize}
-                  disabled={executing}
+                  disabled={cannotRun}
                   size="md"
                   // Tab goes from the exclusions panel straight here, past the
                   // polite notices above, so the button carries them as its
@@ -409,18 +473,20 @@ export function ExecutionPlan({
                   ▸ wallet required
                 </div>
                 <div className="text-sm">
-                  Connect Freighter ({NETWORK_LABEL}) to pay with x402 on-chain,
-                  or run a simulated pass.
+                  {empty
+                    ? EMPTY_PLAN
+                    : `Connect Freighter (${NETWORK_LABEL}) to pay with x402 on-chain, or run a simulated pass.`}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
-                <ConnectWallet size="md" />
+                <ConnectWallet size="md" describedBy={authorizeDescribedBy} />
                 {fiatToggle}
                 <Button
                   variant="outline"
                   onClick={onSimulate}
-                  disabled={executing}
+                  disabled={cannotRun}
                   size="md"
+                  aria-describedby={authorizeDescribedBy}
                 >
                   simulate ▸
                 </Button>
@@ -428,6 +494,14 @@ export function ExecutionPlan({
             </div>
           )}
         </m.div>
+
+        {expired && (
+          <PlanExpiredNotice
+            run={expired}
+            onReplan={onReplan}
+            busy={executing}
+          />
+        )}
 
         {error && (
           <div
@@ -441,7 +515,7 @@ export function ExecutionPlan({
         {showFiat && (
           <div className="mt-4">
             <FiatFund
-              usdcAmount={plan.total_usdc}
+              usdcAmount={cap}
               stellarAddress={wallet.address ?? undefined}
               asset={network?.asset}
             />
