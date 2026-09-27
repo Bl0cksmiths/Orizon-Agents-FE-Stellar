@@ -18,6 +18,20 @@ SyntaxHighlighter.registerLanguage("tsx", tsx);
 SyntaxHighlighter.registerLanguage("css", css);
 SyntaxHighlighter.registerLanguage("python", python);
 
+/**
+ * oneDark, with its grey raised to the console's muted text. That grey
+ * (#5c6370) is both the comment colour and — through the `comment` class the
+ * highlighter puts on every line number — the gutter's, and it measured
+ * 3.42:1 on this panel, under WCAG 1.4.3's 4.5:1.
+ */
+const MUTED = "#A79FC7";
+const theme = {
+  ...oneDark,
+  comment: { ...oneDark.comment, color: MUTED },
+  prolog: { ...oneDark.prolog, color: MUTED },
+  cdata: { ...oneDark.cdata, color: MUTED },
+};
+
 const LANG_MAP: Record<string, string> = {
   html: "markup",
   js: "javascript",
@@ -45,7 +59,7 @@ export function CodeViewer({
     >
       <SyntaxHighlighter
         language={lang}
-        style={oneDark}
+        style={theme}
         customStyle={{
           margin: 0,
           padding: "1rem 1.25rem",
@@ -53,11 +67,16 @@ export function CodeViewer({
           fontSize: 12.5,
           lineHeight: 1.55,
         }}
+        // oneDark paints its own #282c34 behind the <code>, on which its red
+        // tokens measure 4.38:1 — under WCAG 1.4.3's 4.5:1. The panel's own
+        // near-black shows through instead, as `customStyle` meant it to.
+        codeTagProps={{ style: { background: "transparent" } }}
         wrapLongLines
         showLineNumbers
+        // Full strength, not 40% opacity, which measured 1.42:1: a line
+        // number is read to find a line, and is held to the code's 4.5:1.
         lineNumberStyle={{
           minWidth: "2.2em",
-          opacity: 0.4,
           userSelect: "none",
         }}
       >
