@@ -469,6 +469,19 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
     expect(txHrefs()).toHaveLength(1);
   });
 
+  // D-069: once the panel stops reading for an owed rating, neither line may
+  // go on reading as live — "yet" there promised an update nothing will make.
+  it("says it stopped checking for a rating that never landed", () => {
+    renderReceipt(receipt("credited", { rating: NONE, ratingStalled: true }));
+    expect(text()).toContain(
+      `Done: you received ${formatUsdc(0.027)}; the dispute rating it costs ${AGENT} is still not recorded, and this page has stopped checking for it — reload to check again.`,
+    );
+    expect(text()).not.toContain("is not confirmed yet");
+    expect(artifactRow(/^Dispute rating/).textContent).toBe(
+      `Dispute rating against ${AGENT} — not recorded on-chain when this page last checked.`,
+    );
+  });
+
   it("leaves out an absent rating while the dispute is still moving", () => {
     renderReceipt(receipt("crediting"));
     expect(text()).not.toContain("Dispute rating");

@@ -29,6 +29,8 @@ import {
   COARSE_TICK_MS,
   CREDIT_POLL_MS,
   FINAL_HOUR_TICK_MS,
+  RATING_FAST_WAIT_MS,
+  RATING_WAIT_MS,
   SETTLEMENT_POLL_MS,
   SETTLEMENT_WAIT_MS,
   disputePollMs,
@@ -261,7 +263,11 @@ describe("disputePollMs", () => {
    * settlement — when it has one — arrived with the first read. */
   const pollFor = (
     res: TaskDisputes | null,
-    over: Partial<{ doneAtRequest: boolean; awaitedMs: number }> = {},
+    over: Partial<{
+      doneAtRequest: boolean;
+      awaitedMs: number;
+      ratingAwaitedMs: number;
+    }> = {},
   ) =>
     disputePollMs(
       res === null ? null : { res, doneAtRequest: true, awaitedMs: 0, ...over },
@@ -369,6 +375,59 @@ describe("disputePollMs", () => {
           ],
         }),
       ),
+    ).toBeNull();
+  });
+
+  // D-069: the refund has landed and the backend says, by sending the field
+  // as null, that it has no rating YET. One uphold writes the rating seconds
+  // after the credit, so a poll in that gap must not read it as final.
+  const ratingOwed = (over: Partial<Dispute> = {}) =>
+    answer(H, {
+      disputes: [
+        dsp(0, "credited", {
+          refund_tx: "tx_0",
+          rating_tx: null,
+          rating_confirmed: null,
+          ...over,
+        }),
+      ],
+    });
+
+  it("re-reads a refund that landed before its rating: fast, then slow, then not at all", () => {
+    expect(pollFor(ratingOwed())).toBe(CREDIT_POLL_MS);
+    expect(
+      pollFor(ratingOwed(), { ratingAwaitedMs: RATING_FAST_WAIT_MS - 1 }),
+    ).toBe(CREDIT_POLL_MS);
+    expect(
+      pollFor(ratingOwed(), { ratingAwaitedMs: RATING_FAST_WAIT_MS }),
+    ).toBe(ADJUDICATION_POLL_MS);
+    expect(pollFor(ratingOwed(), { ratingAwaitedMs: RATING_WAIT_MS - 1 })).toBe(
+      ADJUDICATION_POLL_MS,
+    );
+    expect(
+      pollFor(ratingOwed(), { ratingAwaitedMs: RATING_WAIT_MS }),
+    ).toBeNull();
+  });
+
+  it("keeps the rating's bounds inside the backend's own worst case and an operator's re-run", () => {
+    // About a minute is the backend's worst case for one rating (two 15 s
+    // posts and a 30 s confirmation poll); fifteen minutes is an operator
+    // upholding again. Far past either, a receipt must stop reading.
+    expect(RATING_FAST_WAIT_MS).toBe(90 * S);
+    expect(RATING_WAIT_MS).toBe(15 * M);
+  });
+
+  it("does not wait on a rating an older backend cannot report at all", () => {
+    // ABSENT, not null: this backend never says, and it never becomes a yes.
+    const { rating_confirmed: _absent, ...legacy } = dsp(0, "credited", {
+      refund_tx: "tx_0",
+    });
+    expect(pollFor(answer(H, { disputes: [legacy] }))).toBeNull();
+  });
+
+  it("stops once the rating is recorded and confirmed", () => {
+    expect(
+      pollFor(ratingOwed({ rating_tx: "tx_rating", rating_confirmed: true })),
     ).toBeNull();
   });
 
@@ -1208,6 +1267,96 @@ describe("useDisputePanel — live updates", () => {
     const spent = fetchDisputes.mock.calls.length;
     for (let i = 0; i < 3; i += 1) await advance(CREDIT_POLL_MS);
     expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  // D-069, through the hook: the gap between the credit and the rating.
+  const creditedOwingRating = () =>
+    dsp(1, "credited", {
+      refund_tx: "tx_r",
+      rating_tx: null,
+      rating_confirmed: null,
+    });
+
+  it("keeps reading a refund that landed before its rating until the rating appears, then stops", async () => {
+    const { result } = await mountWith(closedWith(creditedOwingRating()));
+    expect(receiptOf(result.current.view)).toMatchObject({
+      refund: { state: "confirmed" },
+      rating: { state: "none" },
+      ratingStalled: false,
+    });
+
+    fetchDisputes.mockResolvedValue(closedWith(creditedOwingRating()));
+    for (let i = 0; i < 3; i += 1) await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(4);
+
+    const rated = nextRead();
+    await advance(CREDIT_POLL_MS);
+    await land(
+      rated,
+      closedWith(
+        dsp(1, "credited", {
+          refund_tx: "tx_r",
+          rating_tx: "tx_rating",
+          rating_confirmed: true,
+        }),
+      ),
+    );
+    expect(receiptOf(result.current.view).rating).toEqual({
+      txHash: "tx_rating",
+      state: "confirmed",
+    });
+
+    const spent = fetchDisputes.mock.calls.length;
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  /** Moves the clock a second at a time, so every answer that lands re-arms
+   * the poll before the next timer is due — as it does in a browser. */
+  async function walk(ms: number) {
+    for (let t = 0; t < ms; t += S) await advance(S);
+  }
+
+  it("backs off, then stops reading for a rating that never lands, and says it stopped", async () => {
+    const { result } = await mountWith(closedWith(creditedOwingRating()));
+    fetchDisputes.mockResolvedValue(closedWith(creditedOwingRating()));
+
+    // The fast wait: every 5 s.
+    await walk(RATING_FAST_WAIT_MS);
+    const fast = fetchDisputes.mock.calls.length;
+    expect(fast).toBe(1 + RATING_FAST_WAIT_MS / CREDIT_POLL_MS);
+
+    // Then every 30 s: a minute holds two reads, not twelve.
+    await walk(M);
+    expect(fetchDisputes.mock.calls.length - fast).toBe(2);
+    expect(receiptOf(result.current.view).ratingStalled).toBe(false);
+
+    // Past the whole wait nothing more is read, and the receipt says so.
+    await walk(RATING_WAIT_MS);
+    const spent = fetchDisputes.mock.calls.length;
+    expect(vi.getTimerCount()).toBe(0);
+    expect(receiptOf(result.current.view).ratingStalled).toBe(true);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("does not let a failing backend hold the rating's wait open for ever", async () => {
+    const { result } = await mountWith(closedWith(creditedOwingRating()));
+    fetchDisputes.mockRejectedValue(new Error("Failed to fetch"));
+
+    await walk(RATING_WAIT_MS + M);
+    const spent = fetchDisputes.mock.calls.length;
+    expect(receiptOf(result.current.view).ratingStalled).toBe(true);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("never reads again for a credited receipt from a backend that cannot report its rating", async () => {
+    const { rating_confirmed: _absent, ...legacy } = creditedOwingRating();
+    await mountWith(closedWith(legacy));
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a live receipt when one re-read 404s, and goes on polling", async () => {

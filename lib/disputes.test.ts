@@ -1156,6 +1156,25 @@ describe("disputeReceipt", () => {
     return disputeReceipt(dispute(1, over), viewer, policy);
   }
 
+  // D-069: stalled only for a rating still owed, and only once the panel
+  // has said it stopped reading for it.
+  it("calls an owed rating stalled only once the wait is over", () => {
+    const owed = dispute(1, {
+      status: "credited",
+      refund_tx: "tx_r",
+      rating_tx: null,
+      rating_confirmed: null,
+    });
+    expect(disputeReceipt(owed, "payer", policy).ratingStalled).toBe(false);
+    expect(disputeReceipt(owed, "payer", policy, true).ratingStalled).toBe(
+      true,
+    );
+    const rated = { ...owed, rating_tx: "tx_g", rating_confirmed: true };
+    expect(disputeReceipt(rated, "payer", policy, true).ratingStalled).toBe(
+      false,
+    );
+  });
+
   it("states a freshly opened dispute: when, how much it would credit, and nothing moved", () => {
     expect(receipt()).toEqual({
       status: "open",
