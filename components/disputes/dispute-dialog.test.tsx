@@ -946,19 +946,60 @@ describe("DisputeDialog — refusals, in plain words", () => {
     },
   );
 
-  it("sends the buyer back to the reason when it is the reason that was refused", async () => {
-    raiseThen(async () => {
-      throw refused("reason_required", 422);
-    });
+  // D-061: a refused reason used to read as a generic, retryable failure,
+  // with focus on the retry that would send the same words again.
+  it.each([
+    [
+      "the platform's bound",
+      new DisputeRefusal(
+        "reason_invalid",
+        "String should have at most 500 characters.",
+      ),
+      "String should have at most 500 characters.",
+    ],
+    [
+      "the client's own check",
+      new DisputeRefusal(
+        "reason_invalid",
+        "Keep the reason to 500 characters — it is 512 now.",
+      ),
+      "Keep the reason to 500 characters — it is 512 now.",
+    ],
+    [
+      "a bare reason_invalid from the envelope",
+      refused("reason_invalid", 422),
+      "The platform couldn't accept this reason. Say what went wrong with this step, in words, in at most 500 characters.",
+    ],
+  ])(
+    "%s: marks the reason invalid, describes it by the refusal, and sends focus there",
+    async (_label, error, message) => {
+      raiseThen(async () => {
+        throw error;
+      });
+      renderDialog();
+
+      await submitWith();
+
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toBe(message);
+      const box = reasonBox();
+      expect(box.getAttribute("aria-invalid")).toBe("true");
+      expect((box.getAttribute("aria-describedby") ?? "").split(" ")).toContain(
+        alert.id,
+      );
+      expect(alert.id).not.toBe("");
+      expect(document.activeElement).toBe(box);
+      expect(box.readOnly).toBe(false);
+      expect(box.value).toBe(REASON);
+    },
+  );
+
+  it("describes the reason by its hint alone while nothing has refused it", () => {
     renderDialog();
-
-    await submitWith();
-
-    expect(alertText()).toBe(
-      "Say what went wrong with this step, in words, before submitting.",
-    );
-    expect(reasonBox().getAttribute("aria-invalid")).toBe("true");
-    expect(document.activeElement).toBe(reasonBox());
+    expect(reasonBox().getAttribute("aria-invalid")).toBe("false");
+    expect(
+      (reasonBox().getAttribute("aria-describedby") ?? "").split(" "),
+    ).toHaveLength(2);
   });
 
   it("retires the error once the reason is edited", async () => {

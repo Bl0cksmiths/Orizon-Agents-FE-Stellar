@@ -325,10 +325,17 @@ function refusalFailure(err: unknown, payer: string): Failure {
         rateLimitMessage(err) ??
           "Too many requests — wait a moment and try again. Nothing was lost.",
       );
-    case "reason_required":
+    // The reason itself was refused — blank, too long, or refused by the
+    // platform's own bounds (D-061). A field failure, not a generic one: it
+    // is marked on the field, described by the platform's own sentence, and
+    // focus goes to the words that have to change, not to a retry that would
+    // send them unchanged.
+    case "reason_invalid":
       return {
         message:
-          "Say what went wrong with this step, in words, before submitting.",
+          err instanceof DisputeRefusal
+            ? err.message
+            : "The platform couldn't accept this reason. Say what went wrong with this step, in words, in at most 500 characters.",
         next: "retry",
         field: true,
         stale: false,
@@ -521,6 +528,7 @@ function DisputeForm({
     reason: `${uid}-reason`,
     reasonHint: `${uid}-reason-hint`,
     reasonCount: `${uid}-reason-count`,
+    error: `${uid}-error`,
   };
   // Counted exactly as `maxLength` counts (UTF-16 units), so the counter and
   // the field's own limit can never disagree about what fits.
@@ -707,10 +715,13 @@ function DisputeForm({
   }
 
   const status = statusLine(state, wallet.walletName);
+  const reasonRefused = state.kind === "error" && state.failure.field;
 
   const footer = (
     <div className="space-y-3">
-      {state.kind === "error" && <ErrorNote>{state.failure.message}</ErrorNote>}
+      {state.kind === "error" && (
+        <ErrorNote id={ids.error}>{state.failure.message}</ErrorNote>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Always mounted, so a screen reader is already listening when the
             text changes; out of the layout while it has nothing to say. */}
@@ -893,11 +904,17 @@ function DisputeForm({
                 // Read-only rather than disabled while signing, so focus and
                 // the text stay put and the words remain selectable.
                 readOnly={busy || finished}
-                aria-invalid={state.kind === "error" && state.failure.field}
+                aria-invalid={reasonRefused}
                 maxLength={MAX_DISPUTE_REASON_CHARS}
                 required
                 rows={4}
-                aria-describedby={`${ids.reasonHint} ${ids.reasonCount}`}
+                // A refused reason is described by the refusal, so the words
+                // that must change are read with why.
+                aria-describedby={
+                  reasonRefused
+                    ? `${ids.reasonHint} ${ids.error} ${ids.reasonCount}`
+                    : `${ids.reasonHint} ${ids.reasonCount}`
+                }
                 placeholder="e.g. the calculator it built does not compute anything"
                 // Full muted, not muted/70: at 70% the placeholder measured
                 // 4.33:1 on the field, under the 4.5:1 that WCAG 1.4.3 asks

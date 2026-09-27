@@ -30,6 +30,7 @@ import {
   mockDisputeTaskId,
   mockDisputesRouteMissing,
   mockOtherOwnerAddress,
+  mockReasonTooLongMessage,
   mockSettlementSteps,
   mockSettlementView,
   mockSignature,
@@ -738,6 +739,36 @@ test.describe("dispute action on the trace / receipt view", () => {
       `Step ${codeStep.step_index + 1} (${codeStep.agent_id}) already had a dispute, raised earlier — perhaps from another tab — so no second one was raised. It is shown below.`,
     );
     expect(await signatures(page)).toBe(1);
+  });
+
+  // D-061: the platform refusing the reason itself — FastAPI's 422 on the
+  // request's bounds — read as a generic failure with a retry that would send
+  // the same words again.
+  test("a reason the platform refuses is marked on the field, with the platform's words", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      open: "invalid",
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    const reasonBox = form.getByRole("textbox", { name: /your reason/i });
+    await reasonBox.fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    const alert = form.getByRole("alert");
+    await expect(alert).toHaveText(`${mockReasonTooLongMessage}.`);
+    await expect(reasonBox).toHaveAttribute("aria-invalid", "true");
+    await expect(reasonBox).toBeFocused();
+    const describedBy =
+      (await reasonBox.getAttribute("aria-describedby")) ?? "";
+    expect(describedBy.split(" ")).toContain(await alert.getAttribute("id"));
+    await expect(reasonBox).toHaveAccessibleDescription(
+      new RegExp(mockReasonTooLongMessage),
+    );
+    // Editing the words is what clears it.
+    await reasonBox.fill("the calculator app computes nothing");
+    await expect(reasonBox).toHaveAttribute("aria-invalid", "false");
   });
 
   test("a refusal that dates the receipt re-reads it: the server says the window closed", async ({
