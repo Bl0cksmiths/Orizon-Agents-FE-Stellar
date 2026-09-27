@@ -41,14 +41,14 @@ The frontend query returns **234** (221 authored + 13 merges). These are the 717
 
 ## Danielle (Dan) — lead engineer
 
-| Repo                                                                                                        | Authored commits (this week) | Dates              | Merge commits |
-| ----------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------ | ------------- |
-| [Orizon-Agents-BE-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar)                         | 687                          | 21, 22, 25 Sep     | 30            |
-| [Orizon-Agents-FE-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar)                         | 221                          | 21, 22, 25 Sep     | 13            |
-| [Orizon-Agents-UAT-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar)                       | 0                            | —                  | 1             |
-| [Orizon-Agents-Smart-Contract-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar) | 0                            | —                  | 0             |
-| [Orizon-Agents-Example-Agent-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar)   | 0                            | —                  | 0             |
-| **Total**                                                                                                   | **908 authored**             |                    | **44 merges** |
+| Repo                                                                                                        | Authored commits (this week) | Dates          | Merge commits |
+| ----------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------- | ------------- |
+| [Orizon-Agents-BE-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar)                         | 687                          | 21, 22, 25 Sep | 30            |
+| [Orizon-Agents-FE-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar)                         | 221                          | 21, 22, 25 Sep | 13            |
+| [Orizon-Agents-UAT-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar)                       | 0                            | —              | 1             |
+| [Orizon-Agents-Smart-Contract-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar) | 0                            | —              | 0             |
+| [Orizon-Agents-Example-Agent-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar)   | 0                            | —              | 0             |
+| **Total**                                                                                                   | **908 authored**             |                | **44 merges** |
 
 Per day: backend 488 (21st), 90 (22nd), 109 (25th); frontend 115 (21st), 68 (22nd), 38 (25th). Wednesday the 23rd and Thursday the 24th carry no commits on `main` in either repo; the whole 4.07 hardening pass is authored on the 25th (114 backend commits, 40 frontend).
 
@@ -73,9 +73,9 @@ Author identity: `Danielle Bagaforo Meer <algorexph@gmail.com>`, with the web-me
 
 ## Rieselle (Rie) — PM + QA
 
-| Repo                                                                                  | Authored commits (this week)                    | Identity                                                       |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------- |
-| [Orizon-Agents-UAT-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar) | **268** (+ 12 merges of her own test lanes)     | `rie-hash14` (`276933516+rie-hash14@users.noreply.github.com`) |
+| Repo                                                                                  | Authored commits (this week)                | Identity                                                       |
+| ------------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| [Orizon-Agents-UAT-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar) | **268** (+ 12 merges of her own test lanes) | `rie-hash14` (`276933516+rie-hash14@users.noreply.github.com`) |
 
 All 280 of her commits this week (268 authored + 12 merges) are dated 2026-09-24 (55 authored), 2026-09-25 (123) and 2026-09-26 (90), and all sit in [UAT PR #4](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/4/commits) (`uat` → `main`, merged 2026-09-26). Every one of the 268 touches exactly one file; by area, 131 land in `docs/uat/`, 110 in `tools/` and 27 in `tests/`.
 
