@@ -643,6 +643,24 @@ describe("ReceiptPanel — the terms", () => {
     expect(text()).toContain("The platform decides each dispute");
   });
 
+  it("states a policy that credits nothing as nothing, never as 0%", () => {
+    renderPanel(
+      settled(
+        [
+          {
+            step: step(0, { creditable_usdc: 0 }),
+            state: { kind: "disputable" },
+          },
+        ],
+        { policy: { ...POLICY, credited_fraction: 0 } },
+      ),
+    );
+    expect(text()).toContain(
+      "Under the current terms an upheld dispute credits nothing back.",
+    );
+    expect(text()).not.toContain("0%");
+  });
+
   it("leaves the terms out when there is nothing to act on", () => {
     renderPanel(
       settled([

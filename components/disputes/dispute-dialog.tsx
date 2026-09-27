@@ -360,13 +360,19 @@ function DisputeRaised({
         {/* "Up to": the figure is a ceiling, bounded by what the settlement
             actually moved, never a promise of that exact sum (D-071) — the
             receipt below says it the same way. */}
-        Step {stepNumber(step)} ({agentLabel(step)}) is now under review. If the
-        platform upholds your dispute, up to{" "}
-        <span className="font-mono text-cyan">
-          {formatUsdc(dispute.creditable_usdc)}
-        </span>{" "}
-        is credited to the wallet that paid. This receipt shows the outcome once
-        it is decided.
+        Step {stepNumber(step)} ({agentLabel(step)}) is now under review.{" "}
+        {dispute.creditable_usdc > 0 ? (
+          <>
+            If the platform upholds your dispute, up to{" "}
+            <span className="font-mono text-cyan">
+              {formatUsdc(dispute.creditable_usdc)}
+            </span>{" "}
+            is credited to the wallet that paid.
+          </>
+        ) : (
+          "Under the current terms an upheld dispute credits nothing back."
+        )}{" "}
+        This receipt shows the outcome once it is decided.
       </p>
       <dl className="space-y-2 font-mono text-sm">
         <KVRow k="Status">
@@ -399,7 +405,8 @@ const stepNumber = (step: SettlementStepView) => step.step_index + 1;
  * that can be credited, never a sum the buyer is owed to the unit — and the
  * receipt already prints it as "Up to".
  */
-const upTo = (usdc: number) => `Up to ${formatUsdc(usdc)}`;
+const upTo = (usdc: number) =>
+  usdc > 0 ? `Up to ${formatUsdc(usdc)}` : "Nothing, under the current terms";
 
 /** GABC…WXYZ — enough of a G-address to recognise the wallet by. */
 const shortAddress = (address: string) =>

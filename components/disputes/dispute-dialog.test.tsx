@@ -315,9 +315,10 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
     ).toBeTruthy();
   });
 
-  it("says so when the policy credits nothing", () => {
+  it("says so when the policy credits nothing, and never offers 'up to 0'", () => {
     renderDialog({
       settlement: settlementWith({ ...POLICY, credited_fraction: 0 }),
+      step: { ...STEP, creditable_usdc: 0 },
     });
 
     expect(
@@ -325,6 +326,25 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
         "Under the current terms an upheld dispute credits nothing back.",
       ),
     ).toBeTruthy();
+    expect(
+      screen.getByText("Credited if upheld").closest("div")?.textContent,
+    ).toBe("Credited if upheldNothing, under the current terms");
+    expect(dialog().textContent).not.toMatch(/Up to 0|0 USDC/);
+  });
+
+  it("says a raised dispute under a zero-credit policy credits nothing", async () => {
+    raiseThen(async () => ({ ...DISPUTE, creditable_usdc: 0 }));
+    renderDialog({
+      settlement: settlementWith({ ...POLICY, credited_fraction: 0 }),
+      step: { ...STEP, creditable_usdc: 0 },
+    });
+
+    await submitWith();
+
+    expect(screen.getByText(/is now under review/).textContent).toBe(
+      "Step 2 (Code Gen) is now under review. Under the current terms an upheld dispute credits nothing back. This receipt shows the outcome once it is decided.",
+    );
+    expect(dialog().textContent).not.toMatch(/up to 0|Up to 0/);
   });
 
   it("says who pays the credit and who decides, from the policy", () => {

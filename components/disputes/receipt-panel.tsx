@@ -385,8 +385,18 @@ function CreditTerms({ policy }: { policy: CreditPolicy }) {
       <span className="font-mono text-[10px] uppercase tracking-widest text-cyan">
         terms ·{" "}
       </span>
-      An upheld dispute credits {formatCreditShare(policy.credited_fraction)} of
-      that step&apos;s charge back to you, {FUNDED_BY[policy.funded_by]}.{" "}
+      {/* A policy that credits nothing is stated as nothing — the form says
+          it the same way — never as "0%" of a charge, which reads as a
+          figure still owed. */}
+      {policy.credited_fraction > 0 ? (
+        <>
+          An upheld dispute credits{" "}
+          {formatCreditShare(policy.credited_fraction)} of that step&apos;s
+          charge back to you, {FUNDED_BY[policy.funded_by]}.
+        </>
+      ) : (
+        "Under the current terms an upheld dispute credits nothing back."
+      )}{" "}
       {ADJUDICATED_BY[policy.adjudicated_by]}
     </p>
   );
