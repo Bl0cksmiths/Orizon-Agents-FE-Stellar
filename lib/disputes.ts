@@ -419,10 +419,10 @@ export function createDisputeChallenge(
   });
 }
 
-/** A server sentence as the dialog shows it: capitalised, and ended. */
+/** A server sentence as the dialog shows it: capitalised, and ended. Only
+ * ever handed text that is not blank once trimmed. */
 function asSentence(text: string): string {
   const t = text.trim();
-  if (t.length === 0) return t;
   const cased = t[0].toUpperCase() + t.slice(1);
   return /[.!?]$/.test(cased) ? cased : `${cased}.`;
 }

@@ -45,12 +45,21 @@ import {
   useDisputePanel,
 } from "./use-dispute-panel";
 
+// The wallet hands the hook a `signMessage` it must never call: a poll, a
+// refresh, a dropped grant — nothing here may put a prompt in front of the
+// buyer. Every test ends by checking it was not (see `afterEach`).
 const { wallet } = vi.hoisted(() => ({
-  wallet: { address: null as string | null },
+  wallet: {
+    address: null as string | null,
+    signMessage: vi.fn<(message: string) => Promise<string>>(),
+  },
 }));
 
 vi.mock("./wallet", () => ({
-  useWallet: () => ({ address: wallet.address }),
+  useWallet: () => ({
+    address: wallet.address,
+    signMessage: wallet.signMessage,
+  }),
 }));
 
 vi.mock("./disputes", async (importOriginal) => ({
@@ -80,12 +89,15 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(T0);
   wallet.address = PAYER;
+  wallet.signMessage.mockReset();
+  wallet.signMessage.mockImplementation(async (m) => `sig(${m})`);
   fetchDisputes.mockReset();
 });
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  expect(wallet.signMessage).not.toHaveBeenCalled();
   // A read grant one test keeps must not ride on the next test's reads, and
   // nor may the server clock one test measured.
   window.sessionStorage.clear();
@@ -2064,6 +2076,22 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(spent + 2);
   });
 
+  it("resumes the wait for a sealed run's settlement on return, on its own cadence", async () => {
+    const { result } = await mountWith(answer(H, { settlement: null }));
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    setVisibility("hidden");
+    await advance(10 * S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    // Overdue by the time it is back: read at once, and the receipt with it.
+    fetchDisputes.mockResolvedValueOnce(answer(H));
+    setVisibility("visible");
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.view.kind).toBe("settled");
+  });
+
   it("stops the countdown in a hidden tab and catches it up on return", async () => {
     // The poll paused here and the tick did not: a backgrounded receipt woke
     // the page once a second, all night, to repaint a countdown nobody could
@@ -2394,5 +2422,151 @@ describe("useDisputePanel — the contract the dialog reads", () => {
     act(() => result.current.adopt(dsp(1, "open")));
     expect(result.current.view).toEqual({ kind: "hidden" });
     expect(fetchDisputes).not.toHaveBeenCalled();
+  });
+});
+
+describe("useDisputePanel — what it must never do, and whose answer wins", () => {
+  const E503 = () => new ApiError("GET /tasks/task_a/disputes → 503", 503);
+  const crediting = () =>
+    closedWith(dsp(1, "crediting", { refund_tx: "tx_r" }));
+
+  it("polls, presents a grant, and drops it when dishonoured, without once asking the wallet to sign", async () => {
+    rememberReadGrant("task_a", PAYER, {
+      grant: "grant-token",
+      expires_at: (T0 + H) / 1_000,
+    });
+    const withheld = () =>
+      closedWith(
+        dsp(1, "crediting", {
+          refund_tx: "tx_r",
+          reason: "",
+          reason_withheld: true,
+        }),
+      );
+    await mountWith(withheld());
+    fetchDisputes.mockResolvedValue(withheld());
+
+    for (let i = 0; i < 5; i += 1) await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(6);
+    expect(fetchDisputes.mock.calls[0]).toEqual(["task_a", "grant-token"]);
+    expect(heldReadGrant("task_a", PAYER)).toBeNull();
+    // Named here as well as after every test: this is the test about it.
+    expect(wallet.signMessage).not.toHaveBeenCalled();
+  });
+
+  it("lets the newer of two reads of one task win when they land out of order", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    const older = nextRead();
+    const newer = nextRead();
+    let first: Promise<void> = Promise.resolve();
+    let second: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current.refresh();
+    });
+    act(() => {
+      second = result.current.refresh();
+    });
+
+    await land(newer, closedWith(dsp(1, "credited", { refund_tx: "tx_r" })));
+    await land(older, closedWith(dsp(1, "open")));
+    await act(async () => {
+      await first;
+      await second;
+    });
+    expect(receiptOf(result.current.view).status).toBe("credited");
+  });
+
+  it("keeps the error that dates the view on screen while the next read is out", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    fetchDisputes.mockRejectedValueOnce(E503());
+    await advance(ADJUDICATION_POLL_MS);
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
+
+    nextRead();
+    act(() => {
+      void result.current.refresh();
+    });
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("does not let an older read landing late clear the flag the newer one holds", async () => {
+    const { result } = await mountWith(crediting());
+    const older = nextRead();
+    const newer = nextRead();
+    act(() => {
+      void result.current.refresh();
+    });
+    act(() => {
+      void result.current.refresh();
+    });
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+
+    await land(older, crediting());
+    // The newer read is still out: a poll falling due now must be skipped.
+    fetchDisputes.mockResolvedValue(crediting());
+    await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+
+    await land(newer, crediting());
+    await advance(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not carry a seal recorded against one task's read into the next task's answer", async () => {
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount({ workflowDone: false });
+    // The seal lands while task A's read is out, and is recorded against it.
+    rerender({ ...DEFAULTS, workflowDone: true });
+
+    const b = nextRead();
+    rerender({ taskId: "task_b", workflowDone: false, demo: false });
+    await land(b, { ...answer(H, { settlement: null }), task_id: "task_b" });
+    expect(result.current.view).toEqual({ kind: "not_settled", running: true });
+
+    // Task B is still running, so nothing asks for its settlement yet.
+    fetchDisputes.mockResolvedValue({
+      ...answer(H, { settlement: null }),
+      task_id: "task_b",
+    });
+    for (let i = 0; i < 3; i += 1) await advance(SETTLEMENT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops an answer that lands while the page has no task, and loads afresh when it returns", async () => {
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount();
+    rerender({ ...DEFAULTS, demo: true });
+    await land(first, answer(H, { disputes: [dsp(1, "open")] }));
+    expect(result.current.view).toEqual({ kind: "hidden" });
+
+    const again = nextRead();
+    rerender(DEFAULTS);
+    expect(result.current.loading).toBe(true);
+    expect(result.current.view).toEqual({ kind: "hidden" });
+
+    await land(again, answer(H));
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+  });
+
+  it("shows only the task it was asked for when the task changes mid-read", async () => {
+    const a = nextRead();
+    const { result, rerender } = mount();
+    const b = nextRead();
+    rerender({ ...DEFAULTS, taskId: "task_b" });
+
+    await land(a, answer(H, { disputes: [dsp(1, "open")] }));
+    expect(result.current.loading).toBe(true);
+
+    await land(b, {
+      ...answer(H, { job: JOB_B }),
+      task_id: "task_b",
+    });
+    expect(settledOf(result.current.view).jobIdHex).toBe(JOB_B);
   });
 });
