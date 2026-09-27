@@ -7,6 +7,17 @@ import { decompose } from "@/lib/api";
 import { focusRing } from "@/lib/ui";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { ExecutionPlan } from "./_components/execution-plan";
+import { decomposeErrorCopy } from "./_components/plan-errors";
+
+/** Decompose, with its known failures turned into buyer copy before they
+ *  reach the alert. */
+async function decomposeForBuyer(intent: string) {
+  try {
+    return await decompose(intent);
+  } catch (e) {
+    throw new Error(decomposeErrorCopy(e));
+  }
+}
 
 const PRESETS = [
   "tetris game in html",
@@ -19,7 +30,7 @@ export default function OrchestratorPage() {
   const [intent, setIntent] = useState("");
   // Decompose is the page's only async flow; the execute flows (simulate /
   // authorize / fiat) live in ExecutionPlan, which is fed `plan.data`.
-  const plan = useAsyncAction(decompose);
+  const plan = useAsyncAction(decomposeForBuyer);
   // The intent behind the plan on screen, for the planner-fallback retry.
   // Kept from the submit rather than read back off `plan.data.intent`: the
   // backend does echo it, but no guard checks that it does, and a retry has
@@ -98,7 +109,7 @@ export default function OrchestratorPage() {
           {plan.error && (
             <div
               role="alert"
-              className="mt-4 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 font-mono text-xs text-magenta"
+              className="mt-4 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 text-sm leading-relaxed text-magenta"
             >
               {plan.error}
             </div>
