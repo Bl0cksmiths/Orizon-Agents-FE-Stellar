@@ -154,6 +154,11 @@ test.describe("accessibility — the trace page's receipt", () => {
     await expect(
       page.getByText(mockArtifact.files[2].path, { exact: true }).first(),
     ).toBeVisible();
+    // The highlighted code, not its loading placeholder: the viewer is a
+    // separate chunk, and a scan that raced it passed on the placeholder
+    // while the code it then drew failed contrast one run in six.
+    await expect(page.getByText("loading viewer…")).toHaveCount(0);
+    await expect(page.locator("pre code .token").first()).toBeVisible();
     expect(await violations(page)).toEqual([]);
   });
 
