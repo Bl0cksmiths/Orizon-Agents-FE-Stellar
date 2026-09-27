@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import type { ReputationSource } from "@/lib/types";
 
 /** bps is 0..10000 over a 0–100 rating scale → familiar 0–5 score. */
 const score = (bps: number) => (bps / 2000).toFixed(2);
@@ -28,7 +27,9 @@ export function ReputationBadge({
 }: {
   bps: number;
   lowerBoundBps?: number;
-  source: ReputationSource;
+  /** `"onchain"` or `"prior"` today, but any string a newer backend sends
+   *  reaches here as data, and absent is allowed. */
+  source?: string | null;
   /** The on-chain read FAILED and this prior stands in for it — not a cold
    *  start. `source` alone reports both as "prior", which is what made the
    *  fail-open behaviour invisible in the first place. Optional: a caller

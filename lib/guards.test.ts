@@ -8,18 +8,16 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  droppedCount,
   isAgentBinding,
   isAgentIdAvailability,
-  isAgentList,
   isArtifactResponse,
   isAuthorizeBuild,
   isBindChallenge,
   isBindErrorCode,
-  isDecomposeResponse,
   isEndpointCheck,
   isFlow,
   isOverview,
-  isReputationBatch,
   isReputationInfo,
   isReputationParams,
   isStellarNetworkInfo,
@@ -29,9 +27,12 @@ import {
   isTraceLine,
   isTraceLineList,
   isXdrResponse,
+  screenAgentList,
+  screenDecomposeResponse,
+  screenReputationBatch,
 } from "./guards";
 
-describe("isAgentList", () => {
+describe("screenAgentList", () => {
   const agent = {
     id: "agt_01",
     name: "copywrite.v3",
@@ -43,57 +44,99 @@ describe("isAgentList", () => {
     real: true,
   };
 
-  it("accepts a valid list and the empty list", () => {
-    expect(isAgentList([agent])).toBe(true);
-    expect(isAgentList([])).toBe(true);
+  /** The agents a screen kept, or null when it rejected the payload. */
+  const kept = (v: unknown) => screenAgentList(v);
+  /** Whether this one agent survives the screen beside a healthy one. The
+   * list itself must always survive: a bad agent is dropped, never the list. */
+  const keeps = (a: unknown) => {
+    const list = screenAgentList([agent, a]);
+    expect(list).not.toBeNull();
+    return list?.length === 2;
+  };
+
+  it("keeps a valid list, and the empty list, with nothing dropped", () => {
+    const list = kept([agent]);
+    expect(list).toEqual([agent]);
+    expect(list && droppedCount(list)).toBe(0);
+    expect(kept([])).toEqual([]);
   });
 
-  it("rejects a non-array payload", () => {
-    expect(isAgentList({ agents: [agent] })).toBe(false);
-    expect(isAgentList(null)).toBe(false);
+  it("rejects a payload that is not a list at all", () => {
+    expect(kept({ agents: [agent] })).toBeNull();
+    expect(kept(null)).toBeNull();
+    expect(kept("<html>proxy error</html>")).toBeNull();
   });
 
-  it("rejects a non-numeric price (feeds .toFixed)", () => {
-    expect(isAgentList([{ ...agent, price: "0.012" }])).toBe(false);
+  it("drops an agent with a non-numeric price (feeds .toFixed)", () => {
+    expect(keeps({ ...agent, price: "0.012" })).toBe(false);
   });
 
-  it("rejects a missing runs count (feeds .toLocaleString)", () => {
+  it("drops an agent with no runs count (feeds .toLocaleString)", () => {
     const { runs: _drop, ...rest } = agent;
-    expect(isAgentList([rest])).toBe(false);
+    expect(keeps(rest)).toBe(false);
   });
 
-  it("rejects a non-numeric rep (feeds rep * 2000)", () => {
-    expect(isAgentList([{ ...agent, rep: null }])).toBe(false);
+  it("drops an agent with a non-numeric rep (feeds rep * 2000)", () => {
+    expect(keeps({ ...agent, rep: null })).toBe(false);
   });
 
-  it("rejects skills that are not an array of strings (feeds .map)", () => {
-    expect(isAgentList([{ ...agent, skills: "content" }])).toBe(false);
-    expect(isAgentList([{ ...agent, skills: [{ name: "content" }] }])).toBe(
-      false,
-    );
+  it("drops an agent whose skills are not an array of strings (feeds .map)", () => {
+    expect(keeps({ ...agent, skills: "content" })).toBe(false);
+    expect(keeps({ ...agent, skills: [{ name: "content" }] })).toBe(false);
   });
 
-  it("rejects a status outside the backend literal (keys the tone map)", () => {
-    expect(isAgentList([{ ...agent, status: "degraded" }])).toBe(false);
-    expect(isAgentList([{ ...agent, status: undefined }])).toBe(false);
+  it("keeps an agent whose status this build does not know, as data", () => {
+    const suspended = { ...agent, status: "suspended" };
+    expect(kept([suspended])).toEqual([suspended]);
   });
 
-  it("accepts an owner as a G-address, absent, or null (seeded agents)", () => {
+  it("drops an agent with no status, or a status that is not a string", () => {
+    expect(keeps({ ...agent, status: undefined })).toBe(false);
+    expect(keeps({ ...agent, status: 3 })).toBe(false);
+  });
+
+  it("keeps an agent whose provenance this build does not know, as data", () => {
+    const partner = { ...agent, source: "partner" };
+    expect(kept([partner])).toEqual([partner]);
+  });
+
+  it("drops an agent whose provenance is not a string", () => {
+    expect(keeps({ ...agent, source: { kind: "onchain" } })).toBe(false);
+  });
+
+  it("keeps an owner as a G-address, absent, or null (seeded agents)", () => {
     expect(
-      isAgentList([
-        { ...agent, owner: "GBVN3FUM3TPMZXNSBMEGBLYBM2QFGXN7QCZL4TWZ5PJ7V36E" },
-      ]),
+      keeps({
+        ...agent,
+        owner: "GBVN3FUM3TPMZXNSBMEGBLYBM2QFGXN7QCZL4TWZ5PJ7V36E",
+      }),
     ).toBe(true);
-    expect(isAgentList([agent])).toBe(true);
-    expect(isAgentList([{ ...agent, owner: null }])).toBe(true);
+    expect(keeps(agent)).toBe(true);
+    expect(keeps({ ...agent, owner: null })).toBe(true);
   });
 
-  it("rejects a non-string owner (compared against the connected wallet)", () => {
-    expect(isAgentList([{ ...agent, owner: 42 }])).toBe(false);
+  it("drops an agent with a non-string owner (compared against the wallet)", () => {
+    expect(keeps({ ...agent, owner: 42 })).toBe(false);
   });
 
-  it("rejects when any single entry is malformed", () => {
-    expect(isAgentList([agent, { ...agent, price: undefined }])).toBe(false);
+  it("drops only the unusable agent, keeps the rest, and counts the drop", () => {
+    const other = { ...agent, id: "agt_02", status: "suspended" };
+    const list = kept([agent, { ...agent, price: undefined }, other]);
+    expect(list).toEqual([agent, other]);
+    expect(list && droppedCount(list)).toBe(1);
+  });
+
+  it("counts every dropped agent, down to a list with none left", () => {
+    const list = kept([{ id: "agt_01" }, "agt_02", null]);
+    expect(list).toEqual([]);
+    expect(list && droppedCount(list)).toBe(3);
+  });
+});
+
+describe("droppedCount", () => {
+  it("reads 0 for a payload that never went through a screen", () => {
+    expect(droppedCount([])).toBe(0);
+    expect(droppedCount({})).toBe(0);
   });
 });
 
@@ -276,7 +319,7 @@ describe("isTraceLine / isTraceLineList", () => {
   });
 });
 
-describe("isDecomposeResponse", () => {
+describe("screenDecomposeResponse", () => {
   const valid = {
     plan_id: "pln_1",
     intent: "tetris",
@@ -292,25 +335,48 @@ describe("isDecomposeResponse", () => {
     total_eta: 4.5,
   };
 
+  /** Whether the screen kept the plan at all. */
+  const accepts = (v: unknown) => screenDecomposeResponse(v) !== null;
+  /** The notices a kept plan carries, and how many were dropped. The plan
+   * itself must survive: a bad notice is dropped, never the plan. */
+  const screenNotices = (notices: unknown[]) => {
+    const plan = screenDecomposeResponse({ ...valid, notices });
+    expect(plan).not.toBeNull();
+    return {
+      kept: plan?.notices,
+      dropped: plan ? droppedCount(plan) : Number.NaN,
+    };
+  };
+
   it("accepts a valid plan (empty steps included)", () => {
-    expect(isDecomposeResponse(valid)).toBe(true);
-    expect(isDecomposeResponse({ ...valid, steps: [] })).toBe(true);
+    expect(accepts(valid)).toBe(true);
+    expect(accepts({ ...valid, steps: [] })).toBe(true);
   });
 
   it("rejects a non-numeric total_usdc", () => {
-    expect(isDecomposeResponse({ ...valid, total_usdc: "0.03" })).toBe(false);
+    expect(accepts({ ...valid, total_usdc: "0.03" })).toBe(false);
   });
 
   it("rejects a step with a missing price estimate", () => {
     const step = { agent_id: "agt_01", est_eta_seconds: 4.5 };
-    expect(isDecomposeResponse({ ...valid, steps: [step] })).toBe(false);
+    expect(accepts({ ...valid, steps: [step] })).toBe(false);
+  });
+
+  // Unlike notices, steps are never dropped one at a time: the buyer
+  // authorizes `total_usdc` for every step and `execute` runs the plan by id,
+  // so a card that quietly left one out would misstate what is being paid for.
+  it("rejects the whole plan over one unusable step, never a partial plan", () => {
+    const bad = { ...valid.steps[0], agent_id: "agt_02", est_price_usdc: "x" };
+    expect(
+      screenDecomposeResponse({ ...valid, steps: [valid.steps[0], bad] }),
+    ).toBeNull();
   });
 
   it("rejects a step whose rationale is missing or not a string", () => {
     const { rationale: _drop, ...missing } = valid.steps[0];
-    expect(isDecomposeResponse({ ...valid, steps: [missing] })).toBe(false);
+    expect(accepts({ ...valid, steps: [missing] })).toBe(false);
     const objectish = { ...valid.steps[0], rationale: { text: "codes" } };
-    expect(isDecomposeResponse({ ...valid, steps: [objectish] })).toBe(false);
+    expect(accepts({ ...valid, steps: [objectish] })).toBe(false);
   });
 
   // story 3.02 — floor notices and the inline step marks are additive:
@@ -330,30 +396,39 @@ describe("isDecomposeResponse", () => {
       substituted_for: "agt_02",
       degraded: true,
     };
-    expect(
-      isDecomposeResponse({ ...valid, steps: [step], notices: [notice] }),
-    ).toBe(true);
-    expect(isDecomposeResponse({ ...valid, notices: [] })).toBe(true);
+    expect(accepts({ ...valid, steps: [step], notices: [notice] })).toBe(true);
+    expect(accepts({ ...valid, notices: [] })).toBe(true);
   });
 
-  it("rejects a notice with an unlisted kind (it indexes the tone map)", () => {
-    const unlisted = { ...notice, kind: "reshuffled" };
-    expect(isDecomposeResponse({ ...valid, notices: [unlisted] })).toBe(false);
+  it("keeps a notice whose kind this build does not know, as data", () => {
+    const delisted = { ...notice, kind: "delisted" };
+    expect(screenNotices([delisted])).toEqual({ kept: [delisted], dropped: 0 });
   });
 
-  it("rejects a notice missing its reason", () => {
+  it("drops a notice missing its reason, keeps the rest, and counts it", () => {
     const { reason: _drop, ...missing } = notice;
-    expect(isDecomposeResponse({ ...valid, notices: [missing] })).toBe(false);
+    expect(screenNotices([notice, missing])).toEqual({
+      kept: [notice],
+      dropped: 1,
+    });
+  });
+
+  it("drops a notice with no kind, or a kind that is not a string", () => {
+    const { kind: _drop, ...missing } = notice;
+    expect(screenNotices([missing, { ...notice, kind: 3 }])).toEqual({
+      kept: [],
+      dropped: 2,
+    });
   });
 
   it("rejects a truthy non-boolean degraded (would badge a healthy step)", () => {
     const step = { ...valid.steps[0], degraded: "false" };
-    expect(isDecomposeResponse({ ...valid, steps: [step] })).toBe(false);
+    expect(accepts({ ...valid, steps: [step] })).toBe(false);
   });
 
   it("rejects a non-string substituted_for", () => {
     const step = { ...valid.steps[0], substituted_for: 7 };
-    expect(isDecomposeResponse({ ...valid, steps: [step] })).toBe(false);
+    expect(accepts({ ...valid, steps: [step] })).toBe(false);
   });
 
   // The per-step reputation evidence is additive in the same way the floor
@@ -369,7 +444,7 @@ describe("isDecomposeResponse", () => {
       rep_dispute_rate_bps: 2500,
       rep_degraded: false,
     };
-    expect(isDecomposeResponse({ ...valid, steps: [evidenced] })).toBe(true);
+    expect(accepts({ ...valid, steps: [evidenced] })).toBe(true);
     const nulled = {
       ...valid.steps[0],
       rep_lower_bound_bps: null,
@@ -377,9 +452,9 @@ describe("isDecomposeResponse", () => {
       rep_dispute_rate_bps: null,
       rep_degraded: null,
     };
-    expect(isDecomposeResponse({ ...valid, steps: [nulled] })).toBe(true);
+    expect(accepts({ ...valid, steps: [nulled] })).toBe(true);
     // `valid` carries none of them, which is the pre-field backend.
-    expect(isDecomposeResponse(valid)).toBe(true);
+    expect(accepts(valid)).toBe(true);
   });
 
   it("rejects wrong types on the per-step reputation evidence", () => {
@@ -399,10 +474,48 @@ describe("isDecomposeResponse", () => {
     ];
     for (const field of wrong) {
       const step = { ...valid.steps[0], ...field };
+      expect(accepts({ ...valid, steps: [step] }), JSON.stringify(field)).toBe(
+        false,
+      );
+    }
+  });
+
+  // The step's display fields: the name is a React child and the headline
+  // score is printed. Optional, but never the wrong type — and because a step
+  // is never dropped on its own, a wrong one rejects the plan.
+  it("rejects a step whose rep_bps, agent_name or rep_source is the wrong type", () => {
+    const wrong: Record<string, unknown>[] = [
+      // Each of these printed "≈★NaN" in the step's reputation badge.
+      { rep_bps: "abc" },
+      { rep_bps: {} },
+      { rep_bps: true },
+      { rep_bps: Number.NaN },
+      // "Objects are not valid as a React child": the route's error boundary.
+      { agent_name: { first: "code", last: "next" } },
+      { agent_name: 7 },
+      { rep_source: 1 },
+      { rep_source: { kind: "onchain" } },
+    ];
+    for (const field of wrong) {
+      const step = { ...valid.steps[0], ...field };
+      expect(accepts({ ...valid, steps: [step] }), JSON.stringify(field)).toBe(
+        false,
+      );
+    }
+  });
+
+  it("accepts a rep_source this build does not know, and absent display fields", () => {
+    const fine: Record<string, unknown>[] = [
+      { rep_source: "estimate", rep_bps: 7000 },
+      { rep_source: null, rep_bps: null, agent_name: null },
+      { agent_name: "code.next" },
+    ];
+    for (const field of fine) {
+      const step = { ...valid.steps[0], ...field };
       expect(
-        isDecomposeResponse({ ...valid, steps: [step] }),
+        screenDecomposeResponse({ ...valid, steps: [step] })?.steps,
         JSON.stringify(field),
-      ).toBe(false);
+      ).toEqual([step]);
     }
   });
 
@@ -434,12 +547,12 @@ describe("isDecomposeResponse", () => {
       total_usdc: 0.03,
       total_eta: 4.5,
     };
-    expect(isDecomposeResponse(legacy)).toBe(true);
+    expect(accepts(legacy)).toBe(true);
     // The mid-roll shape too: `notices` shipped with the kit-path half of
     // 3.02, the numbers inside them with this half, so a backend serving
     // notices without `reason_code`/`lower_bound_bps`/`floor_bps` is a real
     // deployment state and not a hypothetical.
-    expect(isDecomposeResponse({ ...legacy, notices: [notice] })).toBe(true);
+    expect(accepts({ ...legacy, notices: [notice] })).toBe(true);
   });
 
   it("accepts the full 3.02 shape, with every reason_code the union names", () => {
@@ -482,31 +595,28 @@ describe("isDecomposeResponse", () => {
         },
       ],
     };
-    expect(isDecomposeResponse(extended)).toBe(true);
+    expect(accepts(extended)).toBe(true);
     // The other half of AC-5: a guard from a build that predates these fields
     // ignores what it does not know. Pinning unknown-key tolerance here is
     // what keeps the next additive field from needing a frontend release.
-    expect(isDecomposeResponse({ ...extended, floor_policy: "v3" })).toBe(true);
+    expect(accepts({ ...extended, floor_policy: "v3" })).toBe(true);
   });
 
   it("rejects wrong types on the four new fields", () => {
     // Optional means "may be absent", never "may be anything". Each of these
     // reaches a comparison or a rendered sentence.
-    expect(isDecomposeResponse({ ...valid, floor_bps: "5500" })).toBe(false);
+    expect(accepts({ ...valid, floor_bps: "5500" })).toBe(false);
     // The classic truthy non-boolean: `"false"` reads as true, which would
     // tell every buyer the trust signals beside their plan came off the
     // Bayesian prior when the ledger read was in fact healthy.
-    expect(
-      isDecomposeResponse({ ...valid, reputation_degraded: "false" }),
-    ).toBe(false);
+    expect(accepts({ ...valid, reputation_degraded: "false" })).toBe(false);
+    // On a notice the same wrong types cost that one notice, not the plan.
     const stringBound = { ...notice, lower_bound_bps: "4200" };
-    expect(isDecomposeResponse({ ...valid, notices: [stringBound] })).toBe(
-      false,
-    );
     const stringFloor = { ...notice, floor_bps: "5500" };
-    expect(isDecomposeResponse({ ...valid, notices: [stringFloor] })).toBe(
-      false,
-    );
+    expect(screenNotices([stringBound, stringFloor, notice])).toEqual({
+      kept: [notice],
+      dropped: 2,
+    });
   });
 
   it("rejects a non-finite floor or bound (NaN compares false, silently)", () => {
@@ -514,13 +624,11 @@ describe("isDecomposeResponse", () => {
     // `typeof === "number"`, prints as "NaN" in the threshold sentence, and —
     // worse — every `bound < floor` comparison against it is false, so a
     // below-floor agent would read as clearing a floor nobody can see.
-    expect(isDecomposeResponse({ ...valid, floor_bps: Number.NaN })).toBe(
-      false,
-    );
+    expect(accepts({ ...valid, floor_bps: Number.NaN })).toBe(false);
     const infinite = { ...valid, floor_bps: Number.POSITIVE_INFINITY };
-    expect(isDecomposeResponse(infinite)).toBe(false);
+    expect(accepts(infinite)).toBe(false);
     const nanBound = { ...notice, lower_bound_bps: Number.NaN };
-    expect(isDecomposeResponse({ ...valid, notices: [nanBound] })).toBe(false);
+    expect(screenNotices([nanBound])).toEqual({ kept: [], dropped: 1 });
   });
 
   it("accepts a null lower bound and leaves it distinguishable from 0", () => {
@@ -540,54 +648,40 @@ describe("isDecomposeResponse", () => {
       lower_bound_bps: null,
       floor_bps: 5500,
     };
-    const payload = { ...valid, notices: [noEntry] };
-    expect(isDecomposeResponse(payload)).toBe(true);
-    // Both accepted, because both are real backend answers…
+    // Both kept, because both are real backend answers…
     const ratedToZero = { ...noEntry, lower_bound_bps: 0 };
-    expect(isDecomposeResponse({ ...valid, notices: [ratedToZero] })).toBe(
-      true,
-    );
-    // …and the guard narrows rather than normalizes, so the caller can still
-    // tell them apart afterwards. A guard that "helpfully" coerced null to 0
+    const { kept } = screenNotices([noEntry, ratedToZero]);
+    // …and the screen narrows rather than normalizes, so the caller can still
+    // tell them apart afterwards. A screen that "helpfully" coerced null to 0
     // would put "0 bps against a 5500 floor" beside an agent that passed the
     // floor — a contradiction the buyer cannot resolve and we cannot defend.
-    expect(payload.notices[0].lower_bound_bps).toBeNull();
-    expect(payload.notices[0].lower_bound_bps).not.toBe(0);
+    expect(kept?.map((n) => n.lower_bound_bps)).toEqual([null, 0]);
     // Absent is the third distinct case: a backend predating the field.
     const { lower_bound_bps: _drop, ...noField } = noEntry;
-    expect(isDecomposeResponse({ ...valid, notices: [noField] })).toBe(true);
+    expect(accepts({ ...valid, notices: [noField] })).toBe(true);
   });
 
   /**
-   * The asymmetry between `kind` and `reason_code`, pinned because it reads
-   * like an oversight and the "fix" is one line away.
+   * `kind` and `reason_code` are both open vocabularies, and must stay so.
    *
-   * `kind` is set-checked: it picks the notice row's tone and label, so a
-   * value this build has no arm for renders an unstyled, unexplained row —
-   * a plan that looks fine and is not. Failing the guard, and showing the
-   * ordinary error state, is the better of the two.
-   *
-   * `reason_code` is NOT, and must not become so. It is a machine-readable
-   * companion to `reason`, which carries the same fact in prose and already
-   * renders. An unrecognised code therefore costs nothing: the row still
-   * explains itself. Set-checking it would mean a backend adding a fourth
-   * exclusion reason blanks the whole plan card on every frontend build older
-   * than that deploy — trading a rendered plan for no plan, to gain nothing.
+   * Each is a string the backend may extend. A notice whose kind or code this
+   * build has no arm for is still a floor action the buyer should see, next
+   * to the backend's own `reason` prose; set-checking either would mean a
+   * backend adding a fifth kind blanks the whole plan card on every older
+   * frontend — trading a rendered plan for no plan, to gain nothing.
    */
-  it("accepts an unknown reason_code while still rejecting an unknown kind", () => {
+  it("keeps an unknown reason_code and an unknown kind alike, as data", () => {
     const futureCode = { ...notice, reason_code: "floor_raised_by_operator" };
-    expect(isDecomposeResponse({ ...valid, notices: [futureCode] })).toBe(true);
     const futureKind = { ...notice, kind: "reshuffled" };
-    expect(isDecomposeResponse({ ...valid, notices: [futureKind] })).toBe(
-      false,
-    );
+    expect(screenNotices([futureCode, futureKind])).toEqual({
+      kept: [futureCode, futureKind],
+      dropped: 0,
+    });
     // The vocabulary is open; the type is not. A non-string code would reach
     // a comparison as an object and match nothing, which is the one outcome
-    // worse than an unknown string.
+    // worse than an unknown string — so that notice is dropped, and counted.
     const objectCode = { ...notice, reason_code: { code: "below_floor" } };
-    expect(isDecomposeResponse({ ...valid, notices: [objectCode] })).toBe(
-      false,
-    );
+    expect(screenNotices([objectCode])).toEqual({ kept: [], dropped: 1 });
   });
 
   it("accepts a null notices list but rejects one that is not a list", () => {
@@ -595,35 +689,26 @@ describe("isDecomposeResponse", () => {
     // payload the common path produces: every routed agent cleared the floor,
     // so the floor did nothing and has nothing to report. That must never be
     // an error state — it is the good outcome.
-    expect(isDecomposeResponse({ ...valid, notices: null })).toBe(true);
+    expect(accepts({ ...valid, notices: null })).toBe(true);
     // A non-list is a different story: the plan card maps it, and an error
     // envelope or a keyed object arriving here would throw mid-render rather
     // than surface as the failed read it is.
-    expect(isDecomposeResponse({ ...valid, notices: { 0: notice } })).toBe(
-      false,
-    );
-    expect(isDecomposeResponse({ ...valid, notices: [notice.reason] })).toBe(
-      false,
-    );
+    expect(accepts({ ...valid, notices: { 0: notice } })).toBe(false);
+    // A list holding something that is not a notice costs only that item.
+    expect(screenNotices([notice.reason])).toEqual({ kept: [], dropped: 1 });
   });
 
   // `planner_fallback` is additive like the floor fields: true on a plan the
   // backend built without the planner, false on the planner's own and on every
   // demo-kit plan, and absent from a backend predating it.
   it("accepts the planner fallback flag true, false, null or absent", () => {
-    expect(isDecomposeResponse({ ...valid, planner_fallback: true })).toBe(
-      true,
-    );
-    expect(isDecomposeResponse({ ...valid, planner_fallback: false })).toBe(
-      true,
-    );
+    expect(accepts({ ...valid, planner_fallback: true })).toBe(true);
+    expect(accepts({ ...valid, planner_fallback: false })).toBe(true);
     // Null is FastAPI's serialization of an unset Optional.
-    expect(isDecomposeResponse({ ...valid, planner_fallback: null })).toBe(
-      true,
-    );
+    expect(accepts({ ...valid, planner_fallback: null })).toBe(true);
     // `valid` carries no flag at all, which is the pre-field backend.
     expect("planner_fallback" in valid).toBe(false);
-    expect(isDecomposeResponse(valid)).toBe(true);
+    expect(accepts(valid)).toBe(true);
   });
 
   it("rejects a planner fallback flag that is not a boolean", () => {
@@ -632,7 +717,7 @@ describe("isDecomposeResponse", () => {
     const wrong: unknown[] = ["false", "true", 1, 0, {}, []];
     for (const planner_fallback of wrong) {
       expect(
-        isDecomposeResponse({ ...valid, planner_fallback }),
+        accepts({ ...valid, planner_fallback }),
         JSON.stringify(planner_fallback),
       ).toBe(false);
     }
@@ -670,8 +755,14 @@ describe("isReputationInfo", () => {
     expect(isReputationInfo(noRate)).toBe(false);
   });
 
-  it("rejects a source outside the backend literal", () => {
-    expect(isReputationInfo({ ...valid, source: "cached" })).toBe(false);
+  it("accepts a source this build does not know, as data", () => {
+    expect(isReputationInfo({ ...valid, source: "cached" })).toBe(true);
+  });
+
+  it("rejects a missing or non-string source", () => {
+    const { source: _drop, ...missing } = valid;
+    expect(isReputationInfo(missing)).toBe(false);
+    expect(isReputationInfo({ ...valid, source: 1 })).toBe(false);
   });
 
   it("rejects non-objects", () => {
@@ -680,7 +771,7 @@ describe("isReputationInfo", () => {
   });
 });
 
-describe("isReputationBatch", () => {
+describe("screenReputationBatch", () => {
   const rep = {
     agent_id: "agt_01",
     smoothed_bps: 7000,
@@ -698,73 +789,103 @@ describe("isReputationBatch", () => {
     prior_bps: 7000,
   };
 
-  it("accepts a valid batch (empty reputations included)", () => {
-    expect(isReputationBatch(valid)).toBe(true);
-    expect(isReputationBatch({ ...valid, reputations: {} })).toBe(true);
+  /** The ids of the entries a screen kept, or null when it rejected. */
+  const keptIds = (v: unknown) => {
+    const batch = screenReputationBatch(v);
+    return batch && Object.keys(batch.reputations);
+  };
+  /** Whether this one entry survives the screen beside a healthy one. The
+   * batch itself must always survive: a bad entry is dropped, never the batch. */
+  const keeps = (entry: unknown) => {
+    const ids = keptIds({
+      ...valid,
+      reputations: { agt_01: rep, agt_02: entry },
+    });
+    expect(ids).not.toBeNull();
+    return ids?.length === 2;
+  };
+
+  it("keeps a valid batch (empty reputations included), nothing dropped", () => {
+    const batch = screenReputationBatch(valid);
+    expect(batch).toEqual(valid);
+    expect(batch && droppedCount(batch)).toBe(0);
+    expect(screenReputationBatch({ ...valid, reputations: {} })).toEqual({
+      ...valid,
+      reputations: {},
+    });
   });
 
-  it("rejects an entry with a non-numeric smoothed_bps", () => {
-    const bad = { ...rep, smoothed_bps: null };
-    expect(isReputationBatch({ ...valid, reputations: { agt_01: bad } })).toBe(
-      false,
+  it("rejects a batch without a numeric floor_bps or prior_bps", () => {
+    expect(screenReputationBatch({ ...valid, floor_bps: undefined })).toBe(
+      null,
     );
+    expect(screenReputationBatch({ ...valid, prior_bps: "7000" })).toBe(null);
   });
 
-  it("rejects a batch without a numeric floor_bps", () => {
-    expect(isReputationBatch({ ...valid, floor_bps: undefined })).toBe(false);
+  it("rejects a batch whose reputations are not a map", () => {
+    expect(screenReputationBatch({ ...valid, reputations: [rep] })).toBe(null);
+    expect(screenReputationBatch(null)).toBe(null);
   });
 
-  it("rejects a non-numeric disputed count (sorted on, NaN scrambles order)", () => {
-    const bad = { ...rep, disputed: "0" };
-    expect(isReputationBatch({ ...valid, reputations: { agt_01: bad } })).toBe(
-      false,
-    );
+  it("drops an entry with a non-numeric smoothed_bps", () => {
+    expect(keeps({ ...rep, smoothed_bps: null })).toBe(false);
+  });
+
+  it("drops a non-numeric disputed count (sorted on, NaN scrambles order)", () => {
+    expect(keeps({ ...rep, disputed: "0" })).toBe(false);
     const { disputed: _drop, ...missing } = rep;
-    expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: missing } }),
-    ).toBe(false);
+    expect(keeps(missing)).toBe(false);
   });
 
-  it("rejects a missing avg_bps", () => {
+  it("drops an entry with no avg_bps", () => {
     const { avg_bps: _drop, ...missing } = rep;
-    expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: missing } }),
-    ).toBe(false);
+    expect(keeps(missing)).toBe(false);
   });
 
-  it("rejects a source outside the backend literal", () => {
-    expect(
-      isReputationBatch({
-        ...valid,
-        reputations: { agt_01: { ...rep, source: "cached" } },
-      }),
-    ).toBe(false);
+  it("keeps an entry whose source this build does not know, as data", () => {
+    const cached = { ...rep, source: "cached" };
+    const batch = screenReputationBatch({
+      ...valid,
+      reputations: { agt_01: cached },
+    });
+    expect(batch?.reputations.agt_01).toEqual(cached);
+  });
+
+  it("drops an entry with no source, or a non-string one", () => {
     const { source: _drop, ...missing } = rep;
-    expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: missing } }),
-    ).toBe(false);
+    expect(keeps(missing)).toBe(false);
+    expect(keeps({ ...rep, source: null })).toBe(false);
   });
 
-  it("accepts an on-chain sourced entry", () => {
-    const onchain = { ...rep, source: "onchain", disputed: 2, avg_bps: 8100 };
+  it("keeps an on-chain sourced entry", () => {
     expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: onchain } }),
+      keeps({ ...rep, source: "onchain", disputed: 2, avg_bps: 8100 }),
     ).toBe(true);
   });
 
   // The ledger read failed and the service answered with the prior: the batch
   // has to carry that flag through, and only as a real boolean.
-  it("carries a degraded entry through and rejects a non-boolean flag", () => {
-    const fellBack = { ...rep, degraded: true };
-    expect(
-      isReputationBatch({ ...valid, reputations: { agt_01: fellBack } }),
-    ).toBe(true);
-    expect(
-      isReputationBatch({
-        ...valid,
-        reputations: { agt_01: { ...rep, degraded: "true" } },
-      }),
-    ).toBe(false);
+  it("carries a degraded entry through and drops a non-boolean flag", () => {
+    expect(keeps({ ...rep, degraded: true })).toBe(true);
+    expect(keeps({ ...rep, degraded: "true" })).toBe(false);
+  });
+
+  it("drops only the unusable entry, keeps the rest, and counts the drop", () => {
+    const batch = screenReputationBatch({
+      ...valid,
+      reputations: {
+        agt_01: rep,
+        agt_02: { ...rep, smoothed_bps: "7000" },
+        agt_03: { ...rep, source: "cached" },
+        agt_04: "unavailable",
+      },
+    });
+    expect(batch && Object.keys(batch.reputations)).toEqual([
+      "agt_01",
+      "agt_03",
+    ]);
+    expect(batch?.floor_bps).toBe(5500);
+    expect(batch && droppedCount(batch)).toBe(2);
   });
 });
 
