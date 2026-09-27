@@ -33,6 +33,7 @@ import {
   LONG_AGENT_ID,
   mockPlanColdStart,
   mockPlanLongNames,
+  mockPlanNoSteps,
   mockPlanPartialOutage,
 } from "./plan-degraded-fixtures";
 import { assetLabel } from "../lib/money";
@@ -991,5 +992,104 @@ test.describe("plan card — reputation that could not be read", () => {
     await expect(badge).toContainText(/applied/);
     await expect(badge).not.toContainText(/unverified/);
     await expect(estimateBanner(page)).toHaveCount(0);
+  });
+});
+
+/**
+ * Payload shapes the runtime guard lets through for the card to handle: a plan
+ * with nothing in it, and notices this build has no wording for. The backend
+ * may send any of these, so each has to render as a plan, not as an error.
+ */
+test.describe("plan card — shapes the backend may send", () => {
+  test("a plan with no steps renders, and offers nothing to pay", async ({
+    page,
+  }) => {
+    const crashes: string[] = [];
+    page.on("pageerror", (e) => crashes.push(e.message));
+    await page.setViewportSize(NARROW_PHONE);
+    await decomposeWith(page, mockPlanNoSteps, { wallet: true });
+
+    await expect(steps(page)).toHaveCount(0);
+    await expect(planCard(page)).toContainText(/nothing to authorize/i);
+    await expect(page.getByText(/authorizing up to/i)).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /authorize/i }),
+    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: /fiat/i })).toBeDisabled();
+    expect(crashes).toEqual([]);
+  });
+
+  /** A decompose answered with a raw payload, as a newer backend would send
+   *  it — typed as nothing, because it is not one of ours. */
+  async function decomposeRaw(page: Page, body: object) {
+    await mockApi(page);
+    await page.route("**/api/orchestrator/decompose", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      }),
+    );
+    await page.goto("/app/orchestrator");
+    await page.getByRole("textbox", { name: /intent/i }).fill("anything");
+    await page.getByRole("button", { name: /decompos/i }).click();
+    await expect(
+      page.getByRole("heading", { name: /execution plan/i }),
+    ).toBeVisible();
+  }
+
+  // One unknown kind used to fail the whole plan in the guard: the buyer got
+  // "malformed response" and no plan at all.
+  test("an unknown notice kind renders as a neutral row, and the plan with it", async ({
+    page,
+  }) => {
+    await page.setViewportSize(NARROW_PHONE);
+    await decomposeRaw(page, {
+      ...mockPlanExcluded,
+      notices: [
+        mockPlanExcluded.notices[0],
+        {
+          kind: "delisted",
+          agent_id: "summarize.pro",
+          agent_name: "summarize.pro",
+          reason: "withdrawn from routing by its operator",
+        },
+      ],
+    });
+
+    await expect(steps(page)).toHaveCount(mockPlanExcluded.steps.length);
+    await expect(exclusions(page).locator("summary")).toContainText(
+      /2 changes/,
+    );
+    await exclusions(page).locator("summary").click();
+    const row = exclusionRows(page).filter({ hasText: "summarize.pro" });
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText(/delisted/);
+    await expect(row).toContainText("withdrawn from routing by its operator");
+    await expect(floorSummary(page)).toContainText(/no wording for/);
+    expect(await overflowingDescendants(planCard(page))).toEqual([]);
+  });
+
+  // The summary above the steps and the panel below them count the same
+  // array with one rule, so an unknown reason code cannot make them disagree.
+  test("an unknown reason code is counted alike above and below the steps", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeRaw(page, {
+      ...mockPlanExcluded,
+      notices: [
+        {
+          ...mockPlanExcluded.notices[0],
+          reason: "quarantined by the incident switch",
+          reason_code: "quarantined",
+        },
+      ],
+    });
+
+    await expect(floorSummary(page)).toContainText(/acted on 1 agent(?!s)/);
+    await expect(exclusions(page).locator("summary")).toContainText(
+      /1 change(?!s)/,
+    );
   });
 });
