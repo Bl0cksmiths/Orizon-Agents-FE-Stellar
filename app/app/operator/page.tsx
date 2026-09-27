@@ -33,6 +33,7 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
+import type { ReputationRead } from "@/components/agents/reputation-cell";
 import { listAgents, listReputation } from "@/lib/api";
 import { ownedAgents } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
@@ -57,11 +58,18 @@ export default function OperatorPage() {
   // Best-effort, exactly as the marketplace treats it: a failed reputation read
   // must not blank the page or imply a bad score. Its absence is rendered as
   // "not known" further down, which is what it means.
-  const { data: repBatch, reload: reloadReputation } = useFetch(
-    listReputation,
-    [],
-    { revalidateOnFocus: true },
-  );
+  const {
+    data: repBatch,
+    error: repError,
+    reload: reloadReputation,
+  } = useFetch(listReputation, [], { revalidateOnFocus: true });
+  // A batch on screen is a reading even when a later refresh failed; only a
+  // read that never landed is "failed". The same rule the marketplace uses.
+  const repRead: ReputationRead = repBatch
+    ? "loaded"
+    : repError
+      ? "failed"
+      : "loading";
 
   const binding = useBindingStatus(agents, address);
 
@@ -213,6 +221,7 @@ export default function OperatorPage() {
                   reputation={repBatch?.reputations[agent.id] ?? null}
                   floorBps={repBatch?.floor_bps ?? null}
                   priorBps={repBatch?.prior_bps ?? null}
+                  reputationRead={repRead}
                   onChanged={retry}
                 />
               </li>

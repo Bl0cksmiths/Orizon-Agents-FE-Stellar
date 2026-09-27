@@ -21,6 +21,7 @@ import type { Agent, ReputationInfo } from "@/lib/types";
 import { BindingStateBadge } from "../agents/binding-notice";
 import { ManagePanel } from "../agents/manage-panel";
 import type { BindingState } from "../agents/use-binding-status";
+import type { ReputationRead } from "@/components/agents/reputation-cell";
 import { RoutingStanding } from "./routing-standing";
 import { SettlementPanel } from "./settlement-panel";
 
@@ -37,6 +38,7 @@ export function AgentCard({
   reputation,
   floorBps,
   priorBps,
+  reputationRead,
   onChanged,
 }: {
   agent: Agent;
@@ -47,6 +49,8 @@ export function AgentCard({
   reputation: ReputationInfo | null;
   floorBps: number | null;
   priorBps: number | null;
+  /** Whether the batch behind `reputation` is loading, failed or landed. */
+  reputationRead: ReputationRead;
   onChanged: () => void;
 }) {
   const [managing, setManaging] = useState(false);
@@ -101,6 +105,7 @@ export function AgentCard({
           reputation={reputation}
           floorBps={floorBps}
           priorBps={priorBps}
+          read={reputationRead}
         />
       </div>
 

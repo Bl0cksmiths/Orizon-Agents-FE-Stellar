@@ -82,6 +82,7 @@ function renderStanding(
       reputation={rep()}
       floorBps={FLOOR_BPS}
       priorBps={PRIOR_BPS}
+      read="loaded"
       {...props}
     />,
   );
@@ -381,6 +382,43 @@ describe("RoutingStanding — no score at all", () => {
   });
 });
 
+// The operator page passes a null reputation for three different reasons,
+// and only one of them is about the agent. "It was not in the batch" is false
+// when no batch ever landed.
+describe("RoutingStanding — why there is no score", () => {
+  const noBatch = { reputation: null, floorBps: null, priorBps: null };
+
+  it("says the read is still on its way while it loads", () => {
+    const { container } = renderStanding({ ...noBatch, read: "loading" });
+    const text = container.textContent ?? "";
+    expect(verdict()).toBe(
+      "⋯Standing not confirmed — the reputation read has not come back yet.",
+    );
+    expect(text).toContain("The reputation read has not come back yet");
+    expect(text).not.toMatch(/not in the batch|came back without it/);
+  });
+
+  it("blames the failed read, not the agent, when the batch failed", () => {
+    const { container } = renderStanding({ ...noBatch, read: "failed" });
+    const text = container.textContent ?? "";
+    expect(verdict()).toBe(
+      "⋯Standing not confirmed — the reputation read failed.",
+    );
+    expect(text).toContain("it says nothing about its record");
+    expect(text).not.toMatch(/not in the batch|came back without it/);
+  });
+
+  it("says the agent was missing only when a batch actually landed", () => {
+    const { container } = renderStanding({ reputation: null, read: "loaded" });
+    expect(verdict()).toBe(
+      "⋯Standing not confirmed — no reputation score is known for this agent.",
+    );
+    expect(container.textContent).toContain(
+      "the reputation read came back without it",
+    );
+  });
+});
+
 describe("RoutingStanding — a delisted agent", () => {
   // The audit's case: bound, well above the floor, delisted — and the panel
   // called it eligible while the backend refused to route to it.
@@ -468,7 +506,21 @@ describe("RoutingStanding — the claims it must never make", () => {
     { name: "no score", props: { reputation: null } },
     {
       name: "no batch",
-      props: { reputation: null, floorBps: null, priorBps: null },
+      props: {
+        reputation: null,
+        floorBps: null,
+        priorBps: null,
+        read: "failed" as const,
+      },
+    },
+    {
+      name: "batch loading",
+      props: {
+        reputation: null,
+        floorBps: null,
+        priorBps: null,
+        read: "loading" as const,
+      },
     },
   ];
 

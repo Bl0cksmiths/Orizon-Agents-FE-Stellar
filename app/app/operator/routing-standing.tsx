@@ -47,6 +47,7 @@ import { KVRow } from "@/components/ui/kv-row";
 import { bindHref, UNBOUND_WARNING } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
 import type { BindingState } from "@/app/app/agents/use-binding-status";
+import type { ReputationRead } from "@/components/agents/reputation-cell";
 import type { AgentStatus, ReputationInfo } from "@/lib/types";
 
 /**
@@ -114,6 +115,7 @@ export function RoutingStanding({
   reputation,
   floorBps,
   priorBps,
+  read,
 }: {
   agentId: string;
   /** The agent's registry status. "offline" is how an operator's delisting
@@ -128,6 +130,14 @@ export function RoutingStanding({
    *  confident verdict. */
   floorBps: number | null;
   priorBps: number | null;
+  /**
+   * Where the page's reputation read stands. A null `reputation` means three
+   * different things — the batch is still on its way, it failed, or it landed
+   * without this agent — and only the last is a fact about the agent. The
+   * marketplace's `ReputationCell` draws the same distinction from the same
+   * state, so the two surfaces never word one absence two ways.
+   */
+  read: ReputationRead;
 }): JSX.Element {
   // `null` is "no claim applies" — a seeded catalog agent, another wallet's
   // agent, or one past the hook's cap. It is NOT an unbound agent, and it is
@@ -197,9 +207,13 @@ export function RoutingStanding({
     );
   if (floorGate === "unknown")
     unread.push(
-      reputation === null
-        ? "no reputation score is known for this agent"
-        : "the network floor is not known",
+      reputation !== null
+        ? "the network floor is not known"
+        : read === "loading"
+          ? "the reputation read has not come back yet"
+          : read === "failed"
+            ? "the reputation read failed"
+            : "no reputation score is known for this agent",
     );
 
   const holds: string[] = [];
@@ -327,9 +341,13 @@ export function RoutingStanding({
         {reputation === null || floorBps === null ? (
           <p className={body}>
             <span aria-hidden="true">⋯ </span>
-            {reputation === null
-              ? `No reputation score is known for this agent — it was not in the batch, so whether it clears ${floorBps === null ? "the network floor" : `the ${score(floorBps)} floor`} cannot be answered here. It is not carrying the prior either; assuming the prior would be inventing a number.`
-              : "The network floor is not known, so whether this agent clears it cannot be answered here. The score above is real; the line it has to cross is what is missing."}
+            {reputation !== null
+              ? "The network floor is not known, so whether this agent clears it cannot be answered here. The score above is real; the line it has to cross is what is missing."
+              : read === "loading"
+                ? "The reputation read has not come back yet, so neither this agent's score nor the network floor is known. Nothing is assumed about either while it is on its way."
+                : read === "failed"
+                  ? "The reputation read failed, so neither this agent's score nor the network floor could be read. That is a fact about our request, not about this agent — it says nothing about its record."
+                  : `No reputation score is known for this agent — the reputation read came back without it, so whether it clears ${floorBps === null ? "the network floor" : `the ${score(floorBps)} floor`} cannot be answered here. It is not carrying the prior either; assuming the prior would be inventing a number.`}
           </p>
         ) : (
           <>
