@@ -22,8 +22,15 @@
  *   on screen may be stale.
  * - `refresh()` refetches and resolves once the answer is on screen. It never
  *   rejects: a failure lands in `error`. The page calls it after a submit and
- *   on `duplicate_dispute`, whose original dispute must be re-read because
- *   the error carries no body.
+ *   on `duplicate_dispute`.
+ * - `adopt(dispute)` folds a dispute the server itself returned — the one a
+ *   submit resolved to, or the original a `duplicate_dispute` refusal
+ *   carries — into the view at once, without a read. It holds until a read
+ *   lists that dispute: an answer that was already on its way, or a re-read
+ *   that fails, can no longer show its step as disputable again.
+ * - `offsetMs` is the server's clock minus this browser's, as last measured,
+ *   for `raiseDispute`: the window and the nonce are judged on the server's
+ *   clock. 0 until an answer carrying the server's clock has landed.
  * - While a dispute is unresolved the hook re-reads on its own (story 4.06,
  *   see `disputePollMs`), on the same terms as `refresh()`: the view stays up,
  *   and a failure lands in `error`.
@@ -39,7 +46,7 @@ import {
   receiptAwaitsChain,
   serverClockOffsetMs,
 } from "./disputes";
-import type { DisputePanelView, TaskDisputes } from "./types";
+import type { Dispute, DisputePanelView, TaskDisputes } from "./types";
 import { toMessage } from "./use-async-action";
 import { useWallet } from "./wallet";
 
@@ -237,7 +244,21 @@ export type UseDisputePanelResult = {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  /** Server clock minus local clock, in ms; 0 while nothing measured it. */
+  offsetMs: number;
+  /** Fold a dispute the server returned into the view, without a read. */
+  adopt: (dispute: Dispute) => void;
 };
+
+/**
+ * `disputes` with `adopted` folded in: each adopted dispute replaces the row
+ * with its id, or joins the list when there is none.
+ */
+function withDisputes(disputes: Dispute[], adopted: Dispute[]): Dispute[] {
+  if (adopted.length === 0) return disputes;
+  const ids = new Set(adopted.map((d) => d.id));
+  return [...disputes.filter((d) => !ids.has(d.id)), ...adopted];
+}
 
 export function useDisputePanel(
   taskId: string | null,
@@ -283,6 +304,10 @@ export function useDisputePanel(
   // to declare — so the answer inherits it instead of the seal costing a
   // second request.
   const sealedInFlightRef = useRef(false);
+  // Disputes the server handed back outside a read (`adopt`), each held until
+  // a read of its task lists it. A read that does not is older than the
+  // dispute, or failed to see it; either way the dispute exists.
+  const adoptedRef = useRef<Dispute[]>([]);
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -364,6 +389,14 @@ export function useDisputePanel(
         grant !== null && res.disputes.some((d) => d.reason_withheld);
       if (dishonoured) forgetReadGrant(id);
       if (!isLatest()) return;
+      // What this read lists speaks for itself from now on; what it does not
+      // is still folded in.
+      const listed = new Set(res.disputes.map((d) => d.id));
+      adoptedRef.current = adoptedRef.current.filter((d) => !listed.has(d.id));
+      const adopted = adoptedRef.current.filter((d) => d.task_id === id);
+      if (adopted.length > 0) {
+        res = { ...res, disputes: withDisputes(res.disputes, adopted) };
+      }
       const sealed = doneAtRequest || sealedInFlightRef.current;
       setState((s) => {
         const held = s.taskId === id ? s.snapshot : null;
@@ -444,6 +477,26 @@ export function useDisputePanel(
     if (id === null) return;
     await load(id, doneRef.current);
   }, [load]);
+
+  const adopt = useCallback((dispute: Dispute): void => {
+    const id = targetRef.current;
+    if (id === null || dispute.task_id !== id) return;
+    adoptedRef.current = withDisputes(adoptedRef.current, [dispute]);
+    setState((s) =>
+      s.taskId !== id || s.snapshot === null
+        ? s
+        : {
+            ...s,
+            snapshot: {
+              ...s.snapshot,
+              res: {
+                ...s.snapshot.res,
+                disputes: withDisputes(s.snapshot.res.disputes, [dispute]),
+              },
+            },
+          },
+    );
+  }, []);
 
   const current = target !== null && state.taskId === target ? state : null;
   const snapshot = current?.snapshot ?? null;
@@ -604,5 +657,12 @@ export function useDisputePanel(
     };
   }, [target, pollMs, state, load]);
 
-  return { view, loading, error, refresh };
+  return {
+    view,
+    loading,
+    error,
+    refresh,
+    offsetMs: snapshot?.offsetMs ?? 0,
+    adopt,
+  };
 }

@@ -1869,3 +1869,107 @@ describe("useDisputePanel — the poll across task changes and unmount", () => {
     expect(errors).not.toHaveBeenCalled();
   });
 });
+
+describe("useDisputePanel — the contract the dialog reads", () => {
+  it("exposes the measured server clock offset, and 0 before any answer", async () => {
+    const d = nextRead();
+    const { result } = mount();
+    expect(result.current.offsetMs).toBe(0);
+
+    await land(d, answer(H, { skewMs: 90 * S }));
+    expect(result.current.offsetMs).toBe(90 * S);
+  });
+
+  it("folds an adopted dispute into the view at once, without a read", async () => {
+    const { result } = await mountWith(answer(H));
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+
+    act(() => result.current.adopt(dsp(1, "open")));
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps an adopted dispute through a re-read that fails (D-057)", async () => {
+    const { result } = await mountWith(answer(H));
+    act(() => result.current.adopt(dsp(1, "open")));
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 503", 503),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+  });
+
+  it("keeps an adopted dispute through an answer asked for before it existed", async () => {
+    const { result } = await mountWith(answer(H));
+    const older = nextRead();
+    let pending: Promise<void> = Promise.resolve();
+    act(() => {
+      pending = result.current.refresh();
+    });
+
+    act(() => result.current.adopt(dsp(1, "open")));
+    await land(older, answer(H));
+    await act(async () => {
+      await pending;
+    });
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+  });
+
+  it("lets a read that lists the dispute speak for it from then on", async () => {
+    const { result } = await mountWith(answer(H));
+    act(() => result.current.adopt(dsp(1, "open")));
+
+    fetchDisputes.mockResolvedValueOnce(
+      answer(H, { disputes: [dsp(1, "upheld")] }),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(receiptOf(result.current.view).status).toBe("upheld");
+
+    // Listed once, it is no longer held: the record is the read's to state.
+    fetchDisputes.mockResolvedValueOnce(answer(H));
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+  });
+
+  it("holds a dispute adopted before the first answer until that answer lands", async () => {
+    const first = nextRead();
+    const { result } = mount();
+
+    act(() => result.current.adopt(dsp(1, "open")));
+    expect(result.current.loading).toBe(true);
+    await land(first, answer(H));
+    expect(stateKinds(result.current.view)).toEqual(["disputable", "disputed"]);
+  });
+
+  it("ignores a dispute of another task", async () => {
+    const { result } = await mountWith(answer(H));
+
+    act(() => result.current.adopt(dsp(1, "open", { task_id: "task_b" })));
+    expect(stateKinds(result.current.view)).toEqual([
+      "disputable",
+      "disputable",
+    ]);
+  });
+
+  it("adopts nothing in demo mode", async () => {
+    const { result } = mount({ demo: true });
+
+    act(() => result.current.adopt(dsp(1, "open")));
+    expect(result.current.view).toEqual({ kind: "hidden" });
+    expect(fetchDisputes).not.toHaveBeenCalled();
+  });
+});
