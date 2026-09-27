@@ -154,12 +154,7 @@ function UnreadRow({
         <div className="font-mono text-xs text-muted">{agent.id}</div>
       </td>
       <td className="py-3 pr-4">
-        <ReputationCell
-          agentName={agent.name}
-          rep={null}
-          floorBps={null}
-          read={read}
-        />
+        <ReputationCell agentName={agent.name} rep={null} read={read} />
       </td>
       <td className="py-3 pr-4" />
       <NotRead />

@@ -484,7 +484,6 @@ export default function AgentsPage() {
                         <ReputationCell
                           agentName={a.name}
                           rep={repBatch?.reputations[a.id] ?? null}
-                          floorBps={repBatch?.floor_bps ?? null}
                           read={repRead}
                         />
                       </td>

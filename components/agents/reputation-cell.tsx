@@ -34,15 +34,12 @@ export type ReputationRead = "loading" | "failed" | "loaded";
 export function ReputationCell({
   agentName,
   rep,
-  floorBps,
   read,
 }: {
   /** Names the row for a screen reader, which meets this cell out of context. */
   agentName: string;
   /** This agent's entry in the live reputation batch, or null when it has none. */
   rep: ReputationInfo | null;
-  /** The network floor from the same batch, or null when it has not loaded. */
-  floorBps: number | null;
   read: ReputationRead;
 }): JSX.Element {
   if (rep !== null) {
@@ -57,7 +54,11 @@ export function ReputationCell({
         count={rep.count}
         disputeRateBps={rep.dispute_rate_bps}
         degraded={rep.degraded}
-        floorBps={floorBps ?? undefined}
+        // No floor, deliberately. The page states the floor once, above the
+        // table, and the row's own standing cell says "below floor" in words
+        // when it applies. Handed the floor, the chip repeats its value on
+        // every row ("clears the 2.75 network floor"), which is N chances to
+        // disagree with the notice after a deployment moves it.
       />
     );
   }
