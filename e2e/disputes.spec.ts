@@ -12,7 +12,13 @@
  * the UI's behaviour, not the SOW §6.1 recording, which must be made against
  * the deployed backend.
  */
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+} from "@playwright/test";
 import {
   DISPUTE_WINDOW_S,
   mockApi,
@@ -1037,5 +1043,386 @@ test.describe("the countdown's re-renders stay inside the receipt", () => {
     // None of it reached the page, or the trace log it renders.
     expect(seen.TracePageInner ?? 0).toBe(0);
     expect(seen.TraceRow ?? 0).toBe(0);
+  });
+});
+
+// ── D-067: the payer reads their own words again ────────────────────────
+//
+// The backend now withholds both reasons from anyone without the task's read
+// token — the payer too, in any tab but the one that ran the task — and marks
+// each dispute `reason_withheld`. The payer may sign a challenge for a read
+// grant, sent on each read after. The backend routes are not merged yet, so
+// they are stubbed here to the frozen contract.
+
+const PAYER_REASON = "the calculator app does not compute anything";
+const GRANT = "grant_e2e_read";
+const GRANTS_KEY = "orizon.dispute-read-grants";
+
+type ReadGrantStub = {
+  /** Every disputes read, with the grant it presented (or null). */
+  reads: (string | null)[];
+  challenges: () => number;
+  grants: () => number;
+};
+
+/**
+ * The disputes read, the read challenge and the read grant, as the backend
+ * lane's contract states them. The read withholds the reason — `""` and
+ * `reason_withheld: true` — unless it presents the grant this stub issued.
+ */
+async function stubReadGrant(
+  page: Page,
+  {
+    payer = mockWalletAddress,
+    challengeRoute = "present",
+    sendsFlag = true,
+    clock = Date.now,
+  }: {
+    payer?: string;
+    /** `missing` answers 404, as a backend without the route does. */
+    challengeRoute?: "present" | "missing";
+    /** False: a backend that predates `reason_withheld`. */
+    sendsFlag?: boolean;
+    clock?: () => number | Promise<number>;
+  } = {},
+): Promise<ReadGrantStub> {
+  const reads: (string | null)[] = [];
+  let challenges = 0;
+  let grants = 0;
+  const settlement = mockSettlementView({ settledAtS: nowS() - HOUR_S, payer });
+  const fulfil = (route: Route, status: number, body: unknown) =>
+    route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+
+  await page.route(
+    (url) => DISPUTES_READ.test(url.pathname),
+    async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      const grant =
+        (await route.request().headerValue("x-dispute-read-grant")) ?? null;
+      reads.push(grant);
+      const granted = grant === GRANT;
+      const dispute = {
+        ...mockDispute(codeStep, {
+          openedAtS: nowS() - 30 * 60,
+          reason: granted ? PAYER_REASON : "",
+          payer,
+        }),
+        ...(sendsFlag ? { reason_withheld: !granted } : {}),
+      };
+      return fulfil(route, 200, {
+        task_id: mockDisputeTaskId,
+        window_closes_at: settlement.window_closes_at,
+        now: Math.floor((await clock()) / 1000),
+        settlement,
+        disputes: [dispute],
+      });
+    },
+  );
+  await page.route("**/api/disputes/read-challenge", async (route) => {
+    challenges += 1;
+    if (challengeRoute === "missing") {
+      return fulfil(route, 404, { detail: "Not Found" });
+    }
+    const { task_id } = route.request().postDataJSON() as { task_id: string };
+    return fulfil(route, 200, {
+      nonce: "e2ereadnonce",
+      message: `orizon-dispute-read:v1:${task_id}:e2ereadnonce`,
+      expires_at: nowS() + 300,
+    });
+  });
+  await page.route("**/api/disputes/read-grant", async (route) => {
+    grants += 1;
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    expect(body).toEqual({
+      task_id: mockDisputeTaskId,
+      nonce: "e2ereadnonce",
+      signature_b64: mockSignature,
+    });
+    return fulfil(route, 200, { grant: GRANT, expires_at: nowS() + 3_600 });
+  });
+  return { reads, challenges: () => challenges, grants: () => grants };
+}
+
+/** Counts every signature the page asks the wallet for. */
+function countSignatures(): void {
+  Object.assign(window, { __signs: 0 });
+  window.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as { source?: string; type?: string } | null;
+    if (
+      data?.source === "FREIGHTER_EXTERNAL_MSG_REQUEST" &&
+      data.type === "SUBMIT_BLOB"
+    ) {
+      const w = window as unknown as { __signs: number };
+      w.__signs += 1;
+    }
+  });
+}
+
+/**
+ * A wallet whose owner closes the signing prompt: answers every signature
+ * with Freighter's own refusal, ahead of `mockWallet`'s stand-in. Installed
+ * BEFORE it, so this listener runs first and stops the other replying.
+ */
+function declineSignatures(): void {
+  window.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as {
+      source?: string;
+      type?: string;
+      messageId?: unknown;
+    } | null;
+    if (
+      data?.source !== "FREIGHTER_EXTERNAL_MSG_REQUEST" ||
+      data.type !== "SUBMIT_BLOB"
+    ) {
+      return;
+    }
+    event.stopImmediatePropagation();
+    window.postMessage(
+      {
+        source: "FREIGHTER_EXTERNAL_MSG_RESPONSE",
+        messagedId: data.messageId,
+        apiError: { code: -4, message: "The user rejected this request." },
+      },
+      window.location.origin,
+    );
+  });
+}
+
+const signatures = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __signs: number }).__signs);
+
+const offer = (page: Page): Locator =>
+  receipt(page).getByRole("button", { name: /show my reason/i });
+
+test.describe("the payer's own reason, in a tab without the task's token", () => {
+  test("is offered, signed for once on a press, and then read with the grant on every poll", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    const clock = () => page.evaluate(() => Date.now());
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          stub = await stubReadGrant(p, { clock });
+        },
+      },
+    );
+    if (!stub) throw new Error("stub not installed");
+    const reads = stub;
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(offer(page)).toBeVisible();
+    await expect(receipt(page)).toContainText(
+      "it costs nothing and sends no transaction",
+    );
+    await expect(row.getByText("Your reason")).toHaveCount(0);
+
+    // Never on its own: a poll passes, and nothing is asked of the wallet.
+    await page.clock.runFor(ADJUDICATION_POLL_MS);
+    await expect.poll(() => reads.reads.length).toBe(2);
+    expect(await signatures(page)).toBe(0);
+    expect(reads.challenges()).toBe(0);
+
+    await offer(page).click();
+    await expect(row).toContainText(PAYER_REASON);
+    await expect(offer(page)).toHaveCount(0);
+    expect(await signatures(page)).toBe(1);
+    expect(reads.challenges()).toBe(1);
+    expect(reads.grants()).toBe(1);
+    expect(reads.reads.at(-1)).toBe(GRANT);
+    const held = await page.evaluate(
+      (key) => window.sessionStorage.getItem(key),
+      GRANTS_KEY,
+    );
+    expect(held).toContain(GRANT);
+
+    // Every later read presents the grant, and none signs again.
+    const before = reads.reads.length;
+    await page.clock.runFor(ADJUDICATION_POLL_MS);
+    await expect.poll(() => reads.reads.length).toBe(before + 1);
+    await page.clock.runFor(ADJUDICATION_POLL_MS);
+    await expect.poll(() => reads.reads.length).toBe(before + 2);
+    expect(reads.reads.slice(before)).toEqual([GRANT, GRANT]);
+    expect(await signatures(page)).toBe(1);
+    expect(reads.challenges()).toBe(1);
+    await expect(row).toContainText(PAYER_REASON);
+
+    // A reload in the same tab keeps the grant: the reason comes back with
+    // no offer and no signature, once the wallet has restored.
+    await page.reload();
+    await expect(row).toContainText(PAYER_REASON);
+    await expect(offer(page)).toHaveCount(0);
+    expect(await signatures(page)).toBe(0);
+    expect(reads.challenges()).toBe(1);
+  });
+
+  test("drops a grant the server stopped honouring and offers the signature again, without looping", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    await page.addInitScript(
+      ({ key, taskId, payer }) => {
+        window.sessionStorage.setItem(
+          key,
+          JSON.stringify([
+            {
+              taskId,
+              payer,
+              grant: "grant_from_before_the_restart",
+              expiresAtMs: Date.now() + 3_600_000,
+            },
+          ]),
+        );
+      },
+      { key: GRANTS_KEY, taskId: mockDisputeTaskId, payer: mockWalletAddress },
+    );
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          stub = await stubReadGrant(p, {
+            clock: () => p.evaluate(() => Date.now()),
+          });
+        },
+      },
+    );
+    if (!stub) throw new Error("stub not installed");
+    const reads = stub;
+    await expect(offer(page)).toBeVisible();
+    // Presented once the wallet restored, refused, and dropped.
+    await expect
+      .poll(() => reads.reads.includes("grant_from_before_the_restart"))
+      .toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate((key) => window.sessionStorage.getItem(key), GRANTS_KEY),
+      )
+      .toBeNull();
+    await expect(offer(page)).toBeVisible();
+
+    // The next poll goes without, and nothing is signed or asked for.
+    const settled = reads.reads.length;
+    await page.clock.runFor(ADJUDICATION_POLL_MS);
+    await expect.poll(() => reads.reads.length).toBe(settled + 1);
+    expect(reads.reads.at(-1)).toBeNull();
+    expect(await signatures(page)).toBe(0);
+    expect(reads.challenges()).toBe(0);
+    await expect(offer(page)).toBeVisible();
+  });
+
+  test("a backend without the challenge route: the offer goes away, and nothing is signed", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          stub = await stubReadGrant(p, { challengeRoute: "missing" });
+        },
+      },
+    );
+    await offer(page).click();
+    await expect(offer(page)).toHaveCount(0);
+    expect(stub?.challenges()).toBe(1);
+    expect(stub?.grants()).toBe(0);
+    expect(await signatures(page)).toBe(0);
+    await expect(receipt(page)).not.toContainText("sends no transaction");
+    await expect(page.getByText(/⚠/)).toHaveCount(0);
+  });
+
+  test("a backend that cannot say whether it withheld anything offers nothing", async ({
+    page,
+  }) => {
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await stubReadGrant(p, { sendsFlag: false });
+        },
+      },
+    );
+    await expect(stepRow(page, codeStep.agent_id)).toContainText(
+      "Under review",
+    );
+    await expect(offer(page)).toHaveCount(0);
+  });
+
+  test("a declined prompt is a choice, not an error: the offer stays and no grant is kept", async ({
+    page,
+  }) => {
+    await page.addInitScript(declineSignatures);
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          stub = await stubReadGrant(p);
+        },
+      },
+    );
+    await offer(page).click();
+    await expect(receipt(page)).toContainText(
+      "Not signed. Your reason stays hidden until you choose to show it.",
+    );
+    await expect(offer(page)).toBeVisible();
+    expect(stub?.grants()).toBe(0);
+    // Next's route announcer is an empty alert on every page; no alert may
+    // SAY anything.
+    await expect(page.getByRole("alert").filter({ hasText: /\S/ })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText(/⚠/)).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        (key) => window.sessionStorage.getItem(key),
+        GRANTS_KEY,
+      ),
+    ).toBeNull();
+  });
+
+  test("a wallet that did not pay is never offered it, and never receives the reason", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({
+          settledAtS: nowS() - HOUR_S,
+          payer: mockOtherOwnerAddress,
+        }),
+      },
+      {
+        routes: async (p) => {
+          stub = await stubReadGrant(p, { payer: mockOtherOwnerAddress });
+        },
+      },
+    );
+    await expect(stepRow(page, codeStep.agent_id)).toContainText(
+      "Under review",
+    );
+    await expect(offer(page)).toHaveCount(0);
+    expect(stub?.challenges()).toBe(0);
+    expect(await signatures(page)).toBe(0);
+    expect(await page.content()).not.toContain(PAYER_REASON);
   });
 });
