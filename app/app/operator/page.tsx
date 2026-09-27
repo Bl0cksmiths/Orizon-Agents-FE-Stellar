@@ -143,90 +143,116 @@ export default function OperatorPage() {
           </p>
           <ConnectWallet />
         </Card>
-      ) : error ? (
-        <ErrorNote onRetry={retry} retrying={loading || retrying}>
-          <span className="block">could not read the agent registry</span>
-          <span className="mt-0.5 block break-all opacity-80">{error}</span>
-        </ErrorNote>
       ) : !agents ? (
-        <Card className="space-y-4">
-          <LoadingStatus label="Loading your agents…" />
-          <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-24 w-full" />
-        </Card>
-      ) : owned.length === 0 ? (
-        <Card className="space-y-4">
-          <h2 className="text-lg font-semibold tracking-tight">
-            This wallet owns no agents
-          </h2>
-          <p className="max-w-[70ch] text-sm text-muted">
-            Ownership is read from the chain, not from this browser. An agent
-            registered from a different wallet will not appear here even on the
-            same machine — connect the wallet that signed its registration.
-          </p>
-          <ButtonLink variant="primary" href="/app/register">
-            Register an agent
-          </ButtonLink>
-        </Card>
+        // Nothing has ever loaded, so there is nothing to keep on screen: the
+        // error is the whole answer, and a retry attempt flipping `loading`
+        // back on must not swap it for a skeleton.
+        error ? (
+          <ErrorNote onRetry={retry} retrying={loading || retrying}>
+            <span className="block">could not read the agent registry</span>
+            <span className="mt-0.5 block break-all opacity-80">{error}</span>
+          </ErrorNote>
+        ) : (
+          <Card className="space-y-4">
+            <LoadingStatus label="Loading your agents…" />
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-24 w-full" />
+          </Card>
+        )
       ) : (
         <>
-          <Card>
-            <StaleBadge
-              stale={Boolean(error)}
-              lastSuccessAt={lastSuccessAt}
-              what="registry data"
-              className="mb-4"
-            />
-            <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
-              <StatTile label="agents owned" value={owned.length} />
-              <StatTile
-                label="endpoint bound"
-                value={boundCount}
-                unit={`of ${owned.length}`}
-                hint={
-                  settledBinding < owned.length
-                    ? "some endpoints still being checked"
-                    : undefined
-                }
-              />
-              <StatTile
-                label="eligible"
-                value={eligibleCount ?? "—"}
-                unit={eligibleCount === null ? undefined : `of ${owned.length}`}
-                hint={
-                  eligibleCount === null
-                    ? "reputation unavailable"
-                    : "listed, bound and above the routing floor"
-                }
-              />
-              <StatTile
-                label="rated jobs"
-                value={ratedJobs ?? "—"}
-                hint={
-                  ratedJobs === null
-                    ? "reputation unavailable"
-                    : "completed work rated on-chain"
-                }
-              />
-            </div>
-          </Card>
-
-          <ul className="space-y-6">
-            {owned.map((agent) => (
-              <li key={agent.id}>
-                <AgentCard
-                  agent={agent}
-                  owner={address}
-                  bindingState={binding.stateOf(agent.id)}
-                  reputation={repBatch?.reputations[agent.id] ?? null}
-                  floorBps={repBatch?.floor_bps ?? null}
-                  priorBps={repBatch?.prior_bps ?? null}
-                  reputationRead={repRead}
-                  onChanged={retry}
+          {/* A refresh failed with a registry already on screen. `useFetch`
+              keeps that last good read, and it stays: blanking an operator's
+              agents over one failed revalidation hides everything they came
+              to check. The note says what failed, and the StaleBadge below
+              dates what is still shown. */}
+          {error && (
+            <ErrorNote onRetry={retry} retrying={loading || retrying}>
+              <span className="block">
+                could not refresh the agent registry — showing the last
+                successful read
+              </span>
+              <span className="mt-0.5 block break-all opacity-80">{error}</span>
+            </ErrorNote>
+          )}
+          {owned.length === 0 ? (
+            <Card className="space-y-4">
+              <h2 className="text-lg font-semibold tracking-tight">
+                This wallet owns no agents
+              </h2>
+              <p className="max-w-[70ch] text-sm text-muted">
+                Ownership is read from the chain, not from this browser. An
+                agent registered from a different wallet will not appear here
+                even on the same machine — connect the wallet that signed its
+                registration.
+              </p>
+              <ButtonLink variant="primary" href="/app/register">
+                Register an agent
+              </ButtonLink>
+            </Card>
+          ) : (
+            <>
+              <Card>
+                <StaleBadge
+                  stale={Boolean(error)}
+                  lastSuccessAt={lastSuccessAt}
+                  what="registry data"
+                  className="mb-4"
                 />
-              </li>
-            ))}
-          </ul>
+                <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
+                  <StatTile label="agents owned" value={owned.length} />
+                  <StatTile
+                    label="endpoint bound"
+                    value={boundCount}
+                    unit={`of ${owned.length}`}
+                    hint={
+                      settledBinding < owned.length
+                        ? "some endpoints still being checked"
+                        : undefined
+                    }
+                  />
+                  <StatTile
+                    label="eligible"
+                    value={eligibleCount ?? "—"}
+                    unit={
+                      eligibleCount === null ? undefined : `of ${owned.length}`
+                    }
+                    hint={
+                      eligibleCount === null
+                        ? "reputation unavailable"
+                        : "listed, bound and above the routing floor"
+                    }
+                  />
+                  <StatTile
+                    label="rated jobs"
+                    value={ratedJobs ?? "—"}
+                    hint={
+                      ratedJobs === null
+                        ? "reputation unavailable"
+                        : "completed work rated on-chain"
+                    }
+                  />
+                </div>
+              </Card>
+
+              <ul className="space-y-6">
+                {owned.map((agent) => (
+                  <li key={agent.id}>
+                    <AgentCard
+                      agent={agent}
+                      owner={address}
+                      bindingState={binding.stateOf(agent.id)}
+                      reputation={repBatch?.reputations[agent.id] ?? null}
+                      floorBps={repBatch?.floor_bps ?? null}
+                      priorBps={repBatch?.prior_bps ?? null}
+                      reputationRead={repRead}
+                      onChanged={retry}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </>
       )}
     </div>
