@@ -428,7 +428,7 @@ walkthrough(
         max: 72,
         what: "the dispute dialog (fixture data)",
         text: [
-          `<b>Dispute step 2</b> names the step, what was charged for it and what would be credited if the dispute is upheld, then repeats the three terms, then takes a <b>mandatory written reason</b> (500 characters, counted). <b>SIGN AND SUBMIT</b> asks the wallet that paid to sign the message <code>orizon-dispute:v1:{job_id}:{step}:{nonce}</code> — domain-separated and covering the exact step, so a captured signature cannot be replayed against another step or another workflow. Signing costs nothing and sends no transaction.`,
+          `<b>Dispute step 2</b> names the step, what was charged for it and what would be credited if the dispute is upheld, then repeats the three terms, then takes a <b>required written reason</b> (500 characters, counted — though the backend still accepts one made only of invisible characters, QA’s D-059). <b>SIGN AND SUBMIT</b> asks the wallet that paid to sign the message <code>orizon-dispute:v1:{job_id}:{step}:{nonce}</code> — domain-separated and covering the exact step, so a captured signature cannot be replayed against another step or another workflow. Signing costs nothing and sends no transaction.`,
           `Only the payer is offered this. A connected wallet that is not the payer sees no button and no <i>disabled</i> button — no action of any kind. <b>Nothing was signed for this frame</b>: the form was filled to show the enabled control, then closed.`,
         ],
       },
@@ -441,7 +441,7 @@ walkthrough(
         max: 76,
         what: "one step’s dispute receipt (fixture data)",
         text: [
-          `The badge reads <b>UNDER REVIEW</b>, with when it was raised and when it last changed. The credit is stated as a promise and nothing more — “Up to 0.027 USDC <b>would</b> be credited … funded by the platform, not clawed back from the agent” — and the buyer’s own reason is shown back to them. <b>No transaction hash appears in this frame, because nothing has been paid.</b>`,
+          `The badge reads <b>UNDER REVIEW</b>, with when it was raised and when it last changed. The credit is stated as a promise and nothing more — “Up to 0.027 USDC <b>would</b> be credited … funded by the platform, not clawed back from the agent” — and the buyer’s own reason is shown back to them — in a tab holding the task’s read token; without it the payer gets an empty “Your reason” heading (QA’s D-067, D-068). <b>No transaction hash appears in this frame, because nothing has been paid.</b>`,
         ],
       },
       {
@@ -479,7 +479,7 @@ walkthrough(
         max: 76,
         what: "one step’s dispute receipt (fixture data)",
         text: [
-          `<b>REJECTED</b>: “no credit was issued, code.gen’s reputation is unchanged, and the reason is below”. The buyer’s own reason is kept, and beneath it <b>WHY IT WAS REJECTED</b> carries the adjudicator’s own words. The note is mandatory on the reject route (1–500 characters) and is returned to the buyer, because a rejection with no explanation is worse than no dispute system at all. Opening a dispute proves nothing and costs the agent nothing until it is upheld.`,
+          `<b>REJECTED</b>: “no credit was issued, code.gen’s reputation is unchanged, and the reason is below”. The buyer’s own reason is shown, and beneath it <b>WHY IT WAS REJECTED</b> carries the adjudicator’s own words. The note is required on the reject route (1–500 characters), because a rejection with no explanation is worse than no dispute system at all. The backend returns both texts only to a caller holding the task’s read token or the operator key, as this frame’s tab does; a payer who comes back without the token sees “Rejected” and no reason (QA’s D-067). Opening a dispute proves nothing and costs the agent nothing until it is upheld.`,
           `No hash and no link appear in this frame, because nothing was paid. Independent QA found a real cost to the disclosure rule that protects this text — see D3 on page 18.`,
         ],
       },
@@ -523,8 +523,8 @@ walkthrough(
         light: true,
         max: 74,
         text: [
-          `Upholding happens in a fixed order. The dispute is recorded <code>upheld</code>; then a <b>refund claim</b> is taken on it — a row in a table, keyed by the dispute id, so it survives a restart and only one caller can ever hold it; the dispute moves to <code>crediting</code>. <b>If the claim cannot be taken, nothing is signed at all.</b> Only then is the amount computed, checked against the ceiling, and the transfer signed.`,
-          `Taking the claim and moving the dispute to <code>crediting</code> are <b>one statement</b>, not two, and concurrency is settled by the table’s primary key rather than by the status the statement read: the loser’s <code>ON CONFLICT DO NOTHING</code> returns nothing, and nothing returned means sign nothing. Two adjudicators clicking together, a retried request, a process redeployed mid-flight — all meet the same row. A repeat uphold of a <code>credited</code> dispute signs no transfer and returns the same refund hash.`,
+          `Upholding happens in a fixed order. The dispute is recorded <code>upheld</code>; then a <b>refund claim</b> is taken on it — a row in a table, keyed by the dispute id — in the Postgres store it survives a restart — and only one caller can ever hold it; the dispute moves to <code>crediting</code>. <b>If the claim cannot be taken, nothing is signed at all.</b> Only then is the amount computed, checked against the ceiling, and the transfer signed.`,
+          `Taking the claim and moving the dispute to <code>crediting</code> are <b>one statement</b>, not two, and concurrency is settled by the table’s primary key rather than by the status the statement read: the loser’s <code>ON CONFLICT DO NOTHING</code> returns nothing, and nothing returned means sign nothing. With the Postgres store, two adjudicators clicking together, a retried request, a process redeployed mid-flight — all meet the same row. The claim is per dispute; QA’s D-058 is the in-memory store’s path to a second dispute on one step. A repeat uphold of a <code>credited</code> dispute signs no transfer and returns the same refund hash.`,
         ],
       },
       {
@@ -540,7 +540,7 @@ walkthrough(
       {
         id: "B3",
         title:
-          "The three-way clamp, and a hard ceiling before anything is signed",
+          "The three-way clamp, and a ceiling that binds while it is finite",
         open: BE_DOC("docs/disputes.md"),
         go: "github.com · docs/disputes.md",
         shot: "b2-disputes-runbook-credit.png",
@@ -549,7 +549,7 @@ walkthrough(
         max: 74,
         text: [
           `What is transferred is the <b>smallest of three numbers</b>: the amount frozen on the dispute when it was opened, so the buyer is never paid less than they were shown and never more; the step’s price times the policy fraction in force at adjudication, so the stated policy is honoured; and what the workflow’s charge <i>actually moved on-chain</i>, so the platform never refunds money it did not collect. With the shipped policy they are normally the same number. Each clamp that bites is logged.`,
-          `Above that sits a hard ceiling: a credit over <code>MAX_REFUND_USDC</code> (shipped at <code>1.0</code>) is <b>refused outright, before any transaction is built</b>. It is enforced in the one function that produces a refund amount, so no amount exists that has not been through it — and a non-finite amount is refused first, because a comparison cannot refuse a NaN. The ceiling is deliberately separate from the charge cap: one bounds what a <i>buyer</i> authorised themselves to spend, the other what the <i>platform</i> pays out of its own wallet. Independent QA’s D-054 is that a non-finite value of the <i>setting</i> still removes the ceiling — open at this build.`,
+          `Above that sits a ceiling: while <code>MAX_REFUND_USDC</code> (shipped at <code>1.0</code>) is finite, a credit over it is <b>refused before any transaction is built</b>. It is enforced in the one function that produces a refund amount, so no amount exists that has not been through it — and a non-finite amount is refused first, because a comparison cannot refuse a NaN. The ceiling is deliberately separate from the charge cap: one bounds what a <i>buyer</i> authorised themselves to spend, the other what the <i>platform</i> pays out of its own wallet. The <i>setting</i> itself is never validated, so <code>MAX_REFUND_USDC=nan</code> or <code>inf</code> is accepted at boot and removes the ceiling — independent QA’s D-054, open at this build.`,
         ],
       },
       {
@@ -813,8 +813,8 @@ walkthrough(
         light: true,
         max: 78,
         text: [
-          `<b>“No-go for signing off 6.03. One criterion is blocked on the deploy, four fail in code, and Deliverable 3 is not captured.”</b> Of the story card’s eight criteria, three pass in code and none passes outright on the deployment: both on-chain artifacts are blocked behind D-050 and D-051; the window edges, the credit ceiling, the reputation cache and the rating-failure log each fail on a named open defect. Seven distinct duplicate-payment paths were attacked against the card’s minimum of four, and all seven hold at the hardening build.`,
-          `She also fixes the order in which the switch may be turned on, and this document does not argue with it: the deployment must run backend <code>08efeda</code> or later; <code>MAX_REFUND_USDC</code> must be unset or a finite positive number; <code>DATABASE_URL</code> must still be set. Then one live session. That list is the backbone of page {{p:path}}.`,
+          `<b>“No-go for signing off 6.03. One criterion is blocked on the deploy, four fail in code, and Deliverable 3 is not captured.”</b> Of the story card’s eight criteria, three pass in code and none passes outright on the deployment: both on-chain artifacts are blocked behind D-050 and D-051; the window edges, the credit ceiling, the reputation cache and the rating-failure log each fail on a named open defect. Seven distinct duplicate-payment paths were attacked against the card’s minimum of four, and all seven hold at the hardening build on the Postgres store; D-058 is a separate, open path on the in-memory store.`,
+          `She also fixes the order in which the switch may be turned on, and this document does not argue with it: the deployment must run backend <code>08efeda</code> or later; <code>MAX_REFUND_USDC</code> must be unset or a finite positive number; <code>DATABASE_URL</code> must be set — unconfirmed on the deployment today, since no endpoint reports the store in use (D-063). Then one live session. That list is the backbone of page {{p:path}}.`,
         ],
       },
     ],
