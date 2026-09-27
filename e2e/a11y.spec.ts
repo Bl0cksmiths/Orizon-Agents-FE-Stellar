@@ -11,6 +11,8 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
   mockApi,
+  mockArtifact,
+  mockArtifactResponse,
   mockDispute,
   mockDisputeApi,
   mockDisputeTaskId,
@@ -39,11 +41,34 @@ const ROUTES = [
   "/app/wallet",
 ];
 
+/**
+ * What a route has to have rendered before axe looks at it. Without this the
+ * sweep of /app/agents ran while the table was still a skeleton: a nameless
+ * button on every row passed two runs in three, because axe raced the fetch.
+ * The registry rows and the reputation batch (announced by the floor heading)
+ * are both on screen before the page is judged.
+ */
+const READY: Partial<Record<string, (page: Page) => Promise<void>>> = {
+  // The environment badge and the balance rows, so the sweep judges the page
+  // a PDAX operator sees rather than its loading skeletons.
+  "/app/pdax": async (page) => {
+    await expect(page.getByText("uat", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("PHP", { exact: true })).toBeVisible();
+  },
+  "/app/agents": async (page) => {
+    await expect(page.getByRole("rowheader")).not.toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Selection floor" }),
+    ).toBeVisible();
+  },
+};
+
 test.describe("accessibility", () => {
   for (const route of ROUTES) {
     test(`${route} has no WCAG A/AA violations`, async ({ page }) => {
       await mockApi(page);
       await page.goto(route);
+      await READY[route]?.(page);
 
       const { violations } = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
@@ -99,6 +124,36 @@ test.describe("accessibility — the trace page's receipt", () => {
 
   test("the receipt panel has no WCAG A/AA violations", async ({ page }) => {
     await openReceipt(page);
+    expect(await violations(page)).toEqual([]);
+  });
+
+  // A workflow that shipped code opens on its artifact tab: the file list,
+  // the code viewer and the sandboxed preview, none of which the sweep above
+  // reaches. The calculator is the artifact the receipt's `code.gen` step
+  // describes.
+  test("the artifact a workflow shipped has no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await mockApi(page, { artifact: mockArtifactResponse });
+    await mockTraceStream(page, mockDisputeTaskId);
+    await mockDisputeApi(page, {
+      settlement: mockSettlementView({
+        settledAtS: Math.floor(Date.now() / 1000) - 60 * 60,
+      }),
+    });
+    await page.goto(`/app/trace?task=${mockDisputeTaskId}`);
+    const tab = page.getByRole("tab", { name: /artifact/ });
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+    // The preview view first, as it opens, then the file list.
+    await expect(
+      page.getByRole("tabpanel", { name: "preview" }).locator("iframe"),
+    ).toHaveAttribute("title", mockArtifact.title);
+    expect(await violations(page)).toEqual([]);
+
+    await page.getByRole("tab", { name: "files" }).click();
+    await expect(
+      page.getByText(mockArtifact.files[2].path, { exact: true }).first(),
+    ).toBeVisible();
     expect(await violations(page)).toEqual([]);
   });
 

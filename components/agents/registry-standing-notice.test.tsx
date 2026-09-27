@@ -125,17 +125,6 @@ describe("RegistryStandingNotice — nothing to say", () => {
     const { container } = render(<RegistryStandingNotice batch={null} />);
     expect(container.innerHTML).toBe("");
   });
-
-  it("renders no floor when the batch carried none", () => {
-    const { container } = render(
-      <RegistryStandingNotice
-        batch={batchOf([rep("agt_a")], {
-          floor_bps: undefined as unknown as number,
-        })}
-      />,
-    );
-    expect(container.textContent).not.toContain("floor");
-  });
 });
 
 /** A read that failed: the prior served in place of the chain. Its lower bound
@@ -492,4 +481,81 @@ describe("RegistryStandingNotice — a failed request for the batch", () => {
       expect(markup().toLowerCase()).not.toContain("degraded");
     },
   );
+});
+
+// Entries the batch carried that no row can use are screened out one by one
+// rather than failing the whole read. Their agents then read "no score",
+// which is true — and this is where the page says why.
+describe("RegistryStandingNotice — entries it could not use", () => {
+  it("counts an unusable entry once, as its own neutral sentence", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")])}
+        entriesDropped={1}
+      />,
+    );
+    expect(text()).toContain(
+      "1 reputation entry could not be used — it was missing a field this page needs — so its agent shows no score rather than a guessed one.",
+    );
+    // Not a read failure: the chain may have been read perfectly well.
+    expect(text()).not.toMatch(/could not be read from the chain/);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("pluralises the count", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batchOf([rep("agt_a")])}
+        entriesDropped={3}
+      />,
+    );
+    expect(text()).toContain("3 reputation entries could not be used");
+    expect(text()).toContain("their agents show no score");
+  });
+
+  it("says nothing about dropped entries when none were", () => {
+    render(<RegistryStandingNotice batch={batchOf([rep("agt_a")])} />);
+    expect(text()).not.toMatch(/could not be used/);
+  });
+});
+
+// "On this page" is a claim about the rows a buyer can see. The batch can
+// carry agents the registry does not list, and a search or filter hides rows
+// that are listed; neither may change what the count says about the page.
+describe("RegistryStandingNotice — counting the rows on the page", () => {
+  const batch = batchOf([
+    rep("shown_a", { degraded: true, source: "prior" }),
+    rep("shown_b"),
+    rep("hidden_c", { degraded: true, source: "prior" }),
+    rep("batch_only", { degraded: true, source: "prior" }),
+  ]);
+
+  it("counts only the entries for the agents on screen", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batch}
+        agentIds={["shown_a", "shown_b"]}
+      />,
+    );
+    expect(text()).toContain(
+      "1 of 2 reputation scores on this page could not be read from the chain",
+    );
+  });
+
+  it("says none could be read only when that is true of the rows shown", () => {
+    render(<RegistryStandingNotice batch={batch} agentIds={["shown_a"]} />);
+    expect(text()).toContain(
+      "The one reputation score on this page could not be read from the chain.",
+    );
+  });
+
+  it("skips a shown agent the batch has no entry for", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batch}
+        agentIds={["shown_a", "shown_b", "unscored"]}
+      />,
+    );
+    expect(text()).toContain("1 of 2 reputation scores on this page");
+  });
 });

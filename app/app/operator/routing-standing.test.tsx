@@ -82,9 +82,21 @@ function renderStanding(
       reputation={rep()}
       floorBps={FLOOR_BPS}
       priorBps={PRIOR_BPS}
+      read="loaded"
       {...props}
     />,
   );
+}
+
+/** What the reputation chip says to a screen reader: its sr-only words,
+ *  which carry the source, the floor and the estimate caveat. */
+function chipWords(container: HTMLElement): string {
+  const words = Array.from(container.querySelectorAll(".sr-only")).map(
+    (el) => el.textContent ?? "",
+  );
+  const chip = words.filter((w) => /estimate|reputation \d/.test(w));
+  expect(chip).toHaveLength(1);
+  return chip[0] ?? "";
 }
 
 /** The single-sentence verdict, which is the live region. */
@@ -239,7 +251,7 @@ describe("RoutingStanding — gate 2, the floor", () => {
   it("delegates the score itself to the shared badge", () => {
     renderStanding({ reputation: rep({ count: 24 }) });
     expect(
-      screen.getByLabelText(/on-chain reputation 4\.50 from 24 rated jobs/i),
+      screen.getByText(/^on-chain reputation 4\.50 from 24 rated jobs/i),
     ).toBeTruthy();
   });
 });
@@ -278,6 +290,24 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     expect(text).toContain("routable from the day it is registered");
   });
 
+  // The same promise under a floor the prior does NOT clear — a deployment
+  // that raised REPUTATION_FLOOR_BPS. The verdict says "Not eligible", so a
+  // sentence under it saying "routable from the day it is registered" would
+  // contradict it inches away.
+  it("does not promise day-one routing when the prior misses the floor", () => {
+    const { container } = renderStanding({
+      reputation: priorRep({ lower_bound_bps: FLOOR_BPS - 323 }),
+      floorBps: FLOOR_BPS,
+    });
+    const text = container.textContent ?? "";
+    expect(verdict()).toContain("Not eligible");
+    expect(text).toContain("Never rated on-chain");
+    expect(text).not.toContain("routable from the day it is registered");
+    expect(text).toContain(
+      "the prior's lower bound sits below the floor, so a new agent needs rated work behind it before it clears",
+    );
+  });
+
   // Same payload apart from one optional flag, and one of them means the chain
   // read failed. They must not look alike.
   it("separates a degraded read from a cold start", () => {
@@ -289,6 +319,36 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     expect(text).not.toContain("Never rated on-chain");
   });
 
+  // The live shape of a failed read: the prior served for an agent that
+  // really has a record, with a lower bound that clears the floor because the
+  // prior always does. The headline is what the live region announces, so it
+  // must not be a cyan "✓ Eligible" with the caveat ~760 characters below.
+  it("calls a pass on a degraded read provisional, in the neutral tone", () => {
+    renderStanding({
+      reputation: priorRep({
+        lower_bound_bps: FLOOR_BPS + 177,
+        degraded: true,
+      }),
+    });
+    const status = screen.getByRole("status");
+    expect(verdict()).toBe(
+      "⋯Provisionally eligible — the on-chain reputation read failed, so the floor was checked against an estimate rather than this agent's record.",
+    );
+    expect(verdict()).not.toMatch(/^✓/);
+    expect(status.className).not.toContain("cyan");
+    expect(status.className).toContain("text-muted");
+    expect(document.body.textContent).toContain(
+      "says nothing yet about this agent's own record",
+    );
+  });
+
+  it("keeps the confirmed headline for the same pass on a healthy read", () => {
+    renderStanding({
+      reputation: priorRep({ lower_bound_bps: FLOOR_BPS + 177 }),
+    });
+    expect(verdict()).toBe("✓Eligible — the planner selects per request.");
+  });
+
   // The chip and the paragraph under it have to agree. The chip used to be
   // rendered without the flag, so it announced "no on-chain ratings yet" —
   // a cold start — right above a paragraph saying the read had failed.
@@ -296,18 +356,17 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     const { container } = renderStanding({
       reputation: priorRep({ degraded: true }),
     });
-    const chip = container.querySelector("[aria-label^='prior estimate']");
-    const label = chip?.getAttribute("aria-label") ?? "";
+    const label = chipWords(container);
+    expect(label).toMatch(/^prior estimate /);
     expect(label).toContain("the on-chain read did not come back");
     expect(label).not.toContain("no on-chain ratings yet");
   });
 
   it("keeps the cold-start wording on the chip for a genuine newcomer", () => {
     const { container } = renderStanding({ reputation: priorRep() });
-    const chip = container.querySelector("[aria-label^='prior estimate']");
-    expect(chip?.getAttribute("aria-label")).toContain(
-      "no on-chain ratings yet",
-    );
+    const label = chipWords(container);
+    expect(label).toMatch(/^prior estimate /);
+    expect(label).toContain("no on-chain ratings yet");
   });
 
   it("leaves a rated agent with neither notice", () => {
@@ -333,6 +392,43 @@ describe("RoutingStanding — no score at all", () => {
   });
 });
 
+// The operator page passes a null reputation for three different reasons,
+// and only one of them is about the agent. "It was not in the batch" is false
+// when no batch ever landed.
+describe("RoutingStanding — why there is no score", () => {
+  const noBatch = { reputation: null, floorBps: null, priorBps: null };
+
+  it("says the read is still on its way while it loads", () => {
+    const { container } = renderStanding({ ...noBatch, read: "loading" });
+    const text = container.textContent ?? "";
+    expect(verdict()).toBe(
+      "⋯Standing not confirmed — the reputation read has not come back yet.",
+    );
+    expect(text).toContain("The reputation read has not come back yet");
+    expect(text).not.toMatch(/not in the batch|came back without it/);
+  });
+
+  it("blames the failed read, not the agent, when the batch failed", () => {
+    const { container } = renderStanding({ ...noBatch, read: "failed" });
+    const text = container.textContent ?? "";
+    expect(verdict()).toBe(
+      "⋯Standing not confirmed — the reputation read failed.",
+    );
+    expect(text).toContain("it says nothing about its record");
+    expect(text).not.toMatch(/not in the batch|came back without it/);
+  });
+
+  it("says the agent was missing only when a batch actually landed", () => {
+    const { container } = renderStanding({ reputation: null, read: "loaded" });
+    expect(verdict()).toBe(
+      "⋯Standing not confirmed — no reputation score is known for this agent.",
+    );
+    expect(container.textContent).toContain(
+      "the reputation read came back without it",
+    );
+  });
+});
+
 describe("RoutingStanding — a delisted agent", () => {
   // The audit's case: bound, well above the floor, delisted — and the panel
   // called it eligible while the backend refused to route to it.
@@ -349,6 +445,18 @@ describe("RoutingStanding — a delisted agent", () => {
   it("treats an idle agent as listed", () => {
     renderStanding({ status: "idle" });
     expect(verdict()).toContain("Eligible — the planner selects per request.");
+  });
+
+  // A status a newer backend added. The backend's own rule would call it
+  // listed, but it may be the backend's word for a withdrawal, so the panel
+  // neither promises eligibility nor calls the agent delisted.
+  it("cannot confirm the standing of a status it does not know", () => {
+    const { container } = renderStanding({ status: "suspended" });
+    expect(verdict()).toBe(
+      '⋯Standing not confirmed — its registry status "suspended" is not one this console knows.',
+    );
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/Eligible —|Delisted/);
   });
 
   // The operator withdrew it; nothing failed. The panel keeps magenta for a
@@ -420,7 +528,21 @@ describe("RoutingStanding — the claims it must never make", () => {
     { name: "no score", props: { reputation: null } },
     {
       name: "no batch",
-      props: { reputation: null, floorBps: null, priorBps: null },
+      props: {
+        reputation: null,
+        floorBps: null,
+        priorBps: null,
+        read: "failed" as const,
+      },
+    },
+    {
+      name: "batch loading",
+      props: {
+        reputation: null,
+        floorBps: null,
+        priorBps: null,
+        read: "loading" as const,
+      },
     },
   ];
 

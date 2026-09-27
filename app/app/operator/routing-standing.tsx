@@ -46,18 +46,10 @@ import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { KVRow } from "@/components/ui/kv-row";
 import { bindHref, UNBOUND_WARNING } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
+import { scoreOutOfFive } from "@/lib/reputation-math";
 import type { BindingState } from "@/app/app/agents/use-binding-status";
-import type { AgentStatus, ReputationInfo } from "@/lib/types";
-
-/**
- * bps 0..10000 over a 0–100 rating scale → the familiar 0–5 score.
- *
- * Duplicated from ReputationBadge rather than imported because the badge does
- * not export it. The two have to round identically: the chip and the sentence
- * explaining the chip sit inches apart, and a 4.20 next to a 4.2 reads as two
- * different numbers for the same thing.
- */
-const score = (bps: number) => (bps / 2000).toFixed(2);
+import type { ReputationRead } from "@/components/agents/reputation-cell";
+import { isAgentStatus, type ReputationInfo } from "@/lib/types";
 
 /**
  * Where one gate stands. `unknown` is a first-class outcome and not a soft
@@ -114,11 +106,12 @@ export function RoutingStanding({
   reputation,
   floorBps,
   priorBps,
+  read,
 }: {
   agentId: string;
   /** The agent's registry status. "offline" is how an operator's delisting
    *  syncs back, and the orchestrator routes a delisted agent on no path. */
-  status: AgentStatus;
+  status: string;
   bindingState: BindingState | null;
   reputation: ReputationInfo | null;
   /** Null when the reputation batch has not loaded. The floor and the score
@@ -128,6 +121,14 @@ export function RoutingStanding({
    *  confident verdict. */
   floorBps: number | null;
   priorBps: number | null;
+  /**
+   * Where the page's reputation read stands. A null `reputation` means three
+   * different things — the batch is still on its way, it failed, or it landed
+   * without this agent — and only the last is a fact about the agent. The
+   * marketplace's `ReputationCell` draws the same distinction from the same
+   * state, so the two surfaces never word one absence two ways.
+   */
+  read: ReputationRead;
 }): JSX.Element {
   // `null` is "no claim applies" — a seeded catalog agent, another wallet's
   // agent, or one past the hook's cap. It is NOT an unbound agent, and it is
@@ -163,6 +164,10 @@ export function RoutingStanding({
   // because it settles everything: the orchestrator drops a delisted agent
   // before either gate is consulted, and no fallback re-admits it.
   const listed = isListed({ status });
+  // A status this build does not know. The backend's own rule would call it
+  // listed, but the word may be its name for a withdrawal, so the panel
+  // neither promises eligibility nor calls it delisted: it says it cannot tell.
+  const knownStatus = isAgentStatus(status);
 
   // A failure outranks an unknown. Both gates must hold, so one confirmed
   // failure settles the verdict no matter what the other gate is doing.
@@ -170,9 +175,18 @@ export function RoutingStanding({
     ? "withdrawn"
     : bindingGate === "fail" || floorGate === "fail"
       ? "fail"
-      : bindingGate === "unknown" || floorGate === "unknown"
+      : bindingGate === "unknown" || floorGate === "unknown" || !knownStatus
         ? "unknown"
         : "pass";
+
+  // A pass computed from a degraded read is a guess, not a verdict. The
+  // reputation service fails open, so a failed chain read serves the network
+  // prior — and the prior clears the floor by design, which turns every such
+  // read into a pass whatever the agent's real record says. The marketplace
+  // marks the same state "provisional"; this panel says so in its headline,
+  // in the neutral tone, rather than announcing "Eligible" in cyan and leaving
+  // the caveat to a paragraph far below it.
+  const provisional = verdict === "pass" && reputation?.degraded === true;
 
   const blockers: string[] = [];
   if (bindingGate === "fail") blockers.push("no endpoint is bound");
@@ -180,6 +194,10 @@ export function RoutingStanding({
     blockers.push("its reputation lower bound is below the network floor");
 
   const unread: string[] = [];
+  if (!knownStatus)
+    unread.push(
+      `its registry status "${status}" is not one this console knows`,
+    );
   if (bindingGate === "unknown")
     unread.push(
       bindingState === "error"
@@ -188,9 +206,13 @@ export function RoutingStanding({
     );
   if (floorGate === "unknown")
     unread.push(
-      reputation === null
-        ? "no reputation score is known for this agent"
-        : "the network floor is not known",
+      reputation !== null
+        ? "the network floor is not known"
+        : read === "loading"
+          ? "the reputation read has not come back yet"
+          : read === "failed"
+            ? "the reputation read failed"
+            : "no reputation score is known for this agent",
     );
 
   const holds: string[] = [];
@@ -201,20 +223,28 @@ export function RoutingStanding({
   const headline =
     verdict === "withdrawn"
       ? "Delisted — you withdrew this agent, so the orchestrator will not select it until you relist it."
-      : verdict === "pass"
-        ? "Eligible — the planner selects per request."
-        : verdict === "fail"
-          ? `Not eligible — ${joinClauses(blockers)}.`
-          : `Standing not confirmed — ${joinClauses(unread)}.`;
+      : provisional
+        ? "Provisionally eligible — the on-chain reputation read failed, so the floor was checked against an estimate rather than this agent's record."
+        : verdict === "pass"
+          ? "Eligible — the planner selects per request."
+          : verdict === "fail"
+            ? `Not eligible — ${joinClauses(blockers)}.`
+            : `Standing not confirmed — ${joinClauses(unread)}.`;
 
   const rationale =
     verdict === "withdrawn"
       ? "This is your own setting, not a fault. Delisting takes an agent off every routing path, and it is the one exclusion nothing on our side overrides — the starvation backstop never re-admits a delisted agent. Its reputation, history and endpoint binding are all kept. Relist it from its settings and the two gates below decide from there."
-      : verdict === "pass"
-        ? `Nothing is blocking selection: ${joinClauses(holds)}. Eligibility is not selection — it puts this agent in the candidate pool, and the planner chooses from that pool on every request.`
-        : verdict === "fail"
-          ? "An agent is selected only when both gates hold: an endpoint is bound, and the reputation lower bound clears the network floor."
-          : "This is not a verdict. Nothing here says the agent cannot be selected — one of the two gates has simply not been read.";
+      : provisional
+        ? "The floor check passed, but on the network prior — served because the chain could not be read — so it says nothing yet about this agent's own record. The orchestrator reads reputation again when it plans, and may see that record. Eligibility is not selection: even a confirmed pass only puts an agent in the candidate pool."
+        : verdict === "pass"
+          ? `Nothing is blocking selection: ${joinClauses(holds)}. Eligibility is not selection — it puts this agent in the candidate pool, and the planner chooses from that pool on every request.`
+          : verdict === "fail"
+            ? "An agent is selected only when both gates hold: an endpoint is bound, and the reputation lower bound clears the network floor."
+            : "This is not a verdict. Nothing here says the agent cannot be selected — one of the two gates has simply not been read.";
+
+  // What the headline looks like, which is not always what it decided: a
+  // provisional pass wears the not-confirmed tone and glyph, never the cyan ✓.
+  const shown: Verdict = provisional ? "unknown" : verdict;
 
   // Derived from the agent id rather than useId: this panel holds no state and
   // needs no client boundary, and an id is letters, digits and underscore only.
@@ -238,9 +268,9 @@ export function RoutingStanding({
           is the whole point of the panel and should not be silent. */}
       <p
         role="status"
-        className={`clip-cyber-sm flex flex-wrap items-baseline gap-x-2 gap-y-1 border px-3 py-2 font-mono text-xs leading-relaxed ${TONE[verdict]}`}
+        className={`clip-cyber-sm flex flex-wrap items-baseline gap-x-2 gap-y-1 border px-3 py-2 font-mono text-xs leading-relaxed ${TONE[shown]}`}
       >
-        <span aria-hidden="true">{GLYPH[verdict]}</span>
+        <span aria-hidden="true">{GLYPH[shown]}</span>
         <span className="min-w-0 break-words">{headline}</span>
       </p>
 
@@ -310,9 +340,13 @@ export function RoutingStanding({
         {reputation === null || floorBps === null ? (
           <p className={body}>
             <span aria-hidden="true">⋯ </span>
-            {reputation === null
-              ? `No reputation score is known for this agent — it was not in the batch, so whether it clears ${floorBps === null ? "the network floor" : `the ${score(floorBps)} floor`} cannot be answered here. It is not carrying the prior either; assuming the prior would be inventing a number.`
-              : "The network floor is not known, so whether this agent clears it cannot be answered here. The score above is real; the line it has to cross is what is missing."}
+            {reputation !== null
+              ? "The network floor is not known, so whether this agent clears it cannot be answered here. The score above is real; the line it has to cross is what is missing."
+              : read === "loading"
+                ? "The reputation read has not come back yet, so neither this agent's score nor the network floor is known. Nothing is assumed about either while it is on its way."
+                : read === "failed"
+                  ? "The reputation read failed, so neither this agent's score nor the network floor could be read. That is a fact about our request, not about this agent — it says nothing about its record."
+                  : `No reputation score is known for this agent — the reputation read came back without it, so whether it clears ${floorBps === null ? "the network floor" : `the ${scoreOutOfFive(floorBps)} floor`} cannot be answered here. It is not carrying the prior either; assuming the prior would be inventing a number.`}
           </p>
         ) : (
           <>
@@ -331,8 +365,8 @@ export function RoutingStanding({
               />
               <span className={body}>
                 {floorGate === "pass"
-                  ? `✓ Lower bound ${score(reputation.lower_bound_bps)} clears the ${score(floorBps)} floor.`
-                  : `✕ Lower bound ${score(reputation.lower_bound_bps)} is below the ${score(floorBps)} floor.`}
+                  ? `✓ Lower bound ${scoreOutOfFive(reputation.lower_bound_bps)} clears the ${scoreOutOfFive(floorBps)} floor.`
+                  : `✕ Lower bound ${scoreOutOfFive(reputation.lower_bound_bps)} is below the ${scoreOutOfFive(floorBps)} floor.`}
               </span>
             </div>
 
@@ -343,26 +377,26 @@ export function RoutingStanding({
             <dl className="max-w-md space-y-1 font-mono text-[11px]">
               <KVRow
                 k="lower bound"
-                value={score(reputation.lower_bound_bps)}
+                value={scoreOutOfFive(reputation.lower_bound_bps)}
                 valueClassName="text-text"
               />
               <KVRow
                 k="network floor"
-                value={score(floorBps)}
+                value={scoreOutOfFive(floorBps)}
                 valueClassName="text-text"
               />
               <KVRow
                 k="headline score"
-                value={score(reputation.smoothed_bps)}
+                value={scoreOutOfFive(reputation.smoothed_bps)}
                 valueClassName="text-muted"
               />
             </dl>
 
             <p className={body}>
               The floor is checked against the lower bound, never the headline{" "}
-              {score(reputation.smoothed_bps)}. The lower bound is what is left
-              after discounting for how few ratings back that headline up, so an
-              agent can show a healthy score and still be ineligible.
+              {scoreOutOfFive(reputation.smoothed_bps)}. The lower bound is what
+              is left after discounting for how few ratings back that headline
+              up, so an agent can show a healthy score and still be ineligible.
             </p>
 
             {floorGate === "fail" && (
@@ -391,10 +425,11 @@ export function RoutingStanding({
               <p className={`${body} text-magenta`}>
                 <span aria-hidden="true">⚠ </span>This score is not a reading of
                 the chain. The on-chain read failed and the Bayesian prior of{" "}
-                {priorBps === null ? "the network" : score(priorBps)} was served
-                in its place — the reputation service fails open. Treat the
-                result above as provisional: it was computed from the prior, not
-                from this agent&apos;s history. Reload once the read recovers.
+                {priorBps === null ? "the network" : scoreOutOfFive(priorBps)}{" "}
+                was served in its place — the reputation service fails open.
+                Treat the result above as provisional: it was computed from the
+                prior, not from this agent&apos;s history. Reload once the read
+                recovers.
               </p>
             ) : (
               reputation.source === "prior" && (
@@ -408,13 +443,18 @@ export function RoutingStanding({
                 // is the single most discouraging thing this page could say,
                 // and it is wrong. The verdict above is computed from the real
                 // numbers and was already correct; only this sentence lied.
+                // The day-one promise is made only when this panel's own
+                // comparison bears it out. A deployment can raise the floor
+                // above the prior's lower bound, and then the sentence would
+                // sit directly under a "Not eligible" verdict it contradicts.
                 <p className={body}>
                   <span aria-hidden="true">≈ </span>Never rated on-chain. This
                   is the Bayesian prior
-                  {priorBps === null ? "" : ` of ${score(priorBps)}`}, which a
-                  new agent carries until completed work replaces it. The prior
-                  is set above the floor deliberately, so an agent with no
-                  history is routable from the day it is registered.
+                  {priorBps === null ? "" : ` of ${scoreOutOfFive(priorBps)}`},
+                  which a new agent carries until completed work replaces it.{" "}
+                  {floorGate === "pass"
+                    ? "The prior is set above the floor deliberately, so an agent with no history is routable from the day it is registered."
+                    : "On this network the prior's lower bound sits below the floor, so a new agent needs rated work behind it before it clears."}
                 </p>
               )
             )}
