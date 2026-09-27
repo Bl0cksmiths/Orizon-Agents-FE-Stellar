@@ -17,7 +17,6 @@ import AxeBuilder from "@axe-core/playwright";
 import {
   mockApi,
   mockPlan,
-  mockPlanDegraded,
   mockPlanExcluded,
   mockPlanFloorRelaxed,
   mockPlanLegacy,
@@ -30,7 +29,12 @@ import {
   mockPlanUnbound,
   overflowingDescendants,
 } from "./plan-fixtures";
-import { LONG_AGENT_ID, mockPlanLongNames } from "./plan-degraded-fixtures";
+import {
+  LONG_AGENT_ID,
+  mockPlanColdStart,
+  mockPlanLongNames,
+  mockPlanPartialOutage,
+} from "./plan-degraded-fixtures";
 import { assetLabel } from "../lib/money";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
@@ -279,7 +283,7 @@ test.describe("plan card — reputation, source and exclusions", () => {
     // The wallet has to be connected for the authorize control to exist at all:
     // the AC is about the moment money is committed, not about a disabled
     // button on a page nobody can pay from.
-    await decomposeWith(page, mockPlanDegraded, { wallet: true });
+    await decomposeWith(page, mockPlanPartialOutage, { wallet: true });
 
     const banner = estimateBanner(page);
     await expect(banner).toHaveCount(1);
@@ -410,7 +414,7 @@ test.describe("plan card — reputation, source and exclusions", () => {
     page,
   }) => {
     await page.setViewportSize(EVIDENCE_FRAME);
-    await decomposeWith(page, mockPlanDegraded, { wallet: true });
+    await decomposeWith(page, mockPlanPartialOutage, { wallet: true });
 
     await exclusions(page).locator("summary").click();
     await expect(exclusions(page)).toHaveJSProperty("open", true);
@@ -522,6 +526,10 @@ test.describe("plan card — reputation, source and exclusions", () => {
 /** The routing-floor summary above the steps, by its accessible name. */
 const floorSummary = (page: Page) =>
   page.getByRole("region", { name: /routing floor/i });
+
+/** The summary's badge — the first claim the card makes about the floor. */
+const floorBadge = (page: Page) =>
+  floorSummary(page).locator("span", { hasText: /floor \d\.\d\d · / });
 
 /**
  * The claims the Epic 3 hardening pass corrected: which number the floor
@@ -872,5 +880,100 @@ test.describe("plan card — at the narrow end of phone widths", () => {
     }
     await expect(steps(page).first()).toContainText(`for ${LONG_AGENT_ID}`);
     expect(await overflowingDescendants(planCard(page))).toEqual([]);
+  });
+});
+
+/**
+ * The degraded states as the backend sends them: every step carrying its own
+ * `rep_degraded` and the prior's lower bound. The cold start is the live case
+ * — the ledger unreadable, every agent on the prior, no notices, and the
+ * floor acting on nobody — and it is the one where the card's first claim
+ * used to be a cyan "✓ floor 2.75 · applied", with the only warning a
+ * phone-screen and more further down.
+ */
+test.describe("plan card — reputation that could not be read", () => {
+  const unreadStates = [
+    { name: "a cold start", plan: mockPlanColdStart },
+    { name: "a partial outage", plan: mockPlanPartialOutage },
+  ];
+
+  for (const frame of [NARROW_PHONE, EVIDENCE_FRAME]) {
+    for (const { name, plan } of unreadStates) {
+      test(`at ${frame.width}px, ${name} is flagged unverified before the steps, and before Authorize`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(frame);
+        await decomposeWith(page, plan, { wallet: true, network: true });
+
+        // The first claim on the card: the floor badge. Never "applied" and
+        // never the check mark, on a floor that compared estimates.
+        const summary = floorSummary(page);
+        const badge = floorBadge(page);
+        await expect(badge).toContainText(/unverified/i);
+        await expect(badge).not.toContainText(/applied|✓/);
+        await expect(summary).toContainText(/estimates, not on-chain records/i);
+
+        // Geometry, not DOM order: the warning is painted above the first
+        // step and above the pay controls.
+        const authorize = page.getByRole("button", { name: /authorize/i });
+        const badgeBox = await stableBox(badge);
+        const firstStep = await stableBox(steps(page).first());
+        const authorizeBox = await stableBox(authorize);
+        const bannerBox = await stableBox(estimateBanner(page));
+        const headingBox = await stableBox(
+          page.getByRole("heading", { name: /execution plan/i }),
+        );
+        expect(badgeBox.y + badgeBox.height).toBeLessThanOrEqual(firstStep.y);
+        expect(badgeBox.y + badgeBox.height).toBeLessThanOrEqual(
+          authorizeBox.y,
+        );
+        console.log(
+          `[positions] ${frame.width}px ${name}: heading y=${Math.round(headingBox.y)}, ` +
+            `unverified badge y=${Math.round(badgeBox.y)} (+${Math.round(badgeBox.y - headingBox.y)}), ` +
+            `banner y=${Math.round(bannerBox.y)} (+${Math.round(bannerBox.y - headingBox.y)}, h=${Math.round(bannerBox.height)}), ` +
+            `authorize y=${Math.round(authorizeBox.y)} (+${Math.round(authorizeBox.y - headingBox.y)})`,
+        );
+
+        // …and it leads to the full warning in one press.
+        await summary
+          .getByRole("link", { name: /before you authorize/i })
+          .click();
+        await expect(estimateBanner(page)).toBeInViewport();
+
+        // Every pay control carries the one-sentence summary, not the banner.
+        for (const control of [/simulate/i, /fiat/i, /authorize/i]) {
+          await expect(
+            page.getByRole("button", { name: control }),
+          ).toHaveAccessibleDescription(/estimates, not on-chain records/i);
+        }
+      });
+    }
+  }
+
+  test("a cold start carries no WCAG A/AA violations", async ({ page }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanColdStart, { wallet: true });
+    await stableBox(estimateBanner(page));
+    await expect(estimateSummary(page)).toHaveText(/estimates/);
+
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(
+      violations.map(
+        (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+      ),
+    ).toEqual([]);
+  });
+
+  test("with the reads held, the floor still reads applied", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanExcluded, { wallet: true });
+    const badge = floorBadge(page);
+    await expect(badge).toContainText(/applied/);
+    await expect(badge).not.toContainText(/unverified/);
+    await expect(estimateBanner(page)).toHaveCount(0);
   });
 });
