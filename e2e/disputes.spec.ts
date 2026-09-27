@@ -655,10 +655,15 @@ test.describe("dispute action on the trace / receipt view", () => {
       form.getByRole("textbox", { name: /your reason/i }),
     ).toHaveValue(reason);
 
-    // And the buyer's own way out still works, the receipt going with it.
+    // And the buyer's own way out still works. The receipt stays: a
+    // settlement never un-happens, so an answer without one is a lost
+    // record, said so above the receipt last read — never "no receipt".
     await form.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog(page)).toHaveCount(0);
-    await expect(receipt(page)).toHaveCount(0);
+    await expect(receipt(page)).toBeVisible();
+    await expect(page.locator("main").getByRole("alert")).toContainText(
+      "showing the receipt last read",
+    );
   });
 
   test("a failed re-read dates the receipt it is printed above, not denies it", async ({
