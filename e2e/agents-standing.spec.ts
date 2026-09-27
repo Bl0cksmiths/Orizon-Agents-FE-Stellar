@@ -268,6 +268,25 @@ test.describe("agent standing in the marketplace", () => {
     await registryLoaded(page);
   });
 
+  test("says which filter is on in words, not only in colour", async ({
+    page,
+  }) => {
+    await mockApi(page);
+    await page.goto("/app/agents");
+    await registryLoaded(page);
+
+    const group = page.getByRole("group", { name: "Filter agents" });
+    const pressed = group.getByRole("button", { pressed: true });
+    await expect(pressed).toHaveCount(1);
+    await expect(pressed).toHaveText("all");
+
+    await group.getByRole("button", { name: ROUTABLE_FILTER }).click();
+    await expect(pressed).toHaveCount(1);
+    await expect(pressed).toHaveText("routable");
+    // Every other option says it is off, rather than saying nothing.
+    await expect(group.getByRole("button", { pressed: false })).toHaveCount(4);
+  });
+
   test("the degraded, filtered registry has no WCAG A/AA violations", async ({
     page,
   }) => {

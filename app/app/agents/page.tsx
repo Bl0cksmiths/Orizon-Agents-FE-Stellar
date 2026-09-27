@@ -204,7 +204,15 @@ export default function AgentsPage() {
               className={`clip-cyber-sm w-full border border-input bg-bg/60 pl-10 pr-4 h-10 text-sm placeholder:text-muted focus:border-violet transition ${focusRing}`}
             />
           </div>
-          <div className="flex gap-2">
+          {/* A group with a name, and each option saying whether it is on:
+              the selected filter used to be told apart only by its violet
+              fill, which a screen reader and a colour-blind reader both miss
+              (WCAG 1.4.1, 4.1.2). */}
+          <div
+            role="group"
+            aria-label="Filter agents"
+            className="flex flex-wrap gap-2"
+          >
             {/* "routable" sits next to "all" rather than at the end: it is the
                 question a buyer actually arrives with — who can I hire — and
                 the three status values after it are a narrower, more technical
@@ -214,6 +222,8 @@ export default function AgentsPage() {
               (f) => (
                 <button
                   key={f}
+                  type="button"
+                  aria-pressed={filter === f}
                   onClick={() => setFilter(f)}
                   className={
                     `clip-cyber-sm border px-3 h-10 font-mono text-[10px] uppercase tracking-widest transition ${focusRing} ` +
