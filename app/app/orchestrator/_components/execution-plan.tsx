@@ -315,7 +315,13 @@ export function ExecutionPlan({
                 {String(i + 1).padStart(2, "0")}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="violet">{s.agent_name ?? s.agent_id}</Badge>
+                {/* max-w-full + break-all, as the exclusions panel's names:
+                    an agent name may be one unbroken token of up to 100
+                    characters, and at 360px it was clipped silently by the
+                    card rather than wrapped. */}
+                <Badge tone="violet" className="max-w-full break-all">
+                  {s.agent_name ?? s.agent_id}
+                </Badge>
                 {/* The floor goes in ONLY beside the step's own lower bound.
 
                     ReputationBadge decides below-floor with
@@ -354,9 +360,13 @@ export function ExecutionPlan({
                 )}
                 {s.substituted_for && (
                   <span
+                    className="max-w-full"
                     title={`Routed in place of ${s.substituted_for}, which scored below the routing floor.`}
                   >
-                    <Badge tone="cyan">⇄ for {s.substituted_for}</Badge>
+                    {/* The replaced agent's name is as long as any other. */}
+                    <Badge tone="cyan" className="max-w-full break-all">
+                      ⇄ for {s.substituted_for}
+                    </Badge>
                   </span>
                 )}
                 {s.degraded && (

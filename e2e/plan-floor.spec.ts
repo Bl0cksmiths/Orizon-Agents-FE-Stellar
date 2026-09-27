@@ -28,7 +28,9 @@ import {
   mockTestnetNetwork,
   mockPlanStepEvidence,
   mockPlanUnbound,
+  overflowingDescendants,
 } from "./plan-fixtures";
+import { LONG_AGENT_ID, mockPlanLongNames } from "./plan-degraded-fixtures";
 import { assetLabel } from "../lib/money";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
@@ -44,8 +46,17 @@ type Box = { x: number; y: number; width: number; height: number };
  */
 const EVIDENCE_FRAME: Viewport = { width: 1440, height: 900 };
 
-/** The narrow end of the phones that reach this console. */
+/** A common phone width, and the one the layout was first tuned at. */
 const PHONE: Viewport = { width: 390, height: 844 };
+
+/** The narrow end of the phones that reach this console. */
+const NARROW_PHONE: Viewport = { width: 360, height: 740 };
+
+/** The plan card itself: the frame whose `clip-path` cuts off overflow. */
+const planCard = (page: Page) =>
+  page
+    .locator("div.glow-card")
+    .filter({ has: page.getByRole("heading", { name: /execution plan/i }) });
 
 /**
  * The exclusions disclosure. `<details>` is the contract rather than an
@@ -834,4 +845,30 @@ test.describe("plan card — what each claim rests on", () => {
       ).toEqual([]);
     });
   }
+});
+
+test.describe("plan card — at the narrow end of phone widths", () => {
+  // Agent names may be one unbroken token of up to 100 characters. At 360px a
+  // 56-character on-chain id used to run past its step row and be clipped by
+  // the card without a trace, and the page never scrolled to show it.
+  test("at 360px, long unbroken agent names wrap inside their step rows", async ({
+    page,
+  }) => {
+    await page.setViewportSize(NARROW_PHONE);
+    await decomposeWith(page, mockPlanLongNames, { wallet: true });
+
+    await expect(steps(page)).toHaveCount(mockPlanLongNames.steps.length);
+    for (const [index, step] of mockPlanLongNames.steps.entries()) {
+      const row = steps(page).nth(index);
+      await stableBox(row);
+      // The whole name is on the card, and nothing in the row sticks out.
+      await expect(row).toContainText(step.agent_id);
+      expect(
+        await overflowingDescendants(row),
+        `the ${index + 1}. step row`,
+      ).toEqual([]);
+    }
+    await expect(steps(page).first()).toContainText(`for ${LONG_AGENT_ID}`);
+    expect(await overflowingDescendants(planCard(page))).toEqual([]);
+  });
 });

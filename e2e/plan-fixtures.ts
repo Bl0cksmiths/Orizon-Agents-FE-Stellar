@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import type { DecomposeResponse, StellarNetworkInfo } from "../lib/types";
 import { mockPlanExcluded } from "./mocks";
 
@@ -366,4 +366,33 @@ export async function mockAuthorizeConfirmed(page: Page): Promise<void> {
       }),
     }),
   );
+}
+
+/**
+ * Every element inside `container` whose box runs past the container's right
+ * edge, as readable descriptions. Empty means nothing sticks out.
+ *
+ * Element-level on purpose. The console sets `overflow-x: hidden` on html and
+ * body, so the page-level `scrollWidth - clientWidth` reads 0 however wide a
+ * child is — a check that can never fail. And the cards clip their own
+ * overflow with `clip-path`, so a badge past the edge is not scrolled to, it
+ * is simply gone. Comparing boxes finds both.
+ */
+export async function overflowingDescendants(
+  container: Locator,
+): Promise<string[]> {
+  return container.evaluate((root) => {
+    const edge = root.getBoundingClientRect().right;
+    const out: string[] = [];
+    for (const el of Array.from(root.querySelectorAll("*"))) {
+      const box = el.getBoundingClientRect();
+      if (box.width > 0 && box.right > edge + 0.5) {
+        const text = (el.textContent ?? "").trim().slice(0, 40);
+        out.push(
+          `<${el.tagName.toLowerCase()}> "${text}" ends at ${Math.round(box.right)}, past ${Math.round(edge)}`,
+        );
+      }
+    }
+    return out;
+  });
 }
