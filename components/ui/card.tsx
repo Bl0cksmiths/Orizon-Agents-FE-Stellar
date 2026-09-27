@@ -16,7 +16,13 @@ export function Card({
       )}
       {...props}
     >
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet/5 via-transparent to-cyan/5" />
+      {/* data-decor: the dispute scan (e2e/dispute-axe.ts) flattens it,
+          since axe gives up on contrast over any gradient. */}
+      <div
+        aria-hidden
+        data-decor
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet/5 via-transparent to-cyan/5"
+      />
       <div className="relative">{children}</div>
     </div>
   );
