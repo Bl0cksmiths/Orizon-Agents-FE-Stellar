@@ -37,7 +37,7 @@ export function ReasonUnlock({
 }) {
   const signing = status === "signing";
   return (
-    <div className="clip-cyber-sm flex flex-col gap-3 border border-violet/40 bg-violet/5 px-4 py-3">
+    <div className="clip-cyber-sm border border-violet/40 bg-violet/5 px-4 py-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs leading-relaxed text-text/90">
           Your dispute reason, and the platform&apos;s reply to it, are shown
@@ -58,11 +58,14 @@ export function ReasonUnlock({
           {signing ? "Signing…" : "Show my reason"}
         </Button>
       </div>
-      {/* Mounted empty, so the first outcome is announced. */}
+      {/* Mounted empty, so the first outcome is announced — and never
+          display:none while empty, which takes a region out of the
+          accessibility tree and can cost the first announcement. Only its
+          margin collapses, so an empty region leaves no gap. */}
       <p
         role="status"
         aria-live="polite"
-        className="text-xs leading-relaxed text-muted empty:hidden"
+        className="mt-3 text-xs leading-relaxed text-muted empty:mt-0"
       >
         {status === "idle" ? "" : OUTCOME[status]}
       </p>
