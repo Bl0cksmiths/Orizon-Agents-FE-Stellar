@@ -174,6 +174,15 @@ export function RoutingStanding({
         ? "unknown"
         : "pass";
 
+  // A pass computed from a degraded read is a guess, not a verdict. The
+  // reputation service fails open, so a failed chain read serves the network
+  // prior — and the prior clears the floor by design, which turns every such
+  // read into a pass whatever the agent's real record says. The marketplace
+  // marks the same state "provisional"; this panel says so in its headline,
+  // in the neutral tone, rather than announcing "Eligible" in cyan and leaving
+  // the caveat to a paragraph far below it.
+  const provisional = verdict === "pass" && reputation?.degraded === true;
+
   const blockers: string[] = [];
   if (bindingGate === "fail") blockers.push("no endpoint is bound");
   if (floorGate === "fail")
@@ -201,20 +210,28 @@ export function RoutingStanding({
   const headline =
     verdict === "withdrawn"
       ? "Delisted — you withdrew this agent, so the orchestrator will not select it until you relist it."
-      : verdict === "pass"
-        ? "Eligible — the planner selects per request."
-        : verdict === "fail"
-          ? `Not eligible — ${joinClauses(blockers)}.`
-          : `Standing not confirmed — ${joinClauses(unread)}.`;
+      : provisional
+        ? "Provisionally eligible — the on-chain reputation read failed, so the floor was checked against an estimate rather than this agent's record."
+        : verdict === "pass"
+          ? "Eligible — the planner selects per request."
+          : verdict === "fail"
+            ? `Not eligible — ${joinClauses(blockers)}.`
+            : `Standing not confirmed — ${joinClauses(unread)}.`;
 
   const rationale =
     verdict === "withdrawn"
       ? "This is your own setting, not a fault. Delisting takes an agent off every routing path, and it is the one exclusion nothing on our side overrides — the starvation backstop never re-admits a delisted agent. Its reputation, history and endpoint binding are all kept. Relist it from its settings and the two gates below decide from there."
-      : verdict === "pass"
-        ? `Nothing is blocking selection: ${joinClauses(holds)}. Eligibility is not selection — it puts this agent in the candidate pool, and the planner chooses from that pool on every request.`
-        : verdict === "fail"
-          ? "An agent is selected only when both gates hold: an endpoint is bound, and the reputation lower bound clears the network floor."
-          : "This is not a verdict. Nothing here says the agent cannot be selected — one of the two gates has simply not been read.";
+      : provisional
+        ? "The floor check passed, but on the network prior — served because the chain could not be read — so it says nothing yet about this agent's own record. The orchestrator reads reputation again when it plans, and may see that record. Eligibility is not selection: even a confirmed pass only puts an agent in the candidate pool."
+        : verdict === "pass"
+          ? `Nothing is blocking selection: ${joinClauses(holds)}. Eligibility is not selection — it puts this agent in the candidate pool, and the planner chooses from that pool on every request.`
+          : verdict === "fail"
+            ? "An agent is selected only when both gates hold: an endpoint is bound, and the reputation lower bound clears the network floor."
+            : "This is not a verdict. Nothing here says the agent cannot be selected — one of the two gates has simply not been read.";
+
+  // What the headline looks like, which is not always what it decided: a
+  // provisional pass wears the not-confirmed tone and glyph, never the cyan ✓.
+  const shown: Verdict = provisional ? "unknown" : verdict;
 
   // Derived from the agent id rather than useId: this panel holds no state and
   // needs no client boundary, and an id is letters, digits and underscore only.
@@ -238,9 +255,9 @@ export function RoutingStanding({
           is the whole point of the panel and should not be silent. */}
       <p
         role="status"
-        className={`clip-cyber-sm flex flex-wrap items-baseline gap-x-2 gap-y-1 border px-3 py-2 font-mono text-xs leading-relaxed ${TONE[verdict]}`}
+        className={`clip-cyber-sm flex flex-wrap items-baseline gap-x-2 gap-y-1 border px-3 py-2 font-mono text-xs leading-relaxed ${TONE[shown]}`}
       >
-        <span aria-hidden="true">{GLYPH[verdict]}</span>
+        <span aria-hidden="true">{GLYPH[shown]}</span>
         <span className="min-w-0 break-words">{headline}</span>
       </p>
 

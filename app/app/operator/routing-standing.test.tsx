@@ -307,6 +307,36 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     expect(text).not.toContain("Never rated on-chain");
   });
 
+  // The live shape of a failed read: the prior served for an agent that
+  // really has a record, with a lower bound that clears the floor because the
+  // prior always does. The headline is what the live region announces, so it
+  // must not be a cyan "✓ Eligible" with the caveat ~760 characters below.
+  it("calls a pass on a degraded read provisional, in the neutral tone", () => {
+    renderStanding({
+      reputation: priorRep({
+        lower_bound_bps: FLOOR_BPS + 177,
+        degraded: true,
+      }),
+    });
+    const status = screen.getByRole("status");
+    expect(verdict()).toBe(
+      "⋯Provisionally eligible — the on-chain reputation read failed, so the floor was checked against an estimate rather than this agent's record.",
+    );
+    expect(verdict()).not.toMatch(/^✓/);
+    expect(status.className).not.toContain("cyan");
+    expect(status.className).toContain("text-muted");
+    expect(document.body.textContent).toContain(
+      "says nothing yet about this agent's own record",
+    );
+  });
+
+  it("keeps the confirmed headline for the same pass on a healthy read", () => {
+    renderStanding({
+      reputation: priorRep({ lower_bound_bps: FLOOR_BPS + 177 }),
+    });
+    expect(verdict()).toBe("✓Eligible — the planner selects per request.");
+  });
+
   // The chip and the paragraph under it have to agree. The chip used to be
   // rendered without the flag, so it announced "no on-chain ratings yet" —
   // a cold start — right above a paragraph saying the read had failed.
