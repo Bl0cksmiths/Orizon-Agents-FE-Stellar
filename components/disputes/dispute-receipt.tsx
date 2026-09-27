@@ -250,11 +250,37 @@ function Moment({
  * that says what it cost the agent, and says it only as far as the rating
  * transaction vouches for: a rating not yet confirmed is not yet a cost.
  */
+/**
+ * The end of a sentence about something still pending once the panel has
+ * stopped reading for it (`stoppedChecking`): it may have moved since, and
+ * the page will not show that on its own. Worded as the stalled rating's
+ * sentence already is, so the receipt says it the same way everywhere.
+ */
+const STOPPED_CHECKING =
+  "this page has stopped checking — reload to check again.";
+
 function nextStep(
   view: DisputeReceiptView,
   agent: string,
   voice: Voice,
 ): string {
+  const sentence = pendingStep(view, agent, voice);
+  if (sentence === null) return settledStep(view, agent, voice);
+  return view.stoppedChecking
+    ? sentence.replace(/\.$/, `; ${STOPPED_CHECKING}`)
+    : sentence;
+}
+
+/**
+ * The sentence for a receipt still waiting on something — a decision, a
+ * refund, a transfer's confirmation — or null once nothing is pending but,
+ * at most, the rating (which says its own stall).
+ */
+function pendingStep(
+  view: DisputeReceiptView,
+  agent: string,
+  voice: Voice,
+): string | null {
   switch (view.status) {
     case "open":
       return `The platform is reviewing this dispute; if it is upheld, the step's credit is paid to ${voice.wallet} and ${agent}'s reputation records the dispute.`;
@@ -285,26 +311,39 @@ function nextStep(
       if (view.refund.state !== "confirmed") {
         return `The platform recorded this credit as paid, but the refund transfer is not confirmed on Stellar yet; the platform reconciles it by hand — ${voice.who} will not be paid twice, and will not be skipped.`;
       }
-      // A promise is never restated as a payment: without the settled figure
-      // the sentence says the credit arrived, not how much.
-      const paid = view.amount.final
-        ? formatUsdc(view.amount.usdc)
-        : "the credit";
-      if (view.rating.state === "confirmed") {
-        return `Done: ${voice.who} received ${paid}, and it cost ${agent} a dispute rating on its reputation.`;
-      }
-      // "Not confirmed yet" promises the page will say when it is. Once the
-      // panel has stopped reading for the rating, that promise is withdrawn
-      // in words, and the buyer is told how to look again.
-      return view.ratingStalled
-        ? `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is still not recorded, and this page has stopped checking for it — reload to check again.`
-        : `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is not confirmed yet.`;
+      return null;
     }
     case "rejected":
-      return `The platform did not uphold this dispute: no credit was issued, ${agent}'s reputation is unchanged${
-        view.rejectionReason !== null ? ", and the reason is below" : ""
-      }.`;
+      return null;
   }
+}
+
+/**
+ * What a receipt with nothing left pending but, at most, the rating says: a
+ * rejection, or a credit whose refund is confirmed on Stellar.
+ */
+function settledStep(
+  view: DisputeReceiptView,
+  agent: string,
+  voice: Voice,
+): string {
+  if (view.status === "rejected") {
+    return `The platform did not uphold this dispute: no credit was issued, ${agent}'s reputation is unchanged${
+      view.rejectionReason !== null ? ", and the reason is below" : ""
+    }.`;
+  }
+  // A promise is never restated as a payment: without the settled figure
+  // the sentence says the credit arrived, not how much.
+  const paid = view.amount.final ? formatUsdc(view.amount.usdc) : "the credit";
+  if (view.rating.state === "confirmed") {
+    return `Done: ${voice.who} received ${paid}, and it cost ${agent} a dispute rating on its reputation.`;
+  }
+  // "Not confirmed yet" promises the page will say when it is. Once the
+  // panel has stopped reading for the rating, that promise is withdrawn
+  // in words, and the buyer is told how to look again.
+  return view.ratingStalled
+    ? `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is still not recorded, and this page has stopped checking for it — reload to check again.`
+    : `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is not confirmed yet.`;
 }
 
 /**

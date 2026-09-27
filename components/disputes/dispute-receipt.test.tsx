@@ -289,6 +289,57 @@ describe("DisputeReceipt — what happens next", () => {
   });
 });
 
+describe("DisputeReceipt — once the page has stopped checking", () => {
+  const STOPPED = "; this page has stopped checking — reload to check again.";
+  /** The next-step sentence: the receipt's first paragraph of prose. */
+  const sentence = () =>
+    Array.from(document.querySelectorAll("p")).find((p) =>
+      /dispute|refund|credit/.test(p.textContent ?? ""),
+    )?.textContent ?? "";
+
+  // A pending sentence reads as though the page will say when it moves;
+  // once the bounded poll has stopped, it says it will not.
+  it.each([
+    ["open", receipt("open", { stoppedChecking: true })],
+    ["upheld", receipt("upheld", { stoppedChecking: true })],
+    ["crediting", receipt("crediting", { stoppedChecking: true })],
+    [
+      "credited, refund unconfirmed",
+      receipt("credited", { ...UNRECONCILED, stoppedChecking: true }),
+    ],
+  ])("%s: ends by saying the page stopped checking", (_label, view) => {
+    renderReceipt(view);
+    expect(sentence().endsWith(STOPPED)).toBe(true);
+    expect(sentence().match(/stopped checking/g)).toHaveLength(1);
+  });
+
+  it.each([
+    ["open", receipt("open")],
+    ["upheld", receipt("upheld")],
+    ["crediting", receipt("crediting")],
+  ])(
+    "%s: says nothing of it while the page is still reading",
+    (_label, view) => {
+      renderReceipt(view);
+      expect(text()).not.toContain("stopped checking");
+    },
+  );
+
+  it("a credited receipt says its stalled rating once, in its own words", () => {
+    renderReceipt(
+      receipt("credited", {
+        rating: { txHash: null, state: "none" },
+        ratingStalled: true,
+        stoppedChecking: true,
+      }),
+    );
+    expect(text().match(/stopped checking/g)).toHaveLength(1);
+    expect(text()).toContain(
+      "is still not recorded, and this page has stopped checking for it — reload to check again.",
+    );
+  });
+});
+
 describe("DisputeReceipt — the credit line", () => {
   const FUNDED = "funded by the platform, not clawed back from the agent";
 
