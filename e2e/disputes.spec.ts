@@ -250,6 +250,30 @@ test.describe("dispute action on the trace / receipt view", () => {
     });
   }
 
+  // A policy may credit nothing; every fixture above credits something, so
+  // "credits 0 USDC if upheld" beside the action went unseen.
+  test("a policy that credits nothing says so, on the row and in the form", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({
+        settledAtS: nowS() - HOUR_S,
+        creditedFraction: 0,
+      }),
+    });
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row.getByRole("button", { name: /dispute/i })).toBeVisible();
+    await expect(row).not.toContainText("if upheld");
+    await expect(receipt(page)).toContainText(
+      "Under the current terms an upheld dispute credits nothing back.",
+    );
+    await expect(receipt(page)).not.toContainText("0%");
+
+    const form = await openDialog(page, codeStep.agent_id);
+    await expect(form).toContainText("Nothing, under the current terms");
+    await expect(form).not.toContainText(/Up to 0|credits 0/);
+  });
+
   test("a closed window says it closed and when, and offers no action anywhere", async ({
     page,
   }) => {
