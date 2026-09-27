@@ -176,6 +176,47 @@ describe("the held grant", () => {
     expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
   });
 
+  it("reads a store holding JSON that is not a list as empty, and writes over it", () => {
+    sessionStore.set(
+      "orizon.dispute-read-grants",
+      JSON.stringify({
+        taskId: TASK,
+        payer: PAYER,
+        grant: "g",
+        expiresAtMs: 1,
+      }),
+    );
+    expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
+
+    rememberReadGrant(TASK, PAYER, grant);
+    expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBe("grant-token");
+  });
+
+  it("drops entries that are not grants and keeps the ones that are", () => {
+    rememberReadGrant(TASK, PAYER, grant);
+    const kept = JSON.parse(
+      sessionStore.get("orizon.dispute-read-grants") ?? "[]",
+    ) as unknown[];
+    sessionStore.set(
+      "orizon.dispute-read-grants",
+      JSON.stringify([{ taskId: "tsk_bad", grant: 7 }, null, ...kept]),
+    );
+    expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBe("grant-token");
+    expect(heldReadGrant("tsk_bad", PAYER, NOW_MS)).toBeNull();
+  });
+
+  it("holds nothing, and throws nothing, where there is no window (SSR)", () => {
+    vi.stubGlobal("window", undefined);
+    try {
+      expect(() => rememberReadGrant(TASK, PAYER, grant)).not.toThrow();
+      expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
+      expect(() => forgetReadGrant(TASK)).not.toThrow();
+      expect(sessionStore.size).toBe(0);
+    } finally {
+      vi.stubGlobal("window", { sessionStorage: storage });
+    }
+  });
+
   it("names the header the backend reads it from", () => {
     expect(DISPUTE_READ_GRANT_HEADER).toBe("X-Dispute-Read-Grant");
   });
