@@ -795,6 +795,15 @@ export function disputeView(input: {
     proofTx: settlement.proof_tx,
     policy: settlement.policy,
     steps,
+    // Only the payer is ever offered the signature, and only when the backend
+    // said, in so many words, that it withheld something from them: an absent
+    // flag is a backend with no grant to give.
+    reasonsWithheld:
+      viewer === "payer" &&
+      res.disputes.some(
+        (d) =>
+          d.job_id_hex === settlement.job_id_hex && d.reason_withheld === true,
+      ),
   };
 }
 

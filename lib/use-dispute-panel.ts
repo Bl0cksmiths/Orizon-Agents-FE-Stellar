@@ -31,6 +31,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "./api";
+import { forgetReadGrant, heldReadGrant } from "./dispute-read-grant";
 import {
   disputeView,
   getTaskDisputes,
@@ -251,10 +252,12 @@ export function useDisputePanel(
   const targetRef = useRef(target);
   const doneRef = useRef(workflowDone);
   const stateRef = useRef(state);
+  const addressRef = useRef(address);
   useEffect(() => {
     targetRef.current = target;
     doneRef.current = workflowDone;
     stateRef.current = state;
+    addressRef.current = address;
   });
 
   // The latest request wins: an older one settling later — for this task or
@@ -310,9 +313,12 @@ export function useDisputePanel(
       // Taken before the request leaves: the offset is measured against it,
       // so a slow exchange can only ever understate the window.
       const sentAtMs = Date.now();
+      // The payer's read grant, if this tab holds one for this wallet: read
+      // from storage on every read, so a poll presents it and never signs.
+      const grant = heldReadGrant(id, addressRef.current);
       let res: TaskDisputes;
       try {
-        res = await getTaskDisputes(id);
+        res = await getTaskDisputes(id, grant);
       } catch (err) {
         if (!isLatest()) return;
         if (err instanceof ApiError && err.status === 404 && firstRead) {
@@ -344,6 +350,13 @@ export function useDisputePanel(
       // Measured before anything else runs: the clock restarts here, and it
       // is only as good as the moment it is taken.
       const receivedAtMs = Date.now();
+      // A grant that still came back withheld is one the server no longer
+      // honours — it restarted, and its key rotated. Dropped, so the payer is
+      // offered the signature again, once, by the receipt; never re-asked
+      // for here, which would loop a wallet prompt on every poll.
+      if (grant !== null && res.disputes.some((d) => d.reason_withheld)) {
+        forgetReadGrant(id);
+      }
       if (!isLatest()) return;
       const sealed = doneAtRequest || sealedInFlightRef.current;
       setState((s) => {

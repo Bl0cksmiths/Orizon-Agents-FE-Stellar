@@ -737,6 +737,12 @@ export type DisputePanelView =
       proofTx: string | null;
       policy: CreditPolicy;
       steps: { step: SettlementStepView; state: StepDisputeState }[];
+      /**
+       * The payer is looking, and the backend withheld their own dispute
+       * words from this read (D-067): they may sign to read them. Always
+       * false for anyone else, and on a backend that cannot say.
+       */
+      reasonsWithheld: boolean;
     };
 
 /**

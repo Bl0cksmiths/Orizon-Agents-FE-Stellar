@@ -225,6 +225,7 @@ describe("disputeTickMs", () => {
     proofTx: null,
     policy: settlement(T0).policy,
     steps: [],
+    reasonsWithheld: false,
   });
 
   it("runs no timer when nothing on the panel can change with time", () => {
@@ -476,7 +477,7 @@ describe("useDisputePanel — what it fetches", () => {
     fetchDisputes.mockReturnValueOnce(d.promise);
     const { result } = mount();
 
-    expect(fetchDisputes).toHaveBeenCalledWith("task_a");
+    expect(fetchDisputes).toHaveBeenCalledWith("task_a", null);
     expect(result.current).toMatchObject({
       view: { kind: "hidden" },
       loading: true,
@@ -853,7 +854,7 @@ describe("useDisputePanel — task changes", () => {
     const { result, rerender } = mount();
 
     rerender({ ...DEFAULTS, taskId: "task_b" });
-    expect(fetchDisputes).toHaveBeenLastCalledWith("task_b");
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_b", null);
 
     await land(a, answer(10 * M, { job: JOB_A }));
     expect(result.current.loading).toBe(true);
@@ -1127,7 +1128,7 @@ describe("useDisputePanel — live updates", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(1);
     await advance(1);
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
-    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a");
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
 
     await land(poll, closedWith(dsp(1, "open")));
     nextRead();

@@ -148,6 +148,7 @@ function settled(
     proofTx: PROOF_TX,
     policy: POLICY,
     steps: rows,
+    reasonsWithheld: false,
     ...over,
   };
 }
