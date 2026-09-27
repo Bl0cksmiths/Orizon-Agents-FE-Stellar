@@ -226,6 +226,36 @@ describe("getTaskDisputes", () => {
     expect(initOf(1).headers).toEqual({ "X-Task-Token": "tok_abc" });
   });
 
+  // D-067: the payer's read grant rides on the read beside the task token,
+  // and only when the caller hands one over.
+  it("sends the payer's read grant when given one, beside any task token", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(200, taskDisputes()));
+
+    await getTaskDisputes(TASK, "grant_abc");
+    expect(initOf(0).headers).toEqual({ "X-Dispute-Read-Grant": "grant_abc" });
+
+    rememberTaskToken(TASK, "tok_abc");
+    await getTaskDisputes(TASK, "grant_abc");
+    expect(initOf(1).headers).toEqual({
+      "X-Task-Token": "tok_abc",
+      "X-Dispute-Read-Grant": "grant_abc",
+    });
+
+    await getTaskDisputes(TASK, null);
+    expect(initOf(2).headers).toEqual({ "X-Task-Token": "tok_abc" });
+  });
+
+  it("reads reason_withheld where it is sent, and passes a backend without it", async () => {
+    const withheld = dispute(1, { reason: "", reason_withheld: true });
+    const legacy = dispute(2);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, taskDisputes({ disputes: [withheld, legacy] })),
+    );
+    const res = await getTaskDisputes(TASK);
+    expect(res.disputes).toEqual([withheld, legacy]);
+    expect(res.disputes[1]).not.toHaveProperty("reason_withheld");
+  });
+
   it("never replays a recent answer: every call is a fresh request", async () => {
     // The window's clock is measured on arrival, and a refresh after a submit
     // must see the dispute it opened — a deduped replay would get both wrong.
@@ -395,6 +425,15 @@ describe("getTaskDisputes", () => {
     [
       "a rejection reason that is not a string",
       { ...dispute(0), rejection_reason: 42 },
+    ],
+    // D-067: it decides whether the payer is offered a wallet signature.
+    [
+      "a reason_withheld of the truthy string 'false'",
+      { ...dispute(0), reason_withheld: "false" },
+    ],
+    [
+      "a reason_withheld sent as null",
+      { ...dispute(0), reason_withheld: null },
     ],
     ["a fractional step index", { ...dispute(0), step_index: 1.5 }],
     ["nothing at all", null],
@@ -778,6 +817,44 @@ describe("disputeView — disputes from another job", () => {
     expect(state?.kind).toBe("disputed");
     if (state?.kind !== "disputed") throw new Error("expected disputed");
     expect(state.dispute.id).toBe("dsp_mine");
+  });
+});
+
+// D-067: who is offered a signature to read their words again.
+describe("disputeView — reasons the backend withheld", () => {
+  const withheld = (over: Partial<Dispute> = {}) =>
+    taskDisputes({
+      disputes: [dispute(1, { reason: "", reason_withheld: true, ...over })],
+    });
+
+  it("tells the payer their words were withheld", () => {
+    expect(settled({ res: withheld() }).reasonsWithheld).toBe(true);
+  });
+
+  it.each<[string, string | null]>([
+    ["a wallet that did not pay", OTHER],
+    ["no wallet", null],
+  ])("never offers it to %s", (_, viewerAddress) => {
+    expect(settled({ res: withheld(), viewerAddress }).reasonsWithheld).toBe(
+      false,
+    );
+  });
+
+  it("offers nothing when nothing was withheld, or the backend cannot say", () => {
+    expect(
+      settled({ res: withheld({ reason_withheld: false }) }).reasonsWithheld,
+    ).toBe(false);
+    expect(
+      settled({ res: taskDisputes({ disputes: [dispute(1)] }) })
+        .reasonsWithheld,
+    ).toBe(false);
+  });
+
+  it("ignores another run's dispute, as every step does", () => {
+    expect(
+      settled({ res: withheld({ job_id_hex: "f".repeat(32) }) })
+        .reasonsWithheld,
+    ).toBe(false);
   });
 });
 
