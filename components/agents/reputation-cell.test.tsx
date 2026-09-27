@@ -129,7 +129,7 @@ describe("ReputationCell — no entry", () => {
     const { container } = renderCell({ rep: null, read: "loaded" });
     const text = said(container);
     expect(container.textContent).toContain("no score");
-    expect(text).toContain("carried no entry");
+    expect(text).toContain("carried no usable entry for it");
     expect(text).not.toMatch(NO_NUMBER);
     expect(text).not.toMatch(/no on-chain ratings|prior estimate/i);
   });
