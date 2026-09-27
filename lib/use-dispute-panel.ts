@@ -215,6 +215,12 @@ type Snapshot = {
    * still owed, carried the same way; null when no dispute is in that gap.
    */
   ratingSinceMs: number | null;
+  /**
+   * The payer's read grant this answer was read with, or null for none —
+   * and null too once the server showed it no longer honours it, so a
+   * dropped grant is never mistaken for one still to be presented.
+   */
+  grant: string | null;
 };
 
 type FetchState = {
@@ -354,9 +360,9 @@ export function useDisputePanel(
       // honours — it restarted, and its key rotated. Dropped, so the payer is
       // offered the signature again, once, by the receipt; never re-asked
       // for here, which would loop a wallet prompt on every poll.
-      if (grant !== null && res.disputes.some((d) => d.reason_withheld)) {
-        forgetReadGrant(id);
-      }
+      const dishonoured =
+        grant !== null && res.disputes.some((d) => d.reason_withheld);
+      if (dishonoured) forgetReadGrant(id);
       if (!isLatest()) return;
       const sealed = doneAtRequest || sealedInFlightRef.current;
       setState((s) => {
@@ -378,6 +384,7 @@ export function useDisputePanel(
             ratingSinceMs: ratingOwed
               ? (held?.ratingSinceMs ?? receivedAtMs)
               : null,
+            grant: dishonoured ? null : grant,
           },
           error: null,
         };
@@ -413,6 +420,24 @@ export function useDisputePanel(
     }
     void load(target, workflowDone);
   }, [target, workflowDone, load]);
+
+  // Reads again when the grant this tab holds for the connected wallet is
+  // not the one the answer on screen was read with. The wallet restores
+  // AFTER the first read, so a payer who signed for a grant and then
+  // reloaded was read without it and offered the signature again — on a
+  // settled receipt nothing polls, so it stayed that way. It also covers a
+  // grant expiring, and another wallet connecting: the payer's words go the
+  // moment the grant stops being theirs to present.
+  //
+  // Settles in one read: that answer records the grant it presented, and a
+  // grant the server refused is dropped from both sides at once.
+  useEffect(() => {
+    if (target === null || inFlightRef.current) return;
+    const held = state.taskId === target ? state.snapshot : null;
+    if (held === null) return;
+    if (heldReadGrant(target, address) === held.grant) return;
+    void load(target, doneRef.current);
+  }, [target, address, state, load]);
 
   const refresh = useCallback(async (): Promise<void> => {
     const id = targetRef.current;
