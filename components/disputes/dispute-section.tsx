@@ -371,10 +371,16 @@ export const DisputeSection = memo(function DisputeSection({
     },
     [refresh, adopt],
   );
-  // A dispute raised here: the step shows it from the server's own record.
-  const onSubmitted = useCallback(() => {
-    void refresh();
-  }, [refresh]);
+  // A dispute raised here is shown on its step at once, from the record the
+  // server returned, and then re-read: a re-read that fails cannot put the
+  // step's Dispute action back.
+  const onSubmitted = useCallback(
+    (dispute: Dispute) => {
+      adopt(dispute);
+      void refresh();
+    },
+    [refresh, adopt],
+  );
   // `refresh` never rejects and resolves once its answer is on screen, so the
   // retry control can say it is working and not take a second press.
   const [retrying, setRetrying] = useState(false);

@@ -839,9 +839,15 @@ test.describe("dispute action on the trace / receipt view", () => {
     const alert = page.locator("main").getByRole("alert");
     await expect(alert).toContainText("this receipt may be out of date");
     await expect(alert).not.toContainText("receipt unavailable");
-    // And it is: the receipt below the banner is still drawn in full.
+    // And it is: the receipt below the banner is still drawn in full — with
+    // the dispute just raised on its step, from the record the submit
+    // returned, though the re-read that should have shown it failed. The
+    // step's action does not come back to be pressed a second time.
     await expect(receipt(page)).toBeVisible();
-    await expect(disputeButtons(page)).toHaveCount(2);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(1);
   });
 
   test("a failed receipt read says so with a retry, and never blocks the trace", async ({
