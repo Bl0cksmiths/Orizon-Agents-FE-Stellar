@@ -46,8 +46,13 @@ describe("screenAgentList", () => {
 
   /** The agents a screen kept, or null when it rejected the payload. */
   const kept = (v: unknown) => screenAgentList(v);
-  /** Whether this one agent survives the screen on its own. */
-  const keeps = (a: unknown) => screenAgentList([a])?.length === 1;
+  /** Whether this one agent survives the screen beside a healthy one. The
+   * list itself must always survive: a bad agent is dropped, never the list. */
+  const keeps = (a: unknown) => {
+    const list = screenAgentList([agent, a]);
+    expect(list).not.toBeNull();
+    return list?.length === 2;
+  };
 
   it("keeps a valid list, and the empty list, with nothing dropped", () => {
     const list = kept([agent]);
