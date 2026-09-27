@@ -13,7 +13,8 @@ const score = (bps: number) => (bps / 2000).toFixed(2);
  *
  * The floor decision follows the backend's `passes_floor`: the Wilson lower
  * bound against the floor, never the displayed (smoothed) score. Callers
- * that gate on the floor should pass `lowerBoundBps` alongside `floorBps`.
+ * that gate on the floor must pass `lowerBoundBps` alongside `floorBps`; a
+ * floor without a bound is stated as not judged, never judged on the score.
  */
 export function ReputationBadge({
   bps,
@@ -44,7 +45,13 @@ export function ReputationBadge({
   // no source at all all take the humbler claim: shown as an estimate, never
   // as a measurement nobody made.
   const prior = source !== "onchain";
-  const belowFloor = floorBps != null && (lowerBoundBps ?? bps) < floorBps;
+  // The floor gates on the lower bound, never on the headline score beside
+  // it. With no bound passed the chip cannot judge the floor, and says so
+  // rather than judging the smoothed score against it — the exact confusion
+  // between the two numbers the floor exists to avoid.
+  const floorUnjudged = floorBps != null && lowerBoundBps == null;
+  const belowFloor =
+    floorBps != null && lowerBoundBps != null && lowerBoundBps < floorBps;
   const showCount = !prior && count != null && count > 0;
   const disputePct =
     disputeRateBps != null && disputeRateBps > 0
@@ -69,6 +76,9 @@ export function ReputationBadge({
         ? `on-chain reputation ${score(bps)} from ${count} rated job${count === 1 ? "" : "s"}`
         : `on-chain reputation ${score(bps)}`,
     belowFloor ? `below the ${score(floorBps)} network floor` : null,
+    floorUnjudged
+      ? `not judged against the ${score(floorBps)} network floor — its lower bound is not known`
+      : null,
     disputePct ? `${disputePct}% disputed` : null,
   ].filter(Boolean);
   const label = parts.join(" · ");

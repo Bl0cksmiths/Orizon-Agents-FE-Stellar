@@ -147,3 +147,38 @@ describe("ReputationBadge — the evidence behind an on-chain score", () => {
     }
   });
 });
+
+describe("ReputationBadge — the floor is judged on the lower bound only", () => {
+  it("judges the floor on the lower bound, not the headline score", () => {
+    // A healthy-looking 3.00 whose bound sits under the 2.75 floor.
+    const el = chip({
+      source: "onchain",
+      bps: 6000,
+      lowerBoundBps: 5000,
+      floorBps: 5500,
+    });
+    expect(hasAll(el, BELOW_TINT)).toBe(true);
+    expect(spoken(el)).toContain("below the 2.75 network floor");
+  });
+
+  it("says it cannot judge the floor when no lower bound is passed", () => {
+    // A headline score under the floor, with no bound to judge it on: the
+    // old fallback called this agent below the floor on the wrong number.
+    const low = chip({ source: "onchain", bps: 5000, floorBps: 5500 });
+    expect(hasAny(low, BELOW_TINT)).toBe(false);
+    expect(hasAll(low, ONCHAIN_TINT)).toBe(true);
+    expect(spoken(low)).not.toContain("below the");
+    expect(spoken(low)).toContain(
+      "not judged against the 2.75 network floor — its lower bound is not known",
+    );
+    // And a headline score over it is not waved through either.
+    const high = chip({ source: "onchain", bps: 9000, floorBps: 5500 });
+    expect(spoken(high)).toContain("not judged against the 2.75 network floor");
+  });
+
+  it("says nothing about a floor that was not passed", () => {
+    const el = chip({ source: "onchain", bps: 5000, lowerBoundBps: 4000 });
+    expect(spoken(el)).not.toMatch(/floor/);
+    expect(hasAny(el, BELOW_TINT)).toBe(false);
+  });
+});
