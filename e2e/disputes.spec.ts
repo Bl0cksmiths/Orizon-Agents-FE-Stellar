@@ -1068,6 +1068,46 @@ test.describe("dispute action on the trace / receipt view", () => {
     expect(await horizontalOverflow(form)).toEqual([]);
   });
 
+  // D-060: the row's action went away at the close, but a dialog already
+  // open kept its submit — and one press asked the wallet to sign a dispute
+  // the server then refused.
+  test("a form left open across the close says so, and never asks the wallet to sign", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    const start = Date.now();
+    await page.clock.install({ time: start });
+    const settledAtS = Math.floor(start / 1000) - DISPUTE_WINDOW_S + 90;
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS }),
+      clock: () => page.evaluate(() => Date.now()),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    const reasonBox = form.getByRole("textbox", { name: /your reason/i });
+    await reasonBox.fill("the calculator app does not compute anything");
+    await expect(
+      form.getByRole("button", { name: /sign and submit/i }),
+    ).toBeEnabled();
+
+    // Two minutes on, the window closed thirty seconds ago.
+    await page.clock.runFor(120_000);
+
+    await expect(form.getByRole("alert")).toHaveText(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+    await expect(
+      form.getByRole("button", { name: /sign and submit/i }),
+    ).toHaveCount(0);
+    // Ctrl+Enter from the reason is the form's other way to submit.
+    await reasonBox.press("Control+Enter");
+    await networkBeat(page);
+    expect(await signatures(page)).toBe(0);
+
+    await form.getByRole("button", { name: "Back to the receipt" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(0);
+  });
+
   test("at 360px the receipt and the dispute form fit without sideways scroll", async ({
     page,
   }) => {
@@ -1404,6 +1444,12 @@ async function runToNextRead(page: Page, reads: () => number): Promise<void> {
     )
     .toBe(next);
 }
+
+/**
+ * A second of real time, for a count of zero to mean something: a request
+ * leaves the page at once but reaches the route over another channel.
+ */
+const networkBeat = (page: Page) => page.waitForTimeout(1_000);
 
 /** Counts every signature the page asks the wallet for. */
 function countSignatures(): void {

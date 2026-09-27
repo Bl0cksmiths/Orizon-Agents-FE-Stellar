@@ -152,6 +152,9 @@ function renderDialog(overrides: Partial<DisputeDialogProps> = {}) {
     settlement: settlementWith(),
     onClose: vi.fn(),
     onSubmitted: vi.fn(),
+    windowOpen: true,
+    offsetMs: 0,
+    windowClosesAtMs: settlementWith().window_closes_at * 1_000,
     ...overrides,
   };
   const view = render(<DisputeDialog {...props} />);
@@ -494,6 +497,81 @@ describe("DisputeDialog — the reason", () => {
     expect(
       screen.getByText("500 / 500 characters · limit reached"),
     ).toBeTruthy();
+  });
+});
+
+describe("DisputeDialog — the window closing under it (D-060)", () => {
+  it("stops offering a signature once the window has closed, and says so", async () => {
+    const { props, rerender } = renderDialog();
+    typeReason(REASON);
+    expect(submitButton().disabled).toBe(false);
+
+    rerender({ windowOpen: false });
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+    expect(screen.queryByRole("button", { name: /sign|submit/i })).toBeNull();
+    // Ctrl+Enter from the reason is a submit too, and asks for nothing.
+    fireEvent.keyDown(reasonBox(), { key: "Enter", ctrlKey: true });
+    expect(raiseDispute).not.toHaveBeenCalled();
+    expect(wallet.signMessage).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Back to the receipt" }),
+    );
+    expect(props.onClose).toHaveBeenCalledWith("stale");
+  });
+
+  it("takes back a retry it was offering once the window closes", async () => {
+    raiseThen(async () => {
+      throw new ApiError("Too Many Requests", 429);
+    });
+    const { rerender } = renderDialog();
+    await submitWith();
+    expect(
+      screen.getByRole("button", { name: "Sign and submit again" }),
+    ).toBeTruthy();
+
+    rerender({ windowOpen: false });
+
+    expect(screen.queryByRole("button", { name: /sign|submit/i })).toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+  });
+
+  it("refuses the signature itself when the window closes while the challenge is fetched", async () => {
+    const challenge = deferred<void>();
+    raiseDispute.mockImplementation(async ({ signMessage }: RaiseArgs) => {
+      await challenge.promise;
+      await signMessage(CHALLENGE);
+      return DISPUTE;
+    });
+    const { rerender } = renderDialog();
+    await submitWith();
+
+    rerender({ windowOpen: false });
+    await act(async () => {
+      challenge.resolve();
+    });
+
+    expect(wallet.signMessage).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The dispute window for this workflow has closed, so this step can no longer be disputed.",
+    );
+  });
+
+  it("judges the window on the server's clock and the exact close", async () => {
+    raiseThen();
+    renderDialog({ offsetMs: -4_200, windowClosesAtMs: 1_790_086_400_250 });
+
+    await submitWith();
+
+    expect(raiseDispute.mock.calls[0][0]).toMatchObject({
+      offsetMs: -4_200,
+      windowClosesAtMs: 1_790_086_400_250,
+    });
   });
 });
 

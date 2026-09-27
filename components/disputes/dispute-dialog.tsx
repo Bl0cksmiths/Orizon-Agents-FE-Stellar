@@ -27,6 +27,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import {
+  DisputeRefusal,
   MAX_DISPUTE_REASON_CHARS,
   agentLabel,
   disputeErrorCode,
@@ -89,6 +90,21 @@ export type DisputeDialogProps = {
    * before the buyer presses Done. Without it focus lands on `document.body`.
    */
   returnFocusRef?: RefObject<HTMLElement>;
+  /**
+   * Whether the dispute window is still open, as the page's panel judges it
+   * on the server-corrected clock. A dialog left open across the close must
+   * not go on offering a signature the server will refuse (D-060): once this
+   * is false the form says the window has closed, offers only a way out, and
+   * never asks the wallet for anything.
+   */
+  windowOpen: boolean;
+  /** The server's clock minus this browser's, for `raiseDispute`. */
+  offsetMs: number;
+  /**
+   * When the window closes, in epoch ms on the server's clock — exact, where
+   * the settlement's `window_closes_at` may have been rounded to seconds.
+   */
+  windowClosesAtMs: number;
 };
 
 /**
@@ -271,10 +287,7 @@ function refusalFailure(err: unknown, payer: string): Failure {
         false,
       );
     case "dispute_window_closed":
-      return closeOnly(
-        "The dispute window for this workflow has closed, so this step can no longer be disputed.",
-        true,
-      );
+      return closeOnly(WINDOW_CLOSED, true);
     case "step_not_settled":
       return closeOnly(
         "This step was never settled, so there is nothing to dispute on it.",
@@ -467,6 +480,10 @@ export function DisputeDialog(props: DisputeDialogProps) {
   return <DisputeForm key={draftKey ?? "none"} {...props} />;
 }
 
+/** What the form says once the window has closed under it. */
+const WINDOW_CLOSED =
+  "The dispute window for this workflow has closed, so this step can no longer be disputed.";
+
 function DisputeForm({
   open,
   step,
@@ -474,6 +491,9 @@ function DisputeForm({
   onClose,
   onSubmitted,
   returnFocusRef,
+  windowOpen,
+  offsetMs,
+  windowClosesAtMs,
 }: DisputeDialogProps) {
   const wallet = useWallet();
   const shown = open && step !== null && settlement !== null;
@@ -506,7 +526,31 @@ function DisputeForm({
     state.kind === "done" ||
     (state.kind === "error" && state.failure.next === "close");
   const canSubmit =
-    reason.trim().length > 0 && !busy && !finished && wallet.address !== null;
+    reason.trim().length > 0 &&
+    !busy &&
+    !finished &&
+    windowOpen &&
+    wallet.address !== null;
+  // Read by the signing wrapper at the moment it would prompt, not at the
+  // press: the window can close while the challenge is being fetched.
+  const windowOpenRef = useRef(windowOpen);
+  windowOpenRef.current = windowOpen;
+
+  // The window closing under a form that is waiting on the buyer — fresh,
+  // or showing a failure it offers to retry — is an answer, not a disabled
+  // button with no reason given: it says so, and offers only the way back to
+  // a receipt that now needs reading again. A sequence already running is
+  // left to finish — the wrapper below refuses its signature itself — and a
+  // raised dispute stays raised.
+  useEffect(() => {
+    if (windowOpen) return;
+    setState((current) =>
+      current.kind === "idle" ||
+      (current.kind === "error" && current.failure.next === "retry")
+        ? { kind: "error", failure: closeOnly(WINDOW_CLOSED, true) }
+        : current,
+    );
+  }, [windowOpen]);
 
   // The submit button is disabled while the sequence runs, and browsers drop
   // focus from a control the moment it is disabled — a keyboard user would be
@@ -556,6 +600,16 @@ function DisputeForm({
     // form can follow the sequence it runs: the prompt opening, the signature
     // coming back, and a second prompt if the first challenge expired.
     const signMessage = async (message: string): Promise<string> => {
+      // Never a prompt for a window the page has watched close: the server
+      // would refuse the signature, and the buyer would have signed for
+      // nothing (D-060). Refused as the server would refuse it, so it lands
+      // on the same screen.
+      if (!windowOpenRef.current) {
+        throw new DisputeRefusal(
+          "dispute_window_closed",
+          "The dispute window for this workflow has closed.",
+        );
+      }
       attempt.signatures += 1;
       setState({
         kind: "signing",
@@ -579,6 +633,9 @@ function DisputeForm({
         reason,
         payer,
         signMessage,
+        // Judged on the server's clock, as the server will judge it.
+        offsetMs,
+        windowClosesAtMs,
       });
       setState({ kind: "done", dispute });
       onSubmitted(dispute);

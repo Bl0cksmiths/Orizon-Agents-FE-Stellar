@@ -47,8 +47,16 @@ function settlementOf(view: SettledView): SettlementView {
   };
 }
 
-/** The step a dialog is about, and the settlement it was charged under. */
-type DisputeTarget = { step: SettlementStepView; settlement: SettlementView };
+/**
+ * The step a dialog is about, the settlement it was charged under, and the
+ * exact instant its window closes — the view's, in ms, where the settlement
+ * rebuilt above rounds it to whole seconds.
+ */
+type DisputeTarget = {
+  step: SettlementStepView;
+  settlement: SettlementView;
+  closesAtMs: number;
+};
 
 /**
  * A skeleton bar centred in a line box of the text it stands in for, so each
@@ -280,7 +288,7 @@ export const DisputeSection = memo(function DisputeSection({
   workflowDone,
   demo,
 }: Props) {
-  const { view, loading, error, refresh } = useDisputePanel(taskId, {
+  const { view, loading, error, refresh, offsetMs } = useDisputePanel(taskId, {
     workflowDone,
     demo,
   });
@@ -319,7 +327,11 @@ export const DisputeSection = memo(function DisputeSection({
 
   const onDispute = (step: SettlementStepView) => {
     if (view.kind !== "settled") return;
-    setTarget({ step, settlement: settlementOf(view) });
+    setTarget({
+      step,
+      settlement: settlementOf(view),
+      closesAtMs: view.window.closesAtMs,
+    });
   };
   const onConnect = useCallback(() => {
     void connect();
@@ -405,6 +417,13 @@ export const DisputeSection = memo(function DisputeSection({
           onClose={onClose}
           onSubmitted={onSubmitted}
           returnFocusRef={receiptHeadingRef}
+          // The panel's own verdict, on the server-corrected clock: a dialog
+          // left open across the close stops offering a signature (D-060).
+          // A view that is not a settled one says nothing about the window,
+          // and the dialog's own guards on the server's clock still hold.
+          windowOpen={view.kind === "settled" ? view.window.open : true}
+          offsetMs={offsetMs}
+          windowClosesAtMs={target?.closesAtMs ?? 0}
         />
       )}
     </div>
