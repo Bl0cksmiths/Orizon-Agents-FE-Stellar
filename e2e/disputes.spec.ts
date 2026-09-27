@@ -958,6 +958,33 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(disputeButtons(page)).toHaveCount(0);
   });
 
+  // The draft outlives an accidental close only because the section keeps
+  // the dialog mounted while a step can be disputed — which nothing tested
+  // through the section: the dialog's own test mounts it by hand.
+  test("a half-typed reason survives an accidental close, and a different step starts clean", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    const draft = "the calculator app does not";
+    const form = await openDialog(page, codeStep.agent_id);
+    await form.getByRole("textbox", { name: /your reason/i }).fill(draft);
+    await form.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+
+    const again = await openDialog(page, codeStep.agent_id);
+    await expect(
+      again.getByRole("textbox", { name: /your reason/i }),
+    ).toHaveValue(draft);
+    await again.getByRole("button", { name: "Cancel" }).click();
+
+    const other = await openDialog(page, briefStep.agent_id);
+    await expect(
+      other.getByRole("textbox", { name: /your reason/i }),
+    ).toHaveValue("");
+  });
+
   test("at 360px the receipt and the dispute form fit without sideways scroll", async ({
     page,
   }) => {
