@@ -985,6 +985,24 @@ test.describe("dispute action on the trace / receipt view", () => {
     ).toHaveValue("");
   });
 
+  // The status line is mounted empty so a screen reader is listening before
+  // its first message. Emptied out of the layout with `display: none`, it is
+  // out of the accessibility tree too, and that first message can be lost.
+  test("the form's status line is in the accessibility tree before it says anything", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    const status = form.getByRole("status");
+    await expect(status).toHaveCount(1);
+    await expect(status).toHaveText("");
+    expect(
+      await status.evaluate((el) => getComputedStyle(el).display),
+    ).not.toBe("none");
+  });
+
   test("at 360px the receipt and the dispute form fit without sideways scroll", async ({
     page,
   }) => {
