@@ -162,6 +162,10 @@ export default function AgentsPage() {
       return matchesQ && matchesStatus;
     });
   }, [agents, q, filter, isRoutable]);
+  // The rows on screen, so the notice's "on this page" counts exactly them —
+  // not agents the search or a filter hid, nor batch entries for agents the
+  // registry does not list.
+  const shownIds = useMemo(() => rows.map((a) => a.id), [rows]);
 
   return (
     <div className="space-y-6">
@@ -186,6 +190,7 @@ export default function AgentsPage() {
       <RegistryStandingNotice
         batch={repBatch ?? null}
         entriesDropped={entriesDropped}
+        agentIds={shownIds}
         readError={repError}
         lastReadAt={repLastReadAt}
         onRetry={reloadReputation}

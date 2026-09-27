@@ -542,3 +542,44 @@ describe("RegistryStandingNotice — entries it could not use", () => {
     expect(text()).toContain("2 reputation entries could not be used");
   });
 });
+
+// "On this page" is a claim about the rows a buyer can see. The batch can
+// carry agents the registry does not list, and a search or filter hides rows
+// that are listed; neither may change what the count says about the page.
+describe("RegistryStandingNotice — counting the rows on the page", () => {
+  const batch = batchOf([
+    rep("shown_a", { degraded: true, source: "prior" }),
+    rep("shown_b"),
+    rep("hidden_c", { degraded: true, source: "prior" }),
+    rep("batch_only", { degraded: true, source: "prior" }),
+  ]);
+
+  it("counts only the entries for the agents on screen", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batch}
+        agentIds={["shown_a", "shown_b"]}
+      />,
+    );
+    expect(text()).toContain(
+      "1 of 2 reputation scores on this page could not be read from the chain",
+    );
+  });
+
+  it("says none could be read only when that is true of the rows shown", () => {
+    render(<RegistryStandingNotice batch={batch} agentIds={["shown_a"]} />);
+    expect(text()).toContain(
+      "The one reputation score on this page could not be read from the chain.",
+    );
+  });
+
+  it("skips a shown agent the batch has no entry for", () => {
+    render(
+      <RegistryStandingNotice
+        batch={batch}
+        agentIds={["shown_a", "shown_b", "unscored"]}
+      />,
+    );
+    expect(text()).toContain("1 of 2 reputation scores on this page");
+  });
+});

@@ -63,6 +63,7 @@ export function RegistryStandingNotice({
   onRetry,
   retrying = false,
   entriesDropped = 0,
+  agentIds,
 }: {
   batch: ReputationBatch | null;
   /**
@@ -72,6 +73,13 @@ export function RegistryStandingNotice({
    * once, instead of leaving a buyer to guess that the agent is unrated.
    */
   entriesDropped?: number;
+  /**
+   * The agents whose rows are on screen. The failure count below says "on
+   * this page", so it counts exactly these: not agents a search or filter
+   * hid, and not batch entries for agents the registry does not list.
+   * Omitted, every entry in the batch is counted.
+   */
+  agentIds?: readonly string[];
   /**
    * Why the latest reputation request failed, or null when it did not. The
    * request is best-effort — the registry renders without it — which is
@@ -119,7 +127,13 @@ export function RegistryStandingNotice({
   // value worth shouting about.
   const hasFloor = floorBps != null;
 
-  const entries = Object.values(batch.reputations);
+  const entries =
+    agentIds === undefined
+      ? Object.values(batch.reputations)
+      : agentIds.flatMap((id) => {
+          const entry = batch.reputations[id];
+          return entry === undefined ? [] : [entry];
+        });
   const total = entries.length;
   // Counted on `degraded` alone. Counting `source === "prior"` instead would
   // accuse every honest never-rated agent on the page of being a failed read.
