@@ -1612,10 +1612,16 @@ export type MockDisputeApiOptions = {
    * returns it. `duplicate` answers the backend's 409 `duplicate_dispute`,
    * whose body carries the dispute that already exists — one raised from the
    * buyer's other tab — and every later read includes it, as the server's
-   * would.
+   * would. `invalid` answers the 422 `validation_error` FastAPI gives a
+   * body outside `OpenDisputeReq`'s bounds — a reason over the cap — with
+   * the field's own error in `detail`, and records nothing.
    */
-  open?: "created" | "duplicate";
+  open?: "created" | "duplicate" | "invalid";
 };
+
+/** The `msg` FastAPI puts on a reason over `OpenDisputeReq`'s 500 cap. */
+export const mockReasonTooLongMessage =
+  "String should have at most 500 characters";
 
 const DISPUTES_RE = /^\/api\/tasks\/([^/]+)\/disputes$/;
 const disputeNonce = "e2edisputenonce000000000000000000";
@@ -1693,6 +1699,30 @@ export async function mockDisputeApi(
               code: "dispute_window_closed",
               message: "the dispute window for this workflow has closed",
               request_id: "e2e0000000000409",
+            },
+          }),
+        });
+      }
+      if (options.open === "invalid") {
+        // `validation_exception_handler`: FastAPI's own 422 body under
+        // `detail`, plus the envelope's code.
+        return route.fulfill({
+          status: 422,
+          contentType: "application/json",
+          body: JSON.stringify({
+            detail: [
+              {
+                type: "string_too_long",
+                loc: ["body", "reason"],
+                msg: mockReasonTooLongMessage,
+                input: body.reason,
+                ctx: { max_length: 500 },
+              },
+            ],
+            error: {
+              code: "validation_error",
+              message: "request validation failed",
+              request_id: "e2e0000000000422",
             },
           }),
         });
