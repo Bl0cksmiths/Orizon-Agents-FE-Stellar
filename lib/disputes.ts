@@ -959,6 +959,13 @@ async function liveChallenge(
  * loop: if the replacement is dead too, the clocks disagree about more than
  * latency, and the server's own refusal is a better answer than spinning.
  *
+ * The WINDOW is judged here too, on the server's clock, before a challenge
+ * is asked for and again immediately before every signature: a dialog left
+ * open across the close would otherwise put a prompt in front of the buyer
+ * for a dispute the server has already stopped taking, and answer their
+ * signature with `dispute_window_closed`. The refusal is the same code, so
+ * the dialog reaches the same screen as the server's own.
+ *
  * One retry, on `challenge_expired` only: the nonce lives five minutes and a
  * wallet popup can sit open for longer, which is nobody's fault and is cured
  * by a fresh challenge and a second signature. A second expiry throws —
@@ -974,14 +981,33 @@ export async function raiseDispute(args: {
   payer: string;
   signMessage: (m: string) => Promise<string>;
   /**
-   * The server's clock minus this browser's, from `serverClockOffsetMs`. The
-   * nonce dies on the server's clock, so that is the one it is judged on; 0 —
-   * trust the local clock — when the caller holds no measurement.
+   * The server's clock minus this browser's — `useDisputePanel`'s `offsetMs`.
+   * The nonce dies and the window closes on the server's clock, so that is
+   * the one both are judged on; 0 — trust the local clock — when the caller
+   * holds no measurement.
    */
-  serverClockOffsetMs?: number;
+  offsetMs?: number;
+  /**
+   * When the window closes, in epoch ms on the server's clock — the panel
+   * view's `window.closesAtMs`, which is exact. Falls back to the
+   * settlement's own `window_closes_at`, which a caller may have rounded.
+   */
+  windowClosesAtMs?: number;
 }): Promise<Dispute> {
   const { settlement, step, payer, signMessage } = args;
-  const clockOffsetMs = args.serverClockOffsetMs ?? 0;
+  const clockOffsetMs = args.offsetMs ?? 0;
+  const closesAtMs =
+    args.windowClosesAtMs ?? settlement.window_closes_at * 1_000;
+  /** Refuses once the window has closed on the server's clock. Failing shut:
+   * a close that is not a number is a window this build cannot vouch for. */
+  const requireOpenWindow = () => {
+    if (!(closesAtMs > Date.now() + clockOffsetMs)) {
+      throw new DisputeRefusal(
+        "dispute_window_closed",
+        "The dispute window for this workflow has closed.",
+      );
+    }
+  };
   const reason = args.reason.trim();
   if (reason.length === 0) {
     throw new DisputeRefusal(
@@ -1007,7 +1033,9 @@ export async function raiseDispute(args: {
     step_index: step.step_index,
   };
   for (let attempt = 1; ; attempt += 1) {
+    requireOpenWindow();
     const challenge = await liveChallenge(target, clockOffsetMs);
+    requireOpenWindow();
     const signature_b64 = await signMessage(challenge.message);
     try {
       return await openDispute({

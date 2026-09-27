@@ -1822,10 +1822,113 @@ describe("raiseDispute", () => {
       .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
     const signMessage = wallet();
 
-    await raise({ signMessage, serverClockOffsetMs: 3_600_000 });
+    await raise({ signMessage, offsetMs: 3_600_000 });
 
     expect(signMessage).toHaveBeenCalledTimes(1);
     expect(signMessage).toHaveBeenCalledWith(alive.message);
+  });
+
+  // D-060: the window closes on the server's clock, and a dialog can sit
+  // open across it. Every refusal below costs the buyer nothing: no prompt.
+  describe("the window", () => {
+    const closed = (err: unknown) => {
+      expect(err).toBeInstanceOf(DisputeRefusal);
+      expect(disputeErrorCode(err)).toBe("dispute_window_closed");
+    };
+
+    it("refuses a closed window before asking for a challenge", async () => {
+      vi.setSystemTime(CLOSES_AT * 1_000);
+      const signMessage = wallet();
+
+      closed(await raise({ signMessage }).catch((e: unknown) => e));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(signMessage).not.toHaveBeenCalled();
+    });
+
+    it("judges the close on the server's clock, not on this laptop's", async () => {
+      // The laptop reads a second before the close; the server, 2 s after.
+      vi.setSystemTime(CLOSES_AT * 1_000 - 1_000);
+      const signMessage = wallet();
+
+      closed(
+        await raise({ signMessage, offsetMs: 2_000 }).catch((e: unknown) => e),
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(signMessage).not.toHaveBeenCalled();
+    });
+
+    it("lets a laptop that runs fast still dispute a window the server holds open", async () => {
+      vi.setSystemTime(CLOSES_AT * 1_000 + 60_000);
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(200, { ...challenge(1), expires_at: CLOSES_AT + 300 }),
+        )
+        .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+
+      await expect(raise({ offsetMs: -120_000 })).resolves.toEqual(dispute(1));
+    });
+
+    it("refuses before the signature when the window closes while the challenge is out", async () => {
+      vi.setSystemTime(CLOSES_AT * 1_000 - 500);
+      fetchMock.mockImplementationOnce(async () => {
+        vi.setSystemTime(CLOSES_AT * 1_000);
+        return jsonResponse(200, {
+          ...challenge(1),
+          expires_at: CLOSES_AT + 300,
+        });
+      });
+      const signMessage = wallet();
+
+      closed(await raise({ signMessage }).catch((e: unknown) => e));
+      expect(paths()).toEqual(["/api/disputes/challenge"]);
+      expect(signMessage).not.toHaveBeenCalled();
+    });
+
+    it("refuses the retry's second signature once the window has closed", async () => {
+      vi.setSystemTime(CLOSES_AT * 1_000 - 5_000);
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(200, {
+            ...challenge(1, "a"),
+            expires_at: CLOSES_AT + 300,
+          }),
+        )
+        .mockImplementationOnce(async () => {
+          vi.setSystemTime(CLOSES_AT * 1_000 + 1);
+          return refusal(400, "challenge_expired");
+        });
+      const signMessage = wallet();
+
+      closed(await raise({ signMessage }).catch((e: unknown) => e));
+      expect(paths()).toEqual(["/api/disputes/challenge", "/api/disputes"]);
+      expect(signMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it("judges the exact close it is handed over the settlement's rounded one", async () => {
+      // The section rebuilds the settlement with the close rounded to the
+      // second; the view's own `closesAtMs` is exact.
+      const exact = CLOSES_AT * 1_000 - 400;
+      vi.setSystemTime(exact);
+      const signMessage = wallet();
+
+      closed(
+        await raise({ signMessage, windowClosesAtMs: exact }).catch(
+          (e: unknown) => e,
+        ),
+      );
+      expect(signMessage).not.toHaveBeenCalled();
+    });
+
+    it("fails shut on a close that is not a number", async () => {
+      const signMessage = wallet();
+
+      closed(
+        await raise({ signMessage, windowClosesAtMs: Number.NaN }).catch(
+          (e: unknown) => e,
+        ),
+      );
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 
   it("asks once and then signs: a dead second nonce is the server's to refuse", async () => {
