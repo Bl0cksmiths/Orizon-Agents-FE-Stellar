@@ -28,6 +28,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import type { DecomposeResponse, PlanFloorNotice, PlanStep } from "@/lib/types";
+import { UNVERIFIED_BANNER_ID } from "./degraded-banner";
 import { FloorSummary } from "./floor-summary";
 
 afterEach(cleanup);
@@ -267,6 +268,97 @@ describe("FloorSummary — the relaxed floor", () => {
   });
 });
 
+/**
+ * What the backend sends on a cold start, when the ledger cannot be read: every
+ * step carries the prior (7000, lower bound 5677) with its own failed-read
+ * flag, the plan-level flag is set, and there are no notices — the prior's
+ * bound clears the 2.75 floor, so the floor acts on nobody.
+ */
+const coldStartStep = (over: Partial<PlanStep> = {}) =>
+  step({
+    rep_bps: 7000,
+    rep_source: "prior",
+    rep_lower_bound_bps: 5677,
+    rep_count: 0,
+    rep_dispute_rate_bps: 0,
+    rep_degraded: true,
+    ...over,
+  });
+const COLD_START: Partial<DecomposeResponse> = {
+  steps: [coldStartStep(), coldStartStep({ agent_id: "agt_price" })],
+  reputation_degraded: true,
+  notices: [],
+};
+
+/** The floor badge — the first claim the card makes. */
+function floorBadge(over: Partial<DecomposeResponse> = {}): HTMLElement {
+  render(<FloorSummary plan={plan(over)} />);
+  const badge = screen.getByText(/^floor \d/, { selector: "span" });
+  return badge;
+}
+
+describe("FloorSummary — a plan whose reputation could not be read", () => {
+  it("does not claim the floor was applied, and says unverified in the warning tone", () => {
+    const badge = floorBadge(COLD_START);
+    expect(badge.textContent).toBe("⚠floor 2.75 · unverified");
+    expect(badge.textContent).not.toMatch(/applied|✓/);
+    expect(badge.className).toContain("text-magenta");
+    expect(badge.className).not.toContain("text-cyan");
+    const section = screen.getByRole("region", { name: /routing floor/i });
+    expect(section.className).toContain("border-magenta/40");
+    expect(section.className).not.toContain("border-cyan/40");
+  });
+
+  it("says the floor compared estimates, not on-chain records", () => {
+    const shown = text(COLD_START);
+    expect(shown).toContain("Compared against estimates, not on-chain records");
+    expect(shown).toContain("the floor did not filter on evidence");
+    // The clean-plan claim, which is exactly what is false here.
+    expect(shown).not.toMatch(/checked against a 2\.75 routing floor before/);
+  });
+
+  it("links to the full warning above Authorize", () => {
+    render(<FloorSummary plan={plan(COLD_START)} />);
+    const link = screen.getByRole("link", { name: /before you authorize/i });
+    expect(link.getAttribute("href")).toBe(`#${UNVERIFIED_BANNER_ID}`);
+  });
+
+  // The plan flag and a step flag are the same fact at two scopes; either one
+  // on its own has to turn the claim.
+  it.each([
+    ["only the plan-level flag", { reputation_degraded: true }],
+    [
+      "only a step's own flag",
+      {
+        reputation_degraded: false,
+        steps: [step(), coldStartStep({ agent_id: "agt_price" })],
+      },
+    ],
+  ] as const)("turns the claim on %s", (_name, over) => {
+    expect(floorBadge(over).textContent).toContain("unverified");
+  });
+
+  it.each([
+    ["the reads held", { reputation_degraded: false }],
+    ["the backend predates the flag", { reputation_degraded: undefined }],
+  ] as const)("still says applied when %s", (_name, over) => {
+    const badge = floorBadge(over);
+    expect(badge.textContent).toBe("✓floor 2.75 · applied");
+    expect(badge.className).toContain("text-cyan");
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("names both when the floor was relaxed on an unread plan", () => {
+    const badge = floorBadge({
+      ...COLD_START,
+      notices: [notice({ kind: "degraded", reason_code: "floor_relaxed" })],
+    });
+    expect(badge.textContent).toBe("⚠floor 2.75 · unverified · relaxed");
+    // …and the relaxed-floor disclosure still follows it.
+    expect(document.body.textContent).toMatch(RELAXED);
+  });
+});
+
 describe("FloorSummary — wording that has been wrong before", () => {
   const states: Array<[string, Partial<DecomposeResponse>]> = [
     ["a clean plan", {}],
@@ -294,6 +386,7 @@ describe("FloorSummary — wording that has been wrong before", () => {
       },
     ],
     ["a single step", { steps: [step()] }],
+    ["a cold start with every read unverified", COLD_START],
     [
       "an unbound agent",
       {

@@ -41,7 +41,12 @@
 
 import { Badge } from "@/components/ui/badge";
 import { scoreOutOfFive } from "@/lib/reputation-math";
+import { focusRing } from "@/lib/ui";
 import type { DecomposeResponse, PlanFloorNotice } from "@/lib/types";
+import {
+  hasUnverifiedReputation,
+  UNVERIFIED_BANNER_ID,
+} from "./degraded-banner";
 
 /** One plan card renders at a time on the orchestrator page, so a fixed id
  *  cannot collide. A derived one would be worse: `plan_id` reaches us from
@@ -101,11 +106,24 @@ export function FloorSummary({
   ).size;
   const steps = plan.steps.length;
 
+  // A reputation read failed, so the floor measured estimates rather than
+  // records. The floor still RAN, which is why a plain "applied" was so
+  // convincing: under the shipped config the prior's lower bound clears the
+  // floor, so a cold start reads as every agent passing a check that, for
+  // them, compared nothing real. This section is the first claim on the card,
+  // and it used to make that claim in the success colour with a check mark
+  // while the only contrary word sat a phone-screen and more further down.
+  const unverified = hasUnverifiedReputation(plan);
+  const warn = relaxed || unverified;
+  const state = [unverified && "unverified", relaxed && "relaxed"]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <section
       aria-labelledby={HEADING_ID}
       className={`clip-cyber-sm mb-4 border p-4 ${
-        relaxed ? "border-magenta/40 bg-magenta/5" : "border-cyan/40 bg-cyan/5"
+        warn ? "border-magenta/40 bg-magenta/5" : "border-cyan/40 bg-cyan/5"
       }`}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -118,18 +136,44 @@ export function FloorSummary({
         </h3>
         {/* Glyph AND words, here and in the prose below. The tint is
             decoration and carries none of this on its own. */}
-        <Badge tone={relaxed ? "magenta" : "cyan"}>
-          <span aria-hidden="true">{relaxed ? "▾" : "✓"}</span>
-          {relaxed ? `floor ${floor} · relaxed` : `floor ${floor} · applied`}
+        <Badge tone={warn ? "magenta" : "cyan"}>
+          <span aria-hidden="true">
+            {unverified ? "⚠" : relaxed ? "▾" : "✓"}
+          </span>
+          {`floor ${floor} · ${state || "applied"}`}
         </Badge>
       </div>
 
-      <p className={`mt-2 ${body}`}>
-        Every agent considered for this plan was checked against a{" "}
-        <b className="text-text">{floor}</b> routing floor before the planner
-        chose. The check is each agent&apos;s reputation lower bound against
-        that floor, never its headline score.
-      </p>
+      {unverified ? (
+        // The warning itself, not a pointer to it: a buyer who reads only
+        // this far has already been told the one thing that changes what the
+        // floor is worth. "Could not be read" rather than "failed" — this
+        // card says nothing about failure that could be heard as the agents'.
+        <p className={`mt-2 ${body}`}>
+          <b className="text-magenta">
+            Compared against estimates, not on-chain records.
+          </b>{" "}
+          Every agent considered for this plan was checked against a{" "}
+          <b className="text-text">{floor}</b> routing floor, but at least one
+          reputation read could not be completed. Where it could not, the check
+          used the estimate every unrated agent starts with, so on those agents
+          the floor did not filter on evidence.{" "}
+          <a
+            href={`#${UNVERIFIED_BANNER_ID}`}
+            className={`text-magenta underline underline-offset-2 ${focusRing}`}
+          >
+            What this means before you authorize
+            <span aria-hidden="true"> ↓</span>
+          </a>
+        </p>
+      ) : (
+        <p className={`mt-2 ${body}`}>
+          Every agent considered for this plan was checked against a{" "}
+          <b className="text-text">{floor}</b> routing floor before the planner
+          chose. The check is each agent&apos;s reputation lower bound against
+          that floor, never its headline score.
+        </p>
+      )}
 
       <p className="mt-2 break-words font-mono text-[11px] leading-relaxed text-muted">
         {steps} step{steps === 1 ? "" : "s"} planned · the floor acted on{" "}
