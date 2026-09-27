@@ -334,9 +334,12 @@ describe("FloorSummary — a plan whose reputation could not be read", () => {
         steps: [step(), coldStartStep({ agent_id: "agt_price" })],
       },
     ],
-  ] as const)("turns the claim on %s", (_name, over) => {
-    expect(floorBadge(over).textContent).toContain("unverified");
-  });
+  ] satisfies [string, Partial<DecomposeResponse>][])(
+    "turns the claim on %s",
+    (_name, over) => {
+      expect(floorBadge(over).textContent).toContain("unverified");
+    },
+  );
 
   it.each([
     ["the reads held", { reputation_degraded: false }],
