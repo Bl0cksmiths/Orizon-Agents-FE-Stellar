@@ -117,6 +117,27 @@ describe("RepLeaderboard — what a prior chip claims", () => {
     expect(chip).not.toContain(COLD_START);
   });
 
+  // A source a newer backend added is not evidence. The row must not style
+  // it as a measured score — with a settled weight printed beside a chip
+  // that calls the same number an estimate.
+  it("styles an unknown source as an estimate, not as on-chain evidence", () => {
+    const { container } = renderBoard({
+      agents: [agent("cached_bot")],
+      batch: batchOf([
+        prior("cached_bot", {
+          source: "cached",
+          weight: 12_000_000,
+          count: 6,
+        }),
+      ]),
+    });
+    const row = rowFor(container, "cached_bot");
+    expect(chipFor(container, "cached_bot")).toMatch(/^estimate /);
+    expect(row).not.toContain("USDC");
+    expect(container.querySelector(".bg-cyan")).toBeNull();
+    expect(container.querySelector(".bg-violet\\/50")).not.toBeNull();
+  });
+
   // No batch at all: nobody read any score. The rows used to stand on the
   // catalog's seeded rating (4.87 here) captioned as a prior — a number the
   // orchestrator never routes on. Now there is no chip and no figure at all.

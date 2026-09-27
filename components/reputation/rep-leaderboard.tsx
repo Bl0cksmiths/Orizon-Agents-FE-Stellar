@@ -403,7 +403,10 @@ export function RepLeaderboard({
                     />
                   );
                 }
-                const prior = rep.source === "prior";
+                // Only "onchain" is evidence. A source a newer backend added
+                // is styled as the estimate it may be — the same reading the
+                // chip beside it gives — never as a measured score.
+                const prior = rep.source !== "onchain";
                 // The backend's `passes_floor` gates routing on the Wilson
                 // lower bound, never the smoothed score.
                 const belowFloor =
