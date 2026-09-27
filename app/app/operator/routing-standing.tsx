@@ -46,19 +46,10 @@ import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { KVRow } from "@/components/ui/kv-row";
 import { bindHref, UNBOUND_WARNING } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
+import { scoreOutOfFive } from "@/lib/reputation-math";
 import type { BindingState } from "@/app/app/agents/use-binding-status";
 import type { ReputationRead } from "@/components/agents/reputation-cell";
 import { isAgentStatus, type ReputationInfo } from "@/lib/types";
-
-/**
- * bps 0..10000 over a 0–100 rating scale → the familiar 0–5 score.
- *
- * Duplicated from ReputationBadge rather than imported because the badge does
- * not export it. The two have to round identically: the chip and the sentence
- * explaining the chip sit inches apart, and a 4.20 next to a 4.2 reads as two
- * different numbers for the same thing.
- */
-const score = (bps: number) => (bps / 2000).toFixed(2);
 
 /**
  * Where one gate stands. `unknown` is a first-class outcome and not a soft
@@ -355,7 +346,7 @@ export function RoutingStanding({
                 ? "The reputation read has not come back yet, so neither this agent's score nor the network floor is known. Nothing is assumed about either while it is on its way."
                 : read === "failed"
                   ? "The reputation read failed, so neither this agent's score nor the network floor could be read. That is a fact about our request, not about this agent — it says nothing about its record."
-                  : `No reputation score is known for this agent — the reputation read came back without it, so whether it clears ${floorBps === null ? "the network floor" : `the ${score(floorBps)} floor`} cannot be answered here. It is not carrying the prior either; assuming the prior would be inventing a number.`}
+                  : `No reputation score is known for this agent — the reputation read came back without it, so whether it clears ${floorBps === null ? "the network floor" : `the ${scoreOutOfFive(floorBps)} floor`} cannot be answered here. It is not carrying the prior either; assuming the prior would be inventing a number.`}
           </p>
         ) : (
           <>
@@ -374,8 +365,8 @@ export function RoutingStanding({
               />
               <span className={body}>
                 {floorGate === "pass"
-                  ? `✓ Lower bound ${score(reputation.lower_bound_bps)} clears the ${score(floorBps)} floor.`
-                  : `✕ Lower bound ${score(reputation.lower_bound_bps)} is below the ${score(floorBps)} floor.`}
+                  ? `✓ Lower bound ${scoreOutOfFive(reputation.lower_bound_bps)} clears the ${scoreOutOfFive(floorBps)} floor.`
+                  : `✕ Lower bound ${scoreOutOfFive(reputation.lower_bound_bps)} is below the ${scoreOutOfFive(floorBps)} floor.`}
               </span>
             </div>
 
@@ -386,26 +377,26 @@ export function RoutingStanding({
             <dl className="max-w-md space-y-1 font-mono text-[11px]">
               <KVRow
                 k="lower bound"
-                value={score(reputation.lower_bound_bps)}
+                value={scoreOutOfFive(reputation.lower_bound_bps)}
                 valueClassName="text-text"
               />
               <KVRow
                 k="network floor"
-                value={score(floorBps)}
+                value={scoreOutOfFive(floorBps)}
                 valueClassName="text-text"
               />
               <KVRow
                 k="headline score"
-                value={score(reputation.smoothed_bps)}
+                value={scoreOutOfFive(reputation.smoothed_bps)}
                 valueClassName="text-muted"
               />
             </dl>
 
             <p className={body}>
               The floor is checked against the lower bound, never the headline{" "}
-              {score(reputation.smoothed_bps)}. The lower bound is what is left
-              after discounting for how few ratings back that headline up, so an
-              agent can show a healthy score and still be ineligible.
+              {scoreOutOfFive(reputation.smoothed_bps)}. The lower bound is what
+              is left after discounting for how few ratings back that headline
+              up, so an agent can show a healthy score and still be ineligible.
             </p>
 
             {floorGate === "fail" && (
@@ -434,10 +425,11 @@ export function RoutingStanding({
               <p className={`${body} text-magenta`}>
                 <span aria-hidden="true">⚠ </span>This score is not a reading of
                 the chain. The on-chain read failed and the Bayesian prior of{" "}
-                {priorBps === null ? "the network" : score(priorBps)} was served
-                in its place — the reputation service fails open. Treat the
-                result above as provisional: it was computed from the prior, not
-                from this agent&apos;s history. Reload once the read recovers.
+                {priorBps === null ? "the network" : scoreOutOfFive(priorBps)}{" "}
+                was served in its place — the reputation service fails open.
+                Treat the result above as provisional: it was computed from the
+                prior, not from this agent&apos;s history. Reload once the read
+                recovers.
               </p>
             ) : (
               reputation.source === "prior" && (
@@ -458,8 +450,8 @@ export function RoutingStanding({
                 <p className={body}>
                   <span aria-hidden="true">≈ </span>Never rated on-chain. This
                   is the Bayesian prior
-                  {priorBps === null ? "" : ` of ${score(priorBps)}`}, which a
-                  new agent carries until completed work replaces it.{" "}
+                  {priorBps === null ? "" : ` of ${scoreOutOfFive(priorBps)}`},
+                  which a new agent carries until completed work replaces it.{" "}
                   {floorGate === "pass"
                     ? "The prior is set above the floor deliberately, so an agent with no history is routable from the day it is registered."
                     : "On this network the prior's lower bound sits below the floor, so a new agent needs rated work behind it before it clears."}

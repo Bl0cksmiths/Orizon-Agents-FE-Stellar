@@ -72,17 +72,8 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { UNBOUND_WARNING } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
+import { scoreOutOfFive } from "@/lib/reputation-math";
 import type { Agent, ReputationInfo } from "@/lib/types";
-
-/**
- * bps 0..10000 over a 0–100 rating scale → the familiar 0–5 score.
- *
- * Duplicated from ReputationBadge rather than imported because the badge does
- * not export it, and the two have to round identically: that chip and this
- * cell sit in the same table row, and a 4.20 beside a 4.2 reads as two
- * different numbers for one score.
- */
-const score = (bps: number) => (bps / 2000).toFixed(2);
 
 /**
  * Was this agent registered on-chain by someone, rather than seeded into the
@@ -298,7 +289,7 @@ export function AgentStanding({
     // the agent rather than of the marketplace.
     const detail =
       `${agent.name} is below the network floor: its reputation lower bound ` +
-      `of ${score(rep.lower_bound_bps)} is under the floor stated above this ` +
+      `of ${scoreOutOfFive(rep.lower_bound_bps)} is under the floor stated above this ` +
       `table, so it is not eligible for selection under the normal rule. It keeps ` +
       `its listing and its history — the orchestrator passes over it while ` +
       `building a plan, and a starvation backstop can still re-admit it when ` +
