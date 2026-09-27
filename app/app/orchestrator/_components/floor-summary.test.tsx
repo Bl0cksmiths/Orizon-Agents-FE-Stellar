@@ -218,6 +218,26 @@ describe("FloorSummary — what it counts", () => {
     );
   });
 
+  it("counts several agents of unknown kinds as agents, not rows", () => {
+    const unknown = (id: string, kind: string) =>
+      notice({
+        kind,
+        agent_id: id,
+        reason: "withdrawn",
+        reason_code: undefined,
+      });
+    const shown = text({
+      notices: [
+        unknown("agt_a", "delisted"),
+        unknown("agt_b", "quarantined"),
+        unknown("agt_b", "delisted"),
+      ],
+    });
+    expect(shown).toContain(
+      "2 agents reported under a kind this card has no wording for",
+    );
+  });
+
   it("says nothing about unknown kinds when every kind is known", () => {
     expect(text({ notices: [notice()] })).not.toMatch(/no wording/);
   });
