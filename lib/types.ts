@@ -604,6 +604,13 @@ export type Dispute = {
    * Written for the buyer, and shown only to the buyer.
    */
   rejection_reason?: string | null;
+  /**
+   * Whether `reason` and `rejection_reason` were withheld from THIS caller —
+   * true exactly when the backend blanked them for want of a task read token
+   * or a payer's read grant (D-067). Absent on a backend that predates the
+   * grant, which offers the payer no way to read them back.
+   */
+  reason_withheld?: boolean;
 };
 
 /**

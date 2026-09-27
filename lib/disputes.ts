@@ -129,6 +129,8 @@ const isNullableStr = (v: unknown): v is string | null =>
 const isNullableNum = (v: unknown): v is number | null =>
   v === null || isNum(v);
 
+const isBool = (v: unknown): v is boolean => typeof v === "boolean";
+
 /** A boolean or an explicit null, on `isNullableStr`'s terms. */
 const isNullableBool = (v: unknown): v is boolean | null =>
   v === null || typeof v === "boolean";
@@ -229,7 +231,10 @@ function isDisputeRow(v: unknown): v is UnjudgedDispute {
     isAbsentOr(v.updated_at, isNullableNum) &&
     isAbsentOr(v.rating_confirmed, isNullableBool) &&
     isAbsentOr(v.rejection_reason, isNullableStr) &&
-    isAbsentOr(v.refund_confirmed, isNullableBool)
+    isAbsentOr(v.refund_confirmed, isNullableBool) &&
+    // D-067's: strictly boolean, since it decides whether the payer is
+    // offered a wallet signature, and the string "false" is truthy.
+    isAbsentOr(v.reason_withheld, isBool)
   );
 }
 
@@ -241,7 +246,7 @@ function isDispute(v: unknown): v is Dispute {
  * One dispute row as this build can use it, or null when it cannot use it at
  * all — so a row it fails to read costs that row and never the receipt.
  *
- * `isAbsentOr` buys forward-compatibility for four FIELDS and nothing else,
+ * `isAbsentOr` buys forward-compatibility for a few FIELDS and nothing else,
  * but this client deploys ahead of the backend in both directions: a newer
  * backend that names a new status, or widens a field, would otherwise fail
  * `ensure` and lose the whole payload — the settlement, every step and every
