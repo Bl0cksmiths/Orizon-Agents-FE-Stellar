@@ -512,9 +512,11 @@ function StepAction({
           >
             Dispute
           </Button>
+          {/* "up to": the credit is a ceiling the backend bounds by what the
+              settlement moved (D-071), as the dispute receipt says it. */}
           {step.creditable_usdc > 0 && (
             <span className="font-mono text-[10px] text-muted">
-              credits {formatUsdc(step.creditable_usdc)} if upheld
+              credits up to {formatUsdc(step.creditable_usdc)} if upheld
             </span>
           )}
         </div>

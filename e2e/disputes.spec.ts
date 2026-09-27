@@ -237,8 +237,12 @@ test.describe("dispute action on the trace / receipt view", () => {
       await expect(form).toContainText(
         "The platform reviews the dispute and decides. There is no on-chain arbitration.",
       );
-      // And what that comes to for this step, as the backend computed it.
-      await expect(form).toContainText(credit);
+      // And what that comes to for this step, as the backend computed it —
+      // a ceiling, never an exact promise (D-071).
+      await expect(form).toContainText(`Up to ${credit}`);
+      await expect(
+        stepRow(page, codeStep.agent_id).getByText(/if upheld$/),
+      ).toHaveText(`credits up to ${credit} if upheld`);
       await expect(
         form.getByRole("button", { name: /sign and submit/i }),
       ).toBeDisabled();

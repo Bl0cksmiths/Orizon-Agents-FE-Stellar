@@ -357,8 +357,11 @@ function DisputeRaised({
             is present but empty passed the nullish check and printed "Step 2
             () is now under review." — an empty parenthesis in the record of a
             consequential action. */}
+        {/* "Up to": the figure is a ceiling, bounded by what the settlement
+            actually moved, never a promise of that exact sum (D-071) — the
+            receipt below says it the same way. */}
         Step {stepNumber(step)} ({agentLabel(step)}) is now under review. If the
-        platform upholds your dispute,{" "}
+        platform upholds your dispute, up to{" "}
         <span className="font-mono text-cyan">
           {formatUsdc(dispute.creditable_usdc)}
         </span>{" "}
@@ -376,7 +379,7 @@ function DisputeRaised({
         <KVRow k="Charged" value={formatUsdc(dispute.charged_usdc)} />
         <KVRow
           k="Credited if upheld"
-          value={formatUsdc(dispute.creditable_usdc)}
+          value={upTo(dispute.creditable_usdc)}
           valueClassName="text-cyan"
         />
       </dl>
@@ -389,6 +392,14 @@ function DisputeRaised({
 
 /** Steps count from 0 on the wire, as the backend enumerates the plan. */
 const stepNumber = (step: SettlementStepView) => step.step_index + 1;
+
+/**
+ * An upheld dispute's credit, as the ceiling it is (D-071). The backend
+ * bounds it by what the settlement actually moved, so the figure is the most
+ * that can be credited, never a sum the buyer is owed to the unit — and the
+ * receipt already prints it as "Up to".
+ */
+const upTo = (usdc: number) => `Up to ${formatUsdc(usdc)}`;
 
 /** GABC…WXYZ — enough of a G-address to recognise the wallet by. */
 const shortAddress = (address: string) =>
@@ -768,7 +779,7 @@ function DisputeForm({
                 />
                 <KVRow
                   k="Credited if upheld"
-                  value={formatUsdc(step.creditable_usdc)}
+                  value={upTo(step.creditable_usdc)}
                   valueClassName="text-cyan"
                 />
               </dl>

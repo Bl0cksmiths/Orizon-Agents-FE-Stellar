@@ -300,7 +300,9 @@ describe("ReceiptPanel — the step list", () => {
         },
       ]),
     );
-    expect(text()).toContain(`credits ${formatUsdc(0.027)} if upheld`);
+    // A ceiling, never an exact promise (D-071).
+    expect(text()).toContain(`credits up to ${formatUsdc(0.027)} if upheld`);
+    expect(text()).not.toContain(`credits ${formatUsdc(0.027)} if upheld`);
   });
 
   it("shows a disputed step's status and never a second Dispute button", () => {

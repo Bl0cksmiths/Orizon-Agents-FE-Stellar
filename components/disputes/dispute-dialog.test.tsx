@@ -255,7 +255,7 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
       screen.getByText("Code Gen"),
       screen.getByText("calculator app, 3 files"),
       screen.getByText("0.054 USDC"),
-      screen.getByText("0.027 USDC"),
+      screen.getByText("Up to 0.027 USDC"),
       screen.getByText(/credits 50% of this step's charge/),
       reasonBox(),
       screen.getByText(/to sign a message/),
@@ -268,11 +268,19 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
     }
   });
 
-  it("labels the charge and the credit", () => {
+  // The values, not only the labels: a credit printed as the full price
+  // passed a labels-only check. And the credit is a ceiling (D-071).
+  it("labels the charge and the credit, and states the credit as a ceiling", () => {
     renderDialog();
 
-    expect(screen.getByText("Charged for this step")).toBeTruthy();
-    expect(screen.getByText("Credited if upheld")).toBeTruthy();
+    const row = (label: string) =>
+      screen.getByText(label).closest("div")?.textContent ?? "";
+    expect(row("Charged for this step")).toBe(
+      "Charged for this step0.054 USDC",
+    );
+    expect(row("Credited if upheld")).toBe(
+      "Credited if upheldUp to 0.027 USDC",
+    );
   });
 
   it("says plainly when no summary of the step's output was recorded", () => {
