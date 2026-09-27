@@ -1165,6 +1165,7 @@ describe("disputeReceipt", () => {
       fundedBy: "platform",
       refund: { txHash: null, state: "none" },
       rating: { txHash: null, state: "none" },
+      ratingStalled: false,
       reason: "the summary was empty",
       rejectionReason: null,
     });

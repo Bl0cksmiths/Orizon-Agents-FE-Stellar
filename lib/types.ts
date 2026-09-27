@@ -767,6 +767,12 @@ export type DisputeReceiptView = {
   fundedBy: CreditPolicy["funded_by"];
   refund: DisputeArtifact;
   rating: DisputeArtifact;
+  /**
+   * A rating the record still owes after its refund landed, which the panel
+   * has stopped reading for (`RATING_WAIT_MS`). The receipt says it stopped,
+   * so "not recorded yet" is never left standing as though it were live.
+   */
+  ratingStalled: boolean;
   /** The buyer's own reason; null for anyone but the payer. */
   reason: string | null;
   /** Why it was rejected; null unless rejected, and for anyone but the payer. */

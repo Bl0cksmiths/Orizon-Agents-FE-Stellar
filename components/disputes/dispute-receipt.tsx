@@ -288,8 +288,14 @@ function nextStep(
       const paid = view.amount.final
         ? formatUsdc(view.amount.usdc)
         : "the credit";
-      return view.rating.state === "confirmed"
-        ? `Done: ${voice.who} received ${paid}, and it cost ${agent} a dispute rating on its reputation.`
+      if (view.rating.state === "confirmed") {
+        return `Done: ${voice.who} received ${paid}, and it cost ${agent} a dispute rating on its reputation.`;
+      }
+      // "Not confirmed yet" promises the page will say when it is. Once the
+      // panel has stopped reading for the rating, that promise is withdrawn
+      // in words, and the buyer is told how to look again.
+      return view.ratingStalled
+        ? `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is still not recorded, and this page has stopped checking for it — reload to check again.`
         : `Done: ${voice.who} received ${paid}; the dispute rating it costs ${agent} is not confirmed yet.`;
     }
     case "rejected":
@@ -421,7 +427,12 @@ function Artifacts({
           of the receipt. */}
       <dl className="space-y-2">
         {rows.map(({ key, artifact, copy }) => (
-          <ArtifactRow key={key} artifact={artifact} copy={copy} />
+          <ArtifactRow
+            key={key}
+            artifact={artifact}
+            copy={copy}
+            stalled={key === "rating" && view.ratingStalled}
+          />
         ))}
       </dl>
     </div>
@@ -431,15 +442,22 @@ function Artifacts({
 function ArtifactRow({
   artifact,
   copy,
+  stalled = false,
 }: {
   artifact: DisputeArtifact;
   copy: ArtifactCopy;
+  /** Nothing is reading for this artifact any more: "yet" would be live. */
+  stalled?: boolean;
 }) {
   if (artifact.state === "none") {
     return (
       <div className="text-xs leading-relaxed text-muted">
         <dt className="inline">{copy.title}</dt>{" "}
-        <dd className="inline">— not recorded on-chain yet.</dd>
+        <dd className="inline">
+          {stalled
+            ? "— not recorded on-chain when this page last checked."
+            : "— not recorded on-chain yet."}
+        </dd>
       </div>
     );
   }

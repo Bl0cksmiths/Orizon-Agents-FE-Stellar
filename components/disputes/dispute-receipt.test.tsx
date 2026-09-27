@@ -60,6 +60,7 @@ function receipt(
     fundedBy: "platform",
     refund: NONE,
     rating: NONE,
+    ratingStalled: false,
     reason: REASON,
     rejectionReason: null,
   };

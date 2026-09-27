@@ -611,6 +611,8 @@ export function ratingStillComing(dispute: Dispute): boolean {
  * - The last change falls back from `updated_at` to `resolved_at` to
  *   `opened_at`: an older backend stamps no transitions, and the closest time
  *   it did record is still true.
+ * - A rating still owed is `ratingStalled` once the panel has given up
+ *   reading for it (`ratingWaitOver`), and never before.
  * - The buyer's reason and the adjudicator's rejection are both written for
  *   the buyer. Anyone else — including a connected wallet that did not pay —
  *   gets null for each, whatever the record holds, and a rejection reason
@@ -620,6 +622,7 @@ export function disputeReceipt(
   dispute: Dispute,
   viewer: DisputeViewer,
   policy: CreditPolicy,
+  ratingWaitOver = false,
 ): DisputeReceiptView {
   const refund = refundArtifact(dispute);
   const credited = dispute.credited_usdc;
@@ -637,6 +640,7 @@ export function disputeReceipt(
     fundedBy: policy.funded_by,
     refund,
     rating: ratingArtifact(dispute),
+    ratingStalled: ratingWaitOver && ratingStillComing(dispute),
     reason: isPayer ? dispute.reason : null,
     rejectionReason:
       isPayer && dispute.status === "rejected" && rejection?.trim()
@@ -682,12 +686,18 @@ function stepState(
   settlement: SettlementView,
   open: boolean,
   viewer: DisputeViewer,
+  ratingWaitOver: boolean,
 ): StepDisputeState {
   const charged =
     step.delivered && step.price_usdc > 0 && settlement.settled_usdc > 0;
   if (!charged) return { kind: "not_charged" };
   if (dispute !== undefined) {
-    const receipt = disputeReceipt(dispute, viewer, settlement.policy);
+    const receipt = disputeReceipt(
+      dispute,
+      viewer,
+      settlement.policy,
+      ratingWaitOver,
+    );
     return viewer === "payer"
       ? { kind: "disputed", dispute, showReason: true, receipt }
       : {
@@ -716,6 +726,9 @@ function stepState(
  * - otherwise the receipt, with the window open strictly before its close on
  *   the server's clock. A `nowMs` that is not a number closes it: failing
  *   shut hides a button, failing open offers one the server will refuse.
+ *
+ * `ratingWaitOver` is the hook's word that it has stopped reading for a
+ * rating still owed; the receipts it concerns then say so.
  */
 export function disputeView(input: {
   res: TaskDisputes | null;
@@ -723,8 +736,10 @@ export function disputeView(input: {
   workflowDone: boolean;
   nowMs: number;
   demo: boolean;
+  ratingWaitOver?: boolean;
 }): DisputePanelView {
   const { res, viewerAddress, workflowDone, nowMs, demo } = input;
+  const ratingWaitOver = input.ratingWaitOver ?? false;
   if (demo || res === null) return HIDDEN;
   const settlement = res.settlement;
   if (settlement === undefined) return HIDDEN;
@@ -746,6 +761,7 @@ export function disputeView(input: {
         settlement,
         open,
         viewer,
+        ratingWaitOver,
       ),
     }));
 

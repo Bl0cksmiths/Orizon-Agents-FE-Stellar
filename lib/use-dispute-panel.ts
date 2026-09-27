@@ -423,6 +423,10 @@ export function useDisputePanel(
   const ratingSinceMs = snapshot?.ratingSinceMs ?? null;
   const ratingAwaitedMs =
     ratingSinceMs === null ? 0 : Math.max(0, clockMs - ratingSinceMs);
+  // The very condition that ends the poll, so the receipt says it stopped
+  // reading exactly when it did.
+  const ratingWaitOver =
+    ratingSinceMs !== null && ratingAwaitedMs >= RATING_WAIT_MS;
 
   const view = useMemo(
     () =>
@@ -440,8 +444,17 @@ export function useDisputePanel(
           workflowDone && (snapshot?.doneAtRequest ?? false) && !stillLooking,
         nowMs: clockMs + (snapshot?.offsetMs ?? 0),
         demo,
+        ratingWaitOver,
       }),
-    [snapshot, address, workflowDone, stillLooking, clockMs, demo],
+    [
+      snapshot,
+      address,
+      workflowDone,
+      stillLooking,
+      clockMs,
+      demo,
+      ratingWaitOver,
+    ],
   );
 
   // `clockMs` is a dependency only to re-arm: each tick moves the clock, and
