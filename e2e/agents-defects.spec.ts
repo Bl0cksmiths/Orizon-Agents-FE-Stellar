@@ -97,7 +97,7 @@ test.describe("a registry with one item the page cannot use", () => {
     await expect(page.getByText("unavailable", { exact: true })).toHaveCount(0);
     for (const id of ["agt_11c0", "unbound_bot", "rated_down_bot"]) {
       await expect(
-        row(page, id).getByLabel(/reputation|prior estimate/),
+        row(page, id).getByText(/^(on-chain reputation|prior estimate) \d/),
       ).toHaveCount(1);
     }
     await expect(
