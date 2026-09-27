@@ -628,7 +628,7 @@
         <tr>
           <td class="n">B3</td>
           <td>
-            The three-way clamp, and a hard ceiling before anything is signed
+            The three-way clamp, and a ceiling that binds while it is finite
           </td>
           <td class="p">p. 9</td>
         </tr>
@@ -1403,9 +1403,11 @@
         <p>
           <b>Dispute step 2</b> names the step, what was charged for it and what
           would be credited if the dispute is upheld, then repeats the three
-          terms, then takes a <b>mandatory written reason</b> (500 characters,
-          counted). <b>SIGN AND SUBMIT</b> asks the wallet that paid to sign the
-          message <code>orizon-dispute:v1:{job_id}:{step}:{nonce}</code> —
+          terms, then takes a <b>required written reason</b> (500 characters,
+          counted — though the backend still accepts one made only of invisible
+          characters, QA’s D-059). <b>SIGN AND SUBMIT</b> asks the wallet that
+          paid to sign the message
+          <code>orizon-dispute:v1:{job_id}:{step}:{nonce}</code> —
           domain-separated and covering the exact step, so a captured signature
           cannot be replayed against another step or another workflow. Signing
           costs nothing and sends no transaction.
@@ -1478,7 +1480,8 @@
           it last changed. The credit is stated as a promise and nothing more —
           “Up to 0.027 USDC <b>would</b> be credited … funded by the platform,
           not clawed back from the agent” — and the buyer’s own reason is shown
-          back to them.
+          back to them — in a tab holding the task’s read token; without it the
+          payer gets an empty “Your reason” heading (QA’s D-067, D-068).
           <b
             >No transaction hash appears in this frame, because nothing has been
             paid.</b
@@ -1630,12 +1633,15 @@
         </div>
         <p>
           <b>REJECTED</b>: “no credit was issued, code.gen’s reputation is
-          unchanged, and the reason is below”. The buyer’s own reason is kept,
+          unchanged, and the reason is below”. The buyer’s own reason is shown,
           and beneath it <b>WHY IT WAS REJECTED</b> carries the adjudicator’s
-          own words. The note is mandatory on the reject route (1–500
-          characters) and is returned to the buyer, because a rejection with no
-          explanation is worse than no dispute system at all. Opening a dispute
-          proves nothing and costs the agent nothing until it is upheld.
+          own words. The note is required on the reject route (1–500
+          characters), because a rejection with no explanation is worse than no
+          dispute system at all. The backend returns both texts only to a caller
+          holding the task’s read token or the operator key, as this frame’s tab
+          does; a payer who comes back without the token sees “Rejected” and no
+          reason (QA’s D-067). Opening a dispute proves nothing and costs the
+          agent nothing until it is upheld.
         </p>
         <p>
           No hash and no link appear in this frame, because nothing was paid.
@@ -1691,9 +1697,9 @@
         <p>
           Upholding happens in a fixed order. The dispute is recorded
           <code>upheld</code>; then a <b>refund claim</b> is taken on it — a row
-          in a table, keyed by the dispute id, so it survives a restart and only
-          one caller can ever hold it; the dispute moves to
-          <code>crediting</code>.
+          in a table, keyed by the dispute id — in the Postgres store it
+          survives a restart — and only one caller can ever hold it; the dispute
+          moves to <code>crediting</code>.
           <b>If the claim cannot be taken, nothing is signed at all.</b> Only
           then is the amount computed, checked against the ceiling, and the
           transfer signed.
@@ -1703,10 +1709,12 @@
           <b>one statement</b>, not two, and concurrency is settled by the
           table’s primary key rather than by the status the statement read: the
           loser’s <code>ON CONFLICT DO NOTHING</code> returns nothing, and
-          nothing returned means sign nothing. Two adjudicators clicking
-          together, a retried request, a process redeployed mid-flight — all
-          meet the same row. A repeat uphold of a <code>credited</code> dispute
-          signs no transfer and returns the same refund hash.
+          nothing returned means sign nothing. With the Postgres store, two
+          adjudicators clicking together, a retried request, a process
+          redeployed mid-flight — all meet the same row. The claim is per
+          dispute; QA’s D-058 is the in-memory store’s path to a second dispute
+          on one step. A repeat uphold of a <code>credited</code> dispute signs
+          no transfer and returns the same refund hash.
         </p>
 
         <div class="shot" data-max="74">
@@ -1776,7 +1784,7 @@
         <div class="step-head">
           <span class="sn">B3</span>
           <h3>
-            The three-way clamp, and a hard ceiling before anything is signed
+            The three-way clamp, and a ceiling that binds while it is finite
           </h3>
           <a
             class="go"
@@ -1795,17 +1803,18 @@
           number. Each clamp that bites is logged.
         </p>
         <p>
-          Above that sits a hard ceiling: a credit over
-          <code>MAX_REFUND_USDC</code> (shipped at <code>1.0</code>) is
-          <b>refused outright, before any transaction is built</b>. It is
-          enforced in the one function that produces a refund amount, so no
-          amount exists that has not been through it — and a non-finite amount
-          is refused first, because a comparison cannot refuse a NaN. The
-          ceiling is deliberately separate from the charge cap: one bounds what
-          a <i>buyer</i> authorised themselves to spend, the other what the
-          <i>platform</i> pays out of its own wallet. Independent QA’s D-054 is
-          that a non-finite value of the <i>setting</i> still removes the
-          ceiling — open at this build.
+          Above that sits a ceiling: while <code>MAX_REFUND_USDC</code> (shipped
+          at <code>1.0</code>) is finite, a credit over it is
+          <b>refused before any transaction is built</b>. It is enforced in the
+          one function that produces a refund amount, so no amount exists that
+          has not been through it — and a non-finite amount is refused first,
+          because a comparison cannot refuse a NaN. The ceiling is deliberately
+          separate from the charge cap: one bounds what a
+          <i>buyer</i> authorised themselves to spend, the other what the
+          <i>platform</i> pays out of its own wallet. The <i>setting</i> itself
+          is never validated, so <code>MAX_REFUND_USDC=nan</code> or
+          <code>inf</code> is accepted at boot and removes the ceiling —
+          independent QA’s D-054, open at this build.
         </p>
 
         <div class="shot" data-max="74">
@@ -1817,7 +1826,7 @@
               src="b2-disputes-runbook-credit.png"
               width="1722"
               height="1854"
-              alt="The three-way clamp, and a hard ceiling before anything is signed"
+              alt="The three-way clamp, and a ceiling that binds while it is finite"
           /></a>
           <div class="src">
             the operator runbook, on what an upheld dispute pays ·
@@ -2836,15 +2845,18 @@
           D-050 and D-051; the window edges, the credit ceiling, the reputation
           cache and the rating-failure log each fail on a named open defect.
           Seven distinct duplicate-payment paths were attacked against the
-          card’s minimum of four, and all seven hold at the hardening build.
+          card’s minimum of four, and all seven hold at the hardening build on
+          the Postgres store; D-058 is a separate, open path on the in-memory
+          store.
         </p>
         <p>
           She also fixes the order in which the switch may be turned on, and
           this document does not argue with it: the deployment must run backend
           <code>08efeda</code> or later; <code>MAX_REFUND_USDC</code> must be
-          unset or a finite positive number; <code>DATABASE_URL</code> must
-          still be set. Then one live session. That list is the backbone of page
-          22.
+          unset or a finite positive number; <code>DATABASE_URL</code> must be
+          set — unconfirmed on the deployment today, since no endpoint reports
+          the store in use (D-063). Then one live session. That list is the
+          backbone of page 22.
         </p>
 
         <div class="shot" data-max="78">
