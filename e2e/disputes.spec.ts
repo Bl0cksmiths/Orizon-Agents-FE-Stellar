@@ -541,11 +541,11 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(form.getByRole("alert")).toContainText(
       "The dispute window for this workflow has closed, so this step can no longer be disputed.",
     );
-    // The footer's Close — the header's ✕ shares the name and the path out.
-    await form
-      .getByRole("button", { name: "Close", exact: true })
-      .last()
-      .click();
+    // The footer's own way out — named apart from the header's ✕, which is
+    // "Close". This used to click "Close" and so exercised only the ✕.
+    const back = form.getByRole("button", { name: "Back to the receipt" });
+    await expect(back).toBeFocused();
+    await back.click();
     await expect(dialog(page)).toHaveCount(0);
 
     // Closed as stale, so the receipt re-read the server: it now says the
