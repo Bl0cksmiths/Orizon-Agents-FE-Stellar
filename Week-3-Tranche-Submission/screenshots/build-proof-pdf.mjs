@@ -61,7 +61,7 @@ const SHOTS = [
     url: "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60",
     caption: [
       "Every settlement now stamps a <b>24-hour dispute window</b> on its own record at the moment it settles. The window is never recomputed from configuration, so changing the policy cannot move a deadline a buyer has already been told.",
-      'A buyer opens a dispute against <b>one step</b> of the workflow they paid for by signing a one-time challenge with the wallet that paid — no account, no password, no support ticket. One dispute per <span class="mono">(job, step)</span> is enforced by a database constraint, so a double-submit is answered with the first dispute unchanged rather than an error the buyer cannot act on.',
+      'A buyer opens a dispute against <b>one step</b> of the workflow they paid for by signing a one-time challenge with the wallet that paid — no account, no password, no support ticket. With the Postgres store, one dispute per <span class="mono">(job, step)</span> is enforced by a database constraint, so a double-submit is answered with the first dispute unchanged rather than an error the buyer cannot act on. The in-memory fallback store does not always hold that rule (QA’s D-058, held privately).',
     ],
   },
   {
@@ -72,7 +72,7 @@ const SHOTS = [
     url: "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62",
     caption: [
       "An upheld dispute pays a configured share of the disputed step's charge back to the buyer's wallet, signed by the platform's settler from the platform's own funds. The amount is clamped to the smallest of three figures: the creditable amount frozen when the dispute opened, the step's settled price times the policy share, and the total actually settled.",
-      "The safety property that matters: a <b>claim row is written before the transfer is signed</b>, not after. A crash, a retry, a restart or a second adjudicator therefore cannot produce a second transfer, and a claim left over a payout whose outcome is unknown blocks further attempts instead of releasing them.",
+      "The safety property that matters: a <b>claim row is written before the transfer is signed</b>, not after. A crash, a retry, a restart (with the Postgres store, which keeps the claim) or a second adjudicator therefore cannot produce a second transfer for that dispute, and a claim left over a payout whose outcome is unknown blocks further attempts instead of releasing them.",
     ],
   },
   {
@@ -273,7 +273,7 @@ const SHOTS = [
     url: "https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/defects.md",
     caption: [
       "QA logged <b>27 defects</b> this week (D-050 to D-076): one Blocker, two Critical, seven Major, seventeen Minor. Twenty-five are filed as public GitHub issues against the repository that owns the code. Two money-path defects are held privately — their mechanisms were handed to the key holder and the maintainers directly rather than published while the deployment cannot be patched, which is the correct handling.",
-      "Eleven of the 27 were found against <b>our own hardening build</b>, which is what independent QA is for. One of them, D-067, is a regression our disclosure fix introduced: a payer who reopens their trace in a new tab loses their own dispute reason. QA's verdict on the 6.03 story card is <b>no-go</b>, and this bundle reports it as no-go.",
+      "Eleven of the 27 were found against <b>our own hardening build</b>, which is what independent QA is for. One of them, D-067, is a regression our disclosure fix introduced: a payer who reopens their trace in a new tab loses both their own dispute reason and the platform's rejection reason. QA's verdict on the 6.03 story card is <b>no-go</b>, and this bundle reports it as no-go.",
     ],
   },
   {
@@ -338,7 +338,7 @@ const SHOTS = [
     tag: "Shipped interface — local run against test fixtures",
     url: "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/components/disputes/dispute-receipt.tsx",
     caption: [
-      "A buyer whose dispute is refused is told why, in the adjudicator's own words, and no credit line is drawn. The reason is shown to the payer only: a visitor who is not the payer is never sent it.",
+      "A buyer whose dispute is refused is told why, in the adjudicator's own words, and no credit line is drawn. A visitor who is not the payer is never sent the reason — and today neither is a payer without the task's read token, who sees “Rejected” and no reason (QA's D-067).",
       "Fixture capture, as above.",
     ],
   },
@@ -383,14 +383,14 @@ const SUMMARY = [
   <p class="lead">This week we built <b>Deliverable D3 — the dispute window and partial-credit refund</b>: a buyer who pays for an agent workflow gets 24 hours to dispute any single step, and an upheld dispute credits part of that step's charge back to their wallet and writes a permanent negative rating against the agent on-chain.</p>
   <h3>The five stories, all merged to <code>main</code></h3>
   <ul>
-    <li><b>4.02 — Dispute window and endpoint.</b> Every settlement stamps a 24-hour window on its own record. The payer opens a dispute against one step by signing a challenge with the wallet that paid; one dispute per step is a database rule, not a UI rule.</li>
-    <li><b>4.03 — Settler-executed partial-credit refund.</b> The platform pays a configured share of the disputed step's charge from its own wallet, clamped three ways, with the mutex taken <i>before</i> the signature so no crash or second adjudicator can pay twice.</li>
+    <li><b>4.02 — Dispute window and endpoint.</b> Every settlement stamps a 24-hour window on its own record. The payer opens a dispute against one step by signing a challenge with the wallet that paid; with the Postgres store, one dispute per step is a database rule, not a UI rule (the in-memory fallback does not always hold it: QA's D-058).</li>
+    <li><b>4.03 — Settler-executed partial-credit refund.</b> The platform pays a configured share of the disputed step's charge from its own wallet, clamped three ways, with the mutex taken <i>before</i> the signature so no crash or second adjudicator can pay one dispute twice, and a ceiling that binds while it is set to a finite value (QA's D-054).</li>
     <li><b>4.04 — Negative on-chain rating.</b> An upheld dispute records the consequence on the ReputationLedger under a per-step derived job id, and that rating feeds the routing floor.</li>
     <li><b>4.05 — Dispute action on the trace view.</b> The buyer sees each step's charge, what is creditable, a countdown, and a Dispute button — offered to the paying wallet alone.</li>
     <li><b>4.06 — Dispute status and refund receipt.</b> Status, refund transfer and rating, each with its explorer link, and nothing shown as done until the chain confirms it.</li>
   </ul>
   <h3>Then we attacked it — story 4.07</h3>
-  <p>Before declaring the epic done we audited everything it produced, on the rule that nothing counted as a finding until it had been reproduced against the running service. It found a <b>reproducible double payment</b>, a stale decision that could leave a dispute permanently unpayable, a misconfiguration that parked a payment mid-flight, the buyer's own words readable by a caller who had proved nothing, a flood that could deny every buyer their dispute window, a boot failure that printed secrets into the deploy log, a rating collision that lost half the ratings when one agent served two steps, and receipt copy that claimed a transfer existed when none had been submitted. Every fix carries a test that was written first and watched failing, and was then re-checked by putting the bug back.</p>
+  <p>Before declaring the epic done we audited everything it produced, on the rule that nothing counted as a finding until it had been reproduced against the running service. It found a <b>reproducible double payment</b>, a stale decision that could leave a dispute permanently unpayable, a misconfiguration that parked a payment mid-flight, the buyer's own words readable by a caller who had proved nothing, a flood that could deny every buyer their dispute window, a boot failure that printed secrets into the deploy log, a rating collision that lost half the ratings when one agent served two steps, and receipt copy that claimed a transfer existed when none had been submitted. Every fix carries a test that was written first and watched failing, and was then re-checked by putting the bug back. The disclosure fix has a cost QA recorded: the same gate withholds both reasons from a payer without the task's read token (D-067).</p>
   <h3>The week in numbers</h3>
   <ul>
     <li><b>14 pull requests</b> merged across the public repositories; 1,295 commits; net +45,936 / −1,152 on <code>main</code>.</li>
