@@ -24,6 +24,8 @@ import type {
   DecomposeResponse,
   Flow,
   Overview,
+  PlanFloorNotice,
+  PlanStep,
   ReputationBatch,
   ReputationInfo,
   ReputationParams,
@@ -245,54 +247,79 @@ export function isTraceLineList(v: unknown): v is TraceLine[] {
   return Array.isArray(v) && v.every(isTraceLine);
 }
 
-/** Plan panel: `total_usdc`/`total_eta` get `.toFixed`, steps are mapped with
- * `.toFixed` on each estimate, and every step renders `rationale` as a React
- * child — a non-string (a dict from a half-rolled backend) throws "Objects are
- * not valid as a React child". Required on backend `PlanStep`
- * (`app/schemas.py`); `agent_name`/`rep_bps`/`rep_source` are optional there
- * and already have render-time fallbacks, so they stay unchecked.
+/** One plan step: every step renders `rationale` as a React child — a
+ * non-string (a dict from a half-rolled backend) throws "Objects are not
+ * valid as a React child" — and `.toFixed`s both estimates. Required on
+ * backend `PlanStep` (`app/schemas.py`).
  *
- * `notices` and the floor fields on steps (story 3.02) are additive: absent
- * is fine (a backend predating them), but a present value is type-checked —
- * `degraded` because a truthy non-boolean would badge a healthy step as
- * below-floor, `kind` because it indexes the notice tone map. The per-step
- * reputation evidence (`rep_lower_bound_bps`, `rep_count`,
- * `rep_dispute_rate_bps`, `rep_degraded`) follows the same contract: optional,
- * nullable, never the wrong type. */
-export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
+ * The floor fields (story 3.02) and the per-step reputation evidence are
+ * additive: absent is fine (a backend predating them), null is how FastAPI
+ * serializes an unset Optional, but a present value is never the wrong type.
+ * `agent_name`/`rep_bps`/`rep_source` are optional there and already have
+ * render-time fallbacks, so they stay unchecked. */
+function isPlanStep(s: unknown): s is PlanStep {
+  return (
+    isRecord(s) &&
+    isStr(s.agent_id) &&
+    isStr(s.rationale) &&
+    isNum(s.est_price_usdc) &&
+    isNum(s.est_eta_seconds) &&
+    // The reputation badge compares the bound against the floor and
+    // prints the count and dispute rate, so each is a finite number or
+    // absent. Anything else coerces to NaN, every comparison against it
+    // is false — a below-floor agent reads as clearing the floor — and
+    // the label prints "NaN% disputed".
+    isOptionalNum(s.rep_lower_bound_bps) &&
+    isOptionalNum(s.rep_count) &&
+    isOptionalNum(s.rep_dispute_rate_bps) &&
+    // The string "false" is truthy, and would tell the buyer a healthy
+    // read had failed and the score beside it was only the prior.
+    isOptionalBool(s.rep_degraded) &&
+    isOptionalStr(s.substituted_for) &&
+    // Truthy non-boolean would badge a healthy step as below-floor.
+    isOptionalBool(s.degraded)
+  );
+}
+
+/** One floor action. `kind` is checked as a string, NOT against the three
+ * kinds this build has a mark for: a backend that adds one (say
+ * `"delisted"`) must not blank the plan. The card narrows it with
+ * `isPlanFloorNoticeKind` and shows anything else neutrally, beside the
+ * backend's own `reason` prose. `reason_code` is open for the same reason. */
+function isPlanFloorNotice(v: unknown): v is PlanFloorNotice {
+  return (
+    isRecord(v) &&
+    isStr(v.kind) &&
+    isStr(v.agent_id) &&
+    isStr(v.reason) &&
+    isOptionalStr(v.agent_name) &&
+    isOptionalStr(v.replacement_id) &&
+    isOptionalStr(v.replacement_name) &&
+    isOptionalStr(v.reason_code) &&
+    isOptionalNum(v.lower_bound_bps) &&
+    isOptionalNum(v.floor_bps)
+  );
+}
+
+/** Everything about a plan except the notice items, which are screened one by
+ * one below. */
+type PlanShell = Omit<DecomposeResponse, "notices"> & { notices?: unknown };
+
+/** `intent` is echoed back and not computed with, so it stays unchecked in
+ * keeping with this file's shallow contract. */
+function isPlanShell(v: unknown): v is PlanShell {
   return (
     isRecord(v) &&
     isStr(v.plan_id) &&
     isNum(v.total_usdc) &&
     isNum(v.total_eta) &&
     Array.isArray(v.steps) &&
-    v.steps.every(
-      (s) =>
-        isRecord(s) &&
-        isStr(s.agent_id) &&
-        isStr(s.rationale) &&
-        isNum(s.est_price_usdc) &&
-        isNum(s.est_eta_seconds) &&
-        // The reputation badge compares the bound against the floor and
-        // prints the count and dispute rate, so each is a finite number or
-        // absent. Anything else coerces to NaN, every comparison against it
-        // is false — a below-floor agent reads as clearing the floor — and
-        // the label prints "NaN% disputed".
-        isOptionalNum(s.rep_lower_bound_bps) &&
-        isOptionalNum(s.rep_count) &&
-        isOptionalNum(s.rep_dispute_rate_bps) &&
-        // The string "false" is truthy, and would tell the buyer a healthy
-        // read had failed and the score beside it was only the prior.
-        isOptionalBool(s.rep_degraded) &&
-        isOptionalStr(s.substituted_for) &&
-        isOptionalBool(s.degraded),
-    ) &&
-    (v.notices == null ||
-      (Array.isArray(v.notices) && v.notices.every(isPlanFloorNotice))) &&
-    // Both optional, because a plan card must keep rendering against a backend
-    // that predates them. `floor_bps` is checked as a number rather than
-    // defaulted here: a floor that arrives as a string would print "NaN" in
-    // the threshold the buyer is being asked to trust.
+    v.steps.every(isPlanStep) &&
+    (v.notices == null || Array.isArray(v.notices)) &&
+    // Both optional, because a plan card must keep rendering against a
+    // backend that predates them. `floor_bps` is checked as a number rather
+    // than defaulted here: a floor that arrives as a string would print "NaN"
+    // in the threshold the buyer is being asked to trust.
     isOptionalNum(v.floor_bps) &&
     isOptionalBool(v.reputation_degraded) &&
     // Optional for the same reason, and strict for the same reason as the
@@ -302,30 +329,25 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
   );
 }
 
-/** Backend `PlanFloorNotice.kind` literal (`app/schemas.py`). Checked as a
- * set because the kind picks the notice's tone and label on the plan card —
- * an unlisted value would render an unstyled, unexplained row. */
-const FLOOR_NOTICE_KINDS = new Set(["excluded", "substituted", "degraded"]);
-
-function isPlanFloorNotice(v: unknown): boolean {
-  return (
-    isRecord(v) &&
-    isStr(v.kind) &&
-    FLOOR_NOTICE_KINDS.has(v.kind) &&
-    isStr(v.agent_id) &&
-    isStr(v.reason) &&
-    isOptionalStr(v.agent_name) &&
-    isOptionalStr(v.replacement_id) &&
-    isOptionalStr(v.replacement_name) &&
-    // Optional, and deliberately NOT set-checked the way `kind` is. `kind`
-    // picks the row's tone, so an unlisted value renders unstyled; an
-    // unrecognised `reason_code` still has the prose `reason` beside it, so
-    // rejecting the whole payload over one would trade a rendered plan for no
-    // plan at all.
-    isOptionalStr(v.reason_code) &&
-    isOptionalNum(v.lower_bound_bps) &&
-    isOptionalNum(v.floor_bps)
-  );
+/** Plan card: `total_usdc`/`total_eta` get `.toFixed`, and the steps and
+ * notices are mapped into rows.
+ *
+ * Notices are screened per notice: an unusable one is dropped (and counted,
+ * see `droppedCount`) so the card can say a floor action could not be shown,
+ * instead of the buyer getting no plan at all.
+ *
+ * Steps are NOT. One unusable step, or a notices field that is not a list,
+ * rejects the plan: the buyer authorizes `total_usdc` for every step and
+ * `execute` runs the plan by id, so a card that quietly left a step out would
+ * misstate what is being paid for. Returns null in that case, and when the
+ * envelope itself is unusable. */
+export function screenDecomposeResponse(v: unknown): DecomposeResponse | null {
+  if (!isPlanShell(v)) return null;
+  if (!Array.isArray(v.notices)) return { ...v, notices: undefined };
+  const notices = v.notices.filter(isPlanFloorNotice);
+  const plan: DecomposeResponse = { ...v, notices };
+  DROPPED.set(plan, v.notices.length - notices.length);
+  return plan;
 }
 
 /** One agent's reputation, served on its own by

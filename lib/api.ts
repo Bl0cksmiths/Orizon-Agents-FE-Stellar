@@ -6,7 +6,6 @@ import {
   isAuthorizeBuild,
   isBindChallenge,
   isBindErrorCode,
-  isDecomposeResponse,
   isEndpointCheck,
   isFlow,
   isOverview,
@@ -20,6 +19,7 @@ import {
   isTraceLineList,
   isXdrResponse,
   screenAgentList,
+  screenDecomposeResponse,
   screenReputationBatch,
 } from "./guards";
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
@@ -394,7 +394,7 @@ export const decompose = (intent: string) =>
   post<DecomposeResponse, { intent: string }>(
     "/orchestrator/decompose",
     { intent },
-    ensure("/orchestrator/decompose", isDecomposeResponse),
+    ensureScreened("/orchestrator/decompose", screenDecomposeResponse),
   );
 
 export const execute = (

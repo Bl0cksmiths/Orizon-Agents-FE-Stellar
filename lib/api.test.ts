@@ -472,6 +472,28 @@ describe("response guards", () => {
     );
   });
 
+  it("drops an unusable floor notice rather than the plan, and counts it", async () => {
+    const notice = {
+      kind: "delisted",
+      agent_id: "agt_02",
+      reason: "delisted by its operator",
+    };
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        plan_id: "pln_1",
+        intent: "x",
+        steps: [],
+        total_usdc: 0.03,
+        total_eta: 4.5,
+        notices: [notice, { kind: "excluded", agent_id: "agt_03" }],
+      }),
+    );
+
+    const plan = await decompose("x");
+    expect(plan.notices).toEqual([notice]);
+    expect(droppedCount(plan)).toBe(1);
+  });
+
   it("rejects a malformed decompose payload as a normal request error", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, { plan_id: "pln_1", steps: [], total_usdc: "0.03" }),
