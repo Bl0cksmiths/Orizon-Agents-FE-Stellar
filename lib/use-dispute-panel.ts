@@ -34,6 +34,7 @@ import { ApiError } from "./api";
 import {
   disputeView,
   getTaskDisputes,
+  ratingStillComing,
   receiptAwaitsChain,
   serverClockOffsetMs,
 } from "./disputes";
@@ -71,6 +72,26 @@ export const ADJUDICATION_POLL_MS = 30_000;
  * in seconds, and the buyer is watching for it. */
 export const CREDIT_POLL_MS = 5_000;
 
+/**
+ * How long a rating still owed after its refund is read for at
+ * `CREDIT_POLL_MS`, from the first answer that showed the gap (D-069).
+ *
+ * The rating is written by the same uphold as the credit, straight after it:
+ * a Soroban submit whose worst case on the backend is two 15 s posts and a
+ * 30 s confirmation poll, about a minute, before it is recorded or given up
+ * on. Ninety seconds covers that with room for the read that noticed the gap.
+ */
+export const RATING_FAST_WAIT_MS = 90_000;
+/**
+ * How long, in all, a rating still owed is read for before the panel stops
+ * and says so. Past the minute above, the rating failed or timed out without
+ * a hash, and only a person running the uphold again writes it; fifteen
+ * minutes at `ADJUDICATION_POLL_MS` covers an operator acting on the
+ * script's own "uphold again" line, for about thirty reads. Beyond that the
+ * wait is open-ended, and a receipt left open must not read it for ever.
+ */
+export const RATING_WAIT_MS = 15 * 60_000;
+
 /** Cadence while the settlement a sealed run should have has not appeared. */
 export const SETTLEMENT_POLL_MS = 3_000;
 /**
@@ -91,6 +112,11 @@ export type DisputePollState = {
   doneAtRequest: boolean;
   /** Local ms since the panel first went looking for the settlement. */
   awaitedMs: number;
+  /**
+   * Local ms since the panel first saw a refund land with its rating still
+   * owed (`ratingStillComing`); 0 when no dispute is in that gap.
+   */
+  ratingAwaitedMs?: number;
 };
 
 /**
@@ -108,6 +134,12 @@ export type DisputePollState = {
  * with no transfer on it is one the receipt itself draws as pending, and
  * treating the status as final left exactly those receipts unable to resolve
  * without a reload.
+ *
+ * A refund that has landed with its rating still owed is read for too, but
+ * on a bound, because nothing is sure to come: `CREDIT_POLL_MS` for
+ * `RATING_FAST_WAIT_MS`, then `ADJUDICATION_POLL_MS` until `RATING_WAIT_MS`,
+ * then not at all. Before this the gap read as final, the poll stopped, and a
+ * rating that landed seconds later never reached the receipt (D-069).
  *
  * A SEALED run with no settlement is the one other case that must be asked
  * again, for `SETTLEMENT_WAIT_MS` at `SETTLEMENT_POLL_MS`. The settlement is
@@ -130,9 +162,14 @@ export function disputePollMs(state: DisputePollState | null): number | null {
     if (!state.doneAtRequest) return null;
     return state.awaitedMs < SETTLEMENT_WAIT_MS ? SETTLEMENT_POLL_MS : null;
   }
+  const ratingAwaitedMs = state.ratingAwaitedMs ?? 0;
   let ms: number | null = null;
   for (const dispute of res.disputes) {
     if (receiptAwaitsChain(dispute)) return CREDIT_POLL_MS;
+    if (ratingStillComing(dispute)) {
+      if (ratingAwaitedMs < RATING_FAST_WAIT_MS) return CREDIT_POLL_MS;
+      if (ratingAwaitedMs < RATING_WAIT_MS) ms = ADJUDICATION_POLL_MS;
+    }
     if (dispute.status === "open") ms = ADJUDICATION_POLL_MS;
   }
   return ms;
@@ -172,6 +209,11 @@ type Snapshot = {
    * on each answer inside it.
    */
   awaitingSinceMs: number | null;
+  /**
+   * The local clock when the panel first saw a refund land with its rating
+   * still owed, carried the same way; null when no dispute is in that gap.
+   */
+  ratingSinceMs: number | null;
 };
 
 type FetchState = {
@@ -280,12 +322,16 @@ export function useDisputePanel(
           // other load has started since), and the error dates it.
           const error = toMessage(err);
           setState((s) => ({ ...s, error }));
-          // While the panel is waiting for a settlement, time passed whether
-          // or not the answer came: that wait is bounded on this clock, and a
-          // backend failing every read must not hold it open for ever. The
-          // clock is left alone otherwise, so a failed poll of a settled
-          // receipt leaves the view it dates untouched, object and all.
-          if ((stateRef.current.snapshot?.awaitingSinceMs ?? null) !== null) {
+          // While the panel is waiting for a settlement or a rating, time
+          // passed whether or not the answer came: both waits are bounded on
+          // this clock, and a backend failing every read must not hold either
+          // open for ever. The clock is left alone otherwise, so a failed poll
+          // of a settled receipt leaves the view it dates untouched.
+          const waiting = stateRef.current.snapshot;
+          if (
+            (waiting?.awaitingSinceMs ?? null) !== null ||
+            (waiting?.ratingSinceMs ?? null) !== null
+          ) {
             setClockMs((prev) => Math.max(prev, Date.now()));
           }
           return;
@@ -306,6 +352,7 @@ export function useDisputePanel(
         // the first such answer and is carried by every one after it, so a
         // run of re-reads cannot extend its own deadline.
         const awaiting = sealed && res.settlement === null;
+        const ratingOwed = res.disputes.some(ratingStillComing);
         return {
           taskId: id,
           snapshot: {
@@ -314,6 +361,9 @@ export function useDisputePanel(
             doneAtRequest: sealed,
             awaitingSinceMs: awaiting
               ? (held?.awaitingSinceMs ?? receivedAtMs)
+              : null,
+            ratingSinceMs: ratingOwed
+              ? (held?.ratingSinceMs ?? receivedAtMs)
               : null,
           },
           error: null,
@@ -369,6 +419,10 @@ export function useDisputePanel(
     awaitingSinceMs === null ? 0 : Math.max(0, clockMs - awaitingSinceMs);
   const stillLooking =
     awaitingSinceMs !== null && awaitedMs < SETTLEMENT_WAIT_MS;
+  // The same, for a rating still owed after its refund landed.
+  const ratingSinceMs = snapshot?.ratingSinceMs ?? null;
+  const ratingAwaitedMs =
+    ratingSinceMs === null ? 0 : Math.max(0, clockMs - ratingSinceMs);
 
   const view = useMemo(
     () =>
@@ -464,6 +518,7 @@ export function useDisputePanel(
           res: snapshot.res,
           doneAtRequest: snapshot.doneAtRequest,
           awaitedMs,
+          ratingAwaitedMs,
         },
   );
   useEffect(() => {

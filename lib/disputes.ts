@@ -573,6 +573,31 @@ export function receiptAwaitsChain(dispute: Dispute): boolean {
 }
 
 /**
+ * Whether this dispute's refund has landed and its rating is still owed: the
+ * gap between the two writes one uphold makes, the credit first and the
+ * rating a few seconds after it (D-069).
+ *
+ * Distinct from `receiptAwaitsChain` because it is not a transaction in
+ * flight. No hash is on record, so nothing is sure to land: a rating that
+ * failed, or timed out before it had a hash, leaves the record exactly like
+ * this until a person upholds again. So the panel waits for it on a bounded
+ * schedule (see `disputePollMs`), not for as long as the record stays put.
+ *
+ * `rating_confirmed` must be PRESENT. A backend that sends the field and
+ * leaves it null is saying "no rating yet", which becomes a yes; one that
+ * omits it cannot say anything, which never does, and is not waited on.
+ */
+export function ratingStillComing(dispute: Dispute): boolean {
+  return (
+    dispute.status === "credited" &&
+    refundArtifact(dispute).state === "confirmed" &&
+    dispute.rating_confirmed !== undefined &&
+    dispute.rating_confirmed !== true &&
+    !dispute.rating_tx
+  );
+}
+
+/**
  * Everything the receipt says about one dispute, for this viewer, under this
  * policy: status, when it was raised and last changed, the amount and who
  * funds it, the refund and the rating each with how far the record vouches
