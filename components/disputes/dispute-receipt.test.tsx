@@ -210,25 +210,14 @@ describe("DisputeReceipt — what happens next", () => {
     expect(text()).not.toMatch(/queued|being sent|was submitted|on its way/);
   });
 
-  it("upheld: wears no tick and no success colour anywhere", () => {
-    const { container } = renderReceipt(receipt("upheld"));
+  // Its colours, and that nothing on it moves, are measured in the browser
+  // (e2e/dispute-receipt.spec.ts): a class name is not a colour.
+  it("upheld: wears no tick and says nothing of success", () => {
+    renderReceipt(receipt("upheld"));
     expect(text()).toContain("Upheld");
     expect(text()).toContain("No transaction on record");
     expect(text()).not.toContain("✓");
     expect(text()).not.toMatch(/Refunded|Confirmed on Stellar|Done:/);
-    // The confirmed look is cyan (the ✓ Confirmed on Stellar row) or emerald
-    // (the Refunded badge). Neither the badge nor the refund's mark, nor the
-    // row around it, may borrow either; the section labels' cyan is not a
-    // state, and is not asked about.
-    const badge = screen.getByText("Upheld").closest("span.border");
-    const mark = screen.getByText("No transaction on record");
-    const row = mark.closest("div");
-    for (const el of [badge, mark, row]) {
-      expect(el).not.toBeNull();
-      expect(el?.getAttribute("class") ?? "").not.toMatch(/cyan|emerald/);
-    }
-    // Nothing is in flight, so nothing pulses.
-    expect(container.querySelectorAll(".animate-pulse")).toHaveLength(0);
   });
 
   it("crediting: waiting on Stellar, reconciled by hand, never twice", () => {
@@ -728,15 +717,6 @@ describe("DisputeReceipt — accessibility", () => {
     }
     for (const link of screen.getAllByRole("link")) {
       expect((link.textContent ?? "").trim()).not.toBe("");
-    }
-  });
-
-  it("stills the pending pulse for anyone who asked for less motion", () => {
-    const { container } = renderReceipt(receipt("crediting"));
-    const pulses = container.querySelectorAll(".animate-pulse");
-    expect(pulses.length).toBeGreaterThan(0);
-    for (const pulse of pulses) {
-      expect(pulse.className).toContain("motion-reduce:animate-none");
     }
   });
 });

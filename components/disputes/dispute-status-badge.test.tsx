@@ -49,27 +49,16 @@ describe("DisputeStatusBadge", () => {
     expect(text.toLowerCase()).not.toContain("crediting");
   });
 
-  it("gives all five statuses a different colour", () => {
-    const colours = STATUSES.map((status) => {
-      const { container } = render(<DisputeStatusBadge status={status} />);
-      const badge = container.firstElementChild as HTMLElement;
-      const text = badge.className
-        .split(/\s+/)
-        .find((c) => c.startsWith("text-") && !c.startsWith("text-["));
-      cleanup();
-      return text;
-    });
-    expect(colours.every(Boolean)).toBe(true);
-    expect(new Set(colours).size).toBe(STATUSES.length);
-  });
+  // The colours themselves are measured in the browser, where a class name
+  // becomes a colour (e2e/dispute-receipt.spec.ts, "dispute statuses as the
+  // browser draws them"): a class name here proved nothing about either.
 
-  // D-070: upheld is a decision with no money moved. The tick and the cyan
-  // are what a confirmed transaction wears, and refunded's green is paid.
-  it("gives upheld no tick and no success colour", () => {
+  // D-070: upheld is a decision with no money moved. The tick is what a
+  // confirmed transaction wears; its colour is checked in the browser.
+  it("gives upheld no tick", () => {
     const { container } = render(<DisputeStatusBadge status="upheld" />);
     const badge = container.firstElementChild as HTMLElement;
     expect(badge.textContent).not.toContain("✓");
-    expect(badge.className).not.toMatch(/cyan|emerald/);
   });
 
   // Out of its row the bare label ("Refunded") does not say what it is the

@@ -23,7 +23,7 @@ import {
   type Page,
   type TestInfo,
 } from "@playwright/test";
-import type { Dispute } from "../lib/types";
+import type { Dispute, DisputeStatus, SettlementStepView } from "../lib/types";
 import { horizontalOverflow } from "./dispute-layout";
 import {
   mockApi,
@@ -70,6 +70,8 @@ type ReceiptSetup = {
   payer?: string;
   /** The server's clock; see `MockDisputeApiOptions.clock`. */
   clock?: () => number | Promise<number>;
+  /** The settled steps, when a test needs others than the fixture's. */
+  steps?: SettlementStepView[];
 };
 
 /**
@@ -79,7 +81,7 @@ type ReceiptSetup = {
  */
 async function openReceipt(
   page: Page,
-  { disputes, settledAtS = nowS() - HOUR_S, payer, clock }: ReceiptSetup,
+  { disputes, settledAtS = nowS() - HOUR_S, payer, clock, steps }: ReceiptSetup,
 ): Promise<MockDisputeReads> {
   // The tab that ran the workflow, holding its read token: the one the
   // backend sends the buyer's words to.
@@ -87,8 +89,9 @@ async function openReceipt(
   await mockWallet(page);
   await mockApi(page);
   await mockTraceStream(page, mockDisputeTaskId);
+  const settlement = mockSettlementView({ settledAtS, payer });
   const reads = await mockDisputeReads(page, {
-    settlement: mockSettlementView({ settledAtS, payer }),
+    settlement: steps ? { ...settlement, steps } : settlement,
     disputes,
     clock,
   });
@@ -508,6 +511,126 @@ test.describe("dispute status and refund receipt", () => {
     );
     expect(overflow).toBeLessThanOrEqual(1);
     await attachShot(testInfo, "receipt — credited at 360px", row);
+  });
+});
+
+/**
+ * How each status LOOKS, measured in the browser. These were class-name
+ * checks in the unit suite — a `text-` class distinct per status, no class
+ * matching /cyan|emerald/ on upheld, a `motion-reduce:` class present on the
+ * pulse — and a class name is not a colour: a theme token remapped, a
+ * specificity loss or a typo in the config passes every one of them. So the
+ * receipt is drawn with all five statuses at once and asked for its computed
+ * colours and its running animations.
+ */
+test.describe("dispute statuses as the browser draws them", () => {
+  const STATUSES: DisputeStatus[] = [
+    "open",
+    "upheld",
+    "crediting",
+    "credited",
+    "rejected",
+  ];
+  const LABEL: Record<DisputeStatus, string> = {
+    open: "Under review",
+    upheld: "Upheld",
+    crediting: "Refund in progress",
+    credited: "Refunded",
+    rejected: "Rejected",
+  };
+  /** What a confirmed transaction (cyan) and a refund (emerald) wear. */
+  const CYAN = "rgb(0, 255, 209)";
+  const EMERALD = "rgb(110, 231, 183)";
+
+  /** One delivered step per status, each carrying that status's dispute. */
+  async function openAllStatuses(page: Page): Promise<void> {
+    const steps = STATUSES.map((_, i) => ({
+      ...mockSettlementSteps[i % 2],
+      step_index: i,
+      agent_id: `agent.${i}`,
+      agent_name: `agent.${i}`,
+    }));
+    const openedAtS = nowS() - 40 * 60;
+    await openReceipt(page, {
+      steps,
+      disputes: STATUSES.map((status, i) =>
+        mockReceiptDispute(steps[i], {
+          status,
+          openedAtS,
+          ...(status === "crediting" ? { refund_tx: mockRefundTx } : {}),
+        }),
+      ),
+    });
+    await expect(
+      receipt(page).getByRole("group", { name: /dispute receipt/i }),
+    ).toHaveCount(STATUSES.length);
+  }
+
+  /** The badge of one step's dispute, by the agent it is filed against. */
+  const badge = (page: Page, status: DisputeStatus) =>
+    stepRow(page, `agent.${STATUSES.indexOf(status)}`)
+      .getByText(LABEL[status], { exact: true })
+      .locator("..");
+
+  test("gives each of the five statuses its own rendered colour, and upheld none of success's", async ({
+    page,
+  }) => {
+    await openAllStatuses(page);
+    const colours: Record<string, string> = {};
+    for (const status of STATUSES) {
+      colours[status] = await badge(page, status).evaluate(
+        (el) => getComputedStyle(el).color,
+      );
+    }
+    expect(new Set(Object.values(colours)).size).toBe(STATUSES.length);
+    // Upheld moved no money: neither its badge nor its refund mark nor the
+    // row around that mark may wear what confirmed or refunded wears.
+    expect([CYAN, EMERALD]).not.toContain(colours.upheld);
+    const upheld = stepRow(page, "agent.1");
+    await expect(upheld).not.toContainText("✓");
+    const mark = upheld.getByText("No transaction on record");
+    for (const el of [mark, mark.locator("xpath=ancestor::div[1]")]) {
+      const { color, borderColor } = await el.evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { color: style.color, borderColor: style.borderTopColor };
+      });
+      expect([CYAN, EMERALD]).not.toContain(color);
+      expect(borderColor).not.toMatch(/0, 255, 209|110, 231, 183/);
+    }
+  });
+
+  /** The receipt's running animations, by the element each belongs to. */
+  const running = (page: Page) =>
+    receipt(page).evaluate((root) =>
+      root
+        .getAnimations({ subtree: true })
+        .filter((a) => a.playState === "running")
+        .map((a) => {
+          const target = (a.effect as KeyframeEffect | null)?.target;
+          return target instanceof Element ? target.className.toString() : "";
+        }),
+    );
+
+  test("pulses only what is in flight, and stills every pulse for anyone who asked for less motion", async ({
+    page,
+  }) => {
+    await openAllStatuses(page);
+    // The positive control: the open dispute's dot, the refund in flight's
+    // dot and its submitted transfer's mark are all moving.
+    await expect
+      .poll(async () => (await running(page)).length)
+      .toBeGreaterThanOrEqual(3);
+    // Upheld is decided and still: nothing on its row moves.
+    const upheldMoving = await stepRow(page, "agent.1").evaluate(
+      (row) =>
+        row
+          .getAnimations({ subtree: true })
+          .filter((a) => a.playState === "running").length,
+    );
+    expect(upheldMoving).toBe(0);
+
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect.poll(() => running(page)).toEqual([]);
   });
 });
 
