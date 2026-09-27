@@ -89,11 +89,17 @@ const estimateSummary = (page: Page) =>
 const steps = (page: Page) => page.locator("ol").first().getByRole("listitem");
 
 /**
- * Per-agent reputation, found by its accessible label rather than its glyph or
- * its colour. The chip is what the SOW sentence means by "on-chain reputation
- * per agent", and a buyer using a screen reader has only this label to go on.
+ * Per-agent reputation, found by the words it carries for a screen reader (an
+ * sr-only span beside glyphs hidden from assistive technology) rather than by
+ * its glyph or its colour. The chip is what the SOW sentence means by
+ * "on-chain reputation per agent", and a buyer using a screen reader has only
+ * those words to go on.
  */
-const reputationChip = (step: Locator) => step.getByLabel(/reputation/i);
+const reputationChip = (step: Locator) => step.locator("span:has(> .sr-only)");
+
+/** What a screen reader hears from a chip: its sr-only words. */
+const chipWords = async (chip: Locator) =>
+  (await chip.locator("> .sr-only").textContent()) ?? "";
 
 /**
  * The deciding number, in bps or as the 0–5 score the UI may print it as.
@@ -476,13 +482,14 @@ test.describe("plan card — reputation, source and exclusions", () => {
     // `≈`, and neither reaches a buyer who is listening rather than looking, so
     // the accessible label is where the distinction has to survive.
     for (const [index, step] of mockPlan.steps.entries()) {
-      const chip = steps(page)
-        .nth(index)
-        .getByLabel(/reputation|estimat/i);
+      const chip = reputationChip(steps(page).nth(index));
       await expect(chip).toHaveCount(1);
       await expect(chip).toContainText(scoreOutOfFive(step.rep_bps));
 
-      const label = (await chip.getAttribute("aria-label")) ?? "";
+      const label = await chipWords(chip);
+      expect(label, `${step.agent_id}'s chip says nothing`).toMatch(
+        /reputation|estimat/i,
+      );
       // "no on-chain ratings yet" also contains "on-chain", so the prior is the
       // case that must name itself; an on-chain score is then whatever does not
       // describe itself as one.
@@ -598,11 +605,8 @@ test.describe("plan card — what each claim rests on", () => {
 
     /** The chip on one step, and what a screen reader hears from it. */
     const chipOf = (agentId: string) =>
-      steps(page)
-        .filter({ hasText: agentId })
-        .getByLabel(/reputation|estimat/i);
-    const labelOf = async (agentId: string) =>
-      (await chipOf(agentId).getAttribute("aria-label")) ?? "";
+      reputationChip(steps(page).filter({ hasText: agentId }));
+    const labelOf = async (agentId: string) => chipWords(chipOf(agentId));
     const stepOf = (agentId: string) => {
       const found = mockPlanStepEvidence.steps.find(
         (s) => s.agent_id === agentId,

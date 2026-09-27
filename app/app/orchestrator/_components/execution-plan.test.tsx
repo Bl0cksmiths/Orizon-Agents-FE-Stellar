@@ -289,9 +289,11 @@ describe("ExecutionPlan · the unit on the amounts", () => {
 });
 
 describe("ExecutionPlan · each step's reputation badge", () => {
-  /** The step's chip, found by the label a screen reader hears. */
-  const chip = () =>
-    screen.getByLabelText(/on-chain reputation|prior estimate/);
+  /** What a screen reader hears from the step's chip: its sr-only words,
+   *  found by what they say. The glyphs and figures beside them are hidden. */
+  const chipSays = () =>
+    screen.getByText(/on-chain reputation|estimate/, { selector: ".sr-only" })
+      .textContent ?? "";
 
   // The case the lower bound exists for: a healthy-looking 2.88 headline with
   // too little evidence behind it. The floor gates on the bound (2.64), so
@@ -304,9 +306,7 @@ describe("ExecutionPlan · each step's reputation badge", () => {
         })}
       />,
     );
-    expect(chip().getAttribute("aria-label")).toContain(
-      "below the 2.75 network floor",
-    );
+    expect(chipSays()).toContain("below the 2.75 network floor");
   });
 
   // Without the bound, the badge would fall back to comparing the headline —
@@ -315,7 +315,7 @@ describe("ExecutionPlan · each step's reputation badge", () => {
   // field gets no verdict at all.
   it("gives no floor verdict when the step carries no lower bound", () => {
     render(<ExecutionPlan plan={plan({ steps: [step({ rep_bps: 5000 })] })} />);
-    expect(chip().getAttribute("aria-label")).not.toMatch(/floor/);
+    expect(chipSays()).not.toMatch(/floor/);
   });
 
   it("clears a step whose lower bound clears the floor", () => {
@@ -326,7 +326,8 @@ describe("ExecutionPlan · each step's reputation badge", () => {
         })}
       />,
     );
-    expect(chip().getAttribute("aria-label")).not.toMatch(/floor/);
+    expect(chipSays()).toContain("clears the 2.75 network floor");
+    expect(chipSays()).not.toMatch(/below/);
   });
 
   // The evidence behind the score, in words a listener gets: how many rated
@@ -339,7 +340,7 @@ describe("ExecutionPlan · each step's reputation badge", () => {
         })}
       />,
     );
-    const label = chip().getAttribute("aria-label") ?? "";
+    const label = chipSays();
     expect(label).toContain("from 24 rated jobs");
     expect(label).toContain("25.0% disputed");
   });
@@ -373,7 +374,7 @@ describe("ExecutionPlan · each step's reputation badge", () => {
           })}
         />,
       );
-      expect(chip().getAttribute("aria-label")).toMatch(wording);
+      expect(chipSays()).toMatch(wording);
     },
   );
 });
