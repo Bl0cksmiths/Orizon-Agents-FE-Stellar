@@ -938,6 +938,78 @@ export const mockExistingBinding = {
   replaced: false,
 };
 
+/**
+ * A `CodeArtifact` as the backend's `code.gen` worker returns it
+ * (`CodeArtifact` in app/schemas.py): the files the code viewer lists and the
+ * `preview_html` the sandboxed iframe renders. It is the calculator
+ * `mockSettlementSteps` describes ("calculator app, 3 files").
+ *
+ * Served only when a spec asks for it (`mockApi(page, { artifact:
+ * mockArtifactResponse })`): an artifact moves the trace page onto its
+ * artifact tab, which is the point of a spec about the artifact and would
+ * hide the trace every dispute spec reads.
+ */
+export const mockArtifact = {
+  title: "Calculator",
+  summary:
+    "A four-function calculator: keyboard and click input, a running expression line, and divide-by-zero guarded.",
+  entry: "index.html",
+  files: [
+    {
+      path: "index.html",
+      language: "html",
+      content:
+        '<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <title>Calculator</title>\n    <link rel="stylesheet" href="styles.css" />\n  </head>\n  <body>\n    <main class="calc">\n      <output id="display">0</output>\n      <div class="keys"></div>\n    </main>\n    <script src="app.js"></script>\n  </body>\n</html>\n',
+    },
+    {
+      path: "styles.css",
+      language: "css",
+      content:
+        ".calc { max-width: 18rem; margin: 2rem auto; font-family: system-ui; }\n#display { display: block; padding: 1rem; text-align: right; font-size: 2rem; }\n.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }\n",
+    },
+    {
+      path: "app.js",
+      language: "javascript",
+      content:
+        'const display = document.getElementById("display");\nconst keys = "789/456*123-0.=+";\nfor (const k of keys) {\n  const b = document.createElement("button");\n  b.textContent = k;\n  b.onclick = () => press(k);\n  document.querySelector(".keys").append(b);\n}\nlet expr = "";\nfunction press(k) {\n  if (k === "=") {\n    const r = Function(`return (${expr})`)();\n    expr = Number.isFinite(r) ? String(r) : "";\n  } else expr += k;\n  display.textContent = expr || "0";\n}\n',
+    },
+  ],
+  preview_html:
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Calculator</title><style>.calc{max-width:18rem;margin:2rem auto;font-family:system-ui}#display{display:block;padding:1rem;text-align:right;font-size:2rem}</style></head><body><main class="calc"><output id="display">0</output></main></body></html>',
+} satisfies import("../lib/types").CodeArtifact;
+
+/** The settlement hashes the artifact route carries beside the artifact. */
+export const mockChargeTx =
+  "9b1f4c2e7a0d5836c4e2f1a9b7d3c5e8f0a2b4c6d8e1f3a5b7c9d0e2f4a6b8c1";
+export const mockProofTx =
+  "2d7e9f1a3b5c7d9e0f2a4b6c8d1e3f5a7b9c0d2e4f6a8b1c3d5e7f9a0b2c4d6e";
+
+/** A settled workflow that shipped the calculator. Opt-in, see above. */
+export const mockArtifactResponse = {
+  artifact: mockArtifact,
+  charge_tx: mockChargeTx,
+  proof_tx: mockProofTx,
+} satisfies import("../lib/types").ArtifactResponse;
+
+/**
+ * What `GET /api/tasks/{id}/artifact` answers by default (`ArtifactResponse`
+ * in app/routers/tasks.py): a settled workflow's charge and seal hashes, and
+ * no artifact.
+ *
+ * `null` because that is what the backend answers for the run the dispute
+ * fixtures script. It captures an artifact only when a worker returns one,
+ * and when it does it writes an `artifact`-level trace line — which
+ * `mockDisputeTrace` does not carry. Before this, the route fell through to a
+ * `{}` catch-all the guard happened to accept as "no artifact".
+ */
+export const mockSettledNoArtifact = {
+  artifact: null,
+  charge_tx: mockChargeTx,
+  proof_tx: mockProofTx,
+} satisfies import("../lib/types").ArtifactResponse;
+
+const ARTIFACT_RE = /^\/api\/tasks\/([^/]+)\/artifact$/;
+
 export type MockApiOptions = {
   /**
    * What `POST /api/orchestrator/decompose` answers with. Defaults to
@@ -970,6 +1042,12 @@ export type MockApiOptions = {
    * editing the shared list other specs count against.
    */
   agents?: readonly AgentFixture[];
+  /**
+   * What `GET /api/tasks/{id}/artifact` answers. Defaults to
+   * `mockSettledNoArtifact`; pass `mockArtifactResponse` for a workflow that
+   * shipped code, which puts the trace page on its artifact tab.
+   */
+  artifact?: import("../lib/types").ArtifactResponse;
 };
 
 export async function mockApi(
@@ -1063,6 +1141,9 @@ export async function mockApi(
       pathname.startsWith("/api/stellar/agent-id-available/")
     ) {
       return json(route, { available: true });
+    }
+    if (method === "GET" && ARTIFACT_RE.test(pathname)) {
+      return json(route, options.artifact ?? mockSettledNoArtifact);
     }
     // Both fixtures existed and nothing served them: under the old `{}`
     // catch-all /app/flow and /app/reputation were only ever swept by axe in
