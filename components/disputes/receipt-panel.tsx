@@ -117,9 +117,12 @@ function NotSettled({
           Receipt
         </h2>
         <p className="text-xs leading-relaxed text-muted">
+          {/* What is known, not more: the panel has found no charge on
+              record, which is not proof that nothing was ever charged — a
+              record can be lost, or land after the wait was spent. */}
           {running
             ? "The receipt appears here once this workflow settles, and disputes open then."
-            : "Nothing on this workflow was charged, so there is nothing to dispute."}
+            : "No charge is on record for this workflow, so there is nothing to dispute."}
         </p>
       </div>
     </section>

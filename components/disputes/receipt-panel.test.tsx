@@ -195,11 +195,14 @@ describe("ReceiptPanel — not settled", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("says nothing was charged when a finished workflow never settled", () => {
+  // Hedged to what the panel knows: no charge ON RECORD, never "nothing was
+  // charged", which a lost record or a late one would make false.
+  it("says no charge is on record when a finished workflow never settled", () => {
     renderPanel({ kind: "not_settled", running: false });
     expect(text()).toContain(
-      "Nothing on this workflow was charged, so there is nothing to dispute.",
+      "No charge is on record for this workflow, so there is nothing to dispute.",
     );
+    expect(text()).not.toContain("was charged");
     expect(text()).not.toContain("once this workflow settles");
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
