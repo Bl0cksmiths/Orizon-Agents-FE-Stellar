@@ -529,6 +529,39 @@ test.describe("dispute status and refund receipt", () => {
     expect(await horizontalOverflow(receipt(page))).toEqual([]);
   });
 
+  // D-072: the explorer links are the receipt's evidence, and on a phone they
+  // were 15px tall (the refund and the rating) and 20px (payer, charge,
+  // seal) — under WCAG 2.5.8's 24px minimum for a target.
+  test("at 360px every explorer link on the receipt is at least 24px tall", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "credited",
+          openedAtS: nowS() - 40 * 60,
+        }),
+      ],
+    });
+    const links = receipt(page).getByRole("link", { name: /stellar\.expert/ });
+    await expect(links).toHaveCount(5);
+    const sizes = await links.evaluateAll((els) =>
+      els.map((el) => {
+        const box = el.getBoundingClientRect();
+        return {
+          name: (el.textContent ?? "").trim(),
+          width: Math.round(box.width),
+          height: Math.round(box.height),
+        };
+      }),
+    );
+    for (const size of sizes) {
+      expect(size.height, size.name).toBeGreaterThanOrEqual(24);
+      expect(size.width, size.name).toBeGreaterThanOrEqual(24);
+    }
+  });
+
   test("at 360px a credited receipt with both full hashes fits without sideways scroll", async ({
     page,
   }, testInfo) => {

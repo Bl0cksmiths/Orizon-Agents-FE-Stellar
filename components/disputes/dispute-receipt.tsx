@@ -489,10 +489,12 @@ function ArtifactRow({
               <span className="sr-only">Transaction hash </span>
               {artifact.txHash}
             </p>
+            {/* At least 24px tall (WCAG 2.5.8): the 10px text alone made a
+                15px target on a phone, for the link a reviewer taps. */}
             <StellarExpertLink
               kind="tx"
               id={artifact.txHash}
-              className="inline-block"
+              className="inline-flex min-h-6 items-center gap-[1ch]"
             >
               {copy.link}
               <span aria-hidden="true"> ▸</span>

@@ -150,7 +150,12 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
       {hash ? (
         <>
           <span className="block break-all">{hash}</span>
-          <StellarExpertLink kind="tx" id={hash} className="mt-1 inline-block">
+          {/* At least 24px tall (WCAG 2.5.8), not the 20px its text made. */}
+          <StellarExpertLink
+            kind="tx"
+            id={hash}
+            className="mt-1 inline-flex min-h-6 items-center gap-[1ch]"
+          >
             view {label} on stellar.expert
             <span aria-hidden="true"> ▸</span>
           </StellarExpertLink>
@@ -280,7 +285,7 @@ function SettledReceipt({
               <StellarExpertLink
                 kind="account"
                 id={view.payer}
-                className="mt-1 inline-block"
+                className="mt-1 inline-flex min-h-6 items-center gap-[1ch]"
               >
                 view payer on stellar.expert
                 <span aria-hidden="true"> ▸</span>
