@@ -368,6 +368,33 @@ test.describe("plan card — reputation, source and exclusions", () => {
     }
   });
 
+  // A focus ring is a paint question, so it is measured here rather than as
+  // a class name in jsdom: the cyber clip-path clips any shadow painted
+  // outside the element, and a ring the clip removes is no ring at all.
+  test("the exclusions disclosure shows a visible focus ring from the keyboard", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanExcluded);
+    const summary = exclusions(page).locator("summary");
+    await stableBox(summary);
+    const shadow = () =>
+      summary.evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(await shadow(), "no ring at rest").toBe("none");
+
+    // Reached by Tab, which is what makes the focus keyboard-visible.
+    await summary.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(summary).toBeFocused();
+    expect(await summary.evaluate((el) => el.matches(":focus-visible"))).toBe(
+      true,
+    );
+    // An inset ring, which survives the clip-path an outset one would not.
+    expect(await shadow()).toMatch(/inset/);
+    expect(await shadow()).not.toBe("none");
+  });
+
   test("AC-6 — the expanded exclusions fit a 390px viewport without sideways scroll", async ({
     page,
   }) => {
