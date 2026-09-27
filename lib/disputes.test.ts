@@ -28,6 +28,8 @@ import {
   MAX_DISPUTE_REASON_CHARS,
   openDispute,
   raiseDispute,
+  ratingStillComing,
+  receiptAwaitsChain,
   receiptBadgeStatus,
   serverClockOffsetMs,
 } from "./disputes";
@@ -2291,6 +2293,98 @@ describe("formatUsdc", () => {
       expect(formatUsdc(n)).toBe("—");
     },
   );
+});
+
+// The two questions the poll asks of each dispute, asked directly: whether
+// something is in flight on the chain, and whether a rating is still owed
+// after a refund that landed. Each row is a record the backend can send.
+describe("receiptAwaitsChain and ratingStillComing", () => {
+  const TX = "a".repeat(64);
+  const table: [string, Partial<Dispute>, boolean, boolean][] = [
+    // [record, awaits the chain, rating still coming]
+    ["open", { status: "open" }, false, false],
+    ["rejected", { status: "rejected" }, false, false],
+    ["upheld, not yet sent", { status: "upheld" }, true, false],
+    [
+      "crediting, hash on record",
+      { status: "crediting", refund_tx: TX },
+      true,
+      false,
+    ],
+    ["crediting, no hash yet", { status: "crediting" }, true, false],
+    [
+      "credited with no transfer on record",
+      { status: "credited", refund_tx: null, rating_confirmed: null },
+      true,
+      false,
+    ],
+    [
+      "credited, the backend withdrawing its word",
+      {
+        status: "credited",
+        refund_tx: TX,
+        refund_confirmed: false,
+        rating_confirmed: null,
+      },
+      true,
+      false,
+    ],
+    [
+      "credited and confirmed, rating not yet written",
+      { status: "credited", refund_tx: TX, rating_confirmed: null },
+      false,
+      true,
+    ],
+    [
+      "credited and confirmed, rating field absent (older backend)",
+      { status: "credited", refund_tx: TX },
+      false,
+      false,
+    ],
+    [
+      "credited, rating in flight with its hash",
+      {
+        status: "credited",
+        refund_tx: TX,
+        rating_tx: TX,
+        rating_confirmed: false,
+      },
+      true,
+      false,
+    ],
+    [
+      "credited, a rating hash the backend cannot confirm either way",
+      {
+        status: "credited",
+        refund_tx: TX,
+        rating_tx: TX,
+        rating_confirmed: null,
+      },
+      false,
+      false,
+    ],
+    [
+      "credited, rating confirmed",
+      {
+        status: "credited",
+        refund_tx: TX,
+        rating_tx: TX,
+        rating_confirmed: true,
+      },
+      false,
+      false,
+    ],
+  ];
+
+  it.each(table)("%s", (_, over, awaits, ratingComing) => {
+    const d = dispute(0, over);
+    expect(receiptAwaitsChain(d)).toBe(awaits);
+    expect(ratingStillComing(d)).toBe(ratingComing);
+    // A receipt says it stopped reading for a rating only when one is owed.
+    expect(disputeReceipt(d, "payer", policy, true).ratingStalled).toBe(
+      ratingComing,
+    );
+  });
 });
 
 describe("receiptBadgeStatus", () => {
