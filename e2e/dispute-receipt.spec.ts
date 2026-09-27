@@ -709,6 +709,98 @@ test.describe("dispute receipt while the page stays open", () => {
     expect(reads.count()).toBe(loaded + 3);
   });
 
+  /**
+   * D-069: one uphold writes the credit, then the rating seconds later. A
+   * read landing between the two sees the refund confirmed and no rating —
+   * `rating_confirmed` sent, and null — and that is not a final receipt.
+   */
+  const owingRating = (openedAtS: number) =>
+    mockReceiptDispute(codeStep, {
+      status: "credited",
+      openedAtS,
+      rating_tx: null,
+      rating_confirmed: null,
+    });
+
+  test("a rating that lands after the refund reaches the open receipt without a reload", async ({
+    page,
+  }) => {
+    const { reads, openedAtS } = await openOnFakeClock(page, (openedAtS) => [
+      owingRating(openedAtS),
+    ]);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText(
+      `the dispute rating it costs ${codeStep.agent_id} is not confirmed yet.`,
+    );
+    await expect(artifact(row, "Dispute rating")).toContainText(
+      "not recorded on-chain yet",
+    );
+    await freezeClock(page);
+    await page.evaluate(() => Object.assign(window, { __sameDocument: true }));
+    const loaded = reads.count();
+
+    // Still read for, on the fast cadence: the rating is seconds behind.
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await networkBeat(page);
+    expect(reads.count()).toBe(loaded + 1);
+
+    reads.answer([
+      mockReceiptDispute(codeStep, { status: "credited", openedAtS }),
+    ]);
+    await page.clock.runFor(ACTIVE_POLL_MS);
+    await expect(row.getByRole("link", { name: /rating/i })).toHaveAttribute(
+      "href",
+      testnetTx(mockRatingTx),
+    );
+    await expect(row).toContainText(
+      `and it cost ${codeStep.agent_id} a dispute rating on its reputation.`,
+    );
+    expect(reads.count()).toBe(loaded + 2);
+    expect(
+      await page.evaluate(
+        () => (window as { __sameDocument?: boolean }).__sameDocument,
+      ),
+    ).toBe(true);
+
+    // Both on-chain facts are in: nothing is read again.
+    await page.clock.runFor(60_000);
+    await networkBeat(page);
+    expect(reads.count()).toBe(loaded + 2);
+  });
+
+  test("a rating that never lands is read for a while, then not at all, and the receipt says it stopped", async ({
+    page,
+  }) => {
+    const { reads } = await openOnFakeClock(page, (openedAtS) => [
+      owingRating(openedAtS),
+    ]);
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("is not confirmed yet.");
+    await freezeClock(page);
+    const loaded = reads.count();
+
+    // Sixteen minutes, walked in half-minutes with a beat for each read to
+    // land and re-arm the next: past the fast minute and a half, and past the
+    // fifteen-minute wait that ends the reading.
+    for (let i = 0; i < 32; i += 1) {
+      await page.clock.runFor(OPEN_POLL_MS);
+      await page.waitForTimeout(150);
+    }
+    expect(reads.count()).toBeGreaterThan(loaded + 20);
+    await expect(row).toContainText(
+      "is still not recorded, and this page has stopped checking for it — reload to check again.",
+    );
+    await expect(artifact(row, "Dispute rating")).toContainText(
+      "not recorded on-chain when this page last checked.",
+    );
+    await expect(row).not.toContainText("is not confirmed yet.");
+
+    const stopped = reads.count();
+    await page.clock.runFor(5 * 60_000);
+    await networkBeat(page);
+    expect(reads.count()).toBe(stopped);
+  });
+
   test("a hidden tab reads nothing, and reads at once when it is shown again", async ({
     page,
   }) => {
