@@ -503,6 +503,32 @@ test.describe("dispute status and refund receipt", () => {
     }
   });
 
+  // Every fixture reason was one short line, so a quote that dropped its
+  // line breaks or let one long word run off a phone went unseen.
+  test("at 360px a reason of several lines and one long word keeps its breaks and fits", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    const link = `https://calc.example/${"x".repeat(80)}`;
+    const reason = `the calculator does not compute\nthe build it shipped is at ${link}`;
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "open",
+          openedAtS: nowS() - 40 * 60,
+          reason,
+        }),
+      ],
+    });
+    const quote = stepRow(page, codeStep.agent_id).locator("blockquote");
+    await expect(quote).toContainText(link);
+    // The line break the buyer typed is still a line break on screen.
+    expect(await quote.evaluate((el) => (el as HTMLElement).innerText)).toBe(
+      reason,
+    );
+    expect(await horizontalOverflow(receipt(page))).toEqual([]);
+  });
+
   test("at 360px a credited receipt with both full hashes fits without sideways scroll", async ({
     page,
   }, testInfo) => {
