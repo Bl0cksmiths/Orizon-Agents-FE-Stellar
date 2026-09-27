@@ -78,7 +78,18 @@ export type PlanStep = {
   degraded?: boolean;
 };
 
-export type PlanFloorNoticeKind = "excluded" | "substituted" | "degraded";
+/** The notice kinds this build has copy and a mark for. A backend may add
+ * more, so `PlanFloorNotice.kind` is typed as any string: narrow with
+ * `isPlanFloorNoticeKind` before indexing a per-kind map, and give anything
+ * else a neutral fallback rather than a missing one. */
+export const PLAN_FLOOR_NOTICE_KINDS = [
+  "excluded",
+  "substituted",
+  "degraded",
+] as const;
+export type PlanFloorNoticeKind = (typeof PLAN_FLOOR_NOTICE_KINDS)[number];
+export const isPlanFloorNoticeKind = (v: string): v is PlanFloorNoticeKind =>
+  PLAN_FLOOR_NOTICE_KINDS.some((k) => k === v);
 
 /**
  * Why the floor acted on an agent (`ExclusionReason` in the backend's
@@ -96,7 +107,10 @@ export type ExclusionReason =
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are
  * set only when kind is "substituted". */
 export type PlanFloorNotice = {
-  kind: PlanFloorNoticeKind;
+  /** One of `PLAN_FLOOR_NOTICE_KINDS` today, but any string on the wire: a
+   *  kind this build does not know is still a floor action the buyer should
+   *  see, so it reaches the card as data instead of failing the plan. */
+  kind: string;
   agent_id: string;
   agent_name?: string | null;
   replacement_id?: string | null;
