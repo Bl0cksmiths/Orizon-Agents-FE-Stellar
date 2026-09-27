@@ -721,9 +721,9 @@ test.describe("dispute action on the trace / receipt view", () => {
     await form.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog(page)).toHaveCount(0);
     await expect(receipt(page)).toBeVisible();
-    await expect(page.locator("main").getByRole("alert")).toContainText(
-      "showing the receipt last read",
-    );
+    const alert = page.locator("main").getByRole("alert");
+    await expect(alert).toContainText("this receipt may be out of date");
+    await expect(alert).toContainText("showing the receipt last read");
   });
 
   test("a failed re-read dates the receipt it is printed above, not denies it", async ({
