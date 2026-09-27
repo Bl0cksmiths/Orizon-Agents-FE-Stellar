@@ -312,6 +312,44 @@ describe("ReceiptPanel — the step list", () => {
     expect(text()).not.toMatch(/credits (up to )?0 USDC/);
   });
 
+  // The struck figure is for the eye; the ear hears what it means. And the
+  // prices a screen reader is told were charged add up to what the header
+  // says was charged — a receipt that sums to more is not a receipt.
+  it("voices an uncharged step's price as not charged, and hides the struck figure", () => {
+    renderPanel(
+      settled(
+        [
+          { step: step(0), state: { kind: "disputable" } },
+          {
+            step: step(1, {
+              price_usdc: 0.012,
+              delivered: false,
+              creditable_usdc: 0,
+            }),
+            state: { kind: "not_charged" },
+          },
+        ],
+        { settledUsdc: 0.054 },
+      ),
+    );
+    const [, uncharged] = screen.getAllByRole("listitem");
+    expect(
+      within(uncharged).getByText("Not charged, priced at 0.012 USDC"),
+    ).toBeTruthy();
+    const struck = within(uncharged).getByText("0.012 USDC");
+    expect(struck.closest("[aria-hidden='true']")).not.toBeNull();
+
+    const heard = Array.from(screen.getByRole("list").querySelectorAll("span"))
+      .filter(
+        (el) =>
+          /^\d+(\.\d+)? USDC$/.test(el.textContent ?? "") &&
+          el.closest("[aria-hidden='true']") === null,
+      )
+      .map((el) => parseFloat(el.textContent ?? ""));
+    expect(heard).toEqual([0.054]);
+    expect(heard.reduce((a, b) => a + b, 0)).toBeCloseTo(0.054, 9);
+  });
+
   it("shows what an upheld dispute would credit next to the action", () => {
     renderPanel(
       settled([
