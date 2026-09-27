@@ -106,7 +106,13 @@ const score = (bps: number) => (bps / 2000).toFixed(2);
  * naming convention, and a convention is not a fact about who registered what.
  */
 function isOnchain(agent: Agent): boolean {
-  if (agent.source) return agent.source === "onchain";
+  // Only "seeded" vouches for first-party. A source this build does not know
+  // is not evidence either way, so it falls through to `owner` — the same
+  // corroboration an older backend gets. Reading an unknown value as seeded
+  // would drop the "external" mark AND, with `onchain` false, the "not yet
+  // operational" mark on an agent that has no endpoint.
+  if (agent.source === "seeded") return false;
+  if (agent.source === "onchain") return true;
   return !!agent.owner;
 }
 

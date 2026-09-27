@@ -306,6 +306,23 @@ describe("AgentStanding — provenance", () => {
     expect(labels(container)).toContain("⬡ external");
   });
 
+  // A provenance a newer backend added. Only "seeded" vouches for the
+  // first-party catalog, so an unknown value is read from `owner`, exactly as
+  // a response that predates the field is.
+  it("reads an unknown source from the owner, never as first-party", () => {
+    const { container } = renderCell({
+      agent: onchain({ source: "partner", owner: "GABC", bound: false }),
+    });
+    expect(labels(container)).toEqual(["⬡ external", "⊘ not yet operational"]);
+  });
+
+  it("makes no claim for an unknown source with no owner", () => {
+    const { container } = renderCell({
+      agent: seeded({ source: "partner", owner: null }),
+    });
+    expect(container.innerHTML).toBe("");
+  });
+
   it("makes no provenance claim when neither source nor owner is present", () => {
     const { container } = renderCell({
       agent: seeded({ source: undefined, owner: null }),
