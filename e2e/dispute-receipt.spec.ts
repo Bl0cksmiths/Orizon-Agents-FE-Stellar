@@ -40,6 +40,7 @@ import {
   mockTaskReadToken,
   mockTraceStream,
   mockWallet,
+  mockWalletAddress,
   type MockDisputeReads,
 } from "./mocks";
 
@@ -465,6 +466,21 @@ test.describe("dispute status and refund receipt", () => {
         }),
       ],
     });
+
+    // The connected wallet restored and placed as the stranger it is: the
+    // header shows it, and the anonymous viewer's prompt is gone. Before
+    // that, every check below is true of any page that has not yet decided
+    // who is looking.
+    await expect(
+      page
+        .getByRole("button", {
+          name: new RegExp(mockWalletAddress.slice(0, 4)),
+        })
+        .first(),
+    ).toBeVisible();
+    await expect(
+      receipt(page).getByRole("button", { name: /connect/i }),
+    ).toHaveCount(0);
 
     // THAT the steps were disputed, and how it went, is public — and so are
     // the refund and the rating: they are transactions on a public ledger.

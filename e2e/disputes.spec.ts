@@ -98,6 +98,24 @@ const stepRow = (page: Page, agent: string): Locator =>
 
 const dialog = (page: Page): Locator => page.getByRole("dialog");
 
+/**
+ * Waits until the connected wallet is restored AND the receipt has placed its
+ * viewer by it: the header shows the wallet, and the prompt an unplaced,
+ * anonymous viewer gets is gone. A count of zero taken before that is a
+ * count of a page that has not decided who is looking yet — true of every
+ * viewer, and so proof of nothing.
+ */
+async function walletPlaced(page: Page): Promise<void> {
+  await expect(
+    page
+      .getByRole("button", { name: new RegExp(mockWalletAddress.slice(0, 4)) })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    receipt(page).getByRole("button", { name: /connect/i }),
+  ).toHaveCount(0);
+}
+
 /** Opens the dispute form for one step. */
 async function openDialog(page: Page, agent: string): Promise<Locator> {
   await stepRow(page, agent)
@@ -140,6 +158,10 @@ test.describe("dispute action on the trace / receipt view", () => {
       settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
     });
 
+    // Placed as the payer first — the other two steps carry their actions —
+    // so the empty row below is the payer's, not an unplaced page's.
+    await walletPlaced(page);
+    await expect(disputeButtons(page)).toHaveCount(2);
     const row = stepRow(page, failedStep.agent_id);
     await expect(row).toBeVisible();
     await expect(row.getByRole("button")).toHaveCount(0);
@@ -1491,6 +1513,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
     await expect(stepRow(page, codeStep.agent_id)).toContainText(
       "Under review",
     );
+    // Placed as the stranger it is before the offer is counted absent.
+    await walletPlaced(page);
     await expect(offer(page)).toHaveCount(0);
     expect(stub?.challenges()).toBe(0);
     expect(await signatures(page)).toBe(0);
