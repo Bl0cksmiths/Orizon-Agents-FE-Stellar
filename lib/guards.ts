@@ -24,6 +24,8 @@ import type {
   DecomposeResponse,
   Flow,
   Overview,
+  PlanFloorNotice,
+  PlanStep,
   ReputationBatch,
   ReputationInfo,
   ReputationParams,
@@ -65,43 +67,75 @@ const isNumArray = (v: unknown): v is number[] =>
 const isStrArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every(isStr);
 
-/** Backend `AgentStatus` literal (app/schemas.py). Checked as a set, not just
- * as a string, because the status indexes a tone map — an unlisted value
- * silently renders an unstyled badge. */
-const AGENT_STATUSES = new Set(["online", "idle", "offline"]);
+/**
+ * How many items a per-item screen dropped from a payload, keyed by the very
+ * object the screen returned. A WeakMap rather than a field on the payload so
+ * the wire types stay the wire types, and so a payload that never went
+ * through a screen (a test fixture, an older cache) simply reads as 0.
+ */
+const DROPPED = new WeakMap<object, number>();
 
-/** Agents table + reputation leaderboard: `price.toFixed(3)`,
- * `runs.toLocaleString()`, `skills.map`, `rep * 2000`, and `status` keys a
- * tone map. Mirrors backend `Agent` (`app/schemas.py`); `real` has a server
- * default and is only used as a truthiness flag, so it stays unchecked.
- * `owner` is the registering wallet (on-chain indexed agents only, null for
- * seeded) and feeds the "my agents" wallet comparison, so a wrong type is
- * rejected while absent/null is tolerated. */
-export function isAgentList(v: unknown): v is Agent[] {
+/**
+ * How many items were dropped from this payload because they were unusable —
+ * a required field missing or the wrong type, or a present optional field of
+ * the wrong type. Pass the exact object `listAgents`, `listReputation` or
+ * `decompose` resolved with (and `useFetch` hands back); a copy reads as 0.
+ *
+ * - agent list (`screenAgentList`): agents dropped
+ * - reputation batch (`screenReputationBatch`): entries dropped
+ * - plan (`screenDecomposeResponse`): notices dropped (steps are never
+ *   dropped — a plan missing a step fails as a whole)
+ *
+ * A page should say "N could not be shown" when this is above 0, rather than
+ * let an item vanish silently. An unknown enum value is NOT a drop: it passes
+ * through as a string for the component to show neutrally.
+ */
+export function droppedCount(payload: object): number {
+  return DROPPED.get(payload) ?? 0;
+}
+
+/** Keeps the items that pass `isItem`, and records how many did not against
+ * the array it returns. */
+function keepValid<T>(items: unknown[], isItem: (v: unknown) => v is T): T[] {
+  const kept = items.filter(isItem);
+  DROPPED.set(kept, items.length - kept.length);
+  return kept;
+}
+
+/** One agent row: `price.toFixed(3)`, `runs.toLocaleString()`, `skills.map`,
+ * `rep * 2000`. Mirrors backend `Agent` (`app/schemas.py`); `real` has a
+ * server default and is only used as a truthiness flag, so it stays
+ * unchecked. `owner` is the registering wallet (on-chain indexed agents only,
+ * null for seeded) and feeds the "my agents" wallet comparison, so a wrong
+ * type is rejected while absent/null is tolerated.
+ *
+ * `status` and `source` are checked as strings, NOT against the values this
+ * build knows: a backend that adds a status or a provenance must not make the
+ * agent disappear. The components narrow them (`isAgentStatus`,
+ * `isAgentSource`) and show anything else neutrally. */
+function isAgent(a: unknown): a is Agent {
   return (
-    Array.isArray(v) &&
-    v.every(
-      (a) =>
-        isRecord(a) &&
-        isStr(a.id) &&
-        isStr(a.name) &&
-        isStrArray(a.skills) &&
-        isNum(a.price) &&
-        isNum(a.rep) &&
-        isNum(a.runs) &&
-        isOptionalStr(a.owner) &&
-        // Optional and NOT set-checked, unlike `status` below. `status` picks
-        // a tone from a closed map, so an unlisted value renders untoned; a
-        // provenance value we do not recognise still renders as "not seeded",
-        // which is the safe reading, and rejecting the whole registry over one
-        // would empty the marketplace.
-        isOptionalStr(a.source) &&
-        // Tri-state: true, false, or absent/null meaning "does not apply".
-        isOptionalBool(a.bound) &&
-        isStr(a.status) &&
-        AGENT_STATUSES.has(a.status),
-    )
+    isRecord(a) &&
+    isStr(a.id) &&
+    isStr(a.name) &&
+    isStrArray(a.skills) &&
+    isNum(a.price) &&
+    isNum(a.rep) &&
+    isNum(a.runs) &&
+    isOptionalStr(a.owner) &&
+    isOptionalStr(a.source) &&
+    // Tri-state: true, false, or absent/null meaning "does not apply".
+    isOptionalBool(a.bound) &&
+    isStr(a.status)
   );
+}
+
+/** Agents table, operator dashboard, reputation leaderboard. Screened per
+ * agent: one unusable agent is dropped (and counted, see `droppedCount`)
+ * instead of emptying the whole registry. Null only when the payload is not a
+ * list at all — a proxy error page or an error envelope. */
+export function screenAgentList(v: unknown): Agent[] | null {
+  return Array.isArray(v) ? keepValid(v, isAgent) : null;
 }
 
 /** Dashboard + sidebar: stat tiles do `*100`/`.toFixed`, sparkline maps
@@ -213,54 +247,86 @@ export function isTraceLineList(v: unknown): v is TraceLine[] {
   return Array.isArray(v) && v.every(isTraceLine);
 }
 
-/** Plan panel: `total_usdc`/`total_eta` get `.toFixed`, steps are mapped with
- * `.toFixed` on each estimate, and every step renders `rationale` as a React
- * child — a non-string (a dict from a half-rolled backend) throws "Objects are
- * not valid as a React child". Required on backend `PlanStep`
- * (`app/schemas.py`); `agent_name`/`rep_bps`/`rep_source` are optional there
- * and already have render-time fallbacks, so they stay unchecked.
+/** One plan step: every step renders `rationale` as a React child — a
+ * non-string (a dict from a half-rolled backend) throws "Objects are not
+ * valid as a React child" — and `.toFixed`s both estimates. Required on
+ * backend `PlanStep` (`app/schemas.py`).
  *
- * `notices` and the floor fields on steps (story 3.02) are additive: absent
- * is fine (a backend predating them), but a present value is type-checked —
- * `degraded` because a truthy non-boolean would badge a healthy step as
- * below-floor, `kind` because it indexes the notice tone map. The per-step
- * reputation evidence (`rep_lower_bound_bps`, `rep_count`,
- * `rep_dispute_rate_bps`, `rep_degraded`) follows the same contract: optional,
- * nullable, never the wrong type. */
-export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
+ * The floor fields (story 3.02) and the per-step reputation evidence are
+ * additive: absent is fine (a backend predating them), null is how FastAPI
+ * serializes an unset Optional, but a present value is never the wrong type.
+ * `rep_source` is checked as a string only, NOT against the values this build
+ * knows: the badge treats anything but `"onchain"` as an estimate. */
+function isPlanStep(s: unknown): s is PlanStep {
+  return (
+    isRecord(s) &&
+    isStr(s.agent_id) &&
+    isStr(s.rationale) &&
+    isNum(s.est_price_usdc) &&
+    isNum(s.est_eta_seconds) &&
+    // Rendered as the step's name, a React child: an object here throws and
+    // takes the route down through the error boundary.
+    isOptionalStr(s.agent_name) &&
+    // The headline score the badge prints: a string or an object would print
+    // "≈★NaN" beside the agent the buyer is being asked to pay.
+    isOptionalNum(s.rep_bps) &&
+    isOptionalStr(s.rep_source) &&
+    // The reputation badge compares the bound against the floor and
+    // prints the count and dispute rate, so each is a finite number or
+    // absent. Anything else coerces to NaN, every comparison against it
+    // is false — a below-floor agent reads as clearing the floor — and
+    // the label prints "NaN% disputed".
+    isOptionalNum(s.rep_lower_bound_bps) &&
+    isOptionalNum(s.rep_count) &&
+    isOptionalNum(s.rep_dispute_rate_bps) &&
+    // The string "false" is truthy, and would tell the buyer a healthy
+    // read had failed and the score beside it was only the prior.
+    isOptionalBool(s.rep_degraded) &&
+    isOptionalStr(s.substituted_for) &&
+    // Truthy non-boolean would badge a healthy step as below-floor.
+    isOptionalBool(s.degraded)
+  );
+}
+
+/** One floor action. `kind` is checked as a string, NOT against the three
+ * kinds this build has a mark for: a backend that adds one (say
+ * `"delisted"`) must not blank the plan. The card narrows it with
+ * `isPlanFloorNoticeKind` and shows anything else neutrally, beside the
+ * backend's own `reason` prose. `reason_code` is open for the same reason. */
+function isPlanFloorNotice(v: unknown): v is PlanFloorNotice {
+  return (
+    isRecord(v) &&
+    isStr(v.kind) &&
+    isStr(v.agent_id) &&
+    isStr(v.reason) &&
+    isOptionalStr(v.agent_name) &&
+    isOptionalStr(v.replacement_id) &&
+    isOptionalStr(v.replacement_name) &&
+    isOptionalStr(v.reason_code) &&
+    isOptionalNum(v.lower_bound_bps) &&
+    isOptionalNum(v.floor_bps)
+  );
+}
+
+/** Everything about a plan except the notice items, which are screened one by
+ * one below. */
+type PlanShell = Omit<DecomposeResponse, "notices"> & { notices?: unknown };
+
+/** `intent` is echoed back and not computed with, so it stays unchecked in
+ * keeping with this file's shallow contract. */
+function isPlanShell(v: unknown): v is PlanShell {
   return (
     isRecord(v) &&
     isStr(v.plan_id) &&
     isNum(v.total_usdc) &&
     isNum(v.total_eta) &&
     Array.isArray(v.steps) &&
-    v.steps.every(
-      (s) =>
-        isRecord(s) &&
-        isStr(s.agent_id) &&
-        isStr(s.rationale) &&
-        isNum(s.est_price_usdc) &&
-        isNum(s.est_eta_seconds) &&
-        // The reputation badge compares the bound against the floor and
-        // prints the count and dispute rate, so each is a finite number or
-        // absent. Anything else coerces to NaN, every comparison against it
-        // is false — a below-floor agent reads as clearing the floor — and
-        // the label prints "NaN% disputed".
-        isOptionalNum(s.rep_lower_bound_bps) &&
-        isOptionalNum(s.rep_count) &&
-        isOptionalNum(s.rep_dispute_rate_bps) &&
-        // The string "false" is truthy, and would tell the buyer a healthy
-        // read had failed and the score beside it was only the prior.
-        isOptionalBool(s.rep_degraded) &&
-        isOptionalStr(s.substituted_for) &&
-        isOptionalBool(s.degraded),
-    ) &&
-    (v.notices == null ||
-      (Array.isArray(v.notices) && v.notices.every(isPlanFloorNotice))) &&
-    // Both optional, because a plan card must keep rendering against a backend
-    // that predates them. `floor_bps` is checked as a number rather than
-    // defaulted here: a floor that arrives as a string would print "NaN" in
-    // the threshold the buyer is being asked to trust.
+    v.steps.every(isPlanStep) &&
+    (v.notices == null || Array.isArray(v.notices)) &&
+    // Both optional, because a plan card must keep rendering against a
+    // backend that predates them. `floor_bps` is checked as a number rather
+    // than defaulted here: a floor that arrives as a string would print "NaN"
+    // in the threshold the buyer is being asked to trust.
     isOptionalNum(v.floor_bps) &&
     isOptionalBool(v.reputation_degraded) &&
     // Optional for the same reason, and strict for the same reason as the
@@ -270,37 +336,26 @@ export function isDecomposeResponse(v: unknown): v is DecomposeResponse {
   );
 }
 
-/** Backend `PlanFloorNotice.kind` literal (`app/schemas.py`). Checked as a
- * set because the kind picks the notice's tone and label on the plan card —
- * an unlisted value would render an unstyled, unexplained row. */
-const FLOOR_NOTICE_KINDS = new Set(["excluded", "substituted", "degraded"]);
-
-function isPlanFloorNotice(v: unknown): boolean {
-  return (
-    isRecord(v) &&
-    isStr(v.kind) &&
-    FLOOR_NOTICE_KINDS.has(v.kind) &&
-    isStr(v.agent_id) &&
-    isStr(v.reason) &&
-    isOptionalStr(v.agent_name) &&
-    isOptionalStr(v.replacement_id) &&
-    isOptionalStr(v.replacement_name) &&
-    // Optional, and deliberately NOT set-checked the way `kind` is. `kind`
-    // picks the row's tone, so an unlisted value renders unstyled; an
-    // unrecognised `reason_code` still has the prose `reason` beside it, so
-    // rejecting the whole payload over one would trade a rendered plan for no
-    // plan at all.
-    isOptionalStr(v.reason_code) &&
-    isOptionalNum(v.lower_bound_bps) &&
-    isOptionalNum(v.floor_bps)
-  );
+/** Plan card: `total_usdc`/`total_eta` get `.toFixed`, and the steps and
+ * notices are mapped into rows.
+ *
+ * Notices are screened per notice: an unusable one is dropped (and counted,
+ * see `droppedCount`) so the card can say a floor action could not be shown,
+ * instead of the buyer getting no plan at all.
+ *
+ * Steps are NOT. One unusable step, or a notices field that is not a list,
+ * rejects the plan: the buyer authorizes `total_usdc` for every step and
+ * `execute` runs the plan by id, so a card that quietly left a step out would
+ * misstate what is being paid for. Returns null in that case, and when the
+ * envelope itself is unusable. */
+export function screenDecomposeResponse(v: unknown): DecomposeResponse | null {
+  if (!isPlanShell(v)) return null;
+  if (!Array.isArray(v.notices)) return { ...v, notices: undefined };
+  const notices = v.notices.filter(isPlanFloorNotice);
+  const plan: DecomposeResponse = { ...v, notices };
+  DROPPED.set(plan, v.notices.length - notices.length);
+  return plan;
 }
-
-/** Backend `ReputationInfo.source` literal (`app/routers/stellar.py`). The
- * leaderboard branches on it to decide whether a row shows on-chain evidence
- * or the seeded prior, so an unlisted value would present prior data as
- * measured. */
-const REPUTATION_SOURCES = new Set(["onchain", "prior"]);
 
 /** One agent's reputation, served on its own by
  * GET /api/stellar/reputation/{agent_id} and as every value of the batch
@@ -309,6 +364,11 @@ const REPUTATION_SOURCES = new Set(["onchain", "prior"]);
  * (`sortValue.disputes`) — a non-number makes every comparison NaN and
  * silently scrambles row order — and `avg_bps` is the unsmoothed on-chain
  * mean. All required on the backend model.
+ *
+ * `source` is checked as a string, NOT against the two values this build
+ * knows: a backend that adds one must not blank the score. Every consumer
+ * treats only `"onchain"` as evidence, so an unknown source is shown as an
+ * estimate — the humbler claim — rather than as measured.
  *
  * `degraded` is the ledger-read-failed flag (the service fails open and
  * answers with the prior). Optional, because a backend predating it omits the
@@ -326,21 +386,38 @@ export function isReputationInfo(v: unknown): v is ReputationInfo {
     isNum(v.disputed) &&
     isNum(v.dispute_rate_bps) &&
     isStr(v.source) &&
-    REPUTATION_SOURCES.has(v.source) &&
     isOptionalBool(v.degraded)
   );
 }
 
 /** Reputation pages: `reputations` values feed the math above and `floor_bps`
- * feeds the floor badge. */
-export function isReputationBatch(v: unknown): v is ReputationBatch {
-  return (
+ * feeds the floor badge. Screened per entry: an unusable entry is dropped (and
+ * counted, see `droppedCount`), which the pages already render honestly as "no
+ * score" for that one agent, instead of blanking every score on the page.
+ *
+ * The envelope stays strict — null when `floor_bps`, `prior_bps` or the
+ * `reputations` map is unusable — because no single score on the page can be
+ * judged against a floor that did not arrive. */
+export function screenReputationBatch(v: unknown): ReputationBatch | null {
+  if (!(
     isRecord(v) &&
     isNum(v.floor_bps) &&
     isNum(v.prior_bps) &&
-    isRecord(v.reputations) &&
-    Object.values(v.reputations).every(isReputationInfo)
+    isRecord(v.reputations)
+  ))
+    return null;
+  const entries = Object.entries(v.reputations);
+  const kept = entries.filter((e): e is [string, ReputationInfo] =>
+    isReputationInfo(e[1]),
   );
+  const batch: ReputationBatch = {
+    ...v,
+    floor_bps: v.floor_bps,
+    prior_bps: v.prior_bps,
+    reputations: Object.fromEntries(kept),
+  };
+  DROPPED.set(batch, entries.length - kept.length);
+  return batch;
 }
 
 /** One settlement row. `amount_stroops` is summed and divided, `self_payment`
