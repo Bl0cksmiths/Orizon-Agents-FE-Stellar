@@ -247,6 +247,61 @@ test.describe("dispute status and refund receipt", () => {
     await attachShot(testInfo, "receipt — rejected", row);
   });
 
+  test("a reason the backend withheld is never drawn as an empty quote, on either side", async ({
+    page,
+  }) => {
+    // D-068: the payer, in a tab without the task's read token. The backend
+    // withholds both reasons as "", and an empty "Your reason" reads as
+    // though the buyer gave none.
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "rejected",
+          openedAtS: nowS() - 40 * 60,
+          reason: "",
+          rejection_reason: "",
+        }),
+      ],
+    });
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Rejected");
+    await expect(row.getByText("Your reason")).toHaveCount(0);
+    await expect(row.getByText("Why it was rejected")).toHaveCount(0);
+    await expect(row.locator("blockquote")).toHaveCount(0);
+  });
+
+  test("upheld with no transfer on record promises no queue and wears no success", async ({
+    page,
+  }, testInfo) => {
+    // D-070: where a refused or failed transfer leaves a dispute once its
+    // claim is released. Nothing re-sends it on its own.
+    await openReceipt(page, {
+      disputes: [
+        mockReceiptDispute(codeStep, {
+          status: "upheld",
+          openedAtS: nowS() - 40 * 60,
+        }),
+      ],
+    });
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Upheld");
+    await expect(row).toContainText("No transaction on record");
+    await expect(row).toContainText(
+      "the credit has not been paid — there is no transaction to look up yet, and the platform has to send it to your wallet.",
+    );
+    await expect(row).not.toContainText(
+      /queued|Refunded|Confirmed on Stellar|Done:|✓/,
+    );
+    // No success colour on the badge: the tick's cyan is "confirmed", and
+    // the green is "refunded".
+    const badge = row.getByText("Upheld", { exact: true }).locator("..");
+    const colour = await badge.evaluate((el) => getComputedStyle(el).color);
+    const cyan = "rgb(0, 255, 209)";
+    const emerald = "rgb(110, 231, 183)";
+    expect([cyan, emerald]).not.toContain(colour);
+    await attachShot(testInfo, "receipt — upheld, nothing paid", row);
+  });
+
   test("a refund or a rating still in flight reads as pending, never as done", async ({
     page,
   }, testInfo) => {
