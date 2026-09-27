@@ -1003,6 +1003,35 @@ test.describe("dispute action on the trace / receipt view", () => {
     ).not.toBe("none");
   });
 
+  // No fixture had a long name, so a label set `whitespace-nowrap` in the
+  // row or the form ran off a phone's screen unseen.
+  test("at 360px a long unbroken agent name and id wrap in the row and the form", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 780 });
+    const base = mockSettlementView({ settledAtS: nowS() - HOUR_S });
+    const longStep = {
+      ...codeStep,
+      agent_id: `agent.${"k".repeat(60)}`,
+      agent_name: `Generator${"G".repeat(60)}`,
+    };
+    await openTrace(page, {
+      settlement: {
+        ...base,
+        steps: base.steps.map((s) =>
+          s.step_index === codeStep.step_index ? longStep : s,
+        ),
+      },
+    });
+    const row = stepRow(page, longStep.agent_id);
+    await expect(row).toContainText(longStep.agent_name);
+    expect(await horizontalOverflow(receipt(page))).toEqual([]);
+
+    const form = await openDialog(page, longStep.agent_id);
+    await expect(form).toContainText(longStep.agent_name);
+    expect(await horizontalOverflow(form)).toEqual([]);
+  });
+
   test("at 360px the receipt and the dispute form fit without sideways scroll", async ({
     page,
   }) => {
