@@ -4,8 +4,10 @@
  * panel below them — can never disagree about the same array.
  */
 
+import { droppedCount } from "@/lib/guards";
 import {
   isPlanFloorNoticeKind,
+  type DecomposeResponse,
   type PlanFloorNotice,
   type PlanFloorNoticeKind,
 } from "@/lib/types";
@@ -38,3 +40,19 @@ export const isFloorAction = (n: PlanFloorNotice): boolean => !isUnbound(n);
  */
 export const knownKind = (n: PlanFloorNotice): PlanFloorNoticeKind | null =>
   isPlanFloorNoticeKind(n.kind) ? n.kind : null;
+
+/**
+ * How many of this plan's notices the guard dropped as unusable (a required
+ * field missing or mistyped), and so could not be shown. Read off the exact
+ * object `decompose` resolved with; a copy, or a plan that never went through
+ * the guard, reads as 0. Both sections say this number rather than let a
+ * floor action vanish without a word.
+ */
+export const hiddenNotices = (plan: DecomposeResponse): number =>
+  droppedCount(plan);
+
+/** The clause both sections use for it, so they say it the same way. */
+export const hiddenNoticesText = (n: number): string =>
+  n === 1
+    ? "1 floor notice could not be shown"
+    : `${n} floor notices could not be shown`;

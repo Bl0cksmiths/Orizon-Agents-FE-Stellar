@@ -47,7 +47,13 @@ import {
   hasUnverifiedReputation,
   UNVERIFIED_BANNER_ID,
 } from "./degraded-banner";
-import { isFloorAction, isUnbound, knownKind } from "./floor-notices";
+import {
+  hiddenNotices,
+  hiddenNoticesText,
+  isFloorAction,
+  isUnbound,
+  knownKind,
+} from "./floor-notices";
 
 /** One plan card renders at a time on the orchestrator page, so a fixed id
  *  cannot collide. A derived one would be worse: `plan_id` reaches us from
@@ -102,6 +108,7 @@ export function FloorSummary({
       .filter((n) => isFloorAction(n) && knownKind(n) === null)
       .map((n) => n.agent_id),
   ).size;
+  const hidden = hiddenNotices(plan);
   const steps = plan.steps.length;
 
   // A reputation read failed, so the floor measured estimates rather than
@@ -184,6 +191,7 @@ export function FloorSummary({
             : ` · ${unbound} agents with no endpoint bound were never candidates`)}
         {undescribed > 0 &&
           ` · ${undescribed === 1 ? "1 agent" : `${undescribed} agents`} reported under a kind this card has no wording for, listed below`}
+        {hidden > 0 && ` · ${hiddenNoticesText(hidden)}`}
       </p>
 
       {/* Two paragraphs used to sit here: one explaining that the eligible set

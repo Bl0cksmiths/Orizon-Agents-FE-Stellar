@@ -121,6 +121,52 @@ describe("the floor summary and the exclusions panel agree", () => {
   });
 });
 
+describe("notices the guard dropped as unusable", () => {
+  /** No `reason` and a string bound: the guard drops it, and counts it. */
+  const broken = (agentId: string) => ({
+    kind: "excluded",
+    agent_id: agentId,
+    lower_bound_bps: "low",
+  });
+
+  it("are said in both sections, never silently missing", () => {
+    const plan = screened([wire("a"), broken("b")]);
+    expect(plan.notices).toHaveLength(1);
+
+    const { container: summary } = render(<FloorSummary plan={plan} />);
+    expect(summary.textContent).toContain("1 floor notice could not be shown");
+    cleanup();
+
+    const { container: panel } = render(<ExclusionsPanel plan={plan} />);
+    expect(panel.querySelector("summary")?.textContent).toContain(
+      "1 floor notice could not be shown",
+    );
+    expect(panel.textContent).toContain("arrived incomplete");
+  });
+
+  // Every notice malformed is still "the backend reported something here",
+  // not "the floor did nothing": the panel stays on the card to say so.
+  it("keep the panel on the card when every notice was dropped", () => {
+    const plan = screened([broken("a"), broken("b")]);
+    expect(plan.notices).toHaveLength(0);
+    const { container } = render(<ExclusionsPanel plan={plan} />);
+    expect(container.querySelector("summary")?.textContent).toContain(
+      "2 floor notices could not be shown",
+    );
+  });
+
+  it("say nothing when none were dropped", () => {
+    const plan = screened([wire("a")]);
+    const { container } = render(
+      <>
+        <FloorSummary plan={plan} />
+        <ExclusionsPanel plan={plan} />
+      </>,
+    );
+    expect(container.textContent).not.toMatch(/could not be shown/);
+  });
+});
+
 // Keeps the fixture honest: a notice the guard would drop is not one either
 // component ever sees, so a mix that silently shrank would test nothing.
 it("screens every fixture notice through intact", () => {

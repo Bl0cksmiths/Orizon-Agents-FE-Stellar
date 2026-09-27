@@ -41,7 +41,13 @@ import type {
   PlanFloorNotice,
   PlanFloorNoticeKind,
 } from "@/lib/types";
-import { isFloorAction, isUnbound, knownKind } from "./floor-notices";
+import {
+  hiddenNotices,
+  hiddenNoticesText,
+  isFloorAction,
+  isUnbound,
+  knownKind,
+} from "./floor-notices";
 
 /** The order the closed summary counts kinds in: what was lost, what moved,
  *  what was kept anyway. The rows themselves stay in the backend's order,
@@ -286,7 +292,11 @@ export function ExclusionsPanel({
   // Optional on the type, nullable through the guard, and both mean the same
   // thing here: there is nothing to disclose, so no disclosure renders.
   const notices = plan.notices ?? [];
-  if (notices.length === 0) return null;
+  // Notices the guard dropped as unusable. Not nothing: the backend reported
+  // something here, and a panel that vanished because every notice in it was
+  // malformed would tell the buyer the floor did nothing.
+  const hidden = hiddenNotices(plan);
+  if (notices.length === 0 && hidden === 0) return null;
 
   // Unbound agents are counted apart from what the floor did. The backend
   // names up to eight on every plan while any registered agent is unbound, so
@@ -316,6 +326,7 @@ export function ExclusionsPanel({
     ),
     ...(other > 0 ? [`${other} ${OTHER_COUNT_LABEL}`] : []),
     ...(unbound > 0 ? [`${unbound} with no endpoint bound`] : []),
+    ...(hidden > 0 ? [hiddenNoticesText(hidden)] : []),
   ].join(" · ");
 
   return (
@@ -362,6 +373,13 @@ export function ExclusionsPanel({
             were never candidates: they are registered on-chain but have no
             endpoint bound to dispatch a step to, so the floor did not judge
             them either way.
+          </p>
+        )}
+        {hidden > 0 && (
+          <p className="text-sm leading-relaxed text-muted">
+            {hiddenNoticesText(hidden)}: {hidden === 1 ? "it" : "they"} arrived
+            incomplete, so there is nothing reliable to say about{" "}
+            {hidden === 1 ? "it" : "them"} here.
           </p>
         )}
         <ul className="space-y-3">
