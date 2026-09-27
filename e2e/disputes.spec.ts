@@ -1180,6 +1180,29 @@ async function stubReadGrant(
   return { reads, challenges: () => challenges, grants: () => grants };
 }
 
+/**
+ * Runs the page's clock on to the receipt's next read, and stops there.
+ *
+ * Not one `runFor` of a whole poll interval: the page arms its next read only
+ * once the last one's answer has been processed, so a second jump straight
+ * after a read was COUNTED can run the clock past a timer that is not armed
+ * yet — which then sits a whole interval beyond the time handed out, and the
+ * read never comes (8 runs in 12, at ten workers). Stepped a few seconds at a
+ * time, the clock only ever moves while the page is waiting on it.
+ */
+async function runToNextRead(page: Page, reads: () => number): Promise<void> {
+  const next = reads() + 1;
+  await expect
+    .poll(
+      async () => {
+        if (reads() < next) await page.clock.runFor(5_000);
+        return reads();
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(next);
+}
+
 /** Counts every signature the page asks the wallet for. */
 function countSignatures(): void {
   Object.assign(window, { __signs: 0 });
@@ -1262,8 +1285,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
     await expect(row.getByText("Your reason")).toHaveCount(0);
 
     // Never on its own: a poll passes, and nothing is asked of the wallet.
-    await page.clock.runFor(ADJUDICATION_POLL_MS);
-    await expect.poll(() => reads.reads.length).toBe(2);
+    await runToNextRead(page, () => reads.reads.length);
+    expect(reads.reads.length).toBe(2);
     expect(await signatures(page)).toBe(0);
     expect(reads.challenges()).toBe(0);
 
@@ -1282,10 +1305,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
 
     // Every later read presents the grant, and none signs again.
     const before = reads.reads.length;
-    await page.clock.runFor(ADJUDICATION_POLL_MS);
-    await expect.poll(() => reads.reads.length).toBe(before + 1);
-    await page.clock.runFor(ADJUDICATION_POLL_MS);
-    await expect.poll(() => reads.reads.length).toBe(before + 2);
+    await runToNextRead(page, () => reads.reads.length);
+    await runToNextRead(page, () => reads.reads.length);
     expect(reads.reads.slice(before)).toEqual([GRANT, GRANT]);
     expect(await signatures(page)).toBe(1);
     expect(reads.challenges()).toBe(1);
@@ -1352,8 +1373,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
 
     // The next poll goes without, and nothing is signed or asked for.
     const settled = reads.reads.length;
-    await page.clock.runFor(ADJUDICATION_POLL_MS);
-    await expect.poll(() => reads.reads.length).toBe(settled + 1);
+    await runToNextRead(page, () => reads.reads.length);
+    expect(reads.reads.length).toBe(settled + 1);
     expect(reads.reads.at(-1)).toBeNull();
     expect(await signatures(page)).toBe(0);
     expect(reads.challenges()).toBe(0);
@@ -1625,10 +1646,9 @@ test.describe("accessibility — the show-my-reason control", () => {
 
     // Two poll cycles re-render the panel; the region must say nothing more.
     const before = reads.reads.length;
-    await page.clock.runFor(ADJUDICATION_POLL_MS);
-    await expect.poll(() => reads.reads.length).toBe(before + 1);
-    await page.clock.runFor(ADJUDICATION_POLL_MS);
-    await expect.poll(() => reads.reads.length).toBe(before + 2);
+    await runToNextRead(page, () => reads.reads.length);
+    await runToNextRead(page, () => reads.reads.length);
+    expect(reads.reads.length).toBe(before + 2);
     await page.waitForTimeout(500);
     expect(await heard()).toEqual(declined);
   });
