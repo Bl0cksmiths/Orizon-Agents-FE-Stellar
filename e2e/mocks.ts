@@ -976,7 +976,7 @@ export async function mockApi(
   page: Page,
   options: MockApiOptions = {},
 ): Promise<void> {
-  await page.route("**/api/**", (route) => {
+  await page.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
 
@@ -1099,9 +1099,28 @@ export async function mockApi(
       });
     }
 
-    // Anything else gets an empty-but-valid JSON body so stray fetches
-    // resolve instead of hanging or erroring.
-    return json(route, {});
+    // Anything else is a gap in the fixtures, and it fails the spec that hit
+    // it. This used to answer `{}` with a 200, which every guard rejects — so
+    // a missing mock surfaced as the page's own "malformed response" state,
+    // and a spec could pass while asserting against an error frame it never
+    // meant to test. The request is still answered, with a status no real
+    // route returns, so the page does not hang; the throw is what fails the
+    // test, naming the route.
+    await route.fulfill({
+      status: 599,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: "unmocked route",
+        error: {
+          code: "unmocked_route",
+          message: `mockApi has no fixture for ${method} ${pathname}`,
+          request_id: "e2e00000000000ff",
+        },
+      }),
+    });
+    throw new Error(
+      `mockApi has no fixture for ${method} ${pathname} — add one, or route it in the spec`,
+    );
   });
 }
 
