@@ -24,6 +24,7 @@ import {
   type TestInfo,
 } from "@playwright/test";
 import type { Dispute } from "../lib/types";
+import { horizontalOverflow } from "./dispute-layout";
 import {
   mockApi,
   mockDispute,
@@ -125,35 +126,6 @@ async function attachShot(
   await testInfo.attach(name, {
     body: await target.screenshot({ animations: "disabled" }),
     contentType: "image/png",
-  });
-}
-
-/**
- * Sideways overflow inside `root`, as the offending elements' own
- * descriptions — the measure the story 4.05 spec takes of the receipt, for
- * the same reason: the console hides horizontal overflow on html and body,
- * so on a phone anything past the right edge is not scrolled to, it is cut
- * off. A 64-character hash that does not wrap is the classic offender.
- */
-async function horizontalOverflow(root: Locator): Promise<string[]> {
-  return root.evaluate((el) => {
-    const limit = document.documentElement.clientWidth + 1;
-    const offenders: string[] = [];
-    for (const node of [el, ...Array.from(el.querySelectorAll("*"))]) {
-      const box = node.getBoundingClientRect();
-      if (box.width === 0) continue;
-      const scrolls = node.scrollWidth > node.clientWidth + 1;
-      const style = getComputedStyle(node);
-      const scrollable =
-        scrolls && (style.overflowX === "auto" || style.overflowX === "scroll");
-      if (box.left < -1 || box.right > limit || scrollable) {
-        const text = (node.textContent ?? "").trim().slice(0, 40);
-        offenders.push(
-          `<${node.tagName.toLowerCase()}> ${Math.round(box.left)}–${Math.round(box.right)}px "${text}"`,
-        );
-      }
-    }
-    return offenders;
   });
 }
 

@@ -20,6 +20,7 @@ import {
   type Route,
 } from "@playwright/test";
 import { disputeScan } from "./dispute-axe";
+import { horizontalOverflow } from "./dispute-layout";
 import {
   DISPUTE_WINDOW_S,
   mockApi,
@@ -104,34 +105,6 @@ async function openDialog(page: Page, agent: string): Promise<Locator> {
     .click();
   await expect(dialog(page)).toBeVisible();
   return dialog(page);
-}
-
-/**
- * Sideways overflow inside `root`, as the offending elements' own
- * descriptions. Width is the direction a phone cannot recover: the console
- * hides horizontal overflow on html and body, so content past the right edge
- * is not scrolled to — it is cut off.
- */
-async function horizontalOverflow(root: Locator): Promise<string[]> {
-  return root.evaluate((el) => {
-    const limit = document.documentElement.clientWidth + 1;
-    const offenders: string[] = [];
-    for (const node of [el, ...Array.from(el.querySelectorAll("*"))]) {
-      const box = node.getBoundingClientRect();
-      if (box.width === 0) continue;
-      const scrolls = node.scrollWidth > node.clientWidth + 1;
-      const style = getComputedStyle(node);
-      const scrollable =
-        scrolls && (style.overflowX === "auto" || style.overflowX === "scroll");
-      if (box.left < -1 || box.right > limit || scrollable) {
-        const text = (node.textContent ?? "").trim().slice(0, 40);
-        offenders.push(
-          `<${node.tagName.toLowerCase()}> ${Math.round(box.left)}–${Math.round(box.right)}px "${text}"`,
-        );
-      }
-    }
-    return offenders;
-  });
 }
 
 test.describe("dispute action on the trace / receipt view", () => {
