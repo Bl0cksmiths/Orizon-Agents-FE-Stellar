@@ -792,9 +792,29 @@ describe("openDispute", () => {
     expect(err).toMatchObject({ status: 403, code: "not_the_payer" });
   });
 
+  it("keeps a recorded dispute whose status this build cannot name, as the listing does", async () => {
+    // The dispute exists by the time this answer arrives. Refusing it as
+    // malformed invited a retry that cost a second signature and a 409.
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, { ...dispute(1), status: "closed" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          ...taskDisputes(),
+          disputes: [{ ...dispute(1), status: "closed" }],
+        }),
+      );
+
+    const opened = await openDispute(req);
+    const listed = await getTaskDisputes(TASK);
+    expect(opened).toEqual({ ...dispute(1), status: "open" });
+    expect(listed.disputes).toEqual([opened]);
+  });
+
   it("rejects a malformed dispute rather than handing it to the panel", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { ...dispute(1), status: "closed" }),
+      jsonResponse(200, { ...dispute(1), step_index: "one" }),
     );
 
     await expect(openDispute(req)).rejects.toThrow(

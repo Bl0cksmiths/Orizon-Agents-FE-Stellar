@@ -491,6 +491,13 @@ function duplicateOf(err: ApiError, req: OpenDisputeReq): Dispute | null {
  * POST /api/disputes — open the dispute, presenting the payer's signature
  * over the challenge. Resolves to the stored dispute, status `open`.
  *
+ * The answer is read on the listing's terms (`acceptedDispute`), not the
+ * strict guard: by the time it arrives the dispute is RECORDED, so a status
+ * this build cannot name is kept as `open` exactly as the next read of the
+ * listing will keep it. Refusing it as malformed told the buyer their
+ * dispute "couldn't be submitted", and the retry that invited cost a second
+ * signature to be answered `duplicate_dispute`.
+ *
  * A `duplicate_dispute` 409 rejects as a `DisputeRefusal` of that code
  * carrying the step's ORIGINAL dispute off the 409 body (`.dispute`), so the
  * page can show the dispute the step already has even when the re-read that
@@ -501,26 +508,29 @@ function duplicateOf(err: ApiError, req: OpenDisputeReq): Dispute | null {
  */
 export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
   const path = "/disputes";
-  return post<Dispute, OpenDisputeReq>(
-    path,
-    req,
-    ensure(path, isDispute),
-  ).catch((err: unknown) => {
-    if (err instanceof ApiError && err.code === "duplicate_dispute") {
-      throw new DisputeRefusal(
-        "duplicate_dispute",
-        "This step already has a dispute.",
-        { dispute: duplicateOf(err, req), cause: err },
-      );
-    }
-    if (err instanceof ApiError) {
-      const message = reasonRefusalMessage(err);
-      if (message !== null) {
-        throw new DisputeRefusal("reason_invalid", message, { cause: err });
+  const parse = (v: unknown): Dispute => {
+    const recorded = acceptedDispute(v);
+    if (recorded === null) throw new Error(`malformed response from ${path}`);
+    return recorded;
+  };
+  return post<Dispute, OpenDisputeReq>(path, req, parse).catch(
+    (err: unknown) => {
+      if (err instanceof ApiError && err.code === "duplicate_dispute") {
+        throw new DisputeRefusal(
+          "duplicate_dispute",
+          "This step already has a dispute.",
+          { dispute: duplicateOf(err, req), cause: err },
+        );
       }
-    }
-    throw err;
-  });
+      if (err instanceof ApiError) {
+        const message = reasonRefusalMessage(err);
+        if (message !== null) {
+          throw new DisputeRefusal("reason_invalid", message, { cause: err });
+        }
+      }
+      throw err;
+    },
+  );
 }
 
 // ── the window's clock ──────────────────────────────────────────
