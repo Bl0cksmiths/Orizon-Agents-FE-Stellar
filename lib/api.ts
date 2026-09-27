@@ -165,18 +165,26 @@ export class ApiError extends Error {
   // "owner_account_unfunded"). Callers that map codes to inline field errors —
   // the register form — key on this, never on the human message.
   readonly code?: string;
+  // The parsed JSON body, as it arrived, for the few refusals that carry more
+  // than the envelope: a `duplicate_dispute` 409 holds the dispute that
+  // already exists, and a 422 names the field it refused. Unknown by type —
+  // a caller reads it through a guard, never by assertion. Absent when the
+  // body was not JSON.
+  readonly body?: unknown;
 
   constructor(
     message: string,
     status: number,
     retryAfterMs?: number,
     code?: string,
+    body?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     if (retryAfterMs !== undefined) this.retryAfterMs = retryAfterMs;
     if (code !== undefined) this.code = code;
+    if (body !== undefined) this.body = body;
   }
 }
 
@@ -211,8 +219,10 @@ async function httpError(
 ): Promise<ApiError> {
   let detail = "";
   let code: string | undefined;
+  let body: unknown;
   try {
     const j = await res.json();
+    body = j;
     if (typeof j?.error?.code === "string") code = j.error.code;
     const envelopeMsg =
       typeof j?.error?.message === "string" ? j.error.message : undefined;
@@ -240,6 +250,7 @@ async function httpError(
     res.status,
     wait,
     code,
+    body,
   );
 }
 

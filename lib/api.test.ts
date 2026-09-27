@@ -167,6 +167,30 @@ describe("get (via listAgents)", () => {
     });
   });
 
+  it("keeps the parsed body, for refusals that carry more than the envelope", async () => {
+    const body = {
+      detail: "duplicate_dispute",
+      error: { code: "duplicate_dispute", message: "already disputed" },
+      dispute: { id: "dsp_1" },
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(409, body));
+
+    await expect(listAgents()).rejects.toMatchObject({ status: 409, body });
+  });
+
+  it("leaves the body undefined when the answer was not JSON", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: () => Promise.reject(new SyntaxError("not json")),
+      text: () => Promise.resolve("<html>bad gateway</html>"),
+    });
+
+    const err = await listAgents().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 502, body: undefined });
+  });
+
   it("leaves the code undefined when the envelope has none", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(500, { detail: "boom" }));
 
