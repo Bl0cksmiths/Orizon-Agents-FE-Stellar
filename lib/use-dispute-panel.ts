@@ -380,6 +380,13 @@ export function useDisputePanel(
           ) {
             setClockMs((prev) => Math.max(prev, Date.now()));
           }
+          // The run sealed while this read was out, and the seal was recorded
+          // against it rather than spent on a read of its own. It failed, so
+          // the seal is spent now: nothing else would ever ask again, and the
+          // settlement the seal says is coming would never be read.
+          if (sealedInFlightRef.current && !doneAtRequest) {
+            void load(id, true);
+          }
           return;
         }
       } finally {

@@ -1108,6 +1108,48 @@ describe("useDisputePanel — the run finishing", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
   });
 
+  it("spends a seal recorded against a read that then FAILS on a read of its own", async () => {
+    // The seal was not spent on a request of its own because a read was out;
+    // that read failed, so nothing else would ever ask for the settlement.
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount({ workflowDone: false });
+    rerender({ ...DEFAULTS, workflowDone: true });
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    const again = nextRead();
+    await act(async () => {
+      first.reject(new ApiError("GET /tasks/task_a/disputes → 503", 503));
+    });
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    // Nothing is on screen, so the new attempt is loading, not failing.
+    expect(result.current).toMatchObject({ loading: true, error: null });
+
+    await land(again, answer(23 * H));
+    expect(result.current.view.kind).toBe("settled");
+    expect(result.current.error).toBeNull();
+  });
+
+  it("spends that seal once: a second failure is an error to retry by hand", async () => {
+    const first = deferred<TaskDisputes>();
+    fetchDisputes.mockReturnValueOnce(first.promise);
+    const { result, rerender } = mount({ workflowDone: false });
+    rerender({ ...DEFAULTS, workflowDone: true });
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 503", 503),
+    );
+    await act(async () => {
+      first.reject(new ApiError("GET /tasks/task_a/disputes → 503", 503));
+    });
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
+
+    await advance(10 * M);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
   it("reads again when the run finishes after an answer has landed", async () => {
     // The ordinary case, and the one the skip above must not swallow.
     const { rerender } = await mountWith(answer(H, { settlement: null }), {
