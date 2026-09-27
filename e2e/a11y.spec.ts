@@ -20,6 +20,7 @@ import {
   mockRejectionReason,
   mockSettlementSteps,
   mockSettlementView,
+  mockTaskReadToken,
   mockTraceStream,
   mockWallet,
 } from "./mocks";
@@ -99,6 +100,7 @@ test.describe("accessibility — the trace page's receipt", () => {
 
   async function openReceipt(page: Page): Promise<void> {
     const settledAtS = Math.floor(Date.now() / 1000) - 60 * 60;
+    await mockTaskReadToken(page);
     await mockWallet(page);
     await mockApi(page);
     await mockTraceStream(page, mockDisputeTaskId);
@@ -193,6 +195,7 @@ test.describe("accessibility — the dispute receipt", () => {
     status: "credited" | "rejected",
   ): Promise<Locator> {
     const settledAtS = Math.floor(Date.now() / 1000) - 60 * 60;
+    await mockTaskReadToken(page);
     await mockWallet(page);
     await mockApi(page);
     await mockTraceStream(page, mockDisputeTaskId);

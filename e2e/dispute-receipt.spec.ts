@@ -36,6 +36,7 @@ import {
   mockRejectionReason,
   mockSettlementSteps,
   mockSettlementView,
+  mockTaskReadToken,
   mockTraceStream,
   mockWallet,
   type MockDisputeReads,
@@ -79,6 +80,9 @@ async function openReceipt(
   page: Page,
   { disputes, settledAtS = nowS() - HOUR_S, payer, clock }: ReceiptSetup,
 ): Promise<MockDisputeReads> {
+  // The tab that ran the workflow, holding its read token: the one the
+  // backend sends the buyer's words to.
+  await mockTaskReadToken(page);
   await mockWallet(page);
   await mockApi(page);
   await mockTraceStream(page, mockDisputeTaskId);

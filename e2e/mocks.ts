@@ -1,4 +1,4 @@
-import type { Page, Route } from "@playwright/test";
+import type { Page, Request, Route } from "@playwright/test";
 import type {
   CreditPolicy,
   DecomposeResponse,
@@ -1539,6 +1539,55 @@ export async function mockTraceStream(
   );
 }
 
+/**
+ * The task's read token, as the tab that ran the task holds it: the
+ * execute response hands it over and `lib/task-tokens` keeps it in session
+ * storage, from where every task read sends it as `X-Task-Token`.
+ */
+export const mockDisputeReadToken = "tok_e2e_dispute_read";
+
+/**
+ * Seeds `mockDisputeReadToken` for the dispute task before any page script
+ * runs, so the page reads as the tab that ran the workflow — the one tab the
+ * backend sends the buyer's words to without a signed read grant.
+ */
+export async function mockTaskReadToken(page: Page): Promise<void> {
+  await page.addInitScript(
+    ({ taskId, token }) => {
+      window.sessionStorage.setItem(
+        "orizon.task-tokens",
+        JSON.stringify([[taskId, token]]),
+      );
+    },
+    { taskId: mockDisputeTaskId, token: mockDisputeReadToken },
+  );
+}
+
+/**
+ * The disputes read, held to what the backend sends a caller of this
+ * proof. The human-written fields — the buyer's `reason` and a rejection's
+ * `rejection_reason` — go only to a read that proves it may see the task
+ * (`DisputeResponse.of(free_text=…)`): the task's read token, or a read
+ * grant. Anyone else gets the reason as `""` and no rejection reason, and a
+ * mock that served them to every read let the page pass tests the backend
+ * would fail.
+ */
+async function asServedTo(
+  request: Request,
+  disputes: readonly Dispute[],
+): Promise<Dispute[]> {
+  const token = await request.headerValue("x-task-token");
+  const grant = await request.headerValue("x-dispute-read-grant");
+  if (token === mockDisputeReadToken || grant) return [...disputes];
+  return disputes.map((dispute) => ({
+    ...dispute,
+    reason: "",
+    ...(dispute.rejection_reason !== undefined
+      ? { rejection_reason: null }
+      : {}),
+  }));
+}
+
 export type MockDisputeApiOptions = {
   /** The workflow's settlement; null while it has not settled. */
   settlement: SettlementView | null;
@@ -1599,7 +1648,7 @@ export async function mockDisputeApi(
       const legacy = {
         task_id: decodeURIComponent(disputesFor[1]),
         window_closes_at: settlement?.window_closes_at ?? null,
-        disputes: recorded,
+        disputes: await asServedTo(request, recorded),
       };
       if (options.legacy) return json(route, legacy);
       const body: TaskDisputes = {
@@ -1838,7 +1887,7 @@ export async function mockDisputeReads(
       reads += 1;
       // Taken as the request arrives, before the clock is awaited: a spec
       // that moves the answer on right after this read must not change it.
-      const disputes = [...current];
+      const disputes = await asServedTo(request, current);
       const { pathname } = new URL(request.url());
       const taskId = decodeURIComponent(DISPUTES_RE.exec(pathname)?.[1] ?? "");
       const nowMs = await (options.clock ?? Date.now)();

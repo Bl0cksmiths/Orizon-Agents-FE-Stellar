@@ -32,6 +32,7 @@ import {
   mockSettlementSteps,
   mockSettlementView,
   mockSignature,
+  mockTaskReadToken,
   mockTraceStream,
   mockWallet,
   mockWalletAddress,
@@ -60,13 +61,20 @@ async function openTrace(
   api: MockDisputeApiOptions,
   {
     wallet = true,
+    token = true,
     routes,
   }: {
     wallet?: boolean;
+    /**
+     * The tab holds the task's read token, as the one that ran the workflow
+     * does; without it the backend withholds the buyer's words.
+     */
+    token?: boolean;
     /** Routes registered last, so they win over the dispute mock. */
     routes?: (page: Page) => Promise<void>;
   } = {},
 ): Promise<void> {
+  if (token) await mockTaskReadToken(page);
   if (wallet) await mockWallet(page);
   await mockApi(page);
   await mockTraceStream(page, mockDisputeTaskId);
@@ -298,6 +306,32 @@ test.describe("dispute action on the trace / receipt view", () => {
         name: /dispute/i,
       }),
     ).toBeVisible();
+  });
+
+  // The backend sends the buyer's words only to a read that proves it may
+  // see the task — the task's token, or a read grant. The mocks used to send
+  // them to every read, so nothing here ever met the empty reason the live
+  // backend gives the same payer in any other tab.
+  test("a tab without the task's token is not sent the buyer's words, and draws none", async ({
+    page,
+  }) => {
+    const settledAtS = nowS() - HOUR_S;
+    const reason = "the calculator app does not compute anything";
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({ settledAtS }),
+        disputes: [
+          mockDispute(codeStep, { openedAtS: settledAtS + 600, reason }),
+        ],
+      },
+      { token: false },
+    );
+
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row.getByText("Your reason")).toHaveCount(0);
+    expect(await page.content()).not.toContain(reason);
   });
 
   test("a wallet that did not pay sees no dispute affordance anywhere on the page", async ({
@@ -1237,6 +1271,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
       page,
       { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
       {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
         routes: async (p) => {
           stub = await stubReadGrant(p, { clock });
         },
@@ -1318,6 +1354,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
       page,
       { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
       {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
         routes: async (p) => {
           stub = await stubReadGrant(p, {
             clock: () => p.evaluate(() => Date.now()),
@@ -1358,6 +1396,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
       page,
       { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
       {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
         routes: async (p) => {
           stub = await stubReadGrant(p, { challengeRoute: "missing" });
         },
@@ -1379,6 +1419,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
       page,
       { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
       {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
         routes: async (p) => {
           await stubReadGrant(p, { sendsFlag: false });
         },
@@ -1399,6 +1441,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
       page,
       { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
       {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
         routes: async (p) => {
           stub = await stubReadGrant(p);
         },
@@ -1438,6 +1482,8 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
         }),
       },
       {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
         routes: async (p) => {
           stub = await stubReadGrant(p, { payer: mockOtherOwnerAddress });
         },
@@ -1505,6 +1551,8 @@ test.describe("accessibility — the show-my-reason control", () => {
       page,
       { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
       {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
         routes: async (p) => {
           await stubReadGrant(p, stub);
         },
@@ -1575,6 +1623,8 @@ test.describe("accessibility — the show-my-reason control", () => {
       page,
       { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
       {
+        // A tab without the task's token: the reason is withheld.
+        token: false,
         routes: async (p) => {
           stub = await stubReadGrant(p, {
             clock: () => p.evaluate(() => Date.now()),
