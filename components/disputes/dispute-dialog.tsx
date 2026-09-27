@@ -12,6 +12,7 @@
  */
 
 import {
+  memo,
   useEffect,
   useId,
   useRef,
@@ -489,15 +490,23 @@ function creditTerms(policy: CreditPolicy): string[] {
  * One draft per step. The page may hand back `null` between opens, so the key
  * only moves when a DIFFERENT step arrives: closing by accident and reopening
  * the same step finds the reason still there, while a new step starts clean.
+ *
+ * Memoized: the section that mounts it re-renders on every tick of the
+ * window's countdown — once a second in the final hour — and every prop it
+ * passes here is state, a ref, a memoized callback or a number that only moves
+ * with a read, so a tick has nothing to tell the form. It re-rendered with each
+ * one all the same, the whole form included, while the buyer typed.
  */
-export function DisputeDialog(props: DisputeDialogProps) {
+export const DisputeDialog = memo(function DisputeDialog(
+  props: DisputeDialogProps,
+) {
   const { step, settlement } = props;
   const targetKey =
     step && settlement ? `${settlement.job_id_hex}:${step.step_index}` : null;
   const [draftKey, setDraftKey] = useState(targetKey);
   if (targetKey !== null && targetKey !== draftKey) setDraftKey(targetKey);
   return <DisputeForm key={draftKey ?? "none"} {...props} />;
-}
+});
 
 /** What the form says once the window has closed under it. */
 const WINDOW_CLOSED =

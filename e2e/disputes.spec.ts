@@ -1516,6 +1516,46 @@ test.describe("the countdown's re-renders stay inside the receipt", () => {
   });
 });
 
+test.describe("the countdown's re-renders stay out of an open dispute form", () => {
+  test("a form open in the final hour does not re-render on the window's ticks", async ({
+    page,
+  }) => {
+    await page.addInitScript(installRenderCounter);
+    await openTrace(page, {
+      settlement: mockSettlementView({
+        settledAtS: nowS() - DISPUTE_WINDOW_S + 30 * 60,
+      }),
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+
+    const counts = () =>
+      page.evaluate(() =>
+        (
+          window as unknown as { __renderCounts: RenderCounts }
+        ).__renderCounts.read(),
+      );
+    await page.evaluate(() =>
+      (
+        window as unknown as { __renderCounts: RenderCounts }
+      ).__renderCounts.reset(),
+    );
+
+    // The positive control: the section behind the form ticks every second.
+    await expect
+      .poll(async () => (await counts()).DisputeSection ?? 0, {
+        timeout: 15_000,
+      })
+      .toBeGreaterThanOrEqual(3);
+    const seen = await counts();
+    expect(seen.DisputeDialog ?? 0).toBe(0);
+    expect(seen.DisputeForm ?? 0).toBe(0);
+    expect(seen.Dialog ?? 0).toBe(0);
+  });
+});
+
 // ── D-067: the payer reads their own words again ────────────────────────
 //
 // The backend now withholds both reasons from anyone without the task's read
