@@ -757,8 +757,12 @@ export type StepDisputeState =
  * clock. The panel renders this and decides nothing.
  *
  * `hidden` covers the trace page's demo mode and a backend too old to send a
- * settlement at all. `not_settled` is a real answer — nothing was charged, or
- * not yet — and the panel says why rather than showing nothing.
+ * settlement at all. `not_settled` is the backend's answer that it holds no
+ * settlement RECORD — not yet, while `running`, or none once the wait for
+ * one is spent — and the panel says so rather than showing nothing. It is
+ * not proof that nothing was charged: a store that lost its records answers
+ * the same way, so the copy states what is on record, never what happened.
+ * It never replaces a receipt already shown (see `useDisputePanel`).
  */
 export type DisputePanelView =
   | { kind: "hidden" }
@@ -827,10 +831,19 @@ export type DisputeReceiptView = {
   rating: DisputeArtifact;
   /**
    * A rating the record still owes after its refund landed, which the panel
-   * has stopped reading for (`RATING_WAIT_MS`). The receipt says it stopped,
+   * has stopped reading for (`PENDING_WAIT_MS`). The receipt says it stopped,
    * so "not recorded yet" is never left standing as though it were live.
    */
   ratingStalled: boolean;
+  /**
+   * The panel has stopped re-reading while this receipt still waits on
+   * something — a decision, a refund, a rating (see `disputePollMs`'s
+   * bounds). Whatever the receipt says is pending is then only as fresh as
+   * the last read, and the copy must say it stopped checking and how to look
+   * again, never go on implying the page will update itself. Absent reads as
+   * false.
+   */
+  stoppedChecking?: boolean;
   /** The buyer's own reason; null for anyone but the payer. */
   reason: string | null;
   /** Why it was rejected; null unless rejected, and for anyone but the payer. */

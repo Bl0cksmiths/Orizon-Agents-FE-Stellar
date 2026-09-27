@@ -732,6 +732,21 @@ export function ratingStillComing(dispute: Dispute): boolean {
 }
 
 /**
+ * Whether this dispute's receipt can still change without the buyer touching
+ * anything: a decision still to come (`open`), something in flight on the
+ * chain (`receiptAwaitsChain`), or a rating still owed after its refund
+ * (`ratingStillComing`). What the poll reads for, and what a receipt must
+ * stop calling live once the poll has stopped.
+ */
+export function receiptStillMoving(dispute: Dispute): boolean {
+  return (
+    dispute.status === "open" ||
+    receiptAwaitsChain(dispute) ||
+    ratingStillComing(dispute)
+  );
+}
+
+/**
  * Everything the receipt says about one dispute, for this viewer, under this
  * policy: status, when it was raised and last changed, the amount and who
  * funds it, the refund and the rating each with how far the record vouches
@@ -746,7 +761,8 @@ export function ratingStillComing(dispute: Dispute): boolean {
  *   `opened_at`: an older backend stamps no transitions, and the closest time
  *   it did record is still true.
  * - A rating still owed is `ratingStalled` once the panel has given up
- *   reading for it (`ratingWaitOver`), and never before.
+ *   reading (`waitOver`), and never before; any receipt still moving is
+ *   `stoppedChecking` then.
  * - The buyer's reason and the adjudicator's rejection are both written for
  *   the buyer. Anyone else — including a connected wallet that did not pay —
  *   gets null for each, whatever the record holds, and a rejection reason
@@ -759,7 +775,7 @@ export function disputeReceipt(
   dispute: Dispute,
   viewer: DisputeViewer,
   policy: CreditPolicy,
-  ratingWaitOver = false,
+  waitOver = false,
 ): DisputeReceiptView {
   const refund = refundArtifact(dispute);
   const credited = dispute.credited_usdc;
@@ -777,7 +793,8 @@ export function disputeReceipt(
     fundedBy: policy.funded_by,
     refund,
     rating: ratingArtifact(dispute),
-    ratingStalled: ratingWaitOver && ratingStillComing(dispute),
+    ratingStalled: waitOver && ratingStillComing(dispute),
+    stoppedChecking: waitOver && receiptStillMoving(dispute),
     reason: isPayer && dispute.reason.trim() ? dispute.reason : null,
     rejectionReason:
       isPayer && dispute.status === "rejected" && rejection?.trim()
@@ -823,7 +840,7 @@ function stepState(
   settlement: SettlementView,
   open: boolean,
   viewer: DisputeViewer,
-  ratingWaitOver: boolean,
+  waitOver: boolean,
 ): StepDisputeState {
   const charged =
     step.delivered && step.price_usdc > 0 && settlement.settled_usdc > 0;
@@ -833,7 +850,7 @@ function stepState(
       dispute,
       viewer,
       settlement.policy,
-      ratingWaitOver,
+      waitOver,
     );
     return viewer === "payer"
       ? { kind: "disputed", dispute, showReason: true, receipt }
@@ -864,8 +881,8 @@ function stepState(
  *   the server's clock. A `nowMs` that is not a number closes it: failing
  *   shut hides a button, failing open offers one the server will refuse.
  *
- * `ratingWaitOver` is the hook's word that it has stopped reading for a
- * rating still owed; the receipts it concerns then say so.
+ * `waitOver` is the hook's word that it has stopped re-reading while a
+ * receipt was still moving; the receipts it concerns then say so.
  */
 export function disputeView(input: {
   res: TaskDisputes | null;
@@ -873,10 +890,10 @@ export function disputeView(input: {
   workflowDone: boolean;
   nowMs: number;
   demo: boolean;
-  ratingWaitOver?: boolean;
+  waitOver?: boolean;
 }): DisputePanelView {
   const { res, viewerAddress, workflowDone, nowMs, demo } = input;
-  const ratingWaitOver = input.ratingWaitOver ?? false;
+  const waitOver = input.waitOver ?? false;
   if (demo || res === null) return HIDDEN;
   const settlement = res.settlement;
   if (settlement === undefined) return HIDDEN;
@@ -898,7 +915,7 @@ export function disputeView(input: {
         settlement,
         open,
         viewer,
-        ratingWaitOver,
+        waitOver,
       ),
     }));
 

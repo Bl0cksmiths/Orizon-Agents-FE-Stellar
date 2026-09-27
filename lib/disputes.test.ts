@@ -1462,6 +1462,7 @@ describe("disputeReceipt", () => {
       refund: { txHash: null, state: "none" },
       rating: { txHash: null, state: "none" },
       ratingStalled: false,
+      stoppedChecking: false,
       reason: "the summary was empty",
       rejectionReason: null,
     });

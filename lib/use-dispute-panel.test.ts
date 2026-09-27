@@ -30,12 +30,14 @@ import {
   COARSE_TICK_MS,
   CREDIT_POLL_MS,
   FINAL_HOUR_TICK_MS,
-  RATING_FAST_WAIT_MS,
-  RATING_WAIT_MS,
+  DECISION_WAIT_MS,
+  PENDING_FAST_WAIT_MS,
+  PENDING_WAIT_MS,
   SETTLEMENT_POLL_MS,
   SETTLEMENT_WAIT_MS,
   disputePollMs,
   disputeTickMs,
+  pendingKey,
   useDisputePanel,
 } from "./use-dispute-panel";
 
@@ -206,6 +208,13 @@ async function advance(ms: number) {
   });
 }
 
+/** `advance`, a second at a time: every answer that lands re-arms the poll
+ * before the next timer is due, as it does in a browser. One large advance
+ * fires at most one poll, and would "prove" a stop that never happened. */
+async function stepThrough(ms: number) {
+  for (let t = 0; t < ms; t += S) await advance(S);
+}
+
 function settledOf(view: DisputePanelView) {
   if (view.kind !== "settled")
     throw new Error(`expected settled, got ${view.kind}`);
@@ -270,7 +279,7 @@ describe("disputePollMs", () => {
     over: Partial<{
       doneAtRequest: boolean;
       awaitedMs: number;
-      ratingAwaitedMs: number;
+      pendingAwaitedMs: number;
     }> = {},
   ) =>
     disputePollMs(
@@ -329,15 +338,17 @@ describe("disputePollMs", () => {
     },
   );
 
-  it("re-reads a credited dispute whose refund has not landed", () => {
+  it("re-reads a credited dispute whose refund has not landed, within its wait", () => {
     // `credited` was treated as final, but a record with no transfer on it is
     // one the receipt itself calls pending — the copy is hedged, the badge
     // reads "Refund in progress", and nothing was ever going to re-read it.
-    expect(
-      pollFor(
-        answer(H, { disputes: [dsp(0, "credited", { refund_tx: null })] }),
-      ),
-    ).toBe(CREDIT_POLL_MS);
+    // Nor is anything sure to: the operator reconciles it by hand, so the
+    // wait is bounded like every other.
+    const res = answer(H, {
+      disputes: [dsp(0, "credited", { refund_tx: null })],
+    });
+    expect(pollFor(res)).toBe(CREDIT_POLL_MS);
+    expect(pollFor(res, { pendingAwaitedMs: PENDING_WAIT_MS })).toBeNull();
   });
 
   it("re-reads a credited dispute whose backend has withdrawn its word", () => {
@@ -400,16 +411,16 @@ describe("disputePollMs", () => {
   it("re-reads a refund that landed before its rating: fast, then slow, then not at all", () => {
     expect(pollFor(ratingOwed())).toBe(CREDIT_POLL_MS);
     expect(
-      pollFor(ratingOwed(), { ratingAwaitedMs: RATING_FAST_WAIT_MS - 1 }),
+      pollFor(ratingOwed(), { pendingAwaitedMs: PENDING_FAST_WAIT_MS - 1 }),
     ).toBe(CREDIT_POLL_MS);
     expect(
-      pollFor(ratingOwed(), { ratingAwaitedMs: RATING_FAST_WAIT_MS }),
+      pollFor(ratingOwed(), { pendingAwaitedMs: PENDING_FAST_WAIT_MS }),
     ).toBe(ADJUDICATION_POLL_MS);
-    expect(pollFor(ratingOwed(), { ratingAwaitedMs: RATING_WAIT_MS - 1 })).toBe(
-      ADJUDICATION_POLL_MS,
-    );
     expect(
-      pollFor(ratingOwed(), { ratingAwaitedMs: RATING_WAIT_MS }),
+      pollFor(ratingOwed(), { pendingAwaitedMs: PENDING_WAIT_MS - 1 }),
+    ).toBe(ADJUDICATION_POLL_MS);
+    expect(
+      pollFor(ratingOwed(), { pendingAwaitedMs: PENDING_WAIT_MS }),
     ).toBeNull();
   });
 
@@ -417,8 +428,8 @@ describe("disputePollMs", () => {
     // About a minute is the backend's worst case for one rating (two 15 s
     // posts and a 30 s confirmation poll); fifteen minutes is an operator
     // upholding again. Far past either, a receipt must stop reading.
-    expect(RATING_FAST_WAIT_MS).toBe(90 * S);
-    expect(RATING_WAIT_MS).toBe(15 * M);
+    expect(PENDING_FAST_WAIT_MS).toBe(90 * S);
+    expect(PENDING_WAIT_MS).toBe(15 * M);
   });
 
   it("does not wait on a rating an older backend cannot report at all", () => {
@@ -449,6 +460,128 @@ describe("disputePollMs", () => {
       expect(pollFor(withStatuses(...statuses))).toBe(CREDIT_POLL_MS);
     },
   );
+
+  // Every wait is bounded, as D-069 bounded the rating's: none of these is
+  // sure to resolve, and each read every five seconds for the life of the
+  // tab — 1,400 reads in two hours, in the probe that found it.
+  it.each([
+    ["credited with no transfer on record", dsp(0, "credited")],
+    ["upheld, waiting on an operator", dsp(0, "upheld")],
+    ["crediting", dsp(0, "crediting", { refund_tx: "tx_0" })],
+    [
+      "credited, the backend withdrawing its word",
+      dsp(0, "credited", { refund_tx: "tx_0", refund_confirmed: false }),
+    ],
+    [
+      "a rating in flight with its hash",
+      dsp(0, "credited", {
+        refund_tx: "tx_0",
+        rating_tx: "tx_rating",
+        rating_confirmed: false,
+      }),
+    ],
+  ])("reads %s fast, then slow, then not at all", (_, dispute) => {
+    const res = answer(H, { disputes: [dispute] });
+    const at = (pendingAwaitedMs: number) => pollFor(res, { pendingAwaitedMs });
+    expect(at(0)).toBe(CREDIT_POLL_MS);
+    expect(at(PENDING_FAST_WAIT_MS - 1)).toBe(CREDIT_POLL_MS);
+    expect(at(PENDING_FAST_WAIT_MS)).toBe(ADJUDICATION_POLL_MS);
+    expect(at(PENDING_WAIT_MS - 1)).toBe(ADJUDICATION_POLL_MS);
+    expect(at(PENDING_WAIT_MS)).toBeNull();
+  });
+
+  it("reads an open dispute every 30 s for half an hour, then not at all", () => {
+    const res = withStatuses("open");
+    expect(DECISION_WAIT_MS).toBe(30 * M);
+    expect(pollFor(res, { pendingAwaitedMs: 0 })).toBe(ADJUDICATION_POLL_MS);
+    expect(pollFor(res, { pendingAwaitedMs: DECISION_WAIT_MS - 1 })).toBe(
+      ADJUDICATION_POLL_MS,
+    );
+    expect(pollFor(res, { pendingAwaitedMs: DECISION_WAIT_MS })).toBeNull();
+  });
+
+  it("keeps an open dispute read slowly once a credit beside it has run its wait out", () => {
+    const res = withStatuses("open", "upheld");
+    expect(pollFor(res, { pendingAwaitedMs: PENDING_WAIT_MS })).toBe(
+      ADJUDICATION_POLL_MS,
+    );
+    expect(pollFor(res, { pendingAwaitedMs: DECISION_WAIT_MS })).toBeNull();
+  });
+
+  it("never reads on for another job's dispute, which the view never shows", () => {
+    // A task that ran twice holds two jobs' disputes; the receipt is one.
+    const other = { job_id_hex: JOB_B };
+    expect(
+      pollFor(answer(H, { disputes: [dsp(0, "credited", other)] })),
+    ).toBeNull();
+    expect(
+      pollFor(answer(H, { disputes: [dsp(0, "open", other)] })),
+    ).toBeNull();
+    expect(
+      pollFor(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", {
+              ...other,
+              refund_tx: "tx_0",
+              rating_confirmed: null,
+            }),
+          ],
+        }),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("pendingKey", () => {
+  it("is empty when nothing on the receipt can move", () => {
+    expect(pendingKey(answer(H))).toBe("");
+    expect(
+      pendingKey(
+        answer(H, {
+          disputes: [
+            dsp(0, "credited", { refund_tx: "tx_0" }),
+            dsp(1, "rejected"),
+          ],
+        }),
+      ),
+    ).toBe("");
+    expect(pendingKey(answer(H, { settlement: null }))).toBe("");
+  });
+
+  it("changes whenever a moving dispute moves, and not otherwise", () => {
+    const key = (d: Dispute) => pendingKey(answer(H, { disputes: [d] }));
+    const open = key(dsp(0, "open"));
+    expect(open).not.toBe("");
+    expect(key(dsp(0, "open"))).toBe(open);
+    // A reason unlocked, or a stamp moved, is not the receipt moving.
+    expect(key(dsp(0, "open", { reason: "", updated_at: 1 }))).toBe(open);
+
+    const upheld = key(dsp(0, "upheld"));
+    const crediting = key(dsp(0, "crediting"));
+    const withHash = key(dsp(0, "crediting", { refund_tx: "tx_0" }));
+    expect(new Set([open, upheld, crediting, withHash]).size).toBe(4);
+    const confirming = key(
+      dsp(0, "credited", {
+        refund_tx: "tx_0",
+        rating_tx: "tx_r",
+        rating_confirmed: false,
+      }),
+    );
+    const rated = key(
+      dsp(0, "credited", { refund_tx: "tx_0", refund_confirmed: false }),
+    );
+    expect(confirming).not.toBe(rated);
+  });
+
+  it("ignores another job's disputes and the order they arrive in", () => {
+    const a = dsp(0, "open");
+    const b = dsp(1, "upheld");
+    const other = dsp(0, "crediting", { id: "dsp_x", job_id_hex: JOB_B });
+    expect(pendingKey(answer(H, { disputes: [a, b, other] }))).toBe(
+      pendingKey(answer(H, { disputes: [b, a] })),
+    );
+  });
 });
 
 describe("useDisputePanel — what it fetches", () => {
@@ -1405,7 +1538,9 @@ describe("useDisputePanel — live updates", () => {
       loading: false,
       error: "Failed to fetch",
     });
-    expect(result.current.view).toBe(onScreen);
+    // Equal, not identical: a failed read still moves the clock the bounded
+    // waits run on, so the view is recomputed — to the same receipt.
+    expect(result.current.view).toEqual(onScreen);
 
     const poll = nextRead();
     await advance(ADJUDICATION_POLL_MS);
@@ -1415,10 +1550,11 @@ describe("useDisputePanel — live updates", () => {
     expect(receiptOf(result.current.view).status).toBe("upheld");
   });
 
-  it("goes on reading a credited receipt whose refund has not landed", async () => {
+  it("goes on reading a credited receipt whose refund has not landed, until it does", async () => {
     // The only unresolved states the hook never polled: the copy says the
     // transfer is pending and nothing was ever going to ask again, so the
-    // receipt could not resolve without a reload.
+    // receipt could not resolve without a reload. (Bounded: see "reads a
+    // receipt left on credited with no transfer on record…" below.)
     const { result } = await mountWith(
       closedWith(dsp(1, "credited", { refund_tx: null })),
     );
@@ -1494,9 +1630,9 @@ describe("useDisputePanel — live updates", () => {
     fetchDisputes.mockResolvedValue(closedWith(creditedOwingRating()));
 
     // The fast wait: every 5 s.
-    await walk(RATING_FAST_WAIT_MS);
+    await walk(PENDING_FAST_WAIT_MS);
     const fast = fetchDisputes.mock.calls.length;
-    expect(fast).toBe(1 + RATING_FAST_WAIT_MS / CREDIT_POLL_MS);
+    expect(fast).toBe(1 + PENDING_FAST_WAIT_MS / CREDIT_POLL_MS);
 
     // Then every 30 s: a minute holds two reads, not twelve.
     await walk(M);
@@ -1504,7 +1640,7 @@ describe("useDisputePanel — live updates", () => {
     expect(receiptOf(result.current.view).ratingStalled).toBe(false);
 
     // Past the whole wait nothing more is read, and the receipt says so.
-    await walk(RATING_WAIT_MS);
+    await walk(PENDING_WAIT_MS);
     const spent = fetchDisputes.mock.calls.length;
     expect(vi.getTimerCount()).toBe(0);
     expect(receiptOf(result.current.view).ratingStalled).toBe(true);
@@ -1516,7 +1652,7 @@ describe("useDisputePanel — live updates", () => {
     const { result } = await mountWith(closedWith(creditedOwingRating()));
     fetchDisputes.mockRejectedValue(new Error("Failed to fetch"));
 
-    await walk(RATING_WAIT_MS + M);
+    await walk(PENDING_WAIT_MS + M);
     const spent = fetchDisputes.mock.calls.length;
     expect(receiptOf(result.current.view).ratingStalled).toBe(true);
     await advance(H);
@@ -1528,6 +1664,88 @@ describe("useDisputePanel — live updates", () => {
     await mountWith(closedWith(legacy));
     expect(vi.getTimerCount()).toBe(0);
     await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  // The bound, through the hook. Walked one second at a time: a single large
+  // advance fires at most one poll, because the next one is armed by an
+  // effect after the act flush — it would "prove" a stop that never happened.
+  it.each([
+    ["credited with no transfer on record", () => dsp(1, "credited")],
+    ["upheld, waiting on an operator", () => dsp(1, "upheld")],
+    ["a transfer in flight", () => dsp(1, "crediting", { refund_tx: "tx_r" })],
+  ])(
+    "reads a receipt left on %s fast, then slow, then stops and says so",
+    async (_, pending) => {
+      const { result } = await mountWith(closedWith(pending()));
+      fetchDisputes.mockResolvedValue(closedWith(pending()));
+
+      await walk(PENDING_FAST_WAIT_MS);
+      const fast = fetchDisputes.mock.calls.length;
+      expect(fast).toBe(1 + PENDING_FAST_WAIT_MS / CREDIT_POLL_MS);
+
+      await walk(M);
+      expect(fetchDisputes.mock.calls.length - fast).toBe(2);
+      expect(receiptOf(result.current.view).stoppedChecking).toBe(false);
+
+      await walk(PENDING_WAIT_MS);
+      const spent = fetchDisputes.mock.calls.length;
+      expect(spent).toBeLessThan(60);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(receiptOf(result.current.view).stoppedChecking).toBe(true);
+      await walk(10 * M);
+      expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+    },
+  );
+
+  it("reads an open dispute for half an hour, then stops and says so", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    fetchDisputes.mockResolvedValue(closedWith(dsp(1, "open")));
+
+    await walk(DECISION_WAIT_MS - ADJUDICATION_POLL_MS);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(false);
+    await walk(2 * ADJUDICATION_POLL_MS);
+    const spent = fetchDisputes.mock.calls.length;
+    expect(spent).toBe(1 + DECISION_WAIT_MS / ADJUDICATION_POLL_MS);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(true);
+    await walk(10 * M);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent);
+  });
+
+  it("restarts the wait each time the record moves", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "upheld")));
+    fetchDisputes.mockResolvedValue(closedWith(dsp(1, "upheld")));
+    await walk(PENDING_WAIT_MS - M);
+
+    // Fourteen minutes in, the transfer is sent: progress, and fast again.
+    fetchDisputes.mockResolvedValue(
+      closedWith(dsp(1, "crediting", { refund_tx: "tx_r" })),
+    );
+    // At most one slow interval until a read sees it.
+    await walk(ADJUDICATION_POLL_MS);
+    expect(receiptOf(result.current.view).status).toBe("crediting");
+    const before = fetchDisputes.mock.calls.length;
+    await walk(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes.mock.calls.length - before).toBe(
+      ADJUDICATION_POLL_MS / CREDIT_POLL_MS,
+    );
+
+    // And its own wait runs from that change, not from the uphold.
+    await walk(PENDING_WAIT_MS - M);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(false);
+    await walk(2 * M);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(true);
+  });
+
+  it("never polls for another job's dispute, which the receipt does not show", async () => {
+    await mountWith(
+      closedWith(
+        dsp(1, "crediting", { refund_tx: "tx_r", job_id_hex: JOB_B }),
+        dsp(0, "open", { id: "dsp_b0", job_id_hex: JOB_B }),
+      ),
+    );
+    expect(vi.getTimerCount()).toBe(0);
+    await walk(M);
     expect(fetchDisputes).toHaveBeenCalledTimes(1);
   });
 
@@ -1544,7 +1762,9 @@ describe("useDisputePanel — live updates", () => {
     );
     await advance(CREDIT_POLL_MS);
 
-    expect(result.current.view).toBe(onScreen);
+    // Equal, not identical: a failed read still moves the clock the bounded
+    // waits run on, so the view is recomputed — to the same receipt.
+    expect(result.current.view).toEqual(onScreen);
     expect(result.current.error).toBe("GET /tasks/task_a/disputes → 404");
 
     const poll = nextRead();
@@ -1796,6 +2016,25 @@ describe("useDisputePanel — the poll and a hidden tab", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
     await advance(1);
     expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("reads a stopped receipt at once when the buyer comes back, and waits again", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "upheld")));
+    fetchDisputes.mockResolvedValue(closedWith(dsp(1, "upheld")));
+    await stepThrough(PENDING_WAIT_MS + M);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(true);
+    const spent = fetchDisputes.mock.calls.length;
+
+    setVisibility("hidden");
+    await advance(H);
+    setVisibility("visible");
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent + 1);
+    expect(receiptOf(result.current.view).stoppedChecking).toBe(false);
+
+    // And the fast cadence again, from the answer that return fetched.
+    await stepThrough(CREDIT_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(spent + 2);
   });
 
   it("stops the countdown in a hidden tab and catches it up on return", async () => {
