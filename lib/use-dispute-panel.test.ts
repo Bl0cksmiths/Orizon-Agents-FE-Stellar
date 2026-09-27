@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
 import { ApiError } from "./api";
+import { heldReadGrant, rememberReadGrant } from "./dispute-read-grant";
 import { getTaskDisputes } from "./disputes";
 import type {
   Dispute,
@@ -79,6 +80,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  // A read grant one test keeps must not ride on the next test's reads.
+  window.sessionStorage.clear();
 });
 
 function deferred<T>() {
@@ -1094,6 +1097,61 @@ describe("useDisputePanel — the run finishing", () => {
     rerender(DEFAULTS);
     await act(async () => {});
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── the payer's read grant (D-067) ─────────────────────────────
+
+describe("useDisputePanel — the payer's read grant", () => {
+  const GRANT = { grant: "grant-token", expires_at: T0 / 1_000 + H / 1_000 };
+
+  it("presents a held grant on the first read and on every poll, never asking for another", async () => {
+    rememberReadGrant("task_a", PAYER, GRANT);
+    await mountWith(answer(-H, { disputes: [dsp(1, "open")] }));
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", "grant-token");
+
+    fetchDisputes.mockResolvedValue(answer(-H, { disputes: [dsp(1, "open")] }));
+    await advance(ADJUDICATION_POLL_MS);
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    for (const call of fetchDisputes.mock.calls) {
+      expect(call).toEqual(["task_a", "grant-token"]);
+    }
+  });
+
+  it("presents nothing for a wallet other than the one that signed", async () => {
+    rememberReadGrant("task_a", PAYER, GRANT);
+    wallet.address = OTHER;
+    await mountWith(answer(-H, { disputes: [dsp(1, "open")] }));
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
+  });
+
+  it("drops a grant the server no longer honours, once, and reads on without it", async () => {
+    rememberReadGrant("task_a", PAYER, GRANT);
+    const withheld = answer(-H, {
+      disputes: [dsp(1, "open", { reason: "", reason_withheld: true })],
+    });
+    const { result } = await mountWith(withheld);
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", "grant-token");
+    expect(heldReadGrant("task_a", PAYER)).toBeNull();
+    // The payer is offered the signature again — by the receipt, on a click.
+    expect(settledOf(result.current.view).reasonsWithheld).toBe(true);
+
+    fetchDisputes.mockResolvedValue(withheld);
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
+  });
+
+  it("keeps a grant the server honoured", async () => {
+    rememberReadGrant("task_a", PAYER, GRANT);
+    const { result } = await mountWith(
+      answer(-H, {
+        disputes: [dsp(1, "open", { reason_withheld: false })],
+      }),
+    );
+    expect(heldReadGrant("task_a", PAYER)).toBe("grant-token");
+    expect(settledOf(result.current.view).reasonsWithheld).toBe(false);
   });
 });
 
