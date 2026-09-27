@@ -23,13 +23,15 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 
 import type { DecomposeResponse } from "@/lib/types";
 import {
   DegradedBanner,
   hasUnverifiedReputation,
   UNVERIFIED_BANNER_ID,
+  UNVERIFIED_SUMMARY,
+  UNVERIFIED_SUMMARY_ID,
 } from "./degraded-banner";
 
 afterEach(cleanup);
@@ -57,9 +59,16 @@ function planFixture(over: Partial<DecomposeResponse> = {}): DecomposeResponse {
   };
 }
 
-/** Everything the banner rendered, as a screen reader would hear it. */
+/** The banner, by the id the floor summary links to — never by its words. */
+function banner(): HTMLElement {
+  const found = document.getElementById(UNVERIFIED_BANNER_ID);
+  if (found === null) throw new Error("the banner is not on the page");
+  return found;
+}
+
+/** Everything the banner rendered, as a screen reader reading it would hear. */
 function bannerText(): string {
-  return screen.getByRole("status").textContent ?? "";
+  return banner().textContent ?? "";
 }
 
 describe("DegradedBanner — when it renders at all", () => {
@@ -106,10 +115,11 @@ describe("DegradedBanner — when it renders at all", () => {
     expect(hasUnverifiedReputation(plan)).toBe(false);
   });
 
-  it("renders nothing when the flag is explicitly undefined", () => {
-    const { container } = render(
-      <DegradedBanner plan={planFixture({ reputation_degraded: undefined })} />,
-    );
+  // Every step read held, and says so: nothing failed at either scope.
+  it("renders nothing when every step reports its read held", () => {
+    const plan = planFixture({ reputation_degraded: false });
+    plan.steps[0].rep_degraded = false;
+    const { container } = render(<DegradedBanner plan={plan} />);
     expect(container.innerHTML).toBe("");
   });
 
@@ -168,7 +178,7 @@ describe("DegradedBanner — what it says", () => {
     render(
       <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
     );
-    expect(screen.getByRole("status").outerHTML).not.toMatch(/degraded/i);
+    expect(banner().outerHTML).not.toMatch(/degraded/i);
   });
 });
 
@@ -182,7 +192,11 @@ describe("DegradedBanner — claims it must not make", () => {
 
   // Nobody can say when an RPC outage ends, so nothing here may imply a clock.
   it("promises no recovery and tells nobody to wait", () => {
-    expect(renderBanner()).not.toMatch(
+    const text = renderBanner();
+    // Anchored, so an empty banner cannot pass: the condition is named as
+    // ongoing, with no clock on it.
+    expect(text).toContain("while the read is failing");
+    expect(text).not.toMatch(
       /soon|shortly|temporar|try again|check back|come back|momentarily|restored|will recover|once .{0,20}recover/i,
     );
   });
@@ -217,8 +231,36 @@ describe("DegradedBanner — how it is announced and structured", () => {
     // Assertive would cut a screen reader off mid-plan on every render. The
     // banner sits in document order above the Authorize control instead, so
     // it cannot be walked past.
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(banner().contains(screen.getByRole("status"))).toBe(true);
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // A region that arrives already full is often not announced at all: there
+  // is no change in it for a screen reader to report. It lands empty, and the
+  // sentence arriving is the change.
+  it("mounts the live region empty and fills it after", async () => {
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("");
+    await waitFor(() => expect(status.textContent).toBe(UNVERIFIED_SUMMARY));
+  });
+
+  // What is announced is one sentence, not four paragraphs: the paragraphs
+  // are read in place, and the live region is not the banner.
+  it("announces one short sentence rather than the whole banner", async () => {
+    render(
+      <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
+    );
+    const status = screen.getByRole("status");
+    await waitFor(() => expect(status.textContent).not.toBe(""));
+    const said = status.textContent ?? "";
+    expect(said).toContain("estimates, not on-chain records");
+    expect(said.match(/[.!?]/g)).toHaveLength(1);
+    expect(said.length).toBeLessThan(120);
+    expect(status).not.toBe(banner());
+    expect(said).not.toContain("yours to decide");
   });
 
   // The card's own "Execution plan" is the h2 this sits under.
@@ -230,18 +272,19 @@ describe("DegradedBanner — how it is announced and structured", () => {
     expect(heading.textContent).toBe("Reputation could not be read");
   });
 
-  // Authorize names this id in `aria-describedby`, so a keyboard buyer who tabs
-  // past the banner still hears it at the button. The id has to be on the
-  // live region itself, or the description would be a fragment of it.
-  it("carries the id the Authorize control is described by", () => {
+  // The pay controls name the summary in `aria-describedby`, so a keyboard
+  // buyer who tabs past the banner still hears it at the button — the one
+  // sentence, not the banner. The banner keeps its own id for the floor
+  // summary's link. Each id exactly once.
+  it("carries the ids the pay controls and the floor summary point at", () => {
     render(
       <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
     );
-    const status = screen.getByRole("status");
-    expect(status.id).toBe(UNVERIFIED_BANNER_ID);
-    expect(document.querySelectorAll(`#${UNVERIFIED_BANNER_ID}`)).toHaveLength(
-      1,
-    );
+    expect(screen.getByRole("status").id).toBe(UNVERIFIED_SUMMARY_ID);
+    expect(banner().contains(screen.getByRole("status"))).toBe(true);
+    for (const id of [UNVERIFIED_BANNER_ID, UNVERIFIED_SUMMARY_ID]) {
+      expect(document.querySelectorAll(`#${id}`)).toHaveLength(1);
+    }
   });
 
   // Meaning is never carried by the magenta alone: the glyph is decorative and
@@ -250,8 +293,7 @@ describe("DegradedBanner — how it is announced and structured", () => {
     render(
       <DegradedBanner plan={planFixture({ reputation_degraded: true })} />,
     );
-    const status = screen.getByRole("status");
-    const glyph = status.querySelector('[aria-hidden="true"]');
+    const glyph = banner().querySelector('[aria-hidden="true"]');
     expect(glyph?.textContent).toBe("⚠");
     expect(bannerText()).toContain("unverified");
   });

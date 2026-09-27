@@ -69,16 +69,21 @@ const exclusionRows = (page: Page) => exclusions(page).locator("li, tr");
  * The warning that the scores on this plan were estimated rather than read
  * from the ledger.
  *
- * Located by live-region role plus the one word the warning cannot mean
- * anything without — never by its sentence, which is under review and
- * deliberately avoids "degraded". The role is not a wording constraint either:
- * a warning painted into the page without one is never announced, so a
- * screen-reader buyer authorizes the payment without ever hearing it.
+ * Located by its id — the one the floor summary links to — never by its
+ * words. A locator that filters on the copy passes vacuously the day the copy
+ * is reworded, which is exactly when a negative control has to keep working.
  */
 const estimateBanner = (page: Page) =>
-  page
-    .locator('[role="status"], [role="alert"]')
-    .filter({ hasText: /estimat/i });
+  page.locator("#plan-reputation-unverified");
+
+/**
+ * The banner's one-sentence summary: its live region, and what each pay
+ * control is described by. The role is part of the contract, not a wording
+ * constraint — a warning with none is never announced, so a screen-reader
+ * buyer authorizes the payment without ever hearing it.
+ */
+const estimateSummary = (page: Page) =>
+  estimateBanner(page).getByRole("status");
 
 /** The plan's step rows — the first ordered list in the card. */
 const steps = (page: Page) => page.locator("ol").first().getByRole("listitem");
@@ -684,8 +689,14 @@ test.describe("plan card — what each claim rests on", () => {
     // so it has to resolve to the warning itself, not to any element.
     const describedBy = await authorize.getAttribute("aria-describedby");
     expect(describedBy, "Authorize names no description").toBeTruthy();
-    await expect(estimateBanner(page)).toHaveAttribute("id", describedBy ?? "");
+    await expect(estimateSummary(page)).toHaveAttribute(
+      "id",
+      describedBy ?? "",
+    );
     await expect(authorize).toHaveAccessibleDescription(/estimat/i);
+    // The summary, not the banner: its closing paragraphs are not read out as
+    // the button's description.
+    await expect(authorize).not.toHaveAccessibleDescription(/yours to decide/i);
   });
 
   test("Authorize carries no description when every read held", async ({

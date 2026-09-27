@@ -20,7 +20,7 @@ import { useFetch } from "@/lib/use-fetch";
 import {
   DegradedBanner,
   hasUnverifiedReputation,
-  UNVERIFIED_BANNER_ID,
+  UNVERIFIED_SUMMARY_ID,
 } from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
@@ -177,7 +177,9 @@ export function ExecutionPlan({
   const authorizeDescribedBy =
     [
       isPlannerFallback(plan) && PLANNER_FALLBACK_NOTICE_ID,
-      hasUnverifiedReputation(plan) && UNVERIFIED_BANNER_ID,
+      // The banner's one-sentence summary, not the banner: four paragraphs
+      // read out as a button's description bury the decision under them.
+      hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
     ]
       .filter(Boolean)
       .join(" ") || undefined;

@@ -59,11 +59,14 @@ const fallbackNotice = (page: Page) =>
 /** The plan's step rows — the first ordered list in the card. */
 const steps = (page: Page) => page.locator("ol").first().getByRole("listitem");
 
-/** The unverified-reputation banner, located as e2e/plan-floor.spec.ts does. */
+/** The unverified-reputation banner, located as e2e/plan-floor.spec.ts does:
+ *  by id, never by its words. */
 const estimateBanner = (page: Page) =>
-  page
-    .locator('[role="status"], [role="alert"]')
-    .filter({ hasText: /estimat/i });
+  page.locator("#plan-reputation-unverified");
+
+/** The banner's one-sentence summary, which the pay controls are described by. */
+const estimateSummary = (page: Page) =>
+  estimateBanner(page).getByRole("status");
 
 /**
  * A bounding box read only once it has stopped moving. The card slides in
@@ -186,7 +189,7 @@ test.describe("plan card — a plan built without the planner", () => {
     // Composed, never overwritten: one notice must not push the other out of
     // the description, and both are named in the order they are read.
     const noticeId = await fallbackNotice(page).getAttribute("id");
-    const bannerId = await estimateBanner(page).getAttribute("id");
+    const bannerId = await estimateSummary(page).getAttribute("id");
     const describedBy = await authorize.getAttribute("aria-describedby");
     expect(describedBy?.split(/\s+/)).toEqual([noticeId, bannerId]);
     await expect(authorize).toHaveAccessibleDescription(

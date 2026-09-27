@@ -47,7 +47,11 @@ vi.mock("@/lib/wallet", () => ({ useWallet: () => wallet }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { ExecutionPlan } from "./execution-plan";
-import { UNVERIFIED_BANNER_ID } from "./degraded-banner";
+import {
+  UNVERIFIED_BANNER_ID,
+  UNVERIFIED_SUMMARY,
+  UNVERIFIED_SUMMARY_ID,
+} from "./degraded-banner";
 import { PLANNER_FALLBACK_NOTICE_ID } from "./planner-fallback-notice";
 
 /** What GET /api/stellar/network answers on testnet: the escrow's SAC wraps
@@ -104,12 +108,15 @@ describe("ExecutionPlan · Authorize and the unverified-reputation banner", () =
   // Tab goes from the exclusions panel straight to Authorize, past a polite
   // status that was announced once when the plan rendered. The description is
   // how a keyboard buyer still hears it at the moment of paying.
-  it("describes Authorize by the banner when a reputation read failed", () => {
+  it("describes Authorize by the banner's summary when a reputation read failed", async () => {
     render(<ExecutionPlan plan={plan({ reputation_degraded: true })} />);
     const describedBy = authorizeButton().getAttribute("aria-describedby");
-    expect(describedBy).toBe(UNVERIFIED_BANNER_ID);
+    expect(describedBy).toBe(UNVERIFIED_SUMMARY_ID);
+    // The one sentence, inside the banner — not the banner's four paragraphs.
+    const summary = document.getElementById(UNVERIFIED_SUMMARY_ID);
     const banner = document.getElementById(UNVERIFIED_BANNER_ID);
-    expect(banner?.getAttribute("role")).toBe("status");
+    expect(banner?.contains(summary)).toBe(true);
+    await waitFor(() => expect(summary?.textContent).toBe(UNVERIFIED_SUMMARY));
   });
 
   // A reference to an id that is not on the page describes nothing and is an
@@ -178,12 +185,12 @@ describe("ExecutionPlan · the planner-fallback notice", () => {
     [
       "a fallback plan also had a failed read",
       { planner_fallback: true, reputation_degraded: true },
-      [PLANNER_FALLBACK_NOTICE_ID, UNVERIFIED_BANNER_ID],
+      [PLANNER_FALLBACK_NOTICE_ID, UNVERIFIED_SUMMARY_ID],
     ],
     [
       "only a reputation read failed",
       { planner_fallback: false, reputation_degraded: true },
-      [UNVERIFIED_BANNER_ID],
+      [UNVERIFIED_SUMMARY_ID],
     ],
   ])(
     "describes Authorize by every notice shown when %s",
