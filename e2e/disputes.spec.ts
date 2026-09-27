@@ -19,6 +19,7 @@ import {
   type Page,
   type Route,
 } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import {
   DISPUTE_WINDOW_S,
   mockApi,
@@ -1449,5 +1450,172 @@ test.describe("the payer's own reason, in a tab without the task's token", () =>
     expect(stub?.challenges()).toBe(0);
     expect(await signatures(page)).toBe(0);
     expect(await page.content()).not.toContain(PAYER_REASON);
+  });
+});
+
+/**
+ * A wallet whose prompt is left open: every signature request is swallowed,
+ * ahead of `mockWallet`'s stand-in, and never answered — so the page holds
+ * its signing state for as long as a test needs to look at it.
+ */
+function holdSignatures(): void {
+  window.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as { source?: string; type?: string } | null;
+    if (
+      data?.source === "FREIGHTER_EXTERNAL_MSG_REQUEST" &&
+      data.type === "SUBMIT_BLOB"
+    ) {
+      event.stopImmediatePropagation();
+    }
+  });
+}
+
+/**
+ * The show-my-reason control under axe, in every state it can be drawn in.
+ * The scan is `e2e/a11y.spec.ts`'s exactly — the same four WCAG tags, the
+ * whole page, no rule switched off, the same one-line summary per rule — so
+ * the two gates cannot disagree about what a violation is.
+ */
+test.describe("accessibility — the show-my-reason control", () => {
+  const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
+
+  async function violations(page: Page): Promise<string[]> {
+    const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+    return result.violations.map(
+      (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+    );
+  }
+
+  /** The control's own live region: the panel has others (the window's).
+   * Found by attribute, not role: empty, it is not drawn, and the role query
+   * skips what is not drawn — but the region is mounted all the same. */
+  const outcome = (page: Page): Locator =>
+    receipt(page)
+      .locator(".clip-cyber-sm")
+      .filter({
+        has: page.getByRole("button", { name: /show my reason|signing/i }),
+      })
+      .locator('[role="status"]');
+
+  async function openWithheld(
+    page: Page,
+    stub: Parameters<typeof stubReadGrant>[1] = {},
+  ): Promise<void> {
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await stubReadGrant(p, stub);
+        },
+      },
+    );
+    await expect(offer(page)).toBeVisible();
+  }
+
+  test("offered: no WCAG A/AA violations", async ({ page }) => {
+    await openWithheld(page);
+    expect(await violations(page)).toEqual([]);
+  });
+
+  test("while the wallet is open: no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await page.addInitScript(holdSignatures);
+    await openWithheld(page);
+    await offer(page).click();
+    const signing = receipt(page).getByRole("button", { name: /signing/i });
+    await expect(signing).toHaveAttribute("aria-disabled", "true");
+    await expect(outcome(page)).toHaveText("Waiting for your wallet to sign…");
+    expect(await violations(page)).toEqual([]);
+  });
+
+  test("after a declined prompt: no WCAG A/AA violations", async ({ page }) => {
+    await page.addInitScript(declineSignatures);
+    await openWithheld(page);
+    await offer(page).click();
+    await expect(outcome(page)).toHaveText(
+      "Not signed. Your reason stays hidden until you choose to show it.",
+    );
+    await expect(outcome(page)).toHaveAttribute("aria-live", "polite");
+    expect(await violations(page)).toEqual([]);
+  });
+
+  test("after a refusal, the longest line it can say: no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await openWithheld(page, { grantRoute: "refuse" });
+    await offer(page).click();
+    await expect(outcome(page)).toHaveText(
+      "The platform did not recognise this wallet as the one that paid, so your reason stays hidden.",
+    );
+    expect(await violations(page)).toEqual([]);
+  });
+
+  test("revealed, with the reason and the platform's reply: no WCAG A/AA violations", async ({
+    page,
+  }) => {
+    await openWithheld(page, { status: "rejected" });
+    await offer(page).click();
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText(PAYER_REASON);
+    await expect(row).toContainText(PLATFORM_REPLY);
+    await expect(row).toContainText("Why it was rejected");
+    await expect(offer(page)).toHaveCount(0);
+    expect(await violations(page)).toEqual([]);
+  });
+
+  test("announces each outcome once, and nothing again on the polls that follow", async ({
+    page,
+  }) => {
+    await page.addInitScript(declineSignatures);
+    await page.clock.install({ time: Date.now() });
+    let stub: ReadGrantStub | undefined;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          stub = await stubReadGrant(p, {
+            clock: () => p.evaluate(() => Date.now()),
+          });
+        },
+      },
+    );
+    if (!stub) throw new Error("stub not installed");
+    const reads = stub;
+    await expect(offer(page)).toBeVisible();
+    // Every text the region is given, in order: what a screen reader hears.
+    await outcome(page).evaluate((region) => {
+      const heard: string[] = [];
+      Object.assign(window, { __heard: heard });
+      new MutationObserver(() => {
+        const text = region.textContent ?? "";
+        if (text) heard.push(text);
+      }).observe(region, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+    const heard = () =>
+      page.evaluate(() => (window as unknown as { __heard: string[] }).__heard);
+
+    await offer(page).click();
+    await expect(outcome(page)).toHaveText(/^Not signed\./);
+    const declined = [
+      "Waiting for your wallet to sign…",
+      "Not signed. Your reason stays hidden until you choose to show it.",
+    ];
+    expect(await heard()).toEqual(declined);
+
+    // Two poll cycles re-render the panel; the region must say nothing more.
+    const before = reads.reads.length;
+    await page.clock.runFor(ADJUDICATION_POLL_MS);
+    await expect.poll(() => reads.reads.length).toBe(before + 1);
+    await page.clock.runFor(ADJUDICATION_POLL_MS);
+    await expect.poll(() => reads.reads.length).toBe(before + 2);
+    await page.waitForTimeout(500);
+    expect(await heard()).toEqual(declined);
   });
 });
