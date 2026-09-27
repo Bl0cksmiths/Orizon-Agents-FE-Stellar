@@ -356,6 +356,27 @@ export const DisputeSection = memo(function DisputeSection({
   // carried one: it is shown on the step at once, whether or not the re-read
   // lands (D-057). Waiting on the re-read alone left a step whose re-read
   // failed offering Dispute again — and a second signature for nothing.
+  // Focus, once a re-read that a close or a submit asked for has landed. The
+  // dialog hands focus back to the Dispute button it was opened from — and
+  // then the re-read takes that button away (the step is disputed now, or
+  // the window has closed), leaving focus on <body>, from where the next Tab
+  // starts the whole page again (WCAG 2.4.3). The receipt's heading is the
+  // one node that outlives the swap. Only a focus that was lost is moved: a
+  // buyer already somewhere else keeps their place.
+  //
+  // Checked in an effect, after the commit, never straight off the resolved
+  // promise: the answer can resolve before React has drawn it, and the button
+  // is only gone — and focus only lost — once it has.
+  const [refocusAfter, setRefocusAfter] = useState(0);
+  const keepFocus = useCallback(() => setRefocusAfter((n) => n + 1), []);
+  useEffect(() => {
+    if (refocusAfter === 0) return;
+    const active = document.activeElement;
+    if (active === null || active === document.body || !active.isConnected) {
+      receiptHeadingRef.current?.focus();
+    }
+  }, [refocusAfter]);
+
   const onClose = useCallback(
     (reason: DisputeDialogCloseReason, existing?: Dispute | null) => {
       if (reason === "duplicate_dispute") {
@@ -367,9 +388,9 @@ export const DisputeSection = memo(function DisputeSection({
         );
       }
       setTarget(null);
-      if (reason !== "dismissed") void refresh();
+      if (reason !== "dismissed") void refresh().then(keepFocus);
     },
-    [refresh, adopt],
+    [refresh, adopt, keepFocus],
   );
   // A dispute raised here is shown on its step at once, from the record the
   // server returned, and then re-read: a re-read that fails cannot put the
@@ -377,9 +398,9 @@ export const DisputeSection = memo(function DisputeSection({
   const onSubmitted = useCallback(
     (dispute: Dispute) => {
       adopt(dispute);
-      void refresh();
+      void refresh().then(keepFocus);
     },
-    [refresh, adopt],
+    [refresh, adopt, keepFocus],
   );
   // `refresh` never rejects and resolves once its answer is on screen, so the
   // retry control can say it is working and not take a second press.

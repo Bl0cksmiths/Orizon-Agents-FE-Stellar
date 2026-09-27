@@ -494,6 +494,98 @@ test.describe("dispute action on the trace / receipt view", () => {
     expect(next.inReceipt).toBe(true);
   });
 
+  /** Where keyboard focus is, as a tag and its text. */
+  const focused = (page: Page) =>
+    page.evaluate(() => ({
+      tag: document.activeElement?.tagName ?? "",
+      text: (document.activeElement?.textContent ?? "").trim(),
+    }));
+  const ON_RECEIPT = { tag: "H2", text: "Receipt" };
+
+  // Three more ways out of the dialog, each followed by a re-read that takes
+  // away the button focus was handed back to. Each left focus on <body>.
+  test("after a duplicate closes the form, focus lands on the receipt", async ({
+    page,
+  }) => {
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      open: "duplicate",
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(stepRow(page, codeStep.agent_id)).toContainText(
+      "raised from another tab",
+    );
+    await expect.poll(() => focused(page)).toEqual(ON_RECEIPT);
+  });
+
+  test("after Done is pressed before the re-read lands, focus lands on the receipt", async ({
+    page,
+  }) => {
+    let submitted = false;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route("**/api/disputes", async (route) => {
+            if (route.request().method() === "POST") submitted = true;
+            await route.fallback();
+          });
+          // The re-read after the submit is held until Done has been pressed.
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            async (route) => {
+              if (submitted) await held;
+              await route.fallback();
+            },
+          );
+        },
+      },
+    );
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await form.getByRole("button", { name: "Done" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+
+    release();
+    await expect(
+      stepRow(page, codeStep.agent_id).getByRole("button", {
+        name: /dispute/i,
+      }),
+    ).toHaveCount(0);
+    await expect.poll(() => focused(page)).toEqual(ON_RECEIPT);
+  });
+
+  test("after Back to the receipt on a closed window, focus lands on the receipt", async ({
+    page,
+  }) => {
+    let serverAheadMs = 0;
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+      clock: () => Date.now() + serverAheadMs,
+    });
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    serverAheadMs = DISPUTE_WINDOW_S * 1000;
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await form.getByRole("button", { name: "Back to the receipt" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(0);
+    await expect.poll(() => focused(page)).toEqual(ON_RECEIPT);
+  });
+
   // The press that opens the wallet prompt used to disable the button under
   // the buyer's finger. A browser blurs a control the moment it is disabled,
   // so for the whole round trip — half a minute and more on a real wallet —
