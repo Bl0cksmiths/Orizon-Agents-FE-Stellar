@@ -1143,6 +1143,37 @@ describe("useDisputePanel — the payer's read grant", () => {
     expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
   });
 
+  it("reads again with the grant once the payer's wallet restores, and only once", async () => {
+    // The wallet restores after the first read. Without a re-read, a payer
+    // who had signed and then reloaded a settled receipt — which nothing
+    // polls — was offered the signature again for a grant they held.
+    rememberReadGrant("task_a", PAYER, GRANT);
+    wallet.address = null;
+    const { result, rerender } = await mountWith(
+      answer(-H, {
+        disputes: [dsp(1, "rejected", { reason: "", reason_withheld: true })],
+      }),
+    );
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", null);
+
+    const withGrant = nextRead();
+    wallet.address = PAYER;
+    rerender(DEFAULTS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", "grant-token");
+    await land(
+      withGrant,
+      answer(-H, {
+        disputes: [dsp(1, "rejected", { reason_withheld: false })],
+      }),
+    );
+    expect(settledOf(result.current.view).reasonsWithheld).toBe(false);
+    expect(receiptOf(result.current.view).reason).toBe("empty summary");
+
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps a grant the server honoured", async () => {
     rememberReadGrant("task_a", PAYER, GRANT);
     const { result } = await mountWith(
