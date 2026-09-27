@@ -211,7 +211,8 @@ function ReceiptSkeleton({ steps }: { steps: number }) {
                 </div>
                 <div className="break-all text-right">
                   <Ghost text={value} />
-                  {link && <Line box="mt-1 h-5 justify-end" bar="h-2.5 w-36" />}
+                  {/* h-6: the explorer link's 24px target (WCAG 2.5.8). */}
+                  {link && <Line box="mt-1 h-6 justify-end" bar="h-2.5 w-36" />}
                 </div>
               </div>
             ))}
