@@ -294,7 +294,11 @@ test.describe("dispute action on the trace / receipt view", () => {
     const closedAt = receipt(page).locator(`time[datetime="${closesAtIso}"]`);
     await expect(closedAt).toBeVisible();
     const closedAtText = (await closedAt.textContent()) ?? "";
-    expect(closedAtText).not.toBe("");
+    // A deadline with its zone named: "2:05 PM" is a different moment for
+    // the buyer and for whoever they forward it to.
+    expect(closedAtText).toMatch(
+      /\d:\d{2}(?:\s?[AP]M)?\s(?:(?:GMT|UTC)(?:[+-]\d{1,2}(?::\d{2})?)?|(?![AP]M$)[A-Z]{2,5})$/,
+    );
     await expect(
       receipt(page)
         .getByRole("status")
@@ -1061,6 +1065,37 @@ test.describe("dispute action on the trace / receipt view", () => {
         document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(1);
+  });
+});
+
+/**
+ * The deadline in a zone this spec chooses, so its words can be asserted
+ * literally. The checks above compared the printed time with the page's own
+ * formatter — or with the `<time>` element's own text — and so passed with
+ * the zone dropped from the format altogether.
+ */
+test.describe("the dispute deadline, read in Manila", () => {
+  test.use({ timezoneId: "Asia/Manila", locale: "en-US" });
+
+  test("names its zone on the closing line and in the spoken summary", async ({
+    page,
+  }) => {
+    // Settled 02:00 UTC on 30 September; the window closes a day later,
+    // 10:00 on 1 October in Manila (UTC+8).
+    const settledAtMs = Date.UTC(2026, 8, 30, 2, 0, 0);
+    await page.clock.install({ time: settledAtMs + HOUR_S * 1000 });
+    await openTrace(page, {
+      settlement: mockSettlementView({ settledAtS: settledAtMs / 1000 }),
+      clock: () => page.evaluate(() => Date.now()),
+    });
+
+    const closes = "Oct 1, 2026, 10:00 AM GMT+8";
+    await expect(receipt(page).locator("time").last()).toHaveText(closes);
+    await expect(
+      receipt(page)
+        .getByRole("status")
+        .filter({ hasText: /dispute window/i }),
+    ).toHaveText(`Dispute window open until ${closes}.`);
   });
 });
 

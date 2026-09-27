@@ -38,7 +38,7 @@ import type {
 } from "@/lib/types";
 import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
 import { ReceiptPanel } from "./receipt-panel";
-import { WindowState, formatLocalTime } from "./window-state";
+import { WindowState } from "./window-state";
 
 afterEach(cleanup);
 
@@ -688,6 +688,17 @@ describe("WindowState", () => {
     vi.useRealTimers();
   });
 
+  /**
+   * A printed instant ending in its zone — "GMT+8", "UTC", "PDT", never a
+   * bare "PM" — in whichever zone the suite runs. Asserted as a pattern, never against
+   * `formatLocalTime` itself: a check that compares the component's output
+   * with the component's own formatter passes with the zone dropped.
+   */
+  const ZONED =
+    /^Sep 2[23], 2026, \d{1,2}:\d{2}(?:\s?[AP]M)?\s(?:(?:GMT|UTC)(?:[+-]\d{1,2}(?::\d{2})?)?|(?![AP]M$)[A-Z]{2,5})$/;
+  const closingText = (root: ParentNode) =>
+    root.querySelector("time")?.textContent ?? "";
+
   const FOUR_MIN = 4 * 60_000 + 12_000;
 
   function open(remainingMs: number) {
@@ -700,7 +711,7 @@ describe("WindowState", () => {
     );
     expect(container.textContent).toContain("Dispute window open");
     expect(container.textContent).toContain(formatRemaining(FOUR_MIN));
-    expect(container.textContent).toContain(formatLocalTime(CLOSES_AT));
+    expect(closingText(container)).toMatch(ZONED);
     expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(
       new Date(CLOSES_AT).toISOString(),
     );
@@ -711,7 +722,7 @@ describe("WindowState", () => {
       <WindowState window={CLOSED} settledAtMs={SETTLED_AT} />,
     );
     expect(container.textContent).toContain("Dispute window closed");
-    expect(container.textContent).toContain(formatLocalTime(CLOSES_AT));
+    expect(closingText(container)).toMatch(ZONED);
     expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(
       new Date(CLOSES_AT).toISOString(),
     );
@@ -731,7 +742,10 @@ describe("WindowState", () => {
 
     const status = screen.getByRole("status");
     const summary = status.textContent;
-    expect(summary).toContain(formatLocalTime(CLOSES_AT));
+    expect(closingText(container)).toMatch(ZONED);
+    expect(summary).toBe(
+      `Dispute window open until ${closingText(container)}.`,
+    );
     expect(summary).not.toContain(formatRemaining(FOUR_MIN));
     expect(status.contains(countdown)).toBe(false);
 
