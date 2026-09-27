@@ -198,15 +198,37 @@ describe("DisputeReceipt — what happens next", () => {
     );
   });
 
-  it("upheld: says the credit has not been sent, and why nothing links", () => {
+  // D-070: `upheld` with no transfer is where a refused or failed transfer
+  // leaves a dispute once its claim is released, as well as one never tried.
+  // Nothing re-sends it on its own, so no queue may be promised, and nothing
+  // on a record where no money moved may look like a success.
+  it("upheld: says the credit has not been paid, and promises no queue", () => {
     renderReceipt(receipt("upheld"));
     expect(text()).toContain(
-      "The platform upheld this dispute; the credit has not been sent yet — the transfer to your wallet is queued, and there is no transaction to look up until the platform submits it.",
+      "The platform upheld this dispute, but the credit has not been paid — there is no transaction to look up yet, and the platform has to send it to your wallet.",
     );
-    // An upheld dispute has no transfer on record, so a sentence claiming one
-    // is on its way sends a buyer hunting the explorer for nothing.
-    expect(text()).not.toContain("the credit is being sent");
-    expect(text()).not.toContain("was submitted");
+    expect(text()).not.toMatch(/queued|being sent|was submitted|on its way/);
+  });
+
+  it("upheld: wears no tick and no success colour anywhere", () => {
+    const { container } = renderReceipt(receipt("upheld"));
+    expect(text()).toContain("Upheld");
+    expect(text()).toContain("No transaction on record");
+    expect(text()).not.toContain("✓");
+    expect(text()).not.toMatch(/Refunded|Confirmed on Stellar|Done:/);
+    // The confirmed look is cyan (the ✓ Confirmed on Stellar row) or emerald
+    // (the Refunded badge). Neither the badge nor the refund's mark, nor the
+    // row around it, may borrow either; the section labels' cyan is not a
+    // state, and is not asked about.
+    const badge = screen.getByText("Upheld").closest("span.border");
+    const mark = screen.getByText("No transaction on record");
+    const row = mark.closest("div");
+    for (const el of [badge, mark, row]) {
+      expect(el).not.toBeNull();
+      expect(el?.getAttribute("class") ?? "").not.toMatch(/cyan|emerald/);
+    }
+    // Nothing is in flight, so nothing pulses.
+    expect(container.querySelectorAll(".animate-pulse")).toHaveLength(0);
   });
 
   it("crediting: waiting on Stellar, reconciled by hand, never twice", () => {

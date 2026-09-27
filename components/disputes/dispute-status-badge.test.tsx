@@ -63,6 +63,15 @@ describe("DisputeStatusBadge", () => {
     expect(new Set(colours).size).toBe(STATUSES.length);
   });
 
+  // D-070: upheld is a decision with no money moved. The tick and the cyan
+  // are what a confirmed transaction wears, and refunded's green is paid.
+  it("gives upheld no tick and no success colour", () => {
+    const { container } = render(<DisputeStatusBadge status="upheld" />);
+    const badge = container.firstElementChild as HTMLElement;
+    expect(badge.textContent).not.toContain("✓");
+    expect(badge.className).not.toMatch(/cyan|emerald/);
+  });
+
   // Out of its row the bare label ("Refunded") does not say what it is the
   // status of; a screen reader hears the qualifier the eye gets from layout.
   it("names what the label is the status of for screen readers", () => {
