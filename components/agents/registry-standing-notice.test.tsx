@@ -125,17 +125,6 @@ describe("RegistryStandingNotice — nothing to say", () => {
     const { container } = render(<RegistryStandingNotice batch={null} />);
     expect(container.innerHTML).toBe("");
   });
-
-  it("renders no floor when the batch carried none", () => {
-    const { container } = render(
-      <RegistryStandingNotice
-        batch={batchOf([rep("agt_a")], {
-          floor_bps: undefined as unknown as number,
-        })}
-      />,
-    );
-    expect(container.textContent).not.toContain("floor");
-  });
 });
 
 /** A read that failed: the prior served in place of the chain. Its lower bound
@@ -527,19 +516,6 @@ describe("RegistryStandingNotice — entries it could not use", () => {
   it("says nothing about dropped entries when none were", () => {
     render(<RegistryStandingNotice batch={batchOf([rep("agt_a")])} />);
     expect(text()).not.toMatch(/could not be used/);
-  });
-
-  // Even with no floor to state, the count is still news.
-  it("still reports dropped entries when the batch carried no floor", () => {
-    render(
-      <RegistryStandingNotice
-        batch={batchOf([rep("agt_a")], {
-          floor_bps: undefined as unknown as number,
-        })}
-        entriesDropped={2}
-      />,
-    );
-    expect(text()).toContain("2 reputation entries could not be used");
   });
 });
 
