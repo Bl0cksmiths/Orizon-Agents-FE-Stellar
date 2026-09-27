@@ -94,6 +94,12 @@ describe("createReadChallenge", () => {
     ["another nonce", `orizon-dispute-read:v1:${TASK}:other`],
     ["another domain", `orizon-dispute:v1:${TASK}:n0nce`],
     ["this task only as a substring", `orizon-dispute-read:v1:x${TASK}:n0nce`],
+    // The nonce must BE the tail, not merely end it: a segment slipped in
+    // before it makes the message something other than the one asked for.
+    [
+      "a tail that only ends with the nonce",
+      `orizon-dispute-read:v1:${TASK}:extra:n0nce`,
+    ],
   ])(
     "refuses a message for %s before any wallet sees it",
     async (_, message) => {
@@ -141,13 +147,15 @@ describe("the held grant", () => {
     expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
   });
 
-  it("keeps at most the newest grants", () => {
+  it("keeps at most the newest grants — exactly that many, the oldest first to go", () => {
     for (let i = 0; i <= MAX_READ_GRANTS; i += 1) {
-      rememberReadGrant(`tsk_${i}`, PAYER, grant);
+      rememberReadGrant(`tsk_${i}`, PAYER, { ...grant, grant: `g${i}` });
     }
     expect(heldReadGrant("tsk_0", PAYER, NOW_MS)).toBeNull();
+    // The next-oldest survives: the cap is MAX_READ_GRANTS, not one fewer.
+    expect(heldReadGrant("tsk_1", PAYER, NOW_MS)).toBe("g1");
     expect(heldReadGrant(`tsk_${MAX_READ_GRANTS}`, PAYER, NOW_MS)).toBe(
-      "grant-token",
+      `g${MAX_READ_GRANTS}`,
     );
   });
 
@@ -284,6 +292,11 @@ describe("readGrantFailure", () => {
       "not_the_payer",
     ],
     [
+      "a bare 403 with no envelope code",
+      new ApiError("POST → 403", 403),
+      "not_the_payer",
+    ],
+    [
       "an expired challenge",
       new ApiError("POST → 409", 409, undefined, "challenge_expired"),
       "expired",
@@ -302,6 +315,16 @@ describe("readGrantFailure", () => {
         "challenge_capacity_dispute_read",
       ),
       "busy",
+    ],
+    [
+      "a throttled challenge mint",
+      new ApiError("POST → 429", 429, 20_000, "rate_limited"),
+      "busy",
+    ],
+    [
+      "a status nothing names",
+      new ApiError("POST → 500", 500, undefined, "internal_error"),
+      "failed",
     ],
     ["a network drop", new TypeError("Failed to fetch"), "failed"],
   ])("reads %s", (_, err, expected) => {
