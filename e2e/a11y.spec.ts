@@ -39,11 +39,28 @@ const ROUTES = [
   "/app/wallet",
 ];
 
+/**
+ * What a route has to have rendered before axe looks at it. Without this the
+ * sweep of /app/agents ran while the table was still a skeleton: a nameless
+ * button on every row passed two runs in three, because axe raced the fetch.
+ * The registry rows and the reputation batch (announced by the floor heading)
+ * are both on screen before the page is judged.
+ */
+const READY: Partial<Record<string, (page: Page) => Promise<void>>> = {
+  "/app/agents": async (page) => {
+    await expect(page.getByRole("rowheader")).not.toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Selection floor" }),
+    ).toBeVisible();
+  },
+};
+
 test.describe("accessibility", () => {
   for (const route of ROUTES) {
     test(`${route} has no WCAG A/AA violations`, async ({ page }) => {
       await mockApi(page);
       await page.goto(route);
+      await READY[route]?.(page);
 
       const { violations } = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
