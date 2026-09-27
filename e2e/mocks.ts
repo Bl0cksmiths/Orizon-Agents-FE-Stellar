@@ -623,6 +623,22 @@ export const mockOtherOwnerAddress =
   "GCXQ7T5LMJ4RZB2NPKAH6WVUE3SFDYG2CQ5TMXJ7RLB4NZKAH6WVUE3S";
 
 /**
+ * One registry row as these fixtures spell it: the wire's `Agent`, narrowed to
+ * the statuses and provenances this build knows. The wire type takes any
+ * string for both (a newer backend may add values), which would let a typo in
+ * a fixture — `status: "onlien"` — compile and quietly test the unknown-value
+ * path instead of the one the spec meant. A deliberately unknown value lives
+ * in `agents-guard-fixtures.ts`, typed as the wire's `Agent`.
+ *
+ * Written with `import()` type expressions so this section needs no edit to
+ * the module's shared import block.
+ */
+export type AgentFixture = import("../lib/types").Agent & {
+  status: import("../lib/types").AgentStatus;
+  source?: import("../lib/types").AgentSource | null;
+};
+
+/**
  * The marketplace as an operator sees it: one seeded catalog agent that needs
  * no endpoint, and two the connected wallet owns on-chain — one of which is
  * deliberately left unbound, because that is the state story 2.05 exists to
@@ -643,7 +659,7 @@ export const mockOtherOwnerAddress =
  * endpoint, so `null` means the question does not apply, and only `false` on an
  * on-chain agent reports a registration that cannot yet be routed to.
  */
-export const mockAgents = [
+export const mockAgents: readonly AgentFixture[] = [
   {
     id: "agt_11c0",
     name: "code.gen",
@@ -725,7 +741,7 @@ export const mockAgents = [
  * changes under the specs that already rely on that list. A spec opts in with
  * `mockApi(page, { agents: [...mockAgents, mockDelistedAgent] })`.
  */
-export const mockDelistedAgent = {
+export const mockDelistedAgent: AgentFixture = {
   id: "paused_bot",
   name: "Paused Bot",
   skills: ["translation"],
@@ -746,7 +762,7 @@ export const mockDelistedAgent = {
  * 7230 (3.62) — well clear of the 5500 floor. Its reputation is not why it is
  * out of the candidate pool.
  */
-export const mockDelistedReputation = {
+export const mockDelistedReputation: import("../lib/types").ReputationInfo = {
   agent_id: mockDelistedAgent.id,
   smoothed_bps: 8000,
   lower_bound_bps: 7230,
@@ -755,7 +771,7 @@ export const mockDelistedReputation = {
   weight: 15,
   disputed: 0,
   dispute_rate_bps: 0,
-  source: "onchain" as const,
+  source: "onchain",
   degraded: false,
 };
 
@@ -774,7 +790,7 @@ export const mockDelistedReputation = {
  * above rate `design.figma` on-chain, and one file must not hold two
  * contradictory histories for the same agent.
  */
-export const mockUnratedCatalogAgent = {
+export const mockUnratedCatalogAgent: AgentFixture = {
   id: "agt_09l5",
   name: "research.pro",
   skills: ["research", "citations"],
@@ -791,18 +807,19 @@ export const mockUnratedCatalogAgent = {
 /** The live prior for `research.pro`: 7000 bps (3.50) with the 5677 lower
  *  bound `lowerBoundBps(7000, 0)` returns. Honest cold start, not a failed
  *  read. */
-export const mockUnratedCatalogReputation = {
-  agent_id: mockUnratedCatalogAgent.id,
-  smoothed_bps: 7000,
-  lower_bound_bps: 5677,
-  avg_bps: 7000,
-  count: 0,
-  weight: 0,
-  disputed: 0,
-  dispute_rate_bps: 0,
-  source: "prior" as const,
-  degraded: false,
-};
+export const mockUnratedCatalogReputation: import("../lib/types").ReputationInfo =
+  {
+    agent_id: mockUnratedCatalogAgent.id,
+    smoothed_bps: 7000,
+    lower_bound_bps: 5677,
+    avg_bps: 7000,
+    count: 0,
+    weight: 0,
+    disputed: 0,
+    dispute_rate_bps: 0,
+    source: "prior",
+    degraded: false,
+  };
 
 /**
  * An agent the registry lists but the reputation batch carries no entry for —
@@ -810,7 +827,7 @@ export const mockUnratedCatalogReputation = {
  * and the fixture exists to prove none is invented: its catalog rating is
  * set to a figure no batch entry anywhere in this file uses.
  */
-export const mockUnscoredAgent = {
+export const mockUnscoredAgent: AgentFixture = {
   id: "fresh_listing",
   name: "Fresh Listing",
   skills: ["summarize"],
@@ -823,9 +840,6 @@ export const mockUnscoredAgent = {
   source: "onchain",
   bound: true,
 };
-
-/** One registry row as these fixtures spell it. */
-export type AgentFixture = (typeof mockAgents)[number];
 
 /**
  * What the emulated wallet answers a signMessage request with. The spec
