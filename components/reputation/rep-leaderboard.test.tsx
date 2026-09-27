@@ -63,10 +63,14 @@ function chipFor(container: HTMLElement, id: string): string {
   const row = Array.from(container.querySelectorAll("tr")).find((tr) =>
     tr.textContent?.includes(id),
   );
-  const chip = row?.querySelector(
-    "[aria-label*='estimate'], [aria-label*='reputation']",
-  );
-  return chip?.getAttribute("aria-label") ?? "";
+  // The badge's words live in an sr-only span, not an attribute: ARIA
+  // prohibits naming a role-less span, so the claim is its text.
+  const words = Array.from(row?.querySelectorAll(".sr-only") ?? [])
+    .map((el) => el.textContent ?? "")
+    .filter((w) => /estimate|reputation \d/.test(w));
+  // One chip per row at most; none is "" rather than a thrown lookup.
+  expect(words.length).toBeLessThanOrEqual(1);
+  return words[0] ?? "";
 }
 
 /** Everything a reader gets from one agent's row, screen-reader text included. */
