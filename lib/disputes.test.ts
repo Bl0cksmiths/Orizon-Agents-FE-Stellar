@@ -2242,13 +2242,22 @@ describe("formatUsdc", () => {
     expect(formatUsdc(0.0000001)).toBe("0.0000001 USDC");
   });
 
-  it("floors without letting binary noise eat a whole stroop", () => {
-    // 0.29 * 10_000_000 is 2899999.9999999995 in binary floating point; a
-    // bare floor would print 0.2899999.
-    expect(formatUsdc(0.29)).toBe("0.29 USDC");
-    expect(formatUsdc(0.07)).toBe("0.07 USDC");
-    expect(formatUsdc(8.22)).toBe("8.22 USDC");
-  });
+  it.each([
+    [0.57, "0.57 USDC"],
+    [1.13, "1.13 USDC"],
+    [2.01, "2.01 USDC"],
+  ])(
+    "floors %d without letting binary noise eat a whole stroop",
+    (n, label) => {
+      // The premise, checked rather than asserted in a comment: each of
+      // these lands BELOW its figure when scaled to stroops, so a bare floor
+      // prints a stroop short.
+      expect(Math.floor(n * 10_000_000)).toBeLessThan(
+        Math.round(n * 10_000_000),
+      );
+      expect(formatUsdc(n)).toBe(label);
+    },
+  );
 
   it.each([-0.005, -1, -0.0000001])(
     "prints %d as a dash: a negative refund is not a figure the receipt can state",
@@ -2321,11 +2330,24 @@ describe("formatCreditShare", () => {
     [0.0625, "6.25%"],
     [0, "0%"],
     [1, "100%"],
-    [0.29, "29%"],
-    [0.07, "7%"],
   ])("prints %d as %s", (fraction, label) => {
     expect(formatCreditShare(fraction)).toBe(label);
   });
+
+  it.each([
+    [0.57, "57%"],
+    [0.0113, "1.13%"],
+    [0.0029, "0.29%"],
+  ])(
+    "floors %d without letting binary noise eat a hundredth",
+    (fraction, label) => {
+      // As for `formatUsdc`: the premise is checked, not assumed.
+      expect(Math.floor(fraction * 10_000)).toBeLessThan(
+        Math.round(fraction * 10_000),
+      );
+      expect(formatCreditShare(fraction)).toBe(label);
+    },
+  );
 
   it("never rounds a share up — the buyer is never promised more than the policy pays", () => {
     // The receipt's Intl formatter at one decimal read this as "6.3%", a
@@ -2335,13 +2357,17 @@ describe("formatCreditShare", () => {
     expect(formatCreditShare(0.999999)).toBe("99.99%");
   });
 
-  it("is one definition for both the receipt and the dialog", () => {
-    // The two components quote the SAME policy at the same buyer; anything
-    // they could disagree on is a promise the buyer cannot rely on.
-    for (let bps = 0; bps <= 10_000; bps += 7) {
-      const label = formatCreditShare(bps / 10_000);
-      expect(label).toBe(formatCreditShare(bps / 10_000));
-      expect(Number(label.slice(0, -1))).toBeLessThanOrEqual(bps / 100);
+  it("prints every whole hundredth of a percent exactly — never one over, never one short", () => {
+    // Checked against the figure built from the integer, never from the
+    // function under test: a policy of N basis points reads N/100 percent.
+    for (let bps = 0; bps <= 10_000; bps += 1) {
+      const whole = Math.trunc(bps / 100);
+      const rest = bps % 100;
+      const expected =
+        rest === 0
+          ? `${whole}%`
+          : `${whole}.${String(rest).padStart(2, "0").replace(/0$/, "")}%`;
+      expect(formatCreditShare(bps / 10_000)).toBe(expected);
     }
   });
 

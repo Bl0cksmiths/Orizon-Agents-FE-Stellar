@@ -1110,8 +1110,8 @@ export function formatRemaining(ms: number): string {
  * moved or that the platform is about to move, and the chain moves whole
  * stroops: rounding half up printed a tenth of a millionth of a dollar that
  * no transfer could carry, which on a receipt is a promise. The nudge before
- * the floor is for binary floating point alone — 0.29 * 10_000_000 is
- * 2899999.9999999995 — and is a thousandth of a stroop, far below anything
+ * the floor is for binary floating point alone — 0.57 * 10_000_000 is
+ * 5699999.999999999 — and is a thousandth of a stroop, far below anything
  * the chain can express, so it restores the figure without inventing one.
  *
  * A value that is not a number prints as a dash, never "NaN USDC", and so
@@ -1137,8 +1137,8 @@ export function formatUsdc(n: number): string {
  * the policy in force, and trailing zeros are dropped so an exact half is
  * "50%" and not "50.00%".
  *
- * The nudge before flooring is for binary floating point alone — 0.29 * 100
- * is 28.999999999999996 — and is far smaller than any share a policy can
+ * The nudge before flooring is for binary floating point alone — 0.57 *
+ * 10_000 is 5699.999999999999 — and is far smaller than any share a policy can
  * express, so it restores the figure without inventing a hundredth.
  * A value that is not a number prints as a dash, as `formatUsdc` does.
  */
