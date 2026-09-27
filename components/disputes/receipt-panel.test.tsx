@@ -294,6 +294,24 @@ describe("ReceiptPanel — the step list", () => {
     expect(onDispute).toHaveBeenCalledWith(second);
   });
 
+  // A policy that credits nothing is possible, and the dialog handles it;
+  // the row printed "credits 0 USDC if upheld" beside the action.
+  it("offers no credit hint beside a step an uphold would credit nothing for", () => {
+    renderPanel(
+      settled([
+        {
+          step: step(0, { creditable_usdc: 0 }),
+          state: { kind: "disputable" },
+        },
+      ]),
+    );
+    expect(
+      screen.getByRole("button", { name: "Dispute step 1, Agent 0" }),
+    ).toBeTruthy();
+    expect(text()).not.toContain("if upheld");
+    expect(text()).not.toMatch(/credits (up to )?0 USDC/);
+  });
+
   it("shows what an upheld dispute would credit next to the action", () => {
     renderPanel(
       settled([
