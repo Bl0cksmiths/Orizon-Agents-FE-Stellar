@@ -551,6 +551,11 @@ describe("createDisputeChallenge", () => {
       "a domain that merely starts with the right one",
       { ...challenge(2), message: `orizon-dispute-v2:v1:${JOB}:2:n0nce` },
     ],
+    [
+      // The nonce must BE the tail, not merely end it.
+      "a tail that only ends with the nonce",
+      { ...challenge(2), message: `orizon-dispute:v1:${JOB}:2:extra:n0nce` },
+    ],
   ];
 
   it.each(misaddressed)(
@@ -565,8 +570,14 @@ describe("createDisputeChallenge", () => {
   );
 
   it("refuses an empty nonce, which any message would end with", async () => {
+    // A message that really does end in an empty segment, so the parse alone
+    // would accept it: only the nonce guard stands in the way.
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { ...challenge(2), nonce: "" }),
+      jsonResponse(200, {
+        ...challenge(2),
+        message: `orizon-dispute:v1:${JOB}:2:`,
+        nonce: "",
+      }),
     );
 
     await expect(
@@ -1990,6 +2001,20 @@ describe("raiseDispute", () => {
     ]);
     expect(signMessage).toHaveBeenCalledTimes(1);
     expect(signMessage).toHaveBeenCalledWith(dead("second").message);
+  });
+
+  it("treats a nonce dying at this very moment as dead", async () => {
+    const now = { ...challenge(1, "now"), expires_at: SETTLED_AT };
+    const alive = { ...challenge(1, "alive"), expires_at: SETTLED_AT + 400 };
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, now))
+      .mockResolvedValueOnce(jsonResponse(200, alive))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await raise({ signMessage });
+    expect(signMessage).toHaveBeenCalledTimes(1);
+    expect(signMessage).toHaveBeenCalledWith(alive.message);
   });
 
   it("asks for nothing extra when the nonce is alive", async () => {
