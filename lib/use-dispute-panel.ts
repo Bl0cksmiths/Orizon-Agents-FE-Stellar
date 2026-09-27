@@ -193,8 +193,11 @@ export function disputePollMs(state: DisputePollState | null): number | null {
  * session holds no token for a trace it was sent. Neither is something the
  * viewer can act on, and neither may banner an error across every trace.
  *
- * Only ever used for a FIRST read of a task. A route that answered once
- * exists, so a later 404 is a blip — a redeploy, a proxy — not a backend
+ * Only ever used while no receipt of the task is on screen: a first read, or
+ * one after this stub (a later 404 from a route that already 404'd is the
+ * same missing route, and bannered it as "receipt unavailable" when the run
+ * sealed). A route that answered with a receipt exists, so a later 404 is a
+ * blip — a redeploy, a proxy — not a backend
  * that predates receipts, and standing in this stub for a receipt already on
  * screen would erase it: the view would go `hidden`, `error` would be null so
  * nothing explained it, and the poll would never re-arm, because a stub with
@@ -321,11 +324,17 @@ export function useDisputePanel(
       const epoch = ++epochRef.current;
       lastReadAtMs.current = Date.now();
       sealedInFlightRef.current = false;
-      // Whether this task already has an answer on screen, read before the
-      // state below is touched: it decides what a 404 means (see
-      // `noReceiptRoute`).
+      // Whether this task already has a receipt answer on screen, read
+      // before the state below is touched: it decides what a 404 means (see
+      // `noReceiptRoute`). An answer with no settlement KEY is not one — it
+      // is the stub a first 404 left, or a backend with no receipts — so a
+      // route that 404'd once and 404s again when the run seals, or on a
+      // refresh, is still the route that is missing, never an error.
       const held = stateRef.current;
-      const firstRead = held.taskId !== id || held.snapshot === null;
+      const firstRead =
+        held.taskId !== id ||
+        held.snapshot === null ||
+        held.snapshot.res.settlement === undefined;
       inFlightRef.current = true;
       const isLatest = () =>
         mountedRef.current &&

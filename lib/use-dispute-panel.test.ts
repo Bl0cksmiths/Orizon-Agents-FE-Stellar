@@ -527,6 +527,46 @@ describe("useDisputePanel — what it fetches", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  // B-4 (the `disputes.spec.ts:559` flake): the first 404 LANDS, then the
+  // run seals, or the page refreshes. The route is as missing as it was.
+  it("reads a second 404 after the no-route stub as the same missing route, when the run seals", async () => {
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    const { result, rerender } = mount({ workflowDone: false });
+    await act(async () => {});
+    expect(result.current.error).toBeNull();
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    rerender({ ...DEFAULTS, workflowDone: true });
+    await act(async () => {});
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current).toMatchObject({
+      view: { kind: "hidden" },
+      loading: false,
+      error: null,
+    });
+  });
+
+  it("reads a 404 on a refresh after the no-route stub the same way", async () => {
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    const { result } = mount();
+    await act(async () => {});
+
+    fetchDisputes.mockRejectedValueOnce(
+      new ApiError("GET /tasks/task_a/disputes → 404", 404),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.view).toEqual({ kind: "hidden" });
+  });
+
   it("hides the panel for a backend that predates the settlement field", async () => {
     const { settlement: _omitted, now: _alsoOmitted, ...legacy } = answer(H);
     const { result } = await mountWith(legacy);
