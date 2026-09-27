@@ -24,6 +24,7 @@ import {
   post,
   taskAuthHeaders,
 } from "./api";
+import { DISPUTE_READ_GRANT_HEADER } from "./dispute-read-grant";
 import { STROOPS_PER_UNIT, formatSettled } from "./money";
 import type {
   CreditPolicy,
@@ -323,11 +324,20 @@ function isDisputeChallenge(v: unknown): v is DisputeChallenge {
  * nothing was charged.
  *
  * Sends the task read token like every other per-task read; the route is
- * gated by it once the backend's enforcement flag flips.
+ * gated by it once the backend's enforcement flag flips. Sends the payer's
+ * read grant too when the caller holds one (D-067): without either, the
+ * backend withholds both reasons.
  */
-export async function getTaskDisputes(taskId: string): Promise<TaskDisputes> {
+export async function getTaskDisputes(
+  taskId: string,
+  readGrant: string | null = null,
+): Promise<TaskDisputes> {
   const path = `/tasks/${encodeURIComponent(taskId)}/disputes`;
-  const headers = taskAuthHeaders(taskId);
+  const token = taskAuthHeaders(taskId);
+  const headers =
+    readGrant === null
+      ? token
+      : { ...token, [DISPUTE_READ_GRANT_HEADER]: readGrant };
   const res = await fetchWithTimeout(
     "GET",
     path,
