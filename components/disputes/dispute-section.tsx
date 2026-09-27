@@ -12,6 +12,7 @@ import type {
   SettlementView,
 } from "@/lib/types";
 import { useDisputePanel } from "@/lib/use-dispute-panel";
+import { useReasonUnlock } from "@/lib/use-reason-unlock";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 
@@ -284,6 +285,13 @@ export const DisputeSection = memo(function DisputeSection({
     demo,
   });
   const { connect } = useWallet();
+  // The payer's own words, withheld from a tab without the task's token,
+  // shown again on their signature (D-067). Only a click signs.
+  const unlock = useReasonUnlock(demo ? null : taskId, refresh);
+  const { unlock: runUnlock } = unlock;
+  const onUnlock = useCallback(() => {
+    void runUnlock();
+  }, [runUnlock]);
   const skeletonSteps = useSkeletonSteps(
     demo ? null : taskId,
     view.kind === "settled" ? view.steps.length : null,
@@ -382,6 +390,9 @@ export const DisputeSection = memo(function DisputeSection({
         headingRef={receiptHeadingRef}
         onDispute={onDispute}
         onConnect={onConnect}
+        reasonUnlock={
+          unlock.unavailable ? null : { status: unlock.status, onUnlock }
+        }
       />
       {/* Mounted while a step can be disputed — which keeps a half-typed
           reason across an accidental close — or while its dialog is still

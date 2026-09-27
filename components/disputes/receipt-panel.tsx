@@ -28,16 +28,26 @@ import type {
   StepDisputeState,
 } from "@/lib/types";
 
+import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
+
 import { DisputeReceipt } from "./dispute-receipt";
+import { ReasonUnlock } from "./reason-unlock";
 import { WindowState, formatLocalTime } from "./window-state";
 
 type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
+
+/** The payer's offer to sign for their withheld words, as the page runs it. */
+export type ReasonUnlockControl = {
+  status: ReasonUnlockStatus;
+  onUnlock: () => void;
+};
 
 export function ReceiptPanel({
   view,
   headingRef,
   onDispute,
   onConnect,
+  reasonUnlock = null,
 }: {
   view: DisputePanelView;
   /**
@@ -51,6 +61,11 @@ export function ReceiptPanel({
   onDispute: (step: SettlementStepView) => void;
   /** An anonymous viewer asked to connect the wallet that paid. */
   onConnect: () => void;
+  /**
+   * The page's "show my reason" action, or null where it has none to give —
+   * drawn only when the view also says the payer's words were withheld.
+   */
+  reasonUnlock?: ReasonUnlockControl | null;
 }) {
   // Called before any early return: hooks run in the same order every render.
   const headingId = useId();
@@ -66,6 +81,7 @@ export function ReceiptPanel({
       headingRef={headingRef}
       onDispute={onDispute}
       onConnect={onConnect}
+      reasonUnlock={reasonUnlock}
     />
   );
 }
@@ -181,12 +197,14 @@ function SettledReceipt({
   headingRef,
   onDispute,
   onConnect,
+  reasonUnlock,
 }: {
   view: SettledView;
   headingId: string;
   headingRef?: RefObject<HTMLHeadingElement>;
   onDispute: (step: SettlementStepView) => void;
   onConnect: () => void;
+  reasonUnlock: ReasonUnlockControl | null;
 }) {
   // "Settled 3h ago" is measured on the server's clock where the view carries
   // it — an open window is closesAt minus what is left — so a skewed laptop
@@ -275,6 +293,15 @@ function SettledReceipt({
           {promptToConnect && <ConnectPrompt onConnect={onConnect} />}
 
           {canDispute && <CreditTerms policy={view.policy} />}
+
+          {/* Above the steps whose words it would show. `reasonsWithheld` is
+              the payer alone, so no one else is ever offered a signature. */}
+          {view.reasonsWithheld && reasonUnlock !== null && (
+            <ReasonUnlock
+              status={reasonUnlock.status}
+              onUnlock={reasonUnlock.onUnlock}
+            />
+          )}
 
           <div className="space-y-3 border-t border-border/60 pt-5">
             <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
