@@ -48,7 +48,87 @@ function tile(page: Page, label: RegExp) {
   return page.locator("div", { hasText: label }).locator("xpath=..").first();
 }
 
+/** The panel for one owned agent, found by the id its intro names. */
+function standing(page: Page, agentId: string) {
+  return page
+    .getByRole("region", { name: "Routing standing" })
+    .filter({ hasText: agentId });
+}
+
 test.describe("operator dashboard on data that is not healthy", () => {
+  test("states rated jobs and eligibility plainly on a healthy read", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page);
+    await bindingIsBound(page);
+    await page.goto("/app/operator");
+
+    // The control for the degraded case below: the same wallet, the same
+    // agents, a healthy batch. `weather_bot` has 8 rated jobs and clears.
+    const opts = { useInnerText: true } as const;
+    await expect(tile(page, /^rated jobs$/)).toContainText(
+      /^rated jobs\s*8\s*completed work rated on-chain$/i,
+      opts,
+    );
+    await expect(tile(page, /^eligible$/)).toContainText(
+      /1\s*of 2\s*listed, bound and above the routing floor/i,
+      opts,
+    );
+    await expect(standing(page, BOUND_ID).getByRole("status")).toHaveText(
+      "✓Eligible — the planner selects per request.",
+    );
+  });
+
+  test("does not state a count or a verdict it read from a failed read", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page, { reputation: mockReputationBatchDegraded });
+    await bindingIsBound(page);
+    await page.goto("/app/operator");
+
+    const opts = { useInnerText: true } as const;
+    // `count: 0` on a degraded entry is the prior's, not the agent's: this
+    // agent has 8 rated jobs. The tile says the read failed instead.
+    const rated = tile(page, /^rated jobs$/);
+    await expect(rated).toContainText(
+      /^rated jobs\s*—\s*on-chain read failed/i,
+      opts,
+    );
+    await expect(rated).not.toContainText(/\b0\b/, opts);
+    // The count still stands, but as what it is: computed from an estimate.
+    await expect(tile(page, /^eligible$/)).toContainText(
+      /provisional — the on-chain reputation read failed/i,
+      opts,
+    );
+
+    // The live region, which is what a screen reader announces. Never a
+    // cyan "✓ Eligible" with the caveat far below.
+    const verdict = standing(page, BOUND_ID).getByRole("status");
+    await expect(verdict).toHaveText(/^⋯Provisionally eligible — /);
+    await expect(verdict).not.toHaveClass(/cyan/);
+  });
+
+  test("says the reputation read failed rather than that the agent is missing", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page);
+    await mockReputationUnavailable(page);
+    await bindingIsBound(page);
+    await page.goto("/app/operator");
+
+    const panel = standing(page, BOUND_ID);
+    await expect(panel.getByRole("status")).toHaveText(
+      "⋯Standing not confirmed — the reputation read failed.",
+    );
+    await expect(panel).toContainText("it says nothing about its record");
+    await expect(
+      page.getByText(/not in the batch|came back without it/),
+    ).toHaveCount(0);
+  });
+
   test("keeps the owned agents on screen through a failed refresh", async ({
     page,
   }) => {

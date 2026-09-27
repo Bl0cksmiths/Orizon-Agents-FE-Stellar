@@ -109,12 +109,23 @@ export default function OperatorPage() {
       }).length
     : null;
 
-  const ratedJobs = repBatch
-    ? owned.reduce(
-        (sum, a) => sum + (repBatch.reputations[a.id]?.count ?? 0),
-        0,
-      )
-    : null;
+  // Whether any of this wallet's entries is the prior served for a failed
+  // chain read. Such an entry carries `count: 0` whatever the agent's real
+  // record is, and a lower bound that clears the floor whatever its real
+  // standing is — so a tile summing or comparing it states a number nobody
+  // read. The live batch has flapped between degraded and healthy on
+  // alternate reads, which made "rated jobs" flip between 0 and the truth.
+  const ownedDegraded =
+    repBatch !== null &&
+    owned.some((a) => repBatch.reputations[a.id]?.degraded === true);
+
+  const ratedJobs =
+    repBatch && !ownedDegraded
+      ? owned.reduce(
+          (sum, a) => sum + (repBatch.reputations[a.id]?.count ?? 0),
+          0,
+        )
+      : null;
 
   return (
     <div className="space-y-6">
@@ -220,16 +231,20 @@ export default function OperatorPage() {
                     hint={
                       eligibleCount === null
                         ? "reputation unavailable"
-                        : "listed, bound and above the routing floor"
+                        : ownedDegraded
+                          ? "provisional — the on-chain reputation read failed, so the floor was checked against an estimate"
+                          : "listed, bound and above the routing floor"
                     }
                   />
                   <StatTile
                     label="rated jobs"
                     value={ratedJobs ?? "—"}
                     hint={
-                      ratedJobs === null
-                        ? "reputation unavailable"
-                        : "completed work rated on-chain"
+                      ownedDegraded
+                        ? "on-chain read failed — not a count of zero"
+                        : ratedJobs === null
+                          ? "reputation unavailable"
+                          : "completed work rated on-chain"
                     }
                   />
                 </div>
