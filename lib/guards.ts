@@ -255,8 +255,8 @@ export function isTraceLineList(v: unknown): v is TraceLine[] {
  * The floor fields (story 3.02) and the per-step reputation evidence are
  * additive: absent is fine (a backend predating them), null is how FastAPI
  * serializes an unset Optional, but a present value is never the wrong type.
- * `agent_name`/`rep_bps`/`rep_source` are optional there and already have
- * render-time fallbacks, so they stay unchecked. */
+ * `rep_source` is checked as a string only, NOT against the values this build
+ * knows: the badge treats anything but `"onchain"` as an estimate. */
 function isPlanStep(s: unknown): s is PlanStep {
   return (
     isRecord(s) &&
@@ -264,6 +264,13 @@ function isPlanStep(s: unknown): s is PlanStep {
     isStr(s.rationale) &&
     isNum(s.est_price_usdc) &&
     isNum(s.est_eta_seconds) &&
+    // Rendered as the step's name, a React child: an object here throws and
+    // takes the route down through the error boundary.
+    isOptionalStr(s.agent_name) &&
+    // The headline score the badge prints: a string or an object would print
+    // "≈★NaN" beside the agent the buyer is being asked to pay.
+    isOptionalNum(s.rep_bps) &&
+    isOptionalStr(s.rep_source) &&
     // The reputation badge compares the bound against the floor and
     // prints the count and dispute rate, so each is a finite number or
     // absent. Anything else coerces to NaN, every comparison against it

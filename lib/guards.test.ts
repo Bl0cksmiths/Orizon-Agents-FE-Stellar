@@ -480,6 +480,45 @@ describe("screenDecomposeResponse", () => {
     }
   });
 
+  // The step's display fields: the name is a React child and the headline
+  // score is printed. Optional, but never the wrong type — and because a step
+  // is never dropped on its own, a wrong one rejects the plan.
+  it("rejects a step whose rep_bps, agent_name or rep_source is the wrong type", () => {
+    const wrong: Record<string, unknown>[] = [
+      // Each of these printed "≈★NaN" in the step's reputation badge.
+      { rep_bps: "abc" },
+      { rep_bps: {} },
+      { rep_bps: true },
+      { rep_bps: Number.NaN },
+      // "Objects are not valid as a React child": the route's error boundary.
+      { agent_name: { first: "code", last: "next" } },
+      { agent_name: 7 },
+      { rep_source: 1 },
+      { rep_source: { kind: "onchain" } },
+    ];
+    for (const field of wrong) {
+      const step = { ...valid.steps[0], ...field };
+      expect(accepts({ ...valid, steps: [step] }), JSON.stringify(field)).toBe(
+        false,
+      );
+    }
+  });
+
+  it("accepts a rep_source this build does not know, and absent display fields", () => {
+    const fine: Record<string, unknown>[] = [
+      { rep_source: "estimate", rep_bps: 7000 },
+      { rep_source: null, rep_bps: null, agent_name: null },
+      { agent_name: "code.next" },
+    ];
+    for (const field of fine) {
+      const step = { ...valid.steps[0], ...field };
+      expect(
+        screenDecomposeResponse({ ...valid, steps: [step] })?.steps,
+        JSON.stringify(field),
+      ).toEqual([step]);
+    }
+  });
+
   // AC-5 — a build predating story 3.02 keeps rendering the plan. The whole
   // design rests on the four floor fields being ADDITIVE, and that claim has
   // two halves the guard is the only thing holding: a backend that predates
