@@ -36,6 +36,7 @@ import type {
   SettlementStepView,
   StepDisputeState,
 } from "@/lib/types";
+import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
 import { ReceiptPanel } from "./receipt-panel";
 import { WindowState, formatLocalTime } from "./window-state";
 
@@ -690,5 +691,75 @@ describe("WindowState", () => {
     const after = screen.getByRole("status");
     expect(after).toBe(before);
     expect(after.textContent).toContain("closed");
+  });
+});
+
+// D-067: the payer's offer to sign for words the backend withheld.
+describe("ReceiptPanel — reasons the backend withheld", () => {
+  const OFFER = /Show my reason/;
+
+  /** The offer's own live region: the panel has others (the window's). */
+  const outcome = () =>
+    screen
+      .getByRole("button", { name: OFFER })
+      .closest(".clip-cyber-sm")
+      ?.querySelector('[role="status"]')?.textContent;
+
+  function renderWithUnlock(
+    over: Partial<SettledView>,
+    status: ReasonUnlockStatus = "idle",
+    offered = true,
+  ) {
+    const onUnlock = vi.fn();
+    render(
+      <ReceiptPanel
+        view={settled([], over)}
+        onDispute={vi.fn()}
+        onConnect={vi.fn()}
+        reasonUnlock={offered ? { status, onUnlock } : null}
+      />,
+    );
+    return onUnlock;
+  }
+
+  it("offers the payer a signature that costs nothing, and asks for it only on a press", () => {
+    const onUnlock = renderWithUnlock({ reasonsWithheld: true });
+    expect(text()).toContain("it costs nothing and sends no transaction");
+    expect(onUnlock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: OFFER }));
+    expect(onUnlock).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers nothing when nothing was withheld from the payer", () => {
+    renderWithUnlock({ reasonsWithheld: false });
+    expect(screen.queryByRole("button", { name: OFFER })).toBeNull();
+  });
+
+  it("offers nothing when the page has no grant to ask for", () => {
+    renderWithUnlock({ reasonsWithheld: true }, "idle", false);
+    expect(screen.queryByRole("button", { name: OFFER })).toBeNull();
+  });
+
+  it("stays put while the wallet is open, and takes no press", () => {
+    const onUnlock = renderWithUnlock({ reasonsWithheld: true }, "signing");
+    const button = screen.getByRole("button", { name: /Signing/ });
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(button);
+    expect(onUnlock).not.toHaveBeenCalled();
+    expect(
+      button.closest(".clip-cyber-sm")?.querySelector('[role="status"]')
+        ?.textContent,
+    ).toContain("Waiting for your wallet");
+  });
+
+  it("states a declined prompt quietly, never as an error", () => {
+    renderWithUnlock({ reasonsWithheld: true }, "declined");
+    expect(outcome()).toBe(
+      "Not signed. Your reason stays hidden until you choose to show it.",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(text()).not.toMatch(/error|failed|⚠/i);
+    // The offer stands: declining is not the end of it.
+    expect(screen.getByRole("button", { name: OFFER })).toBeTruthy();
   });
 });
