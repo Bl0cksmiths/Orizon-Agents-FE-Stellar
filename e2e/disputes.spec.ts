@@ -19,7 +19,7 @@ import {
   type Page,
   type Route,
 } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
+import { disputeScan } from "./dispute-axe";
 import {
   DISPUTE_WINDOW_S,
   mockApi,
@@ -1518,20 +1518,11 @@ function holdSignatures(): void {
 
 /**
  * The show-my-reason control under axe, in every state it can be drawn in.
- * The scan is `e2e/a11y.spec.ts`'s exactly — the same four WCAG tags, the
- * whole page, no rule switched off, the same one-line summary per rule — so
- * the two gates cannot disagree about what a violation is.
+ * The scan is `e2e/a11y.spec.ts`'s exactly — `disputeScan`, which judges the
+ * contrast a bare scan cannot see under the card's gradient — so the two
+ * gates cannot disagree about what a violation is.
  */
 test.describe("accessibility — the show-my-reason control", () => {
-  const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
-
-  async function violations(page: Page): Promise<string[]> {
-    const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
-    return result.violations.map(
-      (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
-    );
-  }
-
   /** The control's own live region: the panel has others (the window's).
    * Found by attribute, not role: empty, it is not drawn, and the role query
    * skips what is not drawn — but the region is mounted all the same. */
@@ -1563,7 +1554,7 @@ test.describe("accessibility — the show-my-reason control", () => {
 
   test("offered: no WCAG A/AA violations", async ({ page }) => {
     await openWithheld(page);
-    expect(await violations(page)).toEqual([]);
+    expect(await disputeScan(page)).toEqual([]);
   });
 
   test("while the wallet is open: no WCAG A/AA violations", async ({
@@ -1575,7 +1566,7 @@ test.describe("accessibility — the show-my-reason control", () => {
     const signing = receipt(page).getByRole("button", { name: /signing/i });
     await expect(signing).toHaveAttribute("aria-disabled", "true");
     await expect(outcome(page)).toHaveText("Waiting for your wallet to sign…");
-    expect(await violations(page)).toEqual([]);
+    expect(await disputeScan(page)).toEqual([]);
   });
 
   test("after a declined prompt: no WCAG A/AA violations", async ({ page }) => {
@@ -1586,7 +1577,7 @@ test.describe("accessibility — the show-my-reason control", () => {
       "Not signed. Your reason stays hidden until you choose to show it.",
     );
     await expect(outcome(page)).toHaveAttribute("aria-live", "polite");
-    expect(await violations(page)).toEqual([]);
+    expect(await disputeScan(page)).toEqual([]);
   });
 
   test("after a refusal, the longest line it can say: no WCAG A/AA violations", async ({
@@ -1597,7 +1588,7 @@ test.describe("accessibility — the show-my-reason control", () => {
     await expect(outcome(page)).toHaveText(
       "The platform did not recognise this wallet as the one that paid, so your reason stays hidden.",
     );
-    expect(await violations(page)).toEqual([]);
+    expect(await disputeScan(page)).toEqual([]);
   });
 
   test("revealed, with the reason and the platform's reply: no WCAG A/AA violations", async ({
@@ -1610,7 +1601,7 @@ test.describe("accessibility — the show-my-reason control", () => {
     await expect(row).toContainText(PLATFORM_REPLY);
     await expect(row).toContainText("Why it was rejected");
     await expect(offer(page)).toHaveCount(0);
-    expect(await violations(page)).toEqual([]);
+    expect(await disputeScan(page)).toEqual([]);
   });
 
   test("announces each outcome once, and nothing again on the polls that follow", async ({
