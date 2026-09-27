@@ -228,7 +228,9 @@ export type ReputationInfo = {
   weight: number;
   disputed: number;
   dispute_rate_bps: number;
-  source: ReputationSource;
+  /** One of `REPUTATION_SOURCES` today, but any string on the wire. Narrow
+   *  with `isReputationSource`; only `"onchain"` is evidence. */
+  source: string;
   /**
    * The on-chain ledger read failed and this score is the Bayesian prior
    * served in its place — the reputation service fails OPEN. It is the only
