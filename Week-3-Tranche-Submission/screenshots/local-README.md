@@ -89,3 +89,5 @@ It drives the real `/app/trace` page with every `/api/*` call answered by
 stubbed, and the wallet is the specs' restored-session stand-in. It connects to
 no backend, signs nothing and sends nothing. `E2E_PORT` keeps it off any dev
 server already running.
+
+> `local-capture.spec.ts` is archived here for reproducibility, not to be run in place: it imports `./mocks` and `../lib/types`, so it resolves only from the repository's `e2e/` directory. Copy it there to re-capture. It is excluded from typechecking for the same reason.
