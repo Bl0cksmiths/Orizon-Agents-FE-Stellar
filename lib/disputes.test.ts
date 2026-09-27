@@ -1451,8 +1451,19 @@ describe("disputeReceipt", () => {
       ["no rejection_reason key", { rejection_reason: undefined }],
       ["a null rejection_reason", { rejection_reason: null }],
       ["a rejection_reason of only whitespace", { rejection_reason: " \n " }],
+      ["a withheld (empty) rejection_reason", { rejection_reason: "" }],
     ])("reads a rejection with %s as no reason given", (_, over) => {
       expect(receipt({ ...rejected, ...over }).rejectionReason).toBeNull();
+    });
+
+    // D-068: the backend withholds the buyer's own words as "" — kept a
+    // string for older clients' type guards — and an empty quote under
+    // "Your reason" reads as though the buyer gave none.
+    it.each<[string, string]>([
+      ["withheld as an empty string", ""],
+      ["only whitespace", " \n\t "],
+    ])("gives the payer no reason at all when it is %s", (_, reason) => {
+      expect(receipt({ ...rejected, reason }).reason).toBeNull();
     });
 
     it.each<Dispute["status"]>(["open", "upheld", "crediting", "credited"])(

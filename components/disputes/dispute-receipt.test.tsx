@@ -18,7 +18,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
-import { formatUsdc } from "@/lib/disputes";
+import { disputeReceipt, formatUsdc } from "@/lib/disputes";
 import type {
   DisputeArtifact,
   DisputeReceiptView,
@@ -513,6 +513,43 @@ describe("DisputeReceipt — reasons", () => {
     expect(text()).not.toContain("Your reason");
     expect(text()).not.toContain("Why it was rejected");
     expect(screen.queryAllByRole("blockquote")).toHaveLength(0);
+    expect(document.querySelectorAll("blockquote")).toHaveLength(0);
+  });
+});
+
+describe("DisputeReceipt — a reason the backend withheld (D-068)", () => {
+  // Drawn from the view the data layer derives from a withheld record, so a
+  // regression in either layer shows here as the empty quote the payer saw.
+  it("draws no heading and no empty quote for either reason", () => {
+    const derived = disputeReceipt(
+      {
+        id: "dsp_1",
+        job_id_hex: "a".repeat(32),
+        task_id: "task_a",
+        step_index: 1,
+        agent_id: "agt_1",
+        payer: "G".repeat(56),
+        reason: "",
+        status: "rejected",
+        charged_usdc: 0.01,
+        creditable_usdc: 0.005,
+        opened_at: OPENED_AT / 1_000,
+        resolved_at: CHANGED_AT / 1_000,
+        refund_tx: null,
+        rating_tx: null,
+        rejection_reason: "",
+      },
+      "payer",
+      {
+        credited_fraction: 0.5,
+        funded_by: "platform",
+        adjudicated_by: "platform",
+      },
+    );
+    renderReceipt(derived);
+    expect(text()).toContain("Rejected");
+    expect(text()).not.toContain("Your reason");
+    expect(text()).not.toContain("Why it was rejected");
     expect(document.querySelectorAll("blockquote")).toHaveLength(0);
   });
 });
