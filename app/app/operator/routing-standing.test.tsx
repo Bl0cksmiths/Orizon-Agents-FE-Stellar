@@ -88,6 +88,17 @@ function renderStanding(
   );
 }
 
+/** What the reputation chip says to a screen reader: its sr-only words,
+ *  which carry the source, the floor and the estimate caveat. */
+function chipWords(container: HTMLElement): string {
+  const words = Array.from(container.querySelectorAll(".sr-only")).map(
+    (el) => el.textContent ?? "",
+  );
+  const chip = words.filter((w) => /estimate|reputation \d/.test(w));
+  expect(chip).toHaveLength(1);
+  return chip[0] ?? "";
+}
+
 /** The single-sentence verdict, which is the live region. */
 function verdict(): string {
   return screen.getByRole("status").textContent ?? "";
@@ -240,7 +251,7 @@ describe("RoutingStanding — gate 2, the floor", () => {
   it("delegates the score itself to the shared badge", () => {
     renderStanding({ reputation: rep({ count: 24 }) });
     expect(
-      screen.getByLabelText(/on-chain reputation 4\.50 from 24 rated jobs/i),
+      screen.getByText(/^on-chain reputation 4\.50 from 24 rated jobs/i),
     ).toBeTruthy();
   });
 });
@@ -345,18 +356,17 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     const { container } = renderStanding({
       reputation: priorRep({ degraded: true }),
     });
-    const chip = container.querySelector("[aria-label^='prior estimate']");
-    const label = chip?.getAttribute("aria-label") ?? "";
+    const label = chipWords(container);
+    expect(label).toMatch(/^prior estimate /);
     expect(label).toContain("the on-chain read did not come back");
     expect(label).not.toContain("no on-chain ratings yet");
   });
 
   it("keeps the cold-start wording on the chip for a genuine newcomer", () => {
     const { container } = renderStanding({ reputation: priorRep() });
-    const chip = container.querySelector("[aria-label^='prior estimate']");
-    expect(chip?.getAttribute("aria-label")).toContain(
-      "no on-chain ratings yet",
-    );
+    const label = chipWords(container);
+    expect(label).toMatch(/^prior estimate /);
+    expect(label).toContain("no on-chain ratings yet");
   });
 
   it("leaves a rated agent with neither notice", () => {
