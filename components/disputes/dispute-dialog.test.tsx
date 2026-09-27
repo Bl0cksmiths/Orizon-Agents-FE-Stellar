@@ -645,6 +645,14 @@ describe("DisputeDialog — submitting", () => {
 
     expect(screen.getByText("dispute raised")).toBeTruthy();
     expect(screen.getByText("Under review")).toBeTruthy();
+    // The one sentence that says what was just done, word for word: nothing
+    // has been paid, and the figure is a ceiling (D-071). "has been credited
+    // to your wallet" survived every check that read only the badge.
+    const sentence = screen.getByText(/is now under review/);
+    expect(sentence.textContent).toBe(
+      "Step 2 (Code Gen) is now under review. If the platform upholds your dispute, up to 0.027 USDC is credited to the wallet that paid. This receipt shows the outcome once it is decided.",
+    );
+    expect(dialog().textContent).not.toMatch(/has been credited|received/);
     // Same name, so a screen reader is not told it is somewhere new; the
     // description says where things now stand.
     expect(

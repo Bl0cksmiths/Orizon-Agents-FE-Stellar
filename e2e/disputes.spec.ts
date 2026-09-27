@@ -408,9 +408,15 @@ test.describe("dispute action on the trace / receipt view", () => {
       signature_b64: mockSignature,
     });
 
-    // Pending, then the dispute with its status, in the form itself…
+    // Pending, then the dispute with its status, in the form itself — and
+    // the sentence that says what was done, word for word: nothing has been
+    // paid, and the credit is a ceiling (D-071).
     await expect(form).toContainText("dispute raised");
     await expect(form).toContainText(/under review/i);
+    await expect(form.getByText(/is now under review/)).toHaveText(
+      `Step ${codeStep.step_index + 1} (${codeStep.agent_id}) is now under review. If the platform upholds your dispute, up to 0.027 USDC is credited to the wallet that paid. This receipt shows the outcome once it is decided.`,
+    );
+    await expect(form).not.toContainText(/has been credited|received/);
     await form.getByRole("button", { name: "Done" }).click();
     await expect(dialog(page)).toHaveCount(0);
 
