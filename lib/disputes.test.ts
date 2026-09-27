@@ -1931,6 +1931,41 @@ describe("raiseDispute", () => {
     });
   });
 
+  // The mint asks the same rules as opening, so each of these can now come
+  // back from the CHALLENGE: an answer before any wallet is asked anything.
+  it.each([
+    "dispute_window_closed",
+    "step_not_settled",
+    "nothing_was_charged",
+  ] satisfies DisputeErrorCode[])(
+    "reads a challenge refused as %s by its code, and asks for no signature",
+    async (code) => {
+      fetchMock.mockResolvedValueOnce(refusal(409, code));
+      const signMessage = wallet();
+
+      const err = await raise({ signMessage }).catch((e: unknown) => e);
+      expect(disputeErrorCode(err)).toBe(code);
+      expect(paths()).toEqual(["/api/disputes/challenge"]);
+      expect(signMessage).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reads a throttled challenge mint as rate_limited, with the wait it asked for", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ...refusal(429, "dispute_challenge_rate_limited"),
+      headers: {
+        get: (name: string) => (name === "retry-after" ? "20" : null),
+      },
+    });
+    const signMessage = wallet();
+
+    const err = await raise({ signMessage }).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe("rate_limited");
+    expect(err).toMatchObject({ status: 429, retryAfterMs: 20_000 });
+    expect(paths()).toEqual(["/api/disputes/challenge"]);
+    expect(signMessage).not.toHaveBeenCalled();
+  });
+
   it("asks once and then signs: a dead second nonce is the server's to refuse", async () => {
     const dead = (n: string) => ({
       ...challenge(1, n),
