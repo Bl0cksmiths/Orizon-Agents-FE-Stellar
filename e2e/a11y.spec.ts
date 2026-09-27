@@ -49,6 +49,12 @@ const ROUTES = [
  * are both on screen before the page is judged.
  */
 const READY: Partial<Record<string, (page: Page) => Promise<void>>> = {
+  // The environment badge and the balance rows, so the sweep judges the page
+  // a PDAX operator sees rather than its loading skeletons.
+  "/app/pdax": async (page) => {
+    await expect(page.getByText("uat", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("PHP", { exact: true })).toBeVisible();
+  },
   "/app/agents": async (page) => {
     await expect(page.getByRole("rowheader")).not.toHaveCount(0);
     await expect(
