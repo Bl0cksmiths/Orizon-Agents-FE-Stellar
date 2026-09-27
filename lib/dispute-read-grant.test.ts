@@ -210,6 +210,20 @@ describe("obtainReadGrant", () => {
     expect(signMessage).not.toHaveBeenCalled();
   });
 
+  it("asks the wallet nothing when the task has no dispute to read", async () => {
+    fetchMock.mockResolvedValueOnce(refusal(404, "no_disputes"));
+    const signMessage = vi.fn(async () => "sig");
+
+    const err = await obtainReadGrant({
+      taskId: TASK,
+      payer: PAYER,
+      signMessage,
+    }).catch((e: unknown) => e);
+    expect(readGrantFailure(err)).toBe("unavailable");
+    expect(signMessage).not.toHaveBeenCalled();
+    expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
+  });
+
   it("does not sign a second time when the challenge expired in the wallet", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse(200, challenge()))
@@ -252,6 +266,11 @@ describe("readGrantFailure", () => {
     [
       "no settlement",
       new ApiError("POST → 404", 404, undefined, "no_settlement"),
+      "unavailable",
+    ],
+    [
+      "a settled task with no dispute to read",
+      new ApiError("POST → 404", 404, undefined, "no_disputes"),
       "unavailable",
     ],
     [
