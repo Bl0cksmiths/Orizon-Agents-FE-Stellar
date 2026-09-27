@@ -340,6 +340,12 @@ function refusalFailure(err: unknown, payer: string): Failure {
         field: true,
         stale: false,
       };
+    // A second challenge died before it could be signed. The refusal says
+    // so in its own words; anything that is not one of those is generic.
+    case "challenge_expired":
+      return err instanceof DisputeRefusal
+        ? retryable(err.message)
+        : GENERIC_FAILURE;
     default:
       return GENERIC_FAILURE;
   }

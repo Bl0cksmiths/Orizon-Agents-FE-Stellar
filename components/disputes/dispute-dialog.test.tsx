@@ -1002,6 +1002,25 @@ describe("DisputeDialog — refusals, in plain words", () => {
     ).toHaveLength(2);
   });
 
+  it("says in its own words that a second challenge expired", async () => {
+    raiseThen(async () => {
+      throw new DisputeRefusal(
+        "challenge_expired",
+        "The second signature request expired before it could be used. Nothing was sent — try again.",
+      );
+    });
+    renderDialog();
+
+    await submitWith();
+
+    expect(alertText()).toBe(
+      "The second signature request expired before it could be used. Nothing was sent — try again.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Sign and submit again" }),
+    ).toBeTruthy();
+  });
+
   it("retires the error once the reason is edited", async () => {
     raiseThen(async () => {
       throw new Error("Failed to fetch");
