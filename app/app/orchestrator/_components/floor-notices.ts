@@ -17,6 +17,19 @@ export const isUnbound = (n: PlanFloorNotice): boolean =>
   n.reason_code === "unbound_endpoint";
 
 /**
+ * Whether a notice records the floor acting on an agent: every notice except
+ * an unbound one. The ONE definition both the floor summary and the exclusions
+ * panel count with — they used to keep one each, and on a `reason_code` this
+ * build did not know the summary said "the floor acted on no agents" directly
+ * above a panel saying "1 change". An open set, deliberately: a reason code
+ * the backend adds is still the floor acting, and a notice with no code comes
+ * from a backend that only ever reported floor actions. Only
+ * `unbound_endpoint` is known NOT to be one, because an unbound agent was
+ * never a candidate for the floor to decide about.
+ */
+export const isFloorAction = (n: PlanFloorNotice): boolean => !isUnbound(n);
+
+/**
  * The notice's kind when this build has a mark and copy for it, otherwise
  * null. `kind` is any string on the wire so that a backend adding one (say
  * `"delisted"`) cannot blank the plan; a null here is the cue to render the

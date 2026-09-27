@@ -42,12 +42,12 @@
 import { Badge } from "@/components/ui/badge";
 import { scoreOutOfFive } from "@/lib/reputation-math";
 import { focusRing } from "@/lib/ui";
-import type { DecomposeResponse, PlanFloorNotice } from "@/lib/types";
+import type { DecomposeResponse } from "@/lib/types";
 import {
   hasUnverifiedReputation,
   UNVERIFIED_BANNER_ID,
 } from "./degraded-banner";
-import { isUnbound, knownKind } from "./floor-notices";
+import { isFloorAction, isUnbound, knownKind } from "./floor-notices";
 
 /** One plan card renders at a time on the orchestrator page, so a fixed id
  *  cannot collide. A derived one would be worse: `plan_id` reaches us from
@@ -55,15 +55,6 @@ import { isUnbound, knownKind } from "./floor-notices";
 const HEADING_ID = "floor-summary-heading";
 
 const body = "text-sm leading-relaxed text-muted";
-
-/** Whether a notice records the floor acting. A notice with no `reason_code`
- *  comes from a backend predating the field, which only ever reported floor
- *  actions, so it counts. `unbound_endpoint` never does: an unbound agent was
- *  not a candidate, so the floor had nothing to decide about it. */
-const isFloorAction = (n: PlanFloorNotice) =>
-  n.reason_code == null ||
-  n.reason_code === "below_floor" ||
-  n.reason_code === "floor_relaxed";
 
 export function FloorSummary({
   plan,
@@ -100,18 +91,15 @@ export function FloorSummary({
     .size;
   // Said separately and without the floor in the sentence: these agents were
   // never candidates, and have not failed or been judged on anything.
-  const unbound = new Set(
-    notices
-      .filter((n) => n.reason_code === "unbound_endpoint")
-      .map((n) => n.agent_id),
-  ).size;
+  const unbound = new Set(notices.filter(isUnbound).map((n) => n.agent_id))
+    .size;
   // Agents the backend reported under a kind this build has no wording for.
   // Counted and pointed at rather than left out: the exclusions panel lists
   // them neutrally with the backend's own reason, and the counts here must
   // not read as though they were not there.
   const undescribed = new Set(
     notices
-      .filter((n) => !isUnbound(n) && knownKind(n) === null)
+      .filter((n) => isFloorAction(n) && knownKind(n) === null)
       .map((n) => n.agent_id),
   ).size;
   const steps = plan.steps.length;

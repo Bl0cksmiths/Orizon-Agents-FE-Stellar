@@ -41,7 +41,7 @@ import type {
   PlanFloorNotice,
   PlanFloorNoticeKind,
 } from "@/lib/types";
-import { isUnbound, knownKind } from "./floor-notices";
+import { isFloorAction, isUnbound, knownKind } from "./floor-notices";
 
 /** The order the closed summary counts kinds in: what was lost, what moved,
  *  what was kept anyway. The rows themselves stay in the backend's order,
@@ -291,7 +291,7 @@ export function ExclusionsPanel({
   // Unbound agents are counted apart from what the floor did. The backend
   // names up to eight on every plan while any registered agent is unbound, so
   // folded into the kinds they would turn an untouched plan into "8 excluded".
-  const changes = notices.filter((n) => !isUnbound(n));
+  const changes = notices.filter(isFloorAction);
   const unbound = notices.length - changes.length;
 
   // Only a kind this build knows indexes the per-kind counts. The guard lets
