@@ -395,15 +395,15 @@ test.describe("plan card — reputation, source and exclusions", () => {
       );
     }
 
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
+    // Element by element, not `documentElement.scrollWidth`: the console's
+    // `overflow-x: hidden` makes that read 0 whatever overflows, so it could
+    // never fail. Nothing on the card may run past the card's own edge, and
+    // the card may not run past the frame.
     expect(
-      overflow,
-      "expanding the exclusions must not make the page scroll sideways",
-    ).toBeLessThanOrEqual(1);
+      await overflowingDescendants(planCard(page)),
+      "expanding the exclusions must not push anything past the card",
+    ).toEqual([]);
+    expectWithinWidth(await stableBox(planCard(page)), PHONE, "the plan card");
   });
 
   test("the expanded card, warning and all, has no WCAG A/AA violations", async ({
@@ -811,13 +811,15 @@ test.describe("plan card — what each claim rests on", () => {
         );
       }
 
-      const overflow = await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth -
-          document.documentElement.clientWidth,
-      );
-      expect(overflow, "the page must not scroll sideways").toBeLessThanOrEqual(
-        1,
+      // Element by element, for the reason given in the AC-6 test above.
+      expect(
+        await overflowingDescendants(planCard(page)),
+        "nothing on the card may run past its edge",
+      ).toEqual([]);
+      expectWithinWidth(
+        await stableBox(planCard(page)),
+        PHONE,
+        "the plan card",
       );
     });
   }

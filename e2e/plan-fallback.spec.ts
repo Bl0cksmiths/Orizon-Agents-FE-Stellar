@@ -23,6 +23,7 @@ import {
   mockPlanPlannerAnswered,
   mockPlanPlannerFallback,
   mockPlanPlannerFallbackUnread,
+  overflowingDescendants,
 } from "./plan-fixtures";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -57,6 +58,12 @@ function expectWithinWidth(box: Box, frame: Viewport, what: string) {
  */
 const fallbackNotice = (page: Page) =>
   page.locator('[role="status"]').filter({ hasText: /fallback/i });
+
+/** The plan card itself: the frame whose `clip-path` cuts off overflow. */
+const planCard = (page: Page) =>
+  page
+    .locator("div.glow-card")
+    .filter({ has: page.getByRole("heading", { name: /execution plan/i }) });
 
 /** The plan's step rows — the first ordered list in the card. */
 const steps = (page: Page) => page.locator("ol").first().getByRole("listitem");
@@ -295,13 +302,17 @@ test.describe("plan card — a plan built without the planner", () => {
         ).toBeLessThanOrEqual(button.y);
       }
 
-      const overflow = await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth -
-          document.documentElement.clientWidth,
-      );
-      expect(overflow, "the page must not scroll sideways").toBeLessThanOrEqual(
-        1,
+      // Element by element, not `documentElement.scrollWidth`: the console's
+      // `overflow-x: hidden` makes that read 0 whatever overflows, so it
+      // could never fail.
+      expect(
+        await overflowingDescendants(planCard(page)),
+        "nothing on the card may run past its edge",
+      ).toEqual([]);
+      expectWithinWidth(
+        await stableBox(planCard(page)),
+        PHONE,
+        "the plan card",
       );
     });
   }
