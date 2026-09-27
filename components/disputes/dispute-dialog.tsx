@@ -799,9 +799,12 @@ function DisputeForm({
                 rows={4}
                 aria-describedby={`${ids.reasonHint} ${ids.reasonCount}`}
                 placeholder="e.g. the calculator it built does not compute anything"
+                // Full muted, not muted/70: at 70% the placeholder measured
+                // 4.33:1 on the field, under the 4.5:1 that WCAG 1.4.3 asks
+                // of it. Typed text is `text`, so the two still differ.
                 className={cn(
                   inputCls,
-                  "min-h-[6.5rem] resize-y font-sans leading-relaxed placeholder:text-muted/70 read-only:opacity-70",
+                  "min-h-[6.5rem] resize-y font-sans leading-relaxed placeholder:text-muted read-only:opacity-70",
                 )}
               />
               <p
