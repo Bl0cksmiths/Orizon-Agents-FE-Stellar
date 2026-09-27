@@ -91,6 +91,59 @@ function opened(p: DecomposeResponse) {
   return r;
 }
 
+/**
+ * A notice of a kind this build has no mark for. The guard passes any string
+ * kind so that a backend adding one cannot blank the plan; this is what that
+ * notice has to look like when it arrives.
+ */
+const delisted = (over: Partial<PlanFloorNotice> = {}) =>
+  notice({
+    kind: "delisted",
+    agent_id: "summarize.pro",
+    agent_name: "summarize.pro",
+    reason: "withdrawn from routing by its operator",
+    reason_code: undefined,
+    lower_bound_bps: undefined,
+    ...over,
+  });
+
+describe("ExclusionsPanel · a notice kind this build does not know", () => {
+  it("renders it as a row with a neutral mark and the backend's reason", () => {
+    const { container, text } = opened(plan({ notices: [delisted()] }));
+    const rows = container.querySelectorAll("li");
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    expect(row.textContent).toContain("summarize.pro");
+    expect(text()).toContain("withdrawn from routing by its operator");
+    // Neutral: no tone that files it with a verdict, and no borrowed glyph.
+    const badge = row.querySelector("span");
+    expect(badge?.textContent).toBe("◇delisted");
+    expect(badge?.className).toContain("text-muted");
+    expect(row.innerHTML).not.toMatch(/magenta|cyan|violet/);
+    expect(row.querySelector('[aria-hidden="true"]')?.textContent).toBe("◇");
+  });
+
+  it("names the kind in words, spacing out the backend's token", () => {
+    const { container } = opened(
+      plan({ notices: [delisted({ kind: "quarantined_by_operator" })] }),
+    );
+    expect(container.querySelector("li")?.textContent).toContain(
+      "quarantined by operator",
+    );
+  });
+
+  // Collapsed is never hidden: the count a buyer reads with the panel shut
+  // has to include it, apart from the kinds this build can name.
+  it("counts it in the closed summary, apart from the known kinds", () => {
+    const { summaryText } = renderPanel(
+      plan({ notices: [notice(), delisted()] }),
+    );
+    expect(summaryText()).toContain("2 changes");
+    expect(summaryText()).toContain("1 excluded");
+    expect(summaryText()).toContain("1 other");
+  });
+});
+
 describe("ExclusionsPanel · when there is nothing to disclose", () => {
   it("renders nothing when the plan carries no notices field", () => {
     const { container } = render(<ExclusionsPanel plan={plan()} />);

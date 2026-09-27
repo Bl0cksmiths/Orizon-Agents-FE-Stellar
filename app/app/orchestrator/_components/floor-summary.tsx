@@ -47,6 +47,7 @@ import {
   hasUnverifiedReputation,
   UNVERIFIED_BANNER_ID,
 } from "./degraded-banner";
+import { isUnbound, knownKind } from "./floor-notices";
 
 /** One plan card renders at a time on the orchestrator page, so a fixed id
  *  cannot collide. A derived one would be worse: `plan_id` reaches us from
@@ -102,6 +103,15 @@ export function FloorSummary({
   const unbound = new Set(
     notices
       .filter((n) => n.reason_code === "unbound_endpoint")
+      .map((n) => n.agent_id),
+  ).size;
+  // Agents the backend reported under a kind this build has no wording for.
+  // Counted and pointed at rather than left out: the exclusions panel lists
+  // them neutrally with the backend's own reason, and the counts here must
+  // not read as though they were not there.
+  const undescribed = new Set(
+    notices
+      .filter((n) => !isUnbound(n) && knownKind(n) === null)
       .map((n) => n.agent_id),
   ).size;
   const steps = plan.steps.length;
@@ -184,6 +194,8 @@ export function FloorSummary({
           (unbound === 1
             ? " · 1 agent with no endpoint bound was never a candidate"
             : ` · ${unbound} agents with no endpoint bound were never candidates`)}
+        {undescribed > 0 &&
+          ` · ${undescribed === 1 ? "1 agent" : `${undescribed} agents`} reported under a kind this card has no wording for, listed below`}
       </p>
 
       {/* Two paragraphs used to sit here: one explaining that the eligible set

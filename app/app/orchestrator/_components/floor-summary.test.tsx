@@ -191,6 +191,29 @@ describe("FloorSummary — what it counts", () => {
     expect(text({ notices: [notice()] })).not.toMatch(/no endpoint/);
   });
 
+  // A kind this build has no wording for is still a floor action the buyer
+  // should know about: counted, and pointed at the neutral row below.
+  it("counts a notice of an unknown kind and says it is listed below", () => {
+    const shown = text({
+      notices: [
+        notice({
+          kind: "delisted",
+          agent_id: "agt_gone",
+          reason: "withdrawn from routing by its operator",
+          reason_code: undefined,
+        }),
+      ],
+    });
+    expect(shown).toContain("the floor acted on 1 agent");
+    expect(shown).toContain(
+      "1 agent reported under a kind this card has no wording for, listed below",
+    );
+  });
+
+  it("says nothing about unknown kinds when every kind is known", () => {
+    expect(text({ notices: [notice()] })).not.toMatch(/no wording/);
+  });
+
   it("singularises a one-step plan", () => {
     expect(text({ steps: [step()] })).toContain("1 step planned");
   });
