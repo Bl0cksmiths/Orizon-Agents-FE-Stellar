@@ -207,6 +207,11 @@ function noReceiptRoute(taskId: string): TaskDisputes {
   return { task_id: taskId, window_closes_at: null, disputes: [] };
 }
 
+/** The error a re-read that lost the settlement on screen is reported as. */
+function lostSettlement(taskId: string): string {
+  return `GET /tasks/${encodeURIComponent(taskId)}/disputes answered with no settlement on record — showing the receipt last read`;
+}
+
 type Snapshot = {
   res: TaskDisputes;
   /** Server clock minus local clock, measured when `res` was asked for. */
@@ -416,6 +421,23 @@ export function useDisputePanel(
       const sealed = doneAtRequest || sealedInFlightRef.current;
       setState((s) => {
         const held = s.taskId === id ? s.snapshot : null;
+        // A settlement never un-happens. An answer without one — `null` from
+        // a store that restarted and lost its records, or no key at all from
+        // an older backend behind the same proxy — says the RECORD is
+        // missing, not that the charge is: it may not replace a receipt on
+        // screen, least of all one with a dispute in flight, which it would
+        // have turned into "nothing was charged" some thirty seconds later
+        // with no error and no further read. The receipt stays, the error
+        // dates it, and the poll goes on at the receipt's own cadence. Only
+        // the grant is taken from the answer, so a grant it dropped is not
+        // presented — and re-read for — again.
+        if (held !== null && held.res.settlement && !res.settlement) {
+          return {
+            taskId: id,
+            snapshot: { ...held, grant: dishonoured ? null : grant },
+            error: lostSettlement(id),
+          };
+        }
         // A sealed run whose settlement has not appeared: the wait starts at
         // the first such answer and is carried by every one after it, so a
         // run of re-reads cannot extend its own deadline.

@@ -1555,6 +1555,81 @@ describe("useDisputePanel — live updates", () => {
     expect(receiptOf(result.current.view).status).toBe("credited");
   });
 
+  // A settlement never un-happens: a re-read without one is a lost RECORD —
+  // an in-memory store that restarted, or an older backend behind the same
+  // proxy — and must not become "nothing was charged".
+  const LOST =
+    "GET /tasks/task_a/disputes answered with no settlement on record — showing the receipt last read";
+
+  it.each([
+    ["settlement: null (a store that lost its records)", { settlement: null }],
+    ["no settlement key (an older backend)", { settlement: undefined }],
+  ])(
+    "keeps a receipt with a dispute in flight when a poll answers %s, and goes on polling",
+    async (_, over) => {
+      const { result } = await mountWith(closedWith(dsp(1, "open")));
+      const onScreen = result.current.view;
+
+      const lost = { ...closedWith(), ...over };
+      if (over.settlement === undefined) delete lost.settlement;
+      fetchDisputes.mockResolvedValue(lost);
+      await advance(ADJUDICATION_POLL_MS);
+      expect(fetchDisputes).toHaveBeenCalledTimes(2);
+      expect(result.current.view).toEqual(onScreen);
+      expect(result.current.error).toBe(LOST);
+
+      // Long past the settlement wait: still the receipt, never "nothing
+      // was charged", and still reading at the receipt's cadence.
+      for (let i = 0; i < 4; i += 1) await advance(ADJUDICATION_POLL_MS);
+      expect(fetchDisputes).toHaveBeenCalledTimes(6);
+      expect(result.current.view).toEqual(onScreen);
+      expect(receiptOf(result.current.view).status).toBe("open");
+
+      fetchDisputes.mockResolvedValue(
+        closedWith(dsp(1, "credited", { refund_tx: "tx_r" })),
+      );
+      await advance(ADJUDICATION_POLL_MS);
+      expect(result.current.error).toBeNull();
+      expect(receiptOf(result.current.view).status).toBe("credited");
+    },
+  );
+
+  it("keeps a settled receipt when a refresh answers without its settlement", async () => {
+    const { result } = await mountWith(answer(H));
+    const onScreen = result.current.view;
+
+    fetchDisputes.mockResolvedValueOnce(answer(H, { settlement: null }));
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.view).toEqual(onScreen);
+    expect(result.current.error).toBe(LOST);
+    // Nothing on this receipt changes on its own, so nothing polls it; the
+    // error's retry is the way back.
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("does not loop on a grant the settlement-less answer dropped", async () => {
+    rememberReadGrant("task_a", PAYER, {
+      grant: "grant-token",
+      expires_at: T0 / 1_000 + H / 1_000,
+    });
+    // Honoured on the first read; the answer that lost the settlement is
+    // also the one that no longer honours the grant.
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    expect(heldReadGrant("task_a", PAYER)).toBe("grant-token");
+
+    fetchDisputes.mockResolvedValue({
+      ...closedWith(dsp(1, "open", { reason: "", reason_withheld: true })),
+      settlement: null,
+    });
+    await advance(ADJUDICATION_POLL_MS);
+    await act(async () => {});
+    expect(result.current.error).toBe(LOST);
+    expect(heldReadGrant("task_a", PAYER)).toBeNull();
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the receipt when the refresh after a submit 404s", async () => {
     // The buyer opens a dispute and the panel vanishes with no message: they
     // cannot tell whether it was recorded.
