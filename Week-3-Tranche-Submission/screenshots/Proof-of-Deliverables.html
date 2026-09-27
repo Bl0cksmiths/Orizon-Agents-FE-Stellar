@@ -646,14 +646,17 @@
         <li>
           <b>4.02 — Dispute window and endpoint.</b> Every settlement stamps a
           24-hour window on its own record. The payer opens a dispute against
-          one step by signing a challenge with the wallet that paid; one dispute
-          per step is a database rule, not a UI rule.
+          one step by signing a challenge with the wallet that paid; with the
+          Postgres store, one dispute per step is a database rule, not a UI rule
+          (the in-memory fallback does not always hold it: QA's D-058).
         </li>
         <li>
           <b>4.03 — Settler-executed partial-credit refund.</b> The platform
           pays a configured share of the disputed step's charge from its own
           wallet, clamped three ways, with the mutex taken <i>before</i> the
-          signature so no crash or second adjudicator can pay twice.
+          signature so no crash or second adjudicator can pay one dispute twice,
+          and a ceiling that binds while it is set to a finite value (QA's
+          D-054).
         </li>
         <li>
           <b>4.04 — Negative on-chain rating.</b> An upheld dispute records the
@@ -684,7 +687,9 @@
         collision that lost half the ratings when one agent served two steps,
         and receipt copy that claimed a transfer existed when none had been
         submitted. Every fix carries a test that was written first and watched
-        failing, and was then re-checked by putting the bug back.
+        failing, and was then re-checked by putting the bug back. The disclosure
+        fix has a cost QA recorded: the same gate withholds both reasons from a
+        payer without the task's read token (D-067).
       </p>
       <h3>The week in numbers</h3>
       <ul>
@@ -907,10 +912,12 @@
       <p>
         A buyer opens a dispute against <b>one step</b> of the workflow they
         paid for by signing a one-time challenge with the wallet that paid — no
-        account, no password, no support ticket. One dispute per
-        <span class="mono">(job, step)</span> is enforced by a database
-        constraint, so a double-submit is answered with the first dispute
-        unchanged rather than an error the buyer cannot act on.
+        account, no password, no support ticket. With the Postgres store, one
+        dispute per <span class="mono">(job, step)</span> is enforced by a
+        database constraint, so a double-submit is answered with the first
+        dispute unchanged rather than an error the buyer cannot act on. The
+        in-memory fallback store does not always hold that rule (QA’s D-058,
+        held privately).
       </p>
       <dl class="meta">
         <dt>Source</dt>
@@ -955,8 +962,9 @@
       <p>
         The safety property that matters: a
         <b>claim row is written before the transfer is signed</b>, not after. A
-        crash, a retry, a restart or a second adjudicator therefore cannot
-        produce a second transfer, and a claim left over a payout whose outcome
+        crash, a retry, a restart (with the Postgres store, which keeps the
+        claim) or a second adjudicator therefore cannot produce a second
+        transfer for that dispute, and a claim left over a payout whose outcome
         is unknown blocks further attempts instead of releasing them.
       </p>
       <dl class="meta">
@@ -1795,8 +1803,9 @@
         Eleven of the 27 were found against <b>our own hardening build</b>,
         which is what independent QA is for. One of them, D-067, is a regression
         our disclosure fix introduced: a payer who reopens their trace in a new
-        tab loses their own dispute reason. QA's verdict on the 6.03 story card
-        is <b>no-go</b>, and this bundle reports it as no-go.
+        tab loses both their own dispute reason and the platform's rejection
+        reason. QA's verdict on the 6.03 story card is <b>no-go</b>, and this
+        bundle reports it as no-go.
       </p>
       <dl class="meta">
         <dt>Source</dt>
@@ -2057,8 +2066,9 @@
 
       <p>
         A buyer whose dispute is refused is told why, in the adjudicator's own
-        words, and no credit line is drawn. The reason is shown to the payer
-        only: a visitor who is not the payer is never sent it.
+        words, and no credit line is drawn. A visitor who is not the payer is
+        never sent the reason — and today neither is a payer without the task's
+        read token, who sees “Rejected” and no reason (QA's D-067).
       </p>
       <p>Fixture capture, as above.</p>
       <dl class="meta">
