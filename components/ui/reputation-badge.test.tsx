@@ -62,6 +62,28 @@ describe("ReputationBadge — prior versus on-chain", () => {
     expect(hasAny(el, PRIOR_TINT)).toBe(false);
   });
 
+  // A source this build does not know, or none at all, is not evidence: it
+  // takes the prior's marker and tint, and makes no claim about the chain.
+  it("shows an unknown or absent source as an estimate, never as on-chain", () => {
+    for (const source of ["estimate", "cached", undefined, null]) {
+      const el = chip({ source, bps: 7000 });
+      const which = String(source);
+      expect(shown(el), which).toMatch(/^≈★3\.50/);
+      expect(hasAll(el, PRIOR_TINT), which).toBe(true);
+      expect(hasAny(el, ONCHAIN_TINT), which).toBe(false);
+      expect(spoken(el), which).toContain("estimate 3.50");
+      expect(spoken(el), which).not.toMatch(/on-chain reputation/);
+      // Not known to be a cold start, so it does not say there are none.
+      expect(spoken(el), which).not.toContain("no on-chain ratings yet");
+    }
+  });
+
+  it("puts no rated-job count on an unknown source", () => {
+    const el = chip({ source: "cached", count: 8 });
+    expect(spoken(el)).not.toMatch(/rated job/);
+    expect(shown(el)).not.toContain("· 8");
+  });
+
   it("calls a prior an estimate, and a cold start one with no ratings yet", () => {
     const said = spoken(chip({ source: "prior" }));
     expect(said).toContain("prior estimate 3.50");

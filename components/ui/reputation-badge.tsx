@@ -40,7 +40,10 @@ export function ReputationBadge({
   floorBps?: number;
   className?: string;
 }) {
-  const prior = source === "prior";
+  // Only "onchain" is evidence. "prior", a source a newer backend added, and
+  // no source at all all take the humbler claim: shown as an estimate, never
+  // as a measurement nobody made.
+  const prior = source !== "onchain";
   const belowFloor = floorBps != null && (lowerBoundBps ?? bps) < floorBps;
   const showCount = !prior && count != null && count > 0;
   const disputePct =
@@ -58,7 +61,10 @@ export function ReputationBadge({
     prior
       ? degraded
         ? `prior estimate ${score(bps)} — the on-chain read did not come back, so this is not a reading of this agent's history`
-        : `prior estimate ${score(bps)} — no on-chain ratings yet`
+        : source === "prior"
+          ? `prior estimate ${score(bps)} — no on-chain ratings yet`
+          : // Not known to be a cold start either, so it claims neither.
+            `estimate ${score(bps)} — not confirmed as an on-chain reading`
       : showCount
         ? `on-chain reputation ${score(bps)} from ${count} rated job${count === 1 ? "" : "s"}`
         : `on-chain reputation ${score(bps)}`,
