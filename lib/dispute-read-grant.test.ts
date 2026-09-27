@@ -18,6 +18,7 @@ import {
   createReadChallenge,
   forgetReadGrant,
   heldReadGrant,
+  noteServerClockOffset,
   obtainReadGrant,
   readGrantFailure,
   rememberReadGrant,
@@ -46,6 +47,7 @@ afterEach(() => {
   fetchMock.mockReset();
   sessionStore.clear();
   vi.restoreAllMocks();
+  noteServerClockOffset(0);
 });
 
 const TASK = "tsk_7fc5bc5ea95f15fc";
@@ -94,6 +96,12 @@ describe("createReadChallenge", () => {
     ["another nonce", `orizon-dispute-read:v1:${TASK}:other`],
     ["another domain", `orizon-dispute:v1:${TASK}:n0nce`],
     ["this task only as a substring", `orizon-dispute-read:v1:x${TASK}:n0nce`],
+    // The nonce must BE the tail, not merely end it: a segment slipped in
+    // before it makes the message something other than the one asked for.
+    [
+      "a tail that only ends with the nonce",
+      `orizon-dispute-read:v1:${TASK}:extra:n0nce`,
+    ],
   ])(
     "refuses a message for %s before any wallet sees it",
     async (_, message) => {
@@ -133,6 +141,35 @@ describe("the held grant", () => {
     expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
   });
 
+  // The expiry is the server's, judged on this browser's clock: moved onto
+  // it by the server's measured lead when the grant is kept.
+  it("keeps a fresh grant on a laptop an hour fast, instead of dropping it on its first read", () => {
+    const serverNowMs = NOW_MS;
+    const localNowMs = serverNowMs + 3_600_000;
+    rememberReadGrant(TASK, PAYER, grant, serverNowMs - localNowMs);
+
+    expect(heldReadGrant(TASK, PAYER, localNowMs)).toBe("grant-token");
+    // Still spent GRANT_MARGIN_MS before the server lets it go.
+    const spentAt = grant.expires_at * 1_000 + 3_600_000 - GRANT_MARGIN_MS;
+    expect(heldReadGrant(TASK, PAYER, spentAt - 1)).toBe("grant-token");
+    expect(heldReadGrant(TASK, PAYER, spentAt)).toBeNull();
+  });
+
+  it("stops presenting a grant on a slow laptop once the server has let it go", () => {
+    // Two minutes slow: on its own clock the grant had a minute and a half
+    // left when the server expired it.
+    rememberReadGrant(TASK, PAYER, grant, 120_000);
+    const serverExpiredMs = grant.expires_at * 1_000 + 30_000;
+    expect(heldReadGrant(TASK, PAYER, serverExpiredMs - 120_000)).toBeNull();
+  });
+
+  it("uses the server's lead the receipt last noted, and only a number", () => {
+    noteServerClockOffset(-3_600_000);
+    noteServerClockOffset(Number.NaN);
+    rememberReadGrant(TASK, PAYER, grant);
+    expect(heldReadGrant(TASK, PAYER, NOW_MS + 3_600_000)).toBe("grant-token");
+  });
+
   it("is forgotten on request, and a new one replaces the old", () => {
     rememberReadGrant(TASK, PAYER, grant);
     rememberReadGrant(TASK, PAYER, { ...grant, grant: "newer" });
@@ -141,13 +178,15 @@ describe("the held grant", () => {
     expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
   });
 
-  it("keeps at most the newest grants", () => {
+  it("keeps at most the newest grants — exactly that many, the oldest first to go", () => {
     for (let i = 0; i <= MAX_READ_GRANTS; i += 1) {
-      rememberReadGrant(`tsk_${i}`, PAYER, grant);
+      rememberReadGrant(`tsk_${i}`, PAYER, { ...grant, grant: `g${i}` });
     }
     expect(heldReadGrant("tsk_0", PAYER, NOW_MS)).toBeNull();
+    // The next-oldest survives: the cap is MAX_READ_GRANTS, not one fewer.
+    expect(heldReadGrant("tsk_1", PAYER, NOW_MS)).toBe("g1");
     expect(heldReadGrant(`tsk_${MAX_READ_GRANTS}`, PAYER, NOW_MS)).toBe(
-      "grant-token",
+      `g${MAX_READ_GRANTS}`,
     );
   });
 
@@ -166,6 +205,47 @@ describe("the held grant", () => {
   it("reads a corrupt store as empty", () => {
     sessionStore.set("orizon.dispute-read-grants", "{not json");
     expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
+  });
+
+  it("reads a store holding JSON that is not a list as empty, and writes over it", () => {
+    sessionStore.set(
+      "orizon.dispute-read-grants",
+      JSON.stringify({
+        taskId: TASK,
+        payer: PAYER,
+        grant: "g",
+        expiresAtMs: 1,
+      }),
+    );
+    expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
+
+    rememberReadGrant(TASK, PAYER, grant);
+    expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBe("grant-token");
+  });
+
+  it("drops entries that are not grants and keeps the ones that are", () => {
+    rememberReadGrant(TASK, PAYER, grant);
+    const kept = JSON.parse(
+      sessionStore.get("orizon.dispute-read-grants") ?? "[]",
+    ) as unknown[];
+    sessionStore.set(
+      "orizon.dispute-read-grants",
+      JSON.stringify([{ taskId: "tsk_bad", grant: 7 }, null, ...kept]),
+    );
+    expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBe("grant-token");
+    expect(heldReadGrant("tsk_bad", PAYER, NOW_MS)).toBeNull();
+  });
+
+  it("holds nothing, and throws nothing, where there is no window (SSR)", () => {
+    vi.stubGlobal("window", undefined);
+    try {
+      expect(() => rememberReadGrant(TASK, PAYER, grant)).not.toThrow();
+      expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
+      expect(() => forgetReadGrant(TASK)).not.toThrow();
+      expect(sessionStore.size).toBe(0);
+    } finally {
+      vi.stubGlobal("window", { sessionStorage: storage });
+    }
   });
 
   it("names the header the backend reads it from", () => {
@@ -208,6 +288,20 @@ describe("obtainReadGrant", () => {
     }).catch((e: unknown) => e);
     expect(readGrantFailure(err)).toBe("unavailable");
     expect(signMessage).not.toHaveBeenCalled();
+  });
+
+  it("asks the wallet nothing when the task has no dispute to read", async () => {
+    fetchMock.mockResolvedValueOnce(refusal(404, "no_disputes"));
+    const signMessage = vi.fn(async () => "sig");
+
+    const err = await obtainReadGrant({
+      taskId: TASK,
+      payer: PAYER,
+      signMessage,
+    }).catch((e: unknown) => e);
+    expect(readGrantFailure(err)).toBe("unavailable");
+    expect(signMessage).not.toHaveBeenCalled();
+    expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
   });
 
   it("does not sign a second time when the challenge expired in the wallet", async () => {
@@ -255,6 +349,11 @@ describe("readGrantFailure", () => {
       "unavailable",
     ],
     [
+      "a settled task with no dispute to read",
+      new ApiError("POST → 404", 404, undefined, "no_disputes"),
+      "unavailable",
+    ],
+    [
       "an unknown task",
       new ApiError("POST → 404", 404, undefined, "unknown_task"),
       "unavailable",
@@ -262,6 +361,11 @@ describe("readGrantFailure", () => {
     [
       "another wallet",
       new ApiError("POST → 403", 403, undefined, "not_the_payer"),
+      "not_the_payer",
+    ],
+    [
+      "a bare 403 with no envelope code",
+      new ApiError("POST → 403", 403),
       "not_the_payer",
     ],
     [
@@ -283,6 +387,16 @@ describe("readGrantFailure", () => {
         "challenge_capacity_dispute_read",
       ),
       "busy",
+    ],
+    [
+      "a throttled challenge mint",
+      new ApiError("POST → 429", 429, 20_000, "rate_limited"),
+      "busy",
+    ],
+    [
+      "a status nothing names",
+      new ApiError("POST → 500", 500, undefined, "internal_error"),
+      "failed",
     ],
     ["a network drop", new TypeError("Failed to fetch"), "failed"],
   ])("reads %s", (_, err, expected) => {

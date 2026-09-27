@@ -115,9 +115,10 @@ const KEY = "orizon.dispute-read-grants";
 export const MAX_READ_GRANTS = 50;
 /**
  * A grant is treated as spent this long before the server says it expires.
- * The expiry is on the server's clock and this is the browser's, so a margin
- * keeps a grant from being sent in its last moments and read as withheld.
- * Erring early costs only the offer coming back.
+ * The expiry is moved onto this browser's clock by a measured offset, which
+ * is only as good as the round trip it was measured over, so a margin keeps
+ * a grant from being sent in its last moments and read as withheld. Erring
+ * early costs only the offer coming back.
  */
 export const GRANT_MARGIN_MS = 60_000;
 
@@ -126,8 +127,31 @@ type Held = {
   /** The wallet that signed for it. Sent only while that wallet is here. */
   payer: string;
   grant: string;
+  /**
+   * When it expires, on THIS browser's clock: the server's expiry less the
+   * server's lead over this clock, as measured when it was kept. Judged
+   * against `Date.now()` from then on, so a laptop whose clock is wrong by
+   * an hour neither drops a fresh grant on its first read nor presents one
+   * the server has already let go.
+   */
   expiresAtMs: number;
 };
+
+/**
+ * The server's clock minus this browser's, as the receipt last measured it
+ * (see `serverClockOffsetMs`); 0 — trust the local clock — until it has.
+ * One per tab: every read in it talks to the same backend.
+ */
+let serverLeadMs = 0;
+
+/**
+ * Record the server's lead over this browser's clock, for the grants kept
+ * from now on. The receipt panel calls it with each answer that carried the
+ * server's clock; a value that is not a number changes nothing.
+ */
+export function noteServerClockOffset(offsetMs: number): void {
+  if (isNum(offsetMs)) serverLeadMs = offsetMs;
+}
 
 const isHeld = (v: unknown): v is Held =>
   isRecord(v) &&
@@ -186,18 +210,22 @@ export function heldReadGrant(
   return held.grant;
 }
 
-/** Keep a grant for `taskId`, replacing any older one. */
+/**
+ * Keep a grant for `taskId`, replacing any older one, its expiry moved onto
+ * this browser's clock by `offsetMs` — the server's lead, as last noted.
+ */
 export function rememberReadGrant(
   taskId: string,
   payer: string,
   grant: DisputeReadGrant,
+  offsetMs: number = serverLeadMs,
 ): void {
   const entries = readAll().filter((e) => e.taskId !== taskId);
   entries.push({
     taskId,
     payer,
     grant: grant.grant,
-    expiresAtMs: grant.expires_at * 1_000,
+    expiresAtMs: grant.expires_at * 1_000 - offsetMs,
   });
   while (entries.length > MAX_READ_GRANTS) entries.shift();
   writeAll(entries);
