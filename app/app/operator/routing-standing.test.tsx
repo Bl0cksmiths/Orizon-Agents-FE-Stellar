@@ -278,6 +278,24 @@ describe("RoutingStanding — the prior, and the prior served for a failure", ()
     expect(text).toContain("routable from the day it is registered");
   });
 
+  // The same promise under a floor the prior does NOT clear — a deployment
+  // that raised REPUTATION_FLOOR_BPS. The verdict says "Not eligible", so a
+  // sentence under it saying "routable from the day it is registered" would
+  // contradict it inches away.
+  it("does not promise day-one routing when the prior misses the floor", () => {
+    const { container } = renderStanding({
+      reputation: priorRep({ lower_bound_bps: FLOOR_BPS - 323 }),
+      floorBps: FLOOR_BPS,
+    });
+    const text = container.textContent ?? "";
+    expect(verdict()).toContain("Not eligible");
+    expect(text).toContain("Never rated on-chain");
+    expect(text).not.toContain("routable from the day it is registered");
+    expect(text).toContain(
+      "the prior's lower bound sits below the floor, so a new agent needs rated work behind it before it clears",
+    );
+  });
+
   // Same payload apart from one optional flag, and one of them means the chain
   // read failed. They must not look alike.
   it("separates a degraded read from a cold start", () => {

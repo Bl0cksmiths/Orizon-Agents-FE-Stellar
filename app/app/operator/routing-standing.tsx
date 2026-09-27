@@ -408,13 +408,18 @@ export function RoutingStanding({
                 // is the single most discouraging thing this page could say,
                 // and it is wrong. The verdict above is computed from the real
                 // numbers and was already correct; only this sentence lied.
+                // The day-one promise is made only when this panel's own
+                // comparison bears it out. A deployment can raise the floor
+                // above the prior's lower bound, and then the sentence would
+                // sit directly under a "Not eligible" verdict it contradicts.
                 <p className={body}>
                   <span aria-hidden="true">≈ </span>Never rated on-chain. This
                   is the Bayesian prior
                   {priorBps === null ? "" : ` of ${score(priorBps)}`}, which a
-                  new agent carries until completed work replaces it. The prior
-                  is set above the floor deliberately, so an agent with no
-                  history is routable from the day it is registered.
+                  new agent carries until completed work replaces it.{" "}
+                  {floorGate === "pass"
+                    ? "The prior is set above the floor deliberately, so an agent with no history is routable from the day it is registered."
+                    : "On this network the prior's lower bound sits below the floor, so a new agent needs rated work behind it before it clears."}
                 </p>
               )
             )}
