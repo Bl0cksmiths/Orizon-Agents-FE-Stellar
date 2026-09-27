@@ -1010,6 +1010,43 @@ export const mockSettledNoArtifact = {
 
 const ARTIFACT_RE = /^\/api\/tasks\/([^/]+)\/artifact$/;
 
+/**
+ * The PDAX reads `/app/pdax` makes on mount, as the backend answers them on
+ * the UAT sandbox (app/routers/pdax.py): `/environment` and `/health` report
+ * settings and never dial PDAX; `/balances` is the `BalancesResponse`
+ * envelope of `Balance` rows, amounts as decimal strings. UAT settles play
+ * money, which is the environment every deployment of this sprint runs.
+ */
+export const mockPdaxEnvironment = {
+  environment: "uat",
+  base_url: "https://uat.services.sandbox.pdax.ph/api/pdax-api",
+  configured: true,
+} satisfies import("../lib/pdax-types").PdaxEnvironment;
+
+export const mockPdaxHealth = {
+  status: "ok",
+  environment: "uat",
+} satisfies import("../lib/pdax-types").PdaxHealth;
+
+export const mockPdaxBalances = {
+  balances: [
+    {
+      currency: "PHP",
+      available: "25000.00",
+      hold: "0",
+      total: "25000.00",
+      asset_type: "FIAT",
+    },
+    {
+      currency: "USDC",
+      available: "412.500000",
+      hold: "12.500000",
+      total: "425.000000",
+      asset_type: "CRYPTO",
+    },
+  ],
+} satisfies { balances: import("../lib/pdax-types").PdaxBalance[] };
+
 export type MockApiOptions = {
   /**
    * What `POST /api/orchestrator/decompose` answers with. Defaults to
@@ -1144,6 +1181,15 @@ export async function mockApi(
     }
     if (method === "GET" && ARTIFACT_RE.test(pathname)) {
       return json(route, options.artifact ?? mockSettledNoArtifact);
+    }
+    if (method === "GET" && pathname === "/api/pdax/environment") {
+      return json(route, mockPdaxEnvironment);
+    }
+    if (method === "GET" && pathname === "/api/pdax/health") {
+      return json(route, mockPdaxHealth);
+    }
+    if (method === "GET" && pathname === "/api/pdax/balances") {
+      return json(route, mockPdaxBalances);
     }
     // Both fixtures existed and nothing served them: under the old `{}`
     // catch-all /app/flow and /app/reputation were only ever swept by axe in
