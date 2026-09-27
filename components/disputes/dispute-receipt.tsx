@@ -259,11 +259,13 @@ function nextStep(
     case "open":
       return `The platform is reviewing this dispute; if it is upheld, the step's credit is paid to ${voice.wallet} and ${agent}'s reputation records the dispute.`;
     case "upheld":
-      // Decided, not paid. `refundArtifact` reads `upheld` as pending with
-      // never a hash — the transfer has not been attempted — so a sentence
-      // saying the credit "is being sent" sends a buyer to Stellar Expert
-      // looking for a transaction that does not exist and was never made.
-      return `The platform upheld this dispute; the credit has not been sent yet — the transfer to ${voice.wallet} is queued, and there is no transaction to look up until the platform submits it.`;
+      // Decided, not paid. The backend leaves a dispute here in two ways it
+      // does not tell apart on the record: no transfer was ever attempted,
+      // or one failed and its claim was released, hash and all. Nothing
+      // retries either on its own — a person upholds it again — so the
+      // sentence promises no queue and no time, only what is true of both:
+      // nothing was paid, nothing can be looked up, and the platform owes it.
+      return `The platform upheld this dispute, but the credit has not been paid — there is no transaction to look up yet, and the platform has to send it to ${voice.wallet}.`;
     case "crediting": {
       // `refund_tx` is nullable on a crediting record: the platform can be
       // holding the payout before it has a transaction to show for it. The
