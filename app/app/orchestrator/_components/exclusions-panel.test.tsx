@@ -311,11 +311,12 @@ describe("ExclusionsPanel · the disclosure", () => {
     expect(heading.textContent).toContain("Reputation floor");
   });
 
-  it("puts the disclosure on the keyboard with the shared focus ring", () => {
+  // Focusable here; that the ring is VISIBLE is a paint question jsdom
+  // cannot answer, and e2e/plan-floor.spec.ts measures it in a browser.
+  it("puts the disclosure on the keyboard", () => {
     const { summary } = renderPanel(three);
     (summary as HTMLElement).focus();
     expect(document.activeElement).toBe(summary);
-    expect(summary?.className).toContain("focus-visible:ring-cyan");
   });
 
   // Meaning never by colour alone: each row carries a glyph and the words as
@@ -622,9 +623,20 @@ describe("ExclusionsPanel · wording that must never regress", () => {
     ],
   });
 
+  // Collapsed, only the <summary> is on screen. jsdom keeps a closed
+  // <details> body in `textContent`, so the collapsed claim is read off the
+  // summary — and the rows are asserted to be outside it, so this cannot pass
+  // by reading the same text as the open case below.
   it("says none of it while collapsed", () => {
-    const { text } = renderPanel(everyReason);
-    for (const bad of FORBIDDEN) expect(text()).not.toMatch(bad);
+    const { details, summary, summaryText } = renderPanel(everyReason);
+    expect(details?.open).toBe(false);
+    for (const bad of FORBIDDEN) expect(summaryText()).not.toMatch(bad);
+    const rows = details?.querySelectorAll("li") ?? [];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of Array.from(rows)) {
+      expect(summary?.contains(row)).toBe(false);
+    }
+    expect(summaryText()).not.toContain("starvation backstop");
   });
 
   it("says none of it with every reason on screen", () => {

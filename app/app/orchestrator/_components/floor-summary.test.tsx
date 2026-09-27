@@ -78,6 +78,14 @@ function text(over: Partial<DecomposeResponse> = {}): string {
   return container.textContent ?? "";
 }
 
+/**
+ * Any count stated as a share of another: "3/12", "3 out of 12", "3 of 12",
+ * and the wordier "3 of the 12 agents" or "3 of all 12" — the phrasing the
+ * earlier pattern let through.
+ */
+const FRACTION =
+  /\b\d+(?:\.\d+)?\s*(?:\/|out of|of)\s*(?:(?:the|all|those|these)\s+)*\d/i;
+
 /** The plan-level disclosure that the backstop fired. */
 const RELAXED = /built under a relaxed floor/i;
 
@@ -218,13 +226,30 @@ describe("FloorSummary — what it counts", () => {
     expect(text({ steps: [step()] })).toContain("1 step planned");
   });
 
+  // The pattern the two tests below lean on, checked against the phrasings
+  // it has to catch — and against the counts the card really prints.
+  it.each([
+    "3/12",
+    "3 out of 12",
+    "3 of 12",
+    "3 of the 12 agents",
+    "3 of all 12",
+  ])("the fraction pattern catches %j", (phrase) => {
+    expect(phrase).toMatch(FRACTION);
+  });
+  it("the fraction pattern passes the card's own counts", () => {
+    expect("2 steps planned · the floor acted on 1 agent").not.toMatch(
+      FRACTION,
+    );
+  });
+
   it("never states a count as a fraction of a denominator it does not have", () => {
     // `steps.length` is how many agents were SELECTED and `notices.length` is
     // how many the floor acted on; neither is the size of the eligible set,
     // which the response never sends. Any "N of M" here is invented.
-    const fraction = /\b\d+(?:\.\d+)?\s*(?:\/|out of|of)\s*\d/i;
-    expect(text({ notices: [notice()] })).not.toMatch(fraction);
-    expect(text({ notices: [] })).not.toMatch(fraction);
+    expect(text({ notices: [notice()] })).not.toMatch(FRACTION);
+    expect(text({ notices: [] })).not.toMatch(FRACTION);
+    expect(text(COLD_START)).not.toMatch(FRACTION);
   });
 
   /**
@@ -240,7 +265,7 @@ describe("FloorSummary — what it counts", () => {
     const shown = text({ notices: [notice(), notice({ agent_id: "b" })] });
     expect(shown).toMatch(/steps planned/);
     expect(shown).toMatch(/the floor acted on/);
-    expect(shown).not.toMatch(/\b\d+(?:\.\d+)?\s*(?:\/|out of|of)\s*\d/i);
+    expect(shown).not.toMatch(FRACTION);
   });
 });
 

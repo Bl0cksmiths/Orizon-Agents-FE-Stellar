@@ -554,6 +554,67 @@ describe("ExecutionPlan · a plan with no steps", () => {
   });
 });
 
+describe("ExecutionPlan · the floor's marks on each step", () => {
+  const rowOf = (agentId: string) =>
+    screen.getByText(agentId, { selector: "span" }).closest("li");
+
+  // The substitution is marked on the step that took the work, naming the
+  // agent it stood in for, with the reason on hover.
+  it("marks a substituted step with the agent it replaced", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({
+          steps: [
+            step({
+              agent_id: "design.figma",
+              agent_name: "design.figma",
+              substituted_for: "vision.ocr",
+            }),
+            step(),
+          ],
+        })}
+      />,
+    );
+    const mark = screen.getByText("⇄ for vision.ocr");
+    expect(rowOf("design.figma")?.contains(mark)).toBe(true);
+    expect(mark.closest("[title]")?.getAttribute("title")).toContain(
+      "Routed in place of vision.ocr",
+    );
+    expect(rowOf("code.next")?.textContent).not.toContain("⇄ for");
+  });
+
+  // The backstop's compromise is marked where the buyer is looking — on the
+  // re-admitted step and on no other.
+  it("marks a step the backstop re-admitted below the floor", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({
+          steps: [
+            step({
+              agent_id: "audio.whisper",
+              agent_name: "audio.whisper",
+              degraded: true,
+            }),
+            step(),
+          ],
+        })}
+      />,
+    );
+    const mark = screen.getByText("▾ below floor");
+    expect(rowOf("audio.whisper")?.contains(mark)).toBe(true);
+    expect(mark.closest("[title]")?.getAttribute("title")).toContain(
+      "starvation backstop",
+    );
+    expect(rowOf("code.next")?.textContent).not.toContain("below floor");
+  });
+
+  it("marks nothing on a step the floor did not touch", () => {
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    const row = container.querySelector("ol li");
+    expect(row?.textContent).not.toMatch(/⇄ for|below floor/);
+  });
+});
+
 describe("ExecutionPlan · each step's reputation badge", () => {
   /** What a screen reader hears from the step's chip: its sr-only words,
    *  found by what they say. The glyphs and figures beside them are hidden. */
@@ -609,6 +670,17 @@ describe("ExecutionPlan · each step's reputation badge", () => {
     const label = chipSays();
     expect(label).toContain("from 24 rated jobs");
     expect(label).toContain("25.0% disputed");
+  });
+
+  // A step that sent a score but no source is taken as the prior, never as
+  // on-chain evidence: a backend predating `rep_source` did not measure it.
+  it("reads a score with no source as the prior, not as on-chain", () => {
+    const noSource = step({ rep_bps: 7000 });
+    delete noSource.rep_source;
+    render(<ExecutionPlan plan={plan({ steps: [noSource] })} />);
+    expect(chipSays()).toContain("prior estimate 3.50");
+    expect(chipSays()).toContain("no on-chain ratings yet");
+    expect(chipSays()).not.toMatch(/on-chain reputation/);
   });
 
   // A prior served because the read failed is not a cold start, and "no
