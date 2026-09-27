@@ -38,7 +38,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "./api";
-import { forgetReadGrant, heldReadGrant } from "./dispute-read-grant";
+import {
+  forgetReadGrant,
+  heldReadGrant,
+  noteServerClockOffset,
+} from "./dispute-read-grant";
 import {
   disputeView,
   getTaskDisputes,
@@ -480,6 +484,11 @@ export function useDisputePanel(
       // Measured before anything else runs: the clock restarts here, and it
       // is only as good as the moment it is taken.
       const receivedAtMs = Date.now();
+      const offsetMs = serverClockOffsetMs(res, sentAtMs);
+      // A grant kept from now on is judged on this clock too (D-067): its
+      // expiry is the server's, and a laptop an hour fast dropped every
+      // fresh grant on its first read without it.
+      if (typeof res.now === "number") noteServerClockOffset(offsetMs);
       // A grant that still came back withheld is one the server no longer
       // honours — it restarted, and its key rotated. Dropped, so the payer is
       // offered the signature again, once, by the receipt; never re-asked
@@ -526,7 +535,7 @@ export function useDisputePanel(
           taskId: id,
           snapshot: {
             res,
-            offsetMs: serverClockOffsetMs(res, sentAtMs),
+            offsetMs,
             doneAtRequest: sealed,
             awaitingSinceMs: awaiting
               ? (held?.awaitingSinceMs ?? receivedAtMs)

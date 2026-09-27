@@ -18,6 +18,7 @@ import {
   createReadChallenge,
   forgetReadGrant,
   heldReadGrant,
+  noteServerClockOffset,
   obtainReadGrant,
   readGrantFailure,
   rememberReadGrant,
@@ -46,6 +47,7 @@ afterEach(() => {
   fetchMock.mockReset();
   sessionStore.clear();
   vi.restoreAllMocks();
+  noteServerClockOffset(0);
 });
 
 const TASK = "tsk_7fc5bc5ea95f15fc";
@@ -137,6 +139,35 @@ describe("the held grant", () => {
     expect(heldReadGrant(TASK, PAYER, spentAt)).toBeNull();
     // An expired grant is dropped, not merely skipped.
     expect(heldReadGrant(TASK, PAYER, NOW_MS)).toBeNull();
+  });
+
+  // The expiry is the server's, judged on this browser's clock: moved onto
+  // it by the server's measured lead when the grant is kept.
+  it("keeps a fresh grant on a laptop an hour fast, instead of dropping it on its first read", () => {
+    const serverNowMs = NOW_MS;
+    const localNowMs = serverNowMs + 3_600_000;
+    rememberReadGrant(TASK, PAYER, grant, serverNowMs - localNowMs);
+
+    expect(heldReadGrant(TASK, PAYER, localNowMs)).toBe("grant-token");
+    // Still spent GRANT_MARGIN_MS before the server lets it go.
+    const spentAt = grant.expires_at * 1_000 + 3_600_000 - GRANT_MARGIN_MS;
+    expect(heldReadGrant(TASK, PAYER, spentAt - 1)).toBe("grant-token");
+    expect(heldReadGrant(TASK, PAYER, spentAt)).toBeNull();
+  });
+
+  it("stops presenting a grant on a slow laptop once the server has let it go", () => {
+    // Two minutes slow: on its own clock the grant had a minute and a half
+    // left when the server expired it.
+    rememberReadGrant(TASK, PAYER, grant, 120_000);
+    const serverExpiredMs = grant.expires_at * 1_000 + 30_000;
+    expect(heldReadGrant(TASK, PAYER, serverExpiredMs - 120_000)).toBeNull();
+  });
+
+  it("uses the server's lead the receipt last noted, and only a number", () => {
+    noteServerClockOffset(-3_600_000);
+    noteServerClockOffset(Number.NaN);
+    rememberReadGrant(TASK, PAYER, grant);
+    expect(heldReadGrant(TASK, PAYER, NOW_MS + 3_600_000)).toBe("grant-token");
   });
 
   it("is forgotten on request, and a new one replaces the old", () => {

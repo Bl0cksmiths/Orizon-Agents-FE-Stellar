@@ -16,7 +16,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
 import { ApiError } from "./api";
-import { heldReadGrant, rememberReadGrant } from "./dispute-read-grant";
+import {
+  heldReadGrant,
+  noteServerClockOffset,
+  rememberReadGrant,
+} from "./dispute-read-grant";
 import { getTaskDisputes } from "./disputes";
 import type {
   Dispute,
@@ -82,8 +86,10 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-  // A read grant one test keeps must not ride on the next test's reads.
+  // A read grant one test keeps must not ride on the next test's reads, and
+  // nor may the server clock one test measured.
   window.sessionStorage.clear();
+  noteServerClockOffset(0);
 });
 
 function deferred<T>() {
@@ -1332,6 +1338,27 @@ describe("useDisputePanel — the payer's read grant", () => {
     for (const call of fetchDisputes.mock.calls) {
       expect(call).toEqual(["task_a", "grant-token"]);
     }
+  });
+
+  it("keeps a grant signed for on a laptop an hour fast, judged on the server's measured clock", async () => {
+    // The receipt measured the server an hour behind this laptop; the grant
+    // the payer then signed for expires an hour after the SERVER's now.
+    const { result } = await mountWith(
+      answer(-H, { skewMs: -H, disputes: [dsp(1, "open")] }),
+    );
+    rememberReadGrant("task_a", PAYER, {
+      grant: "grant-token",
+      expires_at: (T0 - H + H) / 1_000,
+    });
+
+    fetchDisputes.mockResolvedValueOnce(
+      answer(-H, { skewMs: -H, disputes: [dsp(1, "open")] }),
+    );
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(fetchDisputes).toHaveBeenLastCalledWith("task_a", "grant-token");
+    expect(heldReadGrant("task_a", PAYER)).toBe("grant-token");
   });
 
   it("presents nothing for a wallet other than the one that signed", async () => {
