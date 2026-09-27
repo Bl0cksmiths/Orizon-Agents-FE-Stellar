@@ -508,17 +508,8 @@ describe("AgentStanding — the row it lives in", () => {
     spy.mockRestore();
   });
 
-  // The registry scrolls sideways inside a page that hides horizontal
-  // overflow, so a cell that sizes to its content widens every row.
-  it("caps its own width so it cannot widen the registry", () => {
-    const { container } = renderCell({
-      agent: onchain({ bound: false }),
-      rep: thinEvidence({ degraded: true }),
-    });
-    const cell = container.firstElementChild as HTMLElement;
-    expect(cell.className).toContain("max-w-");
-    expect(cell.className).toContain("flex-wrap");
-  });
+  // The width cap is a layout claim, which jsdom cannot check: it lays
+  // nothing out. `e2e/agents-scale.spec.ts` measures it at 360px instead.
 
   // Meaning never by colour alone: every marker carries words, not just a
   // glyph and a tint, and every marker carries its reasoning for a reader who
