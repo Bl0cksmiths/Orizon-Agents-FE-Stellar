@@ -300,7 +300,10 @@ export function AgentStanding({
       <StandingMark
         key="floor"
         tone="magenta"
-        glyph="⚑"
+        // "▾", the plan card's below-floor mark, and not "⚑": the reputation
+        // chip in this same row uses ⚑ for its dispute rate, and one glyph
+        // meaning two different things beside each other means neither.
+        glyph="▾"
         label="below floor · not eligible"
         detail={detail}
       />,

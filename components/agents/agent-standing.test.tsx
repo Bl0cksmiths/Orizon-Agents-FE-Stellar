@@ -32,6 +32,7 @@ import { cleanup, render } from "@testing-library/react";
 
 import { UNBOUND_WARNING } from "@/lib/binding-status";
 import type { Agent, ReputationInfo } from "@/lib/types";
+import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { AgentStanding } from "./agent-standing";
 
 afterEach(cleanup);
@@ -119,7 +120,7 @@ function detail(container: HTMLElement): string {
 describe("AgentStanding — the floor verdict", () => {
   it("calls an agent under the floor not eligible, visibly in the row", () => {
     const { container } = renderCell({ rep: thinEvidence() });
-    expect(labels(container)).toContain("⚑ below floor · not eligible");
+    expect(labels(container)).toContain("▾ below floor · not eligible");
   });
 
   it("renders nothing for an agent that clears the floor", () => {
@@ -142,7 +143,7 @@ describe("AgentStanding — the floor verdict", () => {
     const { container } = renderCell({
       rep: rep({ smoothed_bps: 9600, lower_bound_bps: FLOOR_BPS - 1 }),
     });
-    expect(labels(container)).toContain("⚑ below floor · not eligible");
+    expect(labels(container)).toContain("▾ below floor · not eligible");
   });
 
   it("does not judge the headline score when the lower bound clears", () => {
@@ -222,7 +223,7 @@ describe("AgentStanding — degrees of not knowing", () => {
       rep: thinEvidence({ source: "prior", degraded: true }),
     });
     expect(labels(container)).toContain("⚠ provisional");
-    expect(labels(container)).toContain("⚑ below floor · not eligible");
+    expect(labels(container)).toContain("▾ below floor · not eligible");
   });
 
   it("explains that a degraded score is a read we could not get, not a new agent", () => {
@@ -257,7 +258,7 @@ describe("AgentStanding — degrees of not knowing", () => {
     const { container } = renderCell({
       rep: thinEvidence({ source: "prior" }),
     });
-    expect(labels(container)).toEqual(["⚑ below floor · not eligible"]);
+    expect(labels(container)).toEqual(["▾ below floor · not eligible"]);
   });
 });
 
@@ -374,7 +375,7 @@ describe("AgentStanding — endpoint binding", () => {
     expect(labels(container)).toEqual([
       "⬡ external",
       "⊘ not yet operational",
-      "⚑ below floor · not eligible",
+      "▾ below floor · not eligible",
     ]);
   });
 
@@ -402,7 +403,7 @@ describe("AgentStanding — endpoint binding", () => {
     });
     expect(labels(container)).toEqual([
       "⬡ external",
-      "⚑ below floor · not eligible",
+      "▾ below floor · not eligible",
     ]);
   });
 });
@@ -453,6 +454,39 @@ describe("AgentStanding — a delisted agent", () => {
 });
 
 describe("AgentStanding — the row it lives in", () => {
+  // The reputation chip in the same row marks its dispute rate with ⚑. The
+  // floor verdict had the same flag, so a disputed agent below the floor
+  // showed two ⚑s meaning two different things.
+  it("marks below-floor with a glyph the chip does not use for disputes", () => {
+    const { container } = render(
+      <table>
+        <tbody>
+          <tr>
+            <td>
+              <AgentStanding
+                agent={onchain()}
+                rep={thinEvidence({ dispute_rate_bps: 2500, disputed: 6 })}
+                floorBps={FLOOR_BPS}
+              />
+              <ReputationBadge
+                bps={9600}
+                lowerBoundBps={4100}
+                source="onchain"
+                disputeRateBps={2500}
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const glyphs = labels(container)
+      .map((l) => l.split(" ")[0])
+      .filter((g) => g !== "" && !/^[\d.★≈·]+$/.test(g));
+    // Each mark's leading glyph appears once: no symbol means two things.
+    expect(new Set(glyphs).size).toBe(glyphs.length);
+    expect(labels(container)).toContain("▾ below floor · not eligible");
+  });
+
   it("nests inside a table cell without a DOM-nesting warning", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     render(
