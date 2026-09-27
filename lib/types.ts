@@ -709,9 +709,10 @@ export type OpenDisputeReq = {
  * `reason_invalid` is every unusable reason — empty, blank, invisible-only or
  * too long — whichever side refused it; its `DisputeRefusal` carries the
  * sentence to show, which names the limit. `reason_required` is what the
- * backend deployed before it said, for a blank reason alone: `openDispute`
- * folds it into `reason_invalid`, and it stays in this union only until the
- * dialog's switch no longer names it.
+ * backend deployed before it said, for a blank reason alone. `openDispute`
+ * folds it into `reason_invalid`, but it stays a member here for as long as
+ * a deployed backend can send it: `disputeErrorCode` narrows the wire code
+ * into this union, and dropping it would type a real answer as impossible.
  */
 export type DisputeErrorCode =
   | "reason_invalid"
