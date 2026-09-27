@@ -651,6 +651,126 @@ describe("openDispute", () => {
     },
   );
 
+  /** A refusal carrying exactly this envelope message. */
+  const refusedWith = (status: number, code: string, message: string) =>
+    jsonResponse(status, {
+      detail: code,
+      error: { code, message, request_id: "req_1" },
+    });
+
+  it.each([
+    [
+      "the backend's one reason code",
+      refusedWith(
+        422,
+        "reason_invalid",
+        "a dispute reason must say what was wrong with the step in 1 to 500 characters, at least one of them visible",
+      ),
+      "A dispute reason must say what was wrong with the step in 1 to 500 characters, at least one of them visible.",
+    ],
+    [
+      "the deployed backend's blank-reason code",
+      refusedWith(422, "reason_required", "a dispute needs a reason."),
+      "A dispute needs a reason.",
+    ],
+    [
+      "an older backend's pydantic bound on the reason",
+      jsonResponse(422, {
+        detail: [
+          {
+            type: "string_too_long",
+            loc: ["body", "reason"],
+            msg: "String should have at most 500 characters",
+          },
+        ],
+        error: {
+          code: "validation_error",
+          message: "request validation failed",
+          request_id: "req_1",
+        },
+      }),
+      "String should have at most 500 characters.",
+    ],
+  ])(
+    "folds %s into one reason_invalid carrying the server's sentence",
+    async (_, answer, message) => {
+      fetchMock.mockResolvedValueOnce(answer);
+
+      const err = await openDispute(req).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(DisputeRefusal);
+      expect(disputeErrorCode(err)).toBe("reason_invalid");
+      expect(err).toMatchObject({ message, dispute: null });
+    },
+  );
+
+  it.each([
+    [
+      "a reason code with no sentence",
+      refusedWith(422, "reason_invalid", "  "),
+    ],
+    [
+      "a validation_error with no field list",
+      refusedWith(422, "validation_error", "request validation failed"),
+    ],
+    [
+      "a validation_error whose entries name no field",
+      jsonResponse(422, {
+        detail: [{ msg: "bad" }],
+        error: {
+          code: "validation_error",
+          message: "request validation failed",
+        },
+      }),
+    ],
+    [
+      "a reason entry with no message",
+      jsonResponse(422, {
+        detail: [{ loc: ["body", "reason"] }],
+        error: {
+          code: "validation_error",
+          message: "request validation failed",
+        },
+      }),
+    ],
+  ])("states the rule itself for %s, naming the limit", async (_, answer) => {
+    fetchMock.mockResolvedValueOnce(answer);
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(disputeErrorCode(err)).toBe("reason_invalid");
+    expect(err).toMatchObject({
+      message: `Say what went wrong with this step in 1 to ${MAX_DISPUTE_REASON_CHARS} characters, at least one of them visible.`,
+    });
+  });
+
+  it("leaves a validation_error on another field alone: the reason was fine", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(422, {
+        detail: [
+          {
+            type: "string_pattern_mismatch",
+            loc: ["body", "payer"],
+            msg: "String should match pattern",
+          },
+        ],
+        error: {
+          code: "validation_error",
+          message: "request validation failed",
+        },
+      }),
+    );
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(disputeErrorCode(err)).toBeNull();
+  });
+
+  it("leaves a 422 that is not validation_error alone", async () => {
+    fetchMock.mockResolvedValueOnce(refusal(422, "invented_later"));
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+  });
+
   it("rejects every other refusal as the ApiError it was", async () => {
     fetchMock.mockResolvedValueOnce(refusal(403, "not_the_payer"));
 
@@ -688,6 +808,7 @@ describe("openDispute", () => {
 
 describe("disputeErrorCode", () => {
   const contract: [DisputeErrorCode, number][] = [
+    ["reason_invalid", 422],
     ["reason_required", 422],
     ["unknown_job", 404],
     ["signature_malformed", 400],
@@ -717,8 +838,14 @@ describe("disputeErrorCode", () => {
   });
 
   it("returns null for a code the contract does not name", () => {
+    // A bare `validation_error` names no field, so on its own it is not the
+    // reason's refusal: `openDispute`, which knows the route and reads the
+    // body, is what turns the reason's one into `reason_invalid`.
     expect(
       disputeErrorCode(new ApiError("bad", 422, undefined, "validation_error")),
+    ).toBeNull();
+    expect(
+      disputeErrorCode(new ApiError("new", 409, undefined, "invented_later")),
     ).toBeNull();
     expect(disputeErrorCode(new ApiError("down", 503))).toBeNull();
   });
@@ -739,8 +866,8 @@ describe("disputeErrorCode", () => {
   });
 
   it("names a client-side refusal by the code the server would have used", () => {
-    const early = new DisputeRefusal("reason_required", "say why");
-    expect(disputeErrorCode(early)).toBe("reason_required");
+    const early = new DisputeRefusal("reason_invalid", "say why");
+    expect(disputeErrorCode(early)).toBe("reason_invalid");
     expect(early).toBeInstanceOf(Error);
     expect(early).not.toBeInstanceOf(ApiError);
     expect(early.name).toBe("DisputeRefusal");
@@ -1735,21 +1862,28 @@ describe("raiseDispute", () => {
     expect(paths()).toEqual(["/api/disputes/challenge", "/api/disputes"]);
   });
 
+  const EMPTY_REASON = "Say what went wrong with this step, in words.";
+
   it.each([
-    ["an empty reason", ""],
-    ["a reason of only whitespace", " \n\t "],
+    ["an empty reason", "", EMPTY_REASON],
+    ["a reason of only whitespace", " \n\t ", EMPTY_REASON],
     [
       "a reason one character over the limit",
       "x".repeat(MAX_DISPUTE_REASON_CHARS + 1),
+      `Keep the reason to ${MAX_DISPUTE_REASON_CHARS} characters — it is ${MAX_DISPUTE_REASON_CHARS + 1} now.`,
     ],
-  ])("refuses %s before any network call", async (_, reason) => {
-    const signMessage = wallet();
+  ])(
+    "refuses %s before any network call, in its own words",
+    async (_, reason, message) => {
+      const signMessage = wallet();
 
-    const err = await raise({ reason, signMessage }).catch((e: unknown) => e);
-    expect(disputeErrorCode(err)).toBe("reason_required");
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(signMessage).not.toHaveBeenCalled();
-  });
+      const err = await raise({ reason, signMessage }).catch((e: unknown) => e);
+      expect(disputeErrorCode(err)).toBe("reason_invalid");
+      expect(err).toMatchObject({ message });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(signMessage).not.toHaveBeenCalled();
+    },
+  );
 
   it("accepts a reason at exactly the limit once trimmed", async () => {
     const words = "x".repeat(MAX_DISPUTE_REASON_CHARS);

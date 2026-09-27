@@ -705,8 +705,16 @@ export type OpenDisputeReq = {
  * different screen: `challenge_expired` is a silent retry, `not_the_payer` is
  * a wallet mismatch, `dispute_window_closed` is final, and `duplicate_dispute`
  * is not a failure at all — the step already has its dispute.
+ *
+ * `reason_invalid` is every unusable reason — empty, blank, invisible-only or
+ * too long — whichever side refused it; its `DisputeRefusal` carries the
+ * sentence to show, which names the limit. `reason_required` is what the
+ * backend deployed before it said, for a blank reason alone: `openDispute`
+ * folds it into `reason_invalid`, and it stays in this union only until the
+ * dialog's switch no longer names it.
  */
 export type DisputeErrorCode =
+  | "reason_invalid"
   | "reason_required"
   | "unknown_job"
   | "signature_malformed"

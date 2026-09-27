@@ -91,6 +91,7 @@ export class DisputeRefusal extends Error {
 }
 
 const DISPUTE_ERROR_CODES: ReadonlySet<string> = new Set([
+  "reason_invalid",
   "reason_required",
   "unknown_job",
   "signature_malformed",
@@ -418,6 +419,56 @@ export function createDisputeChallenge(
   });
 }
 
+/** A server sentence as the dialog shows it: capitalised, and ended. */
+function asSentence(text: string): string {
+  const t = text.trim();
+  if (t.length === 0) return t;
+  const cased = t[0].toUpperCase() + t.slice(1);
+  return /[.!?]$/.test(cased) ? cased : `${cased}.`;
+}
+
+/** What the reason must be, when no server sentence says so. */
+const REASON_RULE = `Say what went wrong with this step in 1 to ${MAX_DISPUTE_REASON_CHARS} characters, at least one of them visible.`;
+
+/**
+ * The sentence to show for a refused reason, or null when `err` is not a
+ * refusal of the reason at all.
+ *
+ * Three answers mean the same thing, and each is folded into the one
+ * `reason_invalid`:
+ * - `reason_invalid`, the backend's one code for every unusable reason; its
+ *   envelope message names the limit and quotes nothing the buyer sent.
+ * - `reason_required`, which the backend before it sent for a blank reason.
+ * - a 422 `validation_error`, which the backend before THAT answered its
+ *   pydantic bounds with. Its envelope message only says the request failed
+ *   validation, so the sentence is the reason field's own entry when the body
+ *   names one. A body naming ANOTHER field is not the reason's refusal and is
+ *   left alone: telling the buyer to fix words that were fine would send them
+ *   round the same failure again.
+ */
+function reasonRefusalMessage(err: ApiError): string | null {
+  const body = isRecord(err.body) ? err.body : {};
+  if (err.code === "reason_invalid" || err.code === "reason_required") {
+    const envelope = isRecord(body.error) ? body.error : {};
+    return isStr(envelope.message) && envelope.message.trim()
+      ? asSentence(envelope.message)
+      : REASON_RULE;
+  }
+  if (err.status !== 422 || err.code !== "validation_error") return null;
+  if (!Array.isArray(body.detail)) return REASON_RULE;
+  const fields = body.detail.filter(
+    (e): e is Record<string, unknown> => isRecord(e) && Array.isArray(e.loc),
+  );
+  if (fields.length === 0) return REASON_RULE;
+  const onReason = fields.find(
+    (e) => Array.isArray(e.loc) && e.loc.includes("reason"),
+  );
+  if (onReason === undefined) return null;
+  return isStr(onReason.msg) && onReason.msg.trim()
+    ? asSentence(onReason.msg)
+    : REASON_RULE;
+}
+
 /**
  * The step's original dispute off a `duplicate_dispute` 409, or null.
  *
@@ -443,7 +494,10 @@ function duplicateOf(err: ApiError, req: OpenDisputeReq): Dispute | null {
  * A `duplicate_dispute` 409 rejects as a `DisputeRefusal` of that code
  * carrying the step's ORIGINAL dispute off the 409 body (`.dispute`), so the
  * page can show the dispute the step already has even when the re-read that
- * follows fails. Every other refusal rejects as the `ApiError` it was.
+ * follows fails. A refused reason — however the backend worded it, see
+ * `reasonRefusalMessage` — rejects as one `DisputeRefusal("reason_invalid")`
+ * carrying the server's sentence. Every other refusal rejects as the
+ * `ApiError` it was.
  */
 export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
   const path = "/disputes";
@@ -458,6 +512,12 @@ export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
         "This step already has a dispute.",
         { dispute: duplicateOf(err, req), cause: err },
       );
+    }
+    if (err instanceof ApiError) {
+      const message = reasonRefusalMessage(err);
+      if (message !== null) {
+        throw new DisputeRefusal("reason_invalid", message, { cause: err });
+      }
     }
     throw err;
   });
@@ -881,7 +941,8 @@ async function liveChallenge(
  *
  * Refused before any network call, as a `DisputeRefusal` the dialog reads
  * through `disputeErrorCode` like a server refusal: a reason that is empty
- * once trimmed or longer than `MAX_DISPUTE_REASON_CHARS` (`reason_required`),
+ * once trimmed or longer than `MAX_DISPUTE_REASON_CHARS` (`reason_invalid`,
+ * each with its own sentence — an over-long reason is never told it is empty),
  * and a wallet that is not the recorded payer (`not_the_payer`) — the server
  * would refuse both, but only after the buyer had been asked to sign.
  *
@@ -924,14 +985,14 @@ export async function raiseDispute(args: {
   const reason = args.reason.trim();
   if (reason.length === 0) {
     throw new DisputeRefusal(
-      "reason_required",
-      "Say what went wrong with this step.",
+      "reason_invalid",
+      "Say what went wrong with this step, in words.",
     );
   }
   if (reason.length > MAX_DISPUTE_REASON_CHARS) {
     throw new DisputeRefusal(
-      "reason_required",
-      `Keep the reason to ${MAX_DISPUTE_REASON_CHARS} characters.`,
+      "reason_invalid",
+      `Keep the reason to ${MAX_DISPUTE_REASON_CHARS} characters — it is ${reason.length} now.`,
     );
   }
   if (payer !== settlement.payer) {
