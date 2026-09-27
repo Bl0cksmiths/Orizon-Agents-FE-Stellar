@@ -568,12 +568,21 @@ describe("AgentStanding — wording", () => {
     }
   });
 
+  // Read from the visible labels, not the whole cell. The long form always
+  // says "not eligible for selection", so a check over `textContent` passed
+  // with the words gone from the label a sighted reader actually sees.
   it("says not eligible wherever it renders a floor verdict", () => {
+    let verdicts = 0;
     for (const state of STATES) {
       const { container } = renderCell(state);
-      const text = container.textContent ?? "";
-      if (text.includes("below floor")) expect(text).toContain("not eligible");
+      for (const label of labels(container)) {
+        if (!label.includes("floor")) continue;
+        verdicts += 1;
+        expect(label).toBe("▾ below floor · not eligible");
+      }
       cleanup();
     }
+    // The sweep has to have met the verdict, or it proved nothing.
+    expect(verdicts).toBeGreaterThan(0);
   });
 });
