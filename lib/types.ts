@@ -53,7 +53,9 @@ export type PlanStep = {
   est_price_usdc: number;
   est_eta_seconds: number;
   rep_bps?: number | null;
-  rep_source?: ReputationSource | null;
+  /** One of `REPUTATION_SOURCES` today, but any string on the wire. Absent
+   *  or unknown reads as an estimate, never as on-chain evidence. */
+  rep_source?: string | null;
   /** The reputation lower bound behind `rep_bps` — the number the routing
    * floor gates on, never the smoothed headline score. Null when the agent has
    * no reputation entry; absent from backends predating it, in which case the
@@ -207,8 +209,14 @@ export type Overview = {
   skills: { name: string; pct: number; tone: "violet" | "cyan" | "magenta" }[];
 };
 
-/** Where a reputation score comes from: on-chain evidence or the Bayesian prior. */
-export type ReputationSource = "onchain" | "prior";
+/** Where a reputation score comes from: on-chain evidence or the Bayesian
+ * prior. Those are the two this build knows; a backend may add more, so the
+ * wire fields are typed as any string. Only `"onchain"` is evidence, so
+ * anything that does not narrow to it is shown as an estimate. */
+export const REPUTATION_SOURCES = ["onchain", "prior"] as const;
+export type ReputationSource = (typeof REPUTATION_SOURCES)[number];
+export const isReputationSource = (v: string): v is ReputationSource =>
+  REPUTATION_SOURCES.some((k) => k === v);
 
 /** Per-agent reputation as served by GET /api/stellar/reputation[/{agent_id}]. */
 export type ReputationInfo = {
