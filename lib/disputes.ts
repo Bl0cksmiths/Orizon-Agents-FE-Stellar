@@ -616,7 +616,10 @@ export function ratingStillComing(dispute: Dispute): boolean {
  * - The buyer's reason and the adjudicator's rejection are both written for
  *   the buyer. Anyone else — including a connected wallet that did not pay —
  *   gets null for each, whatever the record holds, and a rejection reason
- *   exists only on a rejected dispute. A reason of only whitespace is none.
+ *   exists only on a rejected dispute. A reason of only whitespace is none,
+ *   and so is an empty one: the backend withholds free text as `""` rather
+ *   than null, and a "Your reason" heading drawn over nothing reads as though
+ *   the buyer gave none (D-068).
  */
 export function disputeReceipt(
   dispute: Dispute,
@@ -641,7 +644,7 @@ export function disputeReceipt(
     refund,
     rating: ratingArtifact(dispute),
     ratingStalled: ratingWaitOver && ratingStillComing(dispute),
-    reason: isPayer ? dispute.reason : null,
+    reason: isPayer && dispute.reason.trim() ? dispute.reason : null,
     rejectionReason:
       isPayer && dispute.status === "rejected" && rejection?.trim()
         ? rejection
