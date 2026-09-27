@@ -1055,6 +1055,8 @@ test.describe("the countdown's re-renders stay inside the receipt", () => {
 // they are stubbed here to the frozen contract.
 
 const PAYER_REASON = "the calculator app does not compute anything";
+const PLATFORM_REPLY =
+  "the brief asked for a four-function calculator, and that is what shipped";
 const GRANT = "grant_e2e_read";
 const GRANTS_KEY = "orizon.dispute-read-grants";
 
@@ -1077,6 +1079,8 @@ async function stubReadGrant(
     challengeRoute = "present",
     sendsFlag = true,
     clock = Date.now,
+    status = "open",
+    grantRoute = "issue",
   }: {
     payer?: string;
     /** `missing` answers 404, as a backend without the route does. */
@@ -1084,6 +1088,10 @@ async function stubReadGrant(
     /** False: a backend that predates `reason_withheld`. */
     sendsFlag?: boolean;
     clock?: () => number | Promise<number>;
+    /** `rejected` carries the platform's reply, withheld like the reason. */
+    status?: "open" | "rejected";
+    /** `refuse` answers 403 `not_the_payer`, as for a wallet it doubts. */
+    grantRoute?: "issue" | "refuse";
   } = {},
 ): Promise<ReadGrantStub> {
   const reads: (string | null)[] = [];
@@ -1110,7 +1118,14 @@ async function stubReadGrant(
           openedAtS: nowS() - 30 * 60,
           reason: granted ? PAYER_REASON : "",
           payer,
+          status,
         }),
+        ...(status === "rejected"
+          ? {
+              resolved_at: nowS() - 10 * 60,
+              rejection_reason: granted ? PLATFORM_REPLY : "",
+            }
+          : {}),
         ...(sendsFlag ? { reason_withheld: !granted } : {}),
       };
       return fulfil(route, 200, {
@@ -1142,6 +1157,16 @@ async function stubReadGrant(
       nonce: "e2ereadnonce",
       signature_b64: mockSignature,
     });
+    if (grantRoute === "refuse") {
+      return fulfil(route, 403, {
+        detail: "not_the_payer",
+        error: {
+          code: "not_the_payer",
+          message: "not the payer",
+          request_id: "req_e2e",
+        },
+      });
+    }
     return fulfil(route, 200, { grant: GRANT, expires_at: nowS() + 3_600 });
   });
   return { reads, challenges: () => challenges, grants: () => grants };
