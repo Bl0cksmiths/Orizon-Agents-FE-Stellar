@@ -57,10 +57,12 @@ import { disputeStatusLabel } from "./dispute-status-badge";
  *   Done after a dispute was raised (which `onSubmitted` already reported).
  *   Nothing changed that the page does not know about.
  * - `"duplicate_dispute"` — the step already had a dispute: raised from
- *   another tab, or by a submit that raced this one. Not a failure, and there
- *   is no `Dispute` to hand to `onSubmitted` (the 409's body is not kept), so
- *   the dialog closes ITSELF at once with this reason. The page must refetch
- *   the task's disputes; the step then shows the dispute it already has.
+ *   another tab, or by a submit that raced this one. Not a failure, and not
+ *   this dialog's dispute to hand to `onSubmitted`, so the dialog closes
+ *   ITSELF at once with this reason — and with the original dispute the 409
+ *   carried, when it carried one this build can read. The page shows that
+ *   dispute on the step at once (D-057) and refetches; a re-read that fails
+ *   must not leave the step offering a second one.
  * - `"stale"` — the buyer closed it after a refusal that proves the page's
  *   picture of this step is out of date: the window has closed, or the step
  *   was never settled or never charged. The page should refetch.
@@ -80,7 +82,11 @@ export type DisputeDialogProps = {
    * on any reason but `"dismissed"` (see DisputeDialogCloseReason). A handler
    * that takes no argument still type-checks — it just cannot refetch.
    */
-  onClose: (reason: DisputeDialogCloseReason) => void;
+  onClose: (
+    reason: DisputeDialogCloseReason,
+    /** On `"duplicate_dispute"`, the step's original dispute, if known. */
+    existing?: Dispute | null,
+  ) => void;
   /** Called once, with the stored dispute, when the backend accepts it. */
   onSubmitted: (dispute: Dispute) => void;
   /**
@@ -649,9 +655,12 @@ function DisputeForm({
         );
       } else if (disputeErrorCode(err) === "duplicate_dispute") {
         // The step already has its dispute: an answer, not an error. The
-        // page refetches on this reason and shows the dispute on the receipt.
+        // page shows the one the 409 carried at once, and refetches.
         setState(IDLE);
-        onClose("duplicate_dispute");
+        onClose(
+          "duplicate_dispute",
+          err instanceof DisputeRefusal ? err.dispute : null,
+        );
       } else {
         setState({
           kind: "error",

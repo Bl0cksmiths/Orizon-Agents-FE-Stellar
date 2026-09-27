@@ -1123,10 +1123,35 @@ describe("DisputeDialog — closing, and a step already disputed", () => {
     await submitWith();
 
     expect(props.onClose).toHaveBeenCalledTimes(1);
-    expect(props.onClose).toHaveBeenCalledWith("duplicate_dispute");
+    // No original on a bare refusal: nothing to show, only a re-read.
+    expect(props.onClose).toHaveBeenCalledWith("duplicate_dispute", null);
     expect(props.onSubmitted).not.toHaveBeenCalled();
     // An answer, not an error.
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // D-057: the 409 carries the step's original dispute. The page is handed
+  // it, so the step shows as disputed whether or not the re-read lands.
+  it("hands the page the original dispute a duplicate refusal carries", async () => {
+    const original = {
+      ...DISPUTE,
+      id: "dsp_other_tab",
+      reason: "raised first",
+    };
+    raiseThen(async () => {
+      throw new DisputeRefusal(
+        "duplicate_dispute",
+        "This step already has a dispute.",
+        { dispute: original },
+      );
+    });
+    const { props } = renderDialog();
+
+    await submitWith();
+
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalledWith("duplicate_dispute", original);
+    expect(props.onSubmitted).not.toHaveBeenCalled();
   });
 
   it.each([

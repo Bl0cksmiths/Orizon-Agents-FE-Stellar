@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import type {
+  Dispute,
   DisputePanelView,
   SettlementStepView,
   SettlementView,
@@ -288,10 +289,13 @@ export const DisputeSection = memo(function DisputeSection({
   workflowDone,
   demo,
 }: Props) {
-  const { view, loading, error, refresh, offsetMs } = useDisputePanel(taskId, {
-    workflowDone,
-    demo,
-  });
+  const { view, loading, error, refresh, offsetMs, adopt } = useDisputePanel(
+    taskId,
+    {
+      workflowDone,
+      demo,
+    },
+  );
   const { connect } = useWallet();
   // The payer's own words, withheld from a tab without the task's token,
   // shown again on their signature (D-067). Only a click signs.
@@ -325,8 +329,14 @@ export const DisputeSection = memo(function DisputeSection({
     if (canDispute) void loadDisputeDialog();
   }, [canDispute]);
 
+  // Said once a submit turned out to be a second dispute on a step that
+  // already had one: the dialog closes itself on that answer, and the step
+  // swapping its action for a receipt is not, by itself, an explanation.
+  const [alreadyDisputed, setAlreadyDisputed] = useState<string | null>(null);
+
   const onDispute = (step: SettlementStepView) => {
     if (view.kind !== "settled") return;
+    setAlreadyDisputed(null);
     setTarget({
       step,
       settlement: settlementOf(view),
@@ -341,12 +351,25 @@ export const DisputeSection = memo(function DisputeSection({
   // refusal that proves the window or the step is not what it shows. The
   // re-read is what makes the step show that dispute, or lose its action,
   // instead of offering one the server would refuse.
+  //
+  // A `duplicate_dispute` comes with the step's ORIGINAL dispute when the 409
+  // carried one: it is shown on the step at once, whether or not the re-read
+  // lands (D-057). Waiting on the re-read alone left a step whose re-read
+  // failed offering Dispute again — and a second signature for nothing.
   const onClose = useCallback(
-    (reason: DisputeDialogCloseReason) => {
+    (reason: DisputeDialogCloseReason, existing?: Dispute | null) => {
+      if (reason === "duplicate_dispute") {
+        if (existing) adopt(existing);
+        setAlreadyDisputed(
+          existing
+            ? `Step ${existing.step_index + 1} (${existing.agent_id}) already had a dispute, raised earlier — perhaps from another tab — so no second one was raised. It is shown below.`
+            : "This step already had a dispute, raised earlier — perhaps from another tab — so no second one was raised.",
+        );
+      }
       setTarget(null);
       if (reason !== "dismissed") void refresh();
     },
-    [refresh],
+    [refresh, adopt],
   );
   // A dispute raised here: the step shows it from the server's own record.
   const onSubmitted = useCallback(() => {
@@ -396,6 +419,14 @@ export const DisputeSection = memo(function DisputeSection({
             ? `⚠ receipt unavailable — ${error}`
             : `⚠ this receipt may be out of date — ${error}`}
         </ErrorNote>
+      )}
+      {alreadyDisputed && (
+        <p
+          role="status"
+          className="clip-cyber-sm border border-violet/40 bg-violet/5 px-4 py-3 text-xs leading-relaxed text-text/90"
+        >
+          {alreadyDisputed}
+        </p>
       )}
       <ReceiptPanel
         view={view}

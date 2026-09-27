@@ -580,6 +580,74 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
   });
 
+  // D-057: the step was shown as disputed only once a re-read said so. With
+  // the re-read failing, it went on offering Dispute — and a second attempt
+  // cost a second signature for a step that already had its dispute.
+  test("a duplicate whose re-read fails still shows the step as disputed, and says why", async ({
+    page,
+  }) => {
+    await page.addInitScript(countSignatures);
+    let failing = false;
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }),
+        open: "duplicate",
+      },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            (route) =>
+              failing
+                ? route.fulfill({
+                    status: 503,
+                    contentType: "application/json",
+                    body: JSON.stringify({
+                      detail: "Service Unavailable",
+                      error: {
+                        code: "service_unavailable",
+                        message: "service unavailable",
+                        request_id: "e2e0000000000503",
+                      },
+                    }),
+                  })
+                : route.fallback(),
+          );
+          await p.route("**/api/disputes", async (route) => {
+            // Every read after the refused submit fails.
+            if (route.request().method() === "POST") failing = true;
+            await route.fallback();
+          });
+        },
+      },
+    );
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+
+    await expect(dialog(page)).toHaveCount(0);
+    // The re-read failed, and says so above the receipt…
+    await expect(page.locator("main").getByRole("alert")).toContainText(
+      "this receipt may be out of date",
+    );
+    // …yet the step shows the dispute it already had, and no action.
+    const row = stepRow(page, codeStep.agent_id);
+    await expect(row).toContainText("Under review");
+    await expect(row).toContainText("raised from another tab");
+    await expect(row.getByRole("button", { name: /dispute/i })).toHaveCount(0);
+    await expect(
+      page.locator("main").getByRole("status").filter({
+        hasText: "already had a dispute",
+      }),
+    ).toHaveText(
+      `Step ${codeStep.step_index + 1} (${codeStep.agent_id}) already had a dispute, raised earlier — perhaps from another tab — so no second one was raised. It is shown below.`,
+    );
+    expect(await signatures(page)).toBe(1);
+  });
+
   test("a refusal that dates the receipt re-reads it: the server says the window closed", async ({
     page,
   }) => {
