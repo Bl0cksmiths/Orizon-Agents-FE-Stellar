@@ -53,22 +53,40 @@ import type {
 export const MAX_DISPUTE_REASON_CHARS = 500;
 
 /**
- * A dispute refused on the client, before anything reached the network,
- * carrying the code the server would have answered with.
+ * A dispute refused, carrying its contract code, a message fit to show the
+ * buyer, and — for `duplicate_dispute` alone — the dispute that already
+ * exists.
  *
- * Not an `ApiError`: no request was made, so there is no status to report,
+ * Thrown on the client before anything reaches the network, carrying the code
+ * the server would have answered with; and by `openDispute` for the server's
+ * own refusals whose body says more than its code. Not an `ApiError` either
+ * way: an early refusal made no request, so there is no status to report,
  * and a fabricated one would read as the server's verdict. It exists so the
- * dialog handles an early refusal through the same `disputeErrorCode` switch
- * as a late one — an empty reason lands under the field whether the dialog or
- * the backend caught it.
+ * dialog handles every refusal through the same `disputeErrorCode` switch —
+ * a bad reason lands under the field whether the dialog or the backend
+ * caught it.
  */
 export class DisputeRefusal extends Error {
   readonly code: DisputeErrorCode;
+  /**
+   * On `duplicate_dispute`, the step's original dispute as the 409 body
+   * carried it, so the page can show it without a second read; null when the
+   * body held none this build can read, and on every other code.
+   */
+  readonly dispute: Dispute | null;
 
-  constructor(code: DisputeErrorCode, message: string) {
-    super(message);
+  constructor(
+    code: DisputeErrorCode,
+    message: string,
+    opts: { dispute?: Dispute | null; cause?: unknown } = {},
+  ) {
+    super(
+      message,
+      opts.cause === undefined ? undefined : { cause: opts.cause },
+    );
     this.name = "DisputeRefusal";
     this.code = code;
+    this.dispute = opts.dispute ?? null;
   }
 }
 
@@ -401,17 +419,48 @@ export function createDisputeChallenge(
 }
 
 /**
+ * The step's original dispute off a `duplicate_dispute` 409, or null.
+ *
+ * Read on the listing's terms (`acceptedDispute`), and only when it is the
+ * dispute of the step that was asked about: a body naming another job or
+ * another step is not this step's answer, whatever produced it.
+ */
+function duplicateOf(err: ApiError, req: OpenDisputeReq): Dispute | null {
+  const body = err.body;
+  if (!isRecord(body)) return null;
+  const original = acceptedDispute(body.dispute);
+  if (original === null) return null;
+  return original.job_id_hex === req.job_id_hex &&
+    original.step_index === req.step_index
+    ? original
+    : null;
+}
+
+/**
  * POST /api/disputes — open the dispute, presenting the payer's signature
  * over the challenge. Resolves to the stored dispute, status `open`.
  *
- * A `duplicate_dispute` 409 rejects like any other refusal. Its body carries
- * the original dispute, but `ApiError` keeps no body, so the caller refetches
- * the task's disputes instead — which is also the only read that shows the
- * step as the panel will draw it from then on.
+ * A `duplicate_dispute` 409 rejects as a `DisputeRefusal` of that code
+ * carrying the step's ORIGINAL dispute off the 409 body (`.dispute`), so the
+ * page can show the dispute the step already has even when the re-read that
+ * follows fails. Every other refusal rejects as the `ApiError` it was.
  */
 export function openDispute(req: OpenDisputeReq): Promise<Dispute> {
   const path = "/disputes";
-  return post<Dispute, OpenDisputeReq>(path, req, ensure(path, isDispute));
+  return post<Dispute, OpenDisputeReq>(
+    path,
+    req,
+    ensure(path, isDispute),
+  ).catch((err: unknown) => {
+    if (err instanceof ApiError && err.code === "duplicate_dispute") {
+      throw new DisputeRefusal(
+        "duplicate_dispute",
+        "This step already has a dispute.",
+        { dispute: duplicateOf(err, req), cause: err },
+      );
+    }
+    throw err;
+  });
 }
 
 // ── the window's clock ──────────────────────────────────────────
@@ -854,8 +903,8 @@ async function liveChallenge(
  * by a fresh challenge and a second signature. A second expiry throws —
  * something other than a slow buyer is wrong. Nothing else is retried: every
  * other refusal is an answer, and `duplicate_dispute` in particular means the
- * step already has its dispute, which the caller refetches rather than reads
- * off the error (see `openDispute`).
+ * step already has its dispute, which the refusal carries (see
+ * `openDispute`).
  */
 export async function raiseDispute(args: {
   settlement: SettlementView;

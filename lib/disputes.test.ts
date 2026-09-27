@@ -601,22 +601,62 @@ describe("openDispute", () => {
     );
   });
 
-  it("rejects a duplicate as duplicate_dispute — the dispute is refetched, not read off the error", async () => {
+  /** The backend's `duplicate_dispute` 409: the envelope plus the dispute. */
+  const duplicate = (original: unknown) =>
+    jsonResponse(409, {
+      detail: "duplicate_dispute",
+      error: {
+        code: "duplicate_dispute",
+        message: "already disputed",
+        request_id: "req_1",
+      },
+      dispute: original,
+    });
+
+  it("rejects a duplicate as duplicate_dispute, carrying the original dispute off the 409", async () => {
+    const original = dispute(1, { id: "dsp_first", status: "upheld" });
+    fetchMock.mockResolvedValueOnce(duplicate(original));
+
+    const err = await openDispute(req).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(DisputeRefusal);
+    expect(disputeErrorCode(err)).toBe("duplicate_dispute");
+    expect(err).toMatchObject({ dispute: original });
+  });
+
+  it("reads the original on the listing's terms: a status this build cannot name is kept as open", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(409, {
-        detail: "duplicate_dispute",
-        error: {
-          code: "duplicate_dispute",
-          message: "already disputed",
-          request_id: "req_1",
-        },
-        dispute: dispute(1),
-      }),
+      duplicate({ ...dispute(1), status: "under_review" }),
     );
 
     const err = await openDispute(req).catch((e: unknown) => e);
+    expect(err).toMatchObject({
+      code: "duplicate_dispute",
+      dispute: { ...dispute(1), status: "open" },
+    });
+  });
+
+  it.each([
+    ["no dispute at all", undefined],
+    ["a malformed dispute", { ...dispute(1), opened_at: "yesterday" }],
+    ["another step's dispute", dispute(2)],
+    ["another job's dispute", dispute(1, { job_id_hex: "e".repeat(32) })],
+  ])(
+    "still names a duplicate whose body carries %s, with no dispute to show",
+    async (_, original) => {
+      fetchMock.mockResolvedValueOnce(duplicate(original));
+
+      const err = await openDispute(req).catch((e: unknown) => e);
+      expect(disputeErrorCode(err)).toBe("duplicate_dispute");
+      expect(err).toMatchObject({ dispute: null });
+    },
+  );
+
+  it("rejects every other refusal as the ApiError it was", async () => {
+    fetchMock.mockResolvedValueOnce(refusal(403, "not_the_payer"));
+
+    const err = await openDispute(req).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
-    expect(err).toMatchObject({ status: 409, code: "duplicate_dispute" });
+    expect(err).toMatchObject({ status: 403, code: "not_the_payer" });
   });
 
   it("rejects a malformed dispute rather than handing it to the panel", async () => {
