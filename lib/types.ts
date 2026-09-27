@@ -28,8 +28,10 @@ export type Agent = {
   /** Registering wallet's G-address; on-chain indexed agents only, null for seeded. */
   owner?: string | null;
   /** Where the agent came from (`AgentSource` in the backend's app/schemas.py).
-   *  The provenance signal of record. Absent on responses predating it. */
-  source?: AgentSource;
+   *  The provenance signal of record. Absent on responses predating it. One of
+   *  `AGENT_SOURCES` today, but any string on the wire: narrow with
+   *  `isAgentSource` rather than assuming the two known values. */
+  source?: string | null;
   /**
    * Whether an endpoint is bound. Tri-state: `null`/absent means the question
    * does not apply — a seeded agent runs on a worker inside the backend and
@@ -41,7 +43,10 @@ export type Agent = {
 
 /** Where an agent came from: the first-party seeded catalog, or an on-chain
  *  registration by anyone (`AgentSource` in the backend's app/schemas.py). */
-export type AgentSource = "seeded" | "onchain";
+export const AGENT_SOURCES = ["seeded", "onchain"] as const;
+export type AgentSource = (typeof AGENT_SOURCES)[number];
+export const isAgentSource = (v: string): v is AgentSource =>
+  AGENT_SOURCES.some((k) => k === v);
 
 export type TaskStatus = "pending" | "running" | "complete" | "failed";
 
