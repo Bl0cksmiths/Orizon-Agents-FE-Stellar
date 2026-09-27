@@ -754,82 +754,96 @@ test.describe("plan card — what each claim rests on", () => {
       plan: mockPlanUnbound,
       options: { network: true },
     },
+    {
+      name: "a cold start with every read unverified",
+      plan: mockPlanColdStart,
+      options: { wallet: true, network: true },
+    },
   ];
 
-  for (const { name, plan, options } of crowdedStates) {
-    test(`at 390px, ${name} fit without sideways scroll`, async ({ page }) => {
-      await page.setViewportSize(PHONE);
-      await decomposeWith(page, plan, options);
-      await exclusions(page).locator("summary").click();
-      await expect(exclusions(page)).toHaveJSProperty("open", true);
-
-      // Box by box, because the console hides sideways overflow: a row past
-      // the right edge is not scrolled to, it is cut off — and a cut-off chip
-      // or cap still looks like an answer.
-      expectWithinWidth(
-        await stableBox(floorSummary(page)),
-        PHONE,
-        "the floor summary",
-      );
-      for (const [index, step] of plan.steps.entries()) {
-        expectWithinWidth(
-          await stableBox(steps(page).nth(index)),
-          PHONE,
-          `the ${step.agent_id} step`,
-        );
-      }
-      for (const [index, notice] of (plan.notices ?? []).entries()) {
-        expectWithinWidth(
-          await stableBox(exclusionRows(page).nth(index)),
-          PHONE,
-          `the ${notice.agent_id} row`,
-        );
-      }
-      if (options.wallet) {
-        expectWithinWidth(
-          await stableBox(page.getByText(/authorizing up to/i)),
-          PHONE,
-          "the authorize line",
-        );
-
-        // The pay controls, measured against the row that holds them rather
-        // than the viewport: the card's clip-path cuts overflow off silently,
-        // so a button past its row is gone even while the page has room.
-        const controls = page
-          .locator("div")
-          .filter({ has: page.getByText(/authorizing up to/i) })
-          .filter({ has: page.getByRole("button", { name: /authorize/i }) })
-          .last();
-        const row = await stableBox(controls);
-        for (const name of [/simulate/i, /fiat/i, /authorize/i]) {
-          const button = await stableBox(
-            controls.getByRole("button", { name }),
-          );
-          expect(
-            button.x + button.width,
-            `the ${name.source} button runs past its row`,
-          ).toBeLessThanOrEqual(row.x + row.width + 0.5);
+  for (const frame of [PHONE, NARROW_PHONE]) {
+    for (const { name, plan, options } of crowdedStates) {
+      test(`at ${frame.width}px, ${name} fit without sideways scroll`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(frame);
+        await decomposeWith(page, plan, options);
+        // A plan with no notices has no disclosure to open.
+        if ((plan.notices ?? []).length > 0) {
+          await exclusions(page).locator("summary").click();
+          await expect(exclusions(page)).toHaveJSProperty("open", true);
+        } else {
+          await expect(exclusions(page)).toHaveCount(0);
         }
-      }
-      if (plan.reputation_degraded) {
-        expectWithinWidth(
-          await stableBox(estimateBanner(page)),
-          PHONE,
-          "the estimate warning",
-        );
-      }
 
-      // Element by element, for the reason given in the AC-6 test above.
-      expect(
-        await overflowingDescendants(planCard(page)),
-        "nothing on the card may run past its edge",
-      ).toEqual([]);
-      expectWithinWidth(
-        await stableBox(planCard(page)),
-        PHONE,
-        "the plan card",
-      );
-    });
+        // Box by box, because the console hides sideways overflow: a row past
+        // the right edge is not scrolled to, it is cut off — and a cut-off chip
+        // or cap still looks like an answer.
+        expectWithinWidth(
+          await stableBox(floorSummary(page)),
+          frame,
+          "the floor summary",
+        );
+        for (const [index, step] of plan.steps.entries()) {
+          expectWithinWidth(
+            await stableBox(steps(page).nth(index)),
+            frame,
+            `the ${step.agent_id} step`,
+          );
+        }
+        for (const [index, notice] of (plan.notices ?? []).entries()) {
+          expectWithinWidth(
+            await stableBox(exclusionRows(page).nth(index)),
+            frame,
+            `the ${notice.agent_id} row`,
+          );
+        }
+        if (options.wallet) {
+          expectWithinWidth(
+            await stableBox(page.getByText(/authorizing up to/i)),
+            frame,
+            "the authorize line",
+          );
+
+          // The pay controls, measured against the row that holds them rather
+          // than the viewport: the card's clip-path cuts overflow off silently,
+          // so a button past its row is gone even while the page has room.
+          const controls = page
+            .locator("div")
+            .filter({ has: page.getByText(/authorizing up to/i) })
+            .filter({ has: page.getByRole("button", { name: /authorize/i }) })
+            .last();
+          const row = await stableBox(controls);
+          for (const name of [/simulate/i, /fiat/i, /authorize/i]) {
+            const button = await stableBox(
+              controls.getByRole("button", { name }),
+            );
+            expect(
+              button.x + button.width,
+              `the ${name.source} button runs past its row`,
+            ).toBeLessThanOrEqual(row.x + row.width + 0.5);
+          }
+        }
+        if (plan.reputation_degraded) {
+          expectWithinWidth(
+            await stableBox(estimateBanner(page)),
+            frame,
+            "the estimate warning",
+          );
+        }
+
+        // Element by element, for the reason given in the AC-6 test above.
+        expect(
+          await overflowingDescendants(planCard(page)),
+          "nothing on the card may run past its edge",
+        ).toEqual([]);
+        expectWithinWidth(
+          await stableBox(planCard(page)),
+          frame,
+          "the plan card",
+        );
+      });
+    }
   }
 
   // The new marks — a muted "no endpoint" badge, a chip carrying a dispute
@@ -841,8 +855,10 @@ test.describe("plan card — what each claim rests on", () => {
     }) => {
       await page.setViewportSize(EVIDENCE_FRAME);
       await decomposeWith(page, plan, options);
-      await exclusions(page).locator("summary").click();
-      await expect(exclusions(page)).toHaveJSProperty("open", true);
+      if ((plan.notices ?? []).length > 0) {
+        await exclusions(page).locator("summary").click();
+        await expect(exclusions(page)).toHaveJSProperty("open", true);
+      }
 
       const { violations } = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
