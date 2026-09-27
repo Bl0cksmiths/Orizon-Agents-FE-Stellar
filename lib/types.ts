@@ -1,4 +1,10 @@
-export type AgentStatus = "online" | "idle" | "offline";
+/** The registry statuses this build has a tone for. A backend may add more,
+ * so `Agent.status` is typed as any string: narrow with `isAgentStatus`
+ * before indexing a per-status map, and render anything else neutrally. */
+export const AGENT_STATUSES = ["online", "idle", "offline"] as const;
+export type AgentStatus = (typeof AGENT_STATUSES)[number];
+export const isAgentStatus = (v: string): v is AgentStatus =>
+  AGENT_STATUSES.some((k) => k === v);
 
 export type Agent = {
   id: string;
@@ -6,7 +12,9 @@ export type Agent = {
   skills: string[];
   price: number;
   rep: number;
-  status: AgentStatus;
+  /** One of `AGENT_STATUSES` today, but any string on the wire: one agent
+   *  with a status this build does not know is still a listed agent. */
+  status: string;
   runs: number;
   /**
    * Whether this agent is backed by a real Agno worker rather than a mock.
@@ -20,8 +28,10 @@ export type Agent = {
   /** Registering wallet's G-address; on-chain indexed agents only, null for seeded. */
   owner?: string | null;
   /** Where the agent came from (`AgentSource` in the backend's app/schemas.py).
-   *  The provenance signal of record. Absent on responses predating it. */
-  source?: AgentSource;
+   *  The provenance signal of record. Absent on responses predating it. One of
+   *  `AGENT_SOURCES` today, but any string on the wire: narrow with
+   *  `isAgentSource` rather than assuming the two known values. */
+  source?: string | null;
   /**
    * Whether an endpoint is bound. Tri-state: `null`/absent means the question
    * does not apply — a seeded agent runs on a worker inside the backend and
@@ -33,7 +43,10 @@ export type Agent = {
 
 /** Where an agent came from: the first-party seeded catalog, or an on-chain
  *  registration by anyone (`AgentSource` in the backend's app/schemas.py). */
-export type AgentSource = "seeded" | "onchain";
+export const AGENT_SOURCES = ["seeded", "onchain"] as const;
+export type AgentSource = (typeof AGENT_SOURCES)[number];
+export const isAgentSource = (v: string): v is AgentSource =>
+  AGENT_SOURCES.some((k) => k === v);
 
 export type TaskStatus = "pending" | "running" | "complete" | "failed";
 
@@ -53,7 +66,9 @@ export type PlanStep = {
   est_price_usdc: number;
   est_eta_seconds: number;
   rep_bps?: number | null;
-  rep_source?: ReputationSource | null;
+  /** One of `REPUTATION_SOURCES` today, but any string on the wire. Absent
+   *  or unknown reads as an estimate, never as on-chain evidence. */
+  rep_source?: string | null;
   /** The reputation lower bound behind `rep_bps` — the number the routing
    * floor gates on, never the smoothed headline score. Null when the agent has
    * no reputation entry; absent from backends predating it, in which case the
@@ -78,7 +93,18 @@ export type PlanStep = {
   degraded?: boolean;
 };
 
-export type PlanFloorNoticeKind = "excluded" | "substituted" | "degraded";
+/** The notice kinds this build has copy and a mark for. A backend may add
+ * more, so `PlanFloorNotice.kind` is typed as any string: narrow with
+ * `isPlanFloorNoticeKind` before indexing a per-kind map, and give anything
+ * else a neutral fallback rather than a missing one. */
+export const PLAN_FLOOR_NOTICE_KINDS = [
+  "excluded",
+  "substituted",
+  "degraded",
+] as const;
+export type PlanFloorNoticeKind = (typeof PLAN_FLOOR_NOTICE_KINDS)[number];
+export const isPlanFloorNoticeKind = (v: string): v is PlanFloorNoticeKind =>
+  PLAN_FLOOR_NOTICE_KINDS.some((k) => k === v);
 
 /**
  * Why the floor acted on an agent (`ExclusionReason` in the backend's
@@ -96,7 +122,10 @@ export type ExclusionReason =
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are
  * set only when kind is "substituted". */
 export type PlanFloorNotice = {
-  kind: PlanFloorNoticeKind;
+  /** One of `PLAN_FLOOR_NOTICE_KINDS` today, but any string on the wire: a
+   *  kind this build does not know is still a floor action the buyer should
+   *  see, so it reaches the card as data instead of failing the plan. */
+  kind: string;
   agent_id: string;
   agent_name?: string | null;
   replacement_id?: string | null;
@@ -193,8 +222,14 @@ export type Overview = {
   skills: { name: string; pct: number; tone: "violet" | "cyan" | "magenta" }[];
 };
 
-/** Where a reputation score comes from: on-chain evidence or the Bayesian prior. */
-export type ReputationSource = "onchain" | "prior";
+/** Where a reputation score comes from: on-chain evidence or the Bayesian
+ * prior. Those are the two this build knows; a backend may add more, so the
+ * wire fields are typed as any string. Only `"onchain"` is evidence, so
+ * anything that does not narrow to it is shown as an estimate. */
+export const REPUTATION_SOURCES = ["onchain", "prior"] as const;
+export type ReputationSource = (typeof REPUTATION_SOURCES)[number];
+export const isReputationSource = (v: string): v is ReputationSource =>
+  REPUTATION_SOURCES.some((k) => k === v);
 
 /** Per-agent reputation as served by GET /api/stellar/reputation[/{agent_id}]. */
 export type ReputationInfo = {
@@ -206,7 +241,9 @@ export type ReputationInfo = {
   weight: number;
   disputed: number;
   dispute_rate_bps: number;
-  source: ReputationSource;
+  /** One of `REPUTATION_SOURCES` today, but any string on the wire. Narrow
+   *  with `isReputationSource`; only `"onchain"` is evidence. */
+  source: string;
   /**
    * The on-chain ledger read failed and this score is the Bayesian prior
    * served in its place — the reputation service fails OPEN. It is the only
