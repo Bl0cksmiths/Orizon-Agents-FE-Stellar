@@ -1064,6 +1064,15 @@ export async function mockApi(
     ) {
       return json(route, { available: true });
     }
+    // Both fixtures existed and nothing served them: under the old `{}`
+    // catch-all /app/flow and /app/reputation were only ever swept by axe in
+    // their "malformed response" state.
+    if (method === "GET" && pathname === "/api/flow/default") {
+      return json(route, mockFlow);
+    }
+    if (method === "GET" && pathname === "/api/stellar/reputation/params") {
+      return json(route, mockReputationParams);
+    }
     // Anything else gets an empty-but-valid JSON body so stray fetches
     // resolve instead of hanging or erroring.
     return json(route, {});
