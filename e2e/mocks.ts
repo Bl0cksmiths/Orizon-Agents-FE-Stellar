@@ -1073,6 +1073,32 @@ export async function mockApi(
     if (method === "GET" && pathname === "/api/stellar/reputation/params") {
       return json(route, mockReputationParams);
     }
+    // The warmup ping `BackendWarmup` fires on every page. Fire-and-forget,
+    // so any healthy answer will do.
+    if (method === "GET" && pathname === "/api/health") {
+      return json(route, { status: "ok" });
+    }
+    // Network meta, read by the top bar on every console page. By default it
+    // is NOT known — a spec that needs the asset or contract ids serves them
+    // (`mockNetwork` in plan-fixtures.ts, registered after this). Answered as
+    // the backend answers a missing resource, which `useFetch` does not retry,
+    // so the pages render exactly as they did under the old `{}` catch-all:
+    // the read failed, and nothing is invented in its place.
+    if (method === "GET" && pathname === "/api/stellar/network") {
+      return route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "Not Found",
+          error: {
+            code: "not_found",
+            message: "network info is not mocked by default",
+            request_id: "e2e0000000000010",
+          },
+        }),
+      });
+    }
+
     // Anything else gets an empty-but-valid JSON body so stray fetches
     // resolve instead of hanging or erroring.
     return json(route, {});
