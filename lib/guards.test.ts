@@ -8,9 +8,9 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  droppedCount,
   isAgentBinding,
   isAgentIdAvailability,
-  isAgentList,
   isArtifactResponse,
   isAuthorizeBuild,
   isBindChallenge,
@@ -29,9 +29,10 @@ import {
   isTraceLine,
   isTraceLineList,
   isXdrResponse,
+  screenAgentList,
 } from "./guards";
 
-describe("isAgentList", () => {
+describe("screenAgentList", () => {
   const agent = {
     id: "agt_01",
     name: "copywrite.v3",
@@ -43,57 +44,94 @@ describe("isAgentList", () => {
     real: true,
   };
 
-  it("accepts a valid list and the empty list", () => {
-    expect(isAgentList([agent])).toBe(true);
-    expect(isAgentList([])).toBe(true);
+  /** The agents a screen kept, or null when it rejected the payload. */
+  const kept = (v: unknown) => screenAgentList(v);
+  /** Whether this one agent survives the screen on its own. */
+  const keeps = (a: unknown) => screenAgentList([a])?.length === 1;
+
+  it("keeps a valid list, and the empty list, with nothing dropped", () => {
+    const list = kept([agent]);
+    expect(list).toEqual([agent]);
+    expect(list && droppedCount(list)).toBe(0);
+    expect(kept([])).toEqual([]);
   });
 
-  it("rejects a non-array payload", () => {
-    expect(isAgentList({ agents: [agent] })).toBe(false);
-    expect(isAgentList(null)).toBe(false);
+  it("rejects a payload that is not a list at all", () => {
+    expect(kept({ agents: [agent] })).toBeNull();
+    expect(kept(null)).toBeNull();
+    expect(kept("<html>proxy error</html>")).toBeNull();
   });
 
-  it("rejects a non-numeric price (feeds .toFixed)", () => {
-    expect(isAgentList([{ ...agent, price: "0.012" }])).toBe(false);
+  it("drops an agent with a non-numeric price (feeds .toFixed)", () => {
+    expect(keeps({ ...agent, price: "0.012" })).toBe(false);
   });
 
-  it("rejects a missing runs count (feeds .toLocaleString)", () => {
+  it("drops an agent with no runs count (feeds .toLocaleString)", () => {
     const { runs: _drop, ...rest } = agent;
-    expect(isAgentList([rest])).toBe(false);
+    expect(keeps(rest)).toBe(false);
   });
 
-  it("rejects a non-numeric rep (feeds rep * 2000)", () => {
-    expect(isAgentList([{ ...agent, rep: null }])).toBe(false);
+  it("drops an agent with a non-numeric rep (feeds rep * 2000)", () => {
+    expect(keeps({ ...agent, rep: null })).toBe(false);
   });
 
-  it("rejects skills that are not an array of strings (feeds .map)", () => {
-    expect(isAgentList([{ ...agent, skills: "content" }])).toBe(false);
-    expect(isAgentList([{ ...agent, skills: [{ name: "content" }] }])).toBe(
-      false,
-    );
+  it("drops an agent whose skills are not an array of strings (feeds .map)", () => {
+    expect(keeps({ ...agent, skills: "content" })).toBe(false);
+    expect(keeps({ ...agent, skills: [{ name: "content" }] })).toBe(false);
   });
 
-  it("rejects a status outside the backend literal (keys the tone map)", () => {
-    expect(isAgentList([{ ...agent, status: "degraded" }])).toBe(false);
-    expect(isAgentList([{ ...agent, status: undefined }])).toBe(false);
+  it("keeps an agent whose status this build does not know, as data", () => {
+    const suspended = { ...agent, status: "suspended" };
+    expect(kept([suspended])).toEqual([suspended]);
   });
 
-  it("accepts an owner as a G-address, absent, or null (seeded agents)", () => {
+  it("drops an agent with no status, or a status that is not a string", () => {
+    expect(keeps({ ...agent, status: undefined })).toBe(false);
+    expect(keeps({ ...agent, status: 3 })).toBe(false);
+  });
+
+  it("keeps an agent whose provenance this build does not know, as data", () => {
+    const partner = { ...agent, source: "partner" };
+    expect(kept([partner])).toEqual([partner]);
+  });
+
+  it("drops an agent whose provenance is not a string", () => {
+    expect(keeps({ ...agent, source: { kind: "onchain" } })).toBe(false);
+  });
+
+  it("keeps an owner as a G-address, absent, or null (seeded agents)", () => {
     expect(
-      isAgentList([
-        { ...agent, owner: "GBVN3FUM3TPMZXNSBMEGBLYBM2QFGXN7QCZL4TWZ5PJ7V36E" },
-      ]),
+      keeps({
+        ...agent,
+        owner: "GBVN3FUM3TPMZXNSBMEGBLYBM2QFGXN7QCZL4TWZ5PJ7V36E",
+      }),
     ).toBe(true);
-    expect(isAgentList([agent])).toBe(true);
-    expect(isAgentList([{ ...agent, owner: null }])).toBe(true);
+    expect(keeps(agent)).toBe(true);
+    expect(keeps({ ...agent, owner: null })).toBe(true);
   });
 
-  it("rejects a non-string owner (compared against the connected wallet)", () => {
-    expect(isAgentList([{ ...agent, owner: 42 }])).toBe(false);
+  it("drops an agent with a non-string owner (compared against the wallet)", () => {
+    expect(keeps({ ...agent, owner: 42 })).toBe(false);
   });
 
-  it("rejects when any single entry is malformed", () => {
-    expect(isAgentList([agent, { ...agent, price: undefined }])).toBe(false);
+  it("drops only the unusable agent, keeps the rest, and counts the drop", () => {
+    const other = { ...agent, id: "agt_02", status: "suspended" };
+    const list = kept([agent, { ...agent, price: undefined }, other]);
+    expect(list).toEqual([agent, other]);
+    expect(list && droppedCount(list)).toBe(1);
+  });
+
+  it("counts every dropped agent, down to a list with none left", () => {
+    const list = kept([{ id: "agt_01" }, "agt_02", null]);
+    expect(list).toEqual([]);
+    expect(list && droppedCount(list)).toBe(3);
+  });
+});
+
+describe("droppedCount", () => {
+  it("reads 0 for a payload that never went through a screen", () => {
+    expect(droppedCount([])).toBe(0);
+    expect(droppedCount({})).toBe(0);
   });
 });
 

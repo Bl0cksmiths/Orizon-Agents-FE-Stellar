@@ -65,43 +65,75 @@ const isNumArray = (v: unknown): v is number[] =>
 const isStrArray = (v: unknown): v is string[] =>
   Array.isArray(v) && v.every(isStr);
 
-/** Backend `AgentStatus` literal (app/schemas.py). Checked as a set, not just
- * as a string, because the status indexes a tone map — an unlisted value
- * silently renders an unstyled badge. */
-const AGENT_STATUSES = new Set(["online", "idle", "offline"]);
+/**
+ * How many items a per-item screen dropped from a payload, keyed by the very
+ * object the screen returned. A WeakMap rather than a field on the payload so
+ * the wire types stay the wire types, and so a payload that never went
+ * through a screen (a test fixture, an older cache) simply reads as 0.
+ */
+const DROPPED = new WeakMap<object, number>();
 
-/** Agents table + reputation leaderboard: `price.toFixed(3)`,
- * `runs.toLocaleString()`, `skills.map`, `rep * 2000`, and `status` keys a
- * tone map. Mirrors backend `Agent` (`app/schemas.py`); `real` has a server
- * default and is only used as a truthiness flag, so it stays unchecked.
- * `owner` is the registering wallet (on-chain indexed agents only, null for
- * seeded) and feeds the "my agents" wallet comparison, so a wrong type is
- * rejected while absent/null is tolerated. */
-export function isAgentList(v: unknown): v is Agent[] {
+/**
+ * How many items were dropped from this payload because they were unusable —
+ * a required field missing or the wrong type, or a present optional field of
+ * the wrong type. Pass the exact object `listAgents`, `listReputation` or
+ * `decompose` resolved with (and `useFetch` hands back); a copy reads as 0.
+ *
+ * - agent list (`screenAgentList`): agents dropped
+ * - reputation batch (`screenReputationBatch`): entries dropped
+ * - plan (`screenDecomposeResponse`): notices dropped (steps are never
+ *   dropped — a plan missing a step fails as a whole)
+ *
+ * A page should say "N could not be shown" when this is above 0, rather than
+ * let an item vanish silently. An unknown enum value is NOT a drop: it passes
+ * through as a string for the component to show neutrally.
+ */
+export function droppedCount(payload: object): number {
+  return DROPPED.get(payload) ?? 0;
+}
+
+/** Keeps the items that pass `isItem`, and records how many did not against
+ * the array it returns. */
+function keepValid<T>(items: unknown[], isItem: (v: unknown) => v is T): T[] {
+  const kept = items.filter(isItem);
+  DROPPED.set(kept, items.length - kept.length);
+  return kept;
+}
+
+/** One agent row: `price.toFixed(3)`, `runs.toLocaleString()`, `skills.map`,
+ * `rep * 2000`. Mirrors backend `Agent` (`app/schemas.py`); `real` has a
+ * server default and is only used as a truthiness flag, so it stays
+ * unchecked. `owner` is the registering wallet (on-chain indexed agents only,
+ * null for seeded) and feeds the "my agents" wallet comparison, so a wrong
+ * type is rejected while absent/null is tolerated.
+ *
+ * `status` and `source` are checked as strings, NOT against the values this
+ * build knows: a backend that adds a status or a provenance must not make the
+ * agent disappear. The components narrow them (`isAgentStatus`,
+ * `isAgentSource`) and show anything else neutrally. */
+function isAgent(a: unknown): a is Agent {
   return (
-    Array.isArray(v) &&
-    v.every(
-      (a) =>
-        isRecord(a) &&
-        isStr(a.id) &&
-        isStr(a.name) &&
-        isStrArray(a.skills) &&
-        isNum(a.price) &&
-        isNum(a.rep) &&
-        isNum(a.runs) &&
-        isOptionalStr(a.owner) &&
-        // Optional and NOT set-checked, unlike `status` below. `status` picks
-        // a tone from a closed map, so an unlisted value renders untoned; a
-        // provenance value we do not recognise still renders as "not seeded",
-        // which is the safe reading, and rejecting the whole registry over one
-        // would empty the marketplace.
-        isOptionalStr(a.source) &&
-        // Tri-state: true, false, or absent/null meaning "does not apply".
-        isOptionalBool(a.bound) &&
-        isStr(a.status) &&
-        AGENT_STATUSES.has(a.status),
-    )
+    isRecord(a) &&
+    isStr(a.id) &&
+    isStr(a.name) &&
+    isStrArray(a.skills) &&
+    isNum(a.price) &&
+    isNum(a.rep) &&
+    isNum(a.runs) &&
+    isOptionalStr(a.owner) &&
+    isOptionalStr(a.source) &&
+    // Tri-state: true, false, or absent/null meaning "does not apply".
+    isOptionalBool(a.bound) &&
+    isStr(a.status)
   );
+}
+
+/** Agents table, operator dashboard, reputation leaderboard. Screened per
+ * agent: one unusable agent is dropped (and counted, see `droppedCount`)
+ * instead of emptying the whole registry. Null only when the payload is not a
+ * list at all — a proxy error page or an error envelope. */
+export function screenAgentList(v: unknown): Agent[] | null {
+  return Array.isArray(v) ? keepValid(v, isAgent) : null;
 }
 
 /** Dashboard + sidebar: stat tiles do `*100`/`.toFixed`, sparkline maps

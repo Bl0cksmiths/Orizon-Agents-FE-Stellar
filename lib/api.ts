@@ -2,7 +2,6 @@ import {
   isAgentBinding,
   isAgentSettlement,
   isAgentIdAvailability,
-  isAgentList,
   isArtifactResponse,
   isAuthorizeBuild,
   isBindChallenge,
@@ -21,6 +20,7 @@ import {
   isTraceLine,
   isTraceLineList,
   isXdrResponse,
+  screenAgentList,
 } from "./guards";
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
 import type {
@@ -338,6 +338,23 @@ function ensure<T>(
 }
 
 /**
+ * `ensure` for the payloads screened per item: `screen` returns the usable
+ * part of the payload (see `droppedCount` in lib/guards.ts for how many items
+ * it left out), or null when nothing about the payload is usable — which
+ * rejects exactly like a failed guard.
+ */
+function ensureScreened<T>(
+  path: string,
+  screen: (v: unknown) => T | null,
+): (v: unknown) => T {
+  return (v) => {
+    const out = screen(v);
+    if (out === null) throw new Error(`malformed response from ${path}`);
+    return out;
+  };
+}
+
+/**
  * `X-Task-Token` header for per-task reads when this session holds the
  * task's read token (stored at execute time). Undefined — today's exact
  * behavior — when no token is known; required by the backend only once its
@@ -359,7 +376,7 @@ function taskAuthHeaders(taskId: string): Record<string, string> | undefined {
 export { ensure, httpError, post, taskAuthHeaders };
 
 export const listAgents = () =>
-  get<Agent[]>("/agents", ensure("/agents", isAgentList));
+  get<Agent[]>("/agents", ensureScreened("/agents", screenAgentList));
 export const listTasks = () =>
   get<Task[]>("/tasks", ensure("/tasks", isTaskList));
 export const getOverview = () =>

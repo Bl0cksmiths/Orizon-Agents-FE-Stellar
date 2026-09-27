@@ -42,6 +42,7 @@ import {
   submitSigned,
   syncAgents,
 } from "./api";
+import { droppedCount } from "./guards";
 import { rememberTaskToken } from "./task-tokens";
 import type { TraceLine } from "./types";
 
@@ -99,7 +100,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Guarded by isAgentList, so the fixture carries every field the agents
+// Screened by screenAgentList, so the fixture carries every field the agents
 // table computes with (price/rep/runs/skills/status).
 const agentFixture = {
   id: "agt_01",
@@ -409,14 +410,24 @@ describe("getReputationParams", () => {
 });
 
 describe("response guards", () => {
-  it("rejects a malformed agent list as a normal request error", async () => {
+  it("rejects an agent list that is not a list as a normal request error", async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, [{ id: "agt_01", name: "copywrite.v3" }]),
+      jsonResponse(200, { detail: "upstream returned HTML" }),
     );
 
     await expect(listAgents()).rejects.toThrow(
       "malformed response from /agents",
     );
+  });
+
+  it("drops an unusable agent rather than the whole list, and counts it", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, [agentFixture, { id: "agt_02", name: "copywrite.v3" }]),
+    );
+
+    const agents = await listAgents();
+    expect(agents).toEqual([agentFixture]);
+    expect(droppedCount(agents)).toBe(1);
   });
 
   it("rejects a flow payload with no edges as a normal request error", async () => {
