@@ -1979,28 +1979,45 @@ describe("raiseDispute", () => {
     expect(signMessage).not.toHaveBeenCalled();
   });
 
-  it("asks once and then signs: a dead second nonce is the server's to refuse", async () => {
-    const dead = (n: string) => ({
-      ...challenge(1, n),
-      expires_at: SETTLED_AT - 1,
-    });
+  const deadAt = (n: string) => ({
+    ...challenge(1, n),
+    expires_at: SETTLED_AT - 1,
+  });
+
+  it("asks once more and then stops: a dead second nonce is never signed on a measured clock", async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse(200, dead("first")))
-      .mockResolvedValueOnce(jsonResponse(200, dead("second")))
-      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+      .mockResolvedValueOnce(jsonResponse(200, deadAt("first")))
+      .mockResolvedValueOnce(jsonResponse(200, deadAt("second")));
     const signMessage = wallet();
 
-    await raise({ signMessage });
+    const err = await raise({ signMessage, offsetMs: 0 }).catch(
+      (e: unknown) => e,
+    );
 
     // Two challenges, never three: a third would mean the clocks disagree
-    // about more than latency, and looping on it would hang the dialog.
+    // about more than latency, and looping on it would hang the dialog. Nor
+    // is the second signed: this build already knows the server refuses it.
     expect(paths()).toEqual([
       "/api/disputes/challenge",
       "/api/disputes/challenge",
-      "/api/disputes",
     ]);
+    expect(err).toBeInstanceOf(DisputeRefusal);
+    expect(disputeErrorCode(err)).toBe("challenge_expired");
+    expect(signMessage).not.toHaveBeenCalled();
+  });
+
+  it("leaves a dead second nonce to the server when nothing measured its clock", async () => {
+    // On the laptop's own clock, "dead" may only mean it runs fast: refusing
+    // would lock that buyer out of every dispute.
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, deadAt("first")))
+      .mockResolvedValueOnce(jsonResponse(200, deadAt("second")))
+      .mockResolvedValueOnce(jsonResponse(200, dispute(1)));
+    const signMessage = wallet();
+
+    await expect(raise({ signMessage })).resolves.toEqual(dispute(1));
     expect(signMessage).toHaveBeenCalledTimes(1);
-    expect(signMessage).toHaveBeenCalledWith(dead("second").message);
+    expect(signMessage).toHaveBeenCalledWith(deadAt("second").message);
   });
 
   it("treats a nonce dying at this very moment as dead", async () => {

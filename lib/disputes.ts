@@ -924,16 +924,32 @@ export function disputeView(input: {
  *
  * Exactly one replacement is ever asked for. Both requests are cheap and
  * silent; a wallet prompt is neither, which is the whole point of checking
- * before one is raised.
+ * before one is raised — so a replacement that is dead too is refused as
+ * `challenge_expired` rather than signed. Signing it spent a prompt on a
+ * nonce this build already knew the server would refuse, and on a clock that
+ * disagrees by more than latency a second request cannot do better; a fresh
+ * attempt later, with a fresh measurement of the server's clock, can.
+ *
+ * Only when the caller MEASURED the server's clock, though. On the laptop's
+ * own clock "dead" may only mean the laptop runs fast, and refusing then would
+ * lock a buyer with a fast clock out of every dispute; the replacement is
+ * signed and the server, whose clock it is, decides.
  */
 async function liveChallenge(
   target: DisputeChallengeReq,
   clockOffsetMs: number,
+  clockMeasured: boolean,
 ): Promise<DisputeChallenge> {
+  const alive = (c: DisputeChallenge) =>
+    c.expires_at * 1_000 > Date.now() + clockOffsetMs;
   const challenge = await createDisputeChallenge(target);
-  const serverNowMs = Date.now() + clockOffsetMs;
-  if (challenge.expires_at * 1_000 > serverNowMs) return challenge;
-  return createDisputeChallenge(target);
+  if (alive(challenge)) return challenge;
+  const replacement = await createDisputeChallenge(target);
+  if (alive(replacement) || !clockMeasured) return replacement;
+  throw new DisputeRefusal(
+    "challenge_expired",
+    "The platform's signing challenge expired before it could be signed. Nothing was signed — try again in a moment.",
+  );
 }
 
 /**
@@ -957,7 +973,8 @@ async function liveChallenge(
  * round trip, refused `challenge_expired`, and prompted a SECOND time for the
  * retry below — two wallet popups for one dispute. One re-request, not a
  * loop: if the replacement is dead too, the clocks disagree about more than
- * latency, and the server's own refusal is a better answer than spinning.
+ * latency, and — on a measured clock — it is refused as `challenge_expired`
+ * with nothing signed.
  *
  * The WINDOW is judged here too, on the server's clock, before a challenge
  * is asked for and again immediately before every signature: a dialog left
@@ -1034,7 +1051,11 @@ export async function raiseDispute(args: {
   };
   for (let attempt = 1; ; attempt += 1) {
     requireOpenWindow();
-    const challenge = await liveChallenge(target, clockOffsetMs);
+    const challenge = await liveChallenge(
+      target,
+      clockOffsetMs,
+      args.offsetMs !== undefined,
+    );
     requireOpenWindow();
     const signature_b64 = await signMessage(challenge.message);
     try {
