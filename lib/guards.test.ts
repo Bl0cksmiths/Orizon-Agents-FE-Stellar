@@ -31,6 +31,16 @@ import {
   screenDecomposeResponse,
   screenReputationBatch,
 } from "./guards";
+import {
+  AGENT_SOURCES,
+  AGENT_STATUSES,
+  PLAN_FLOOR_NOTICE_KINDS,
+  REPUTATION_SOURCES,
+  isAgentSource,
+  isAgentStatus,
+  isPlanFloorNoticeKind,
+  isReputationSource,
+} from "./types";
 
 describe("screenAgentList", () => {
   const agent = {
@@ -1291,5 +1301,32 @@ describe("isBindErrorCode", () => {
   it("rejects a missing or non-string code", () => {
     expect(isBindErrorCode(undefined)).toBe(false);
     expect(isBindErrorCode(404)).toBe(false);
+  });
+});
+
+describe("known-value narrowing (lib/types)", () => {
+  // The wire fields are any string; these are how a component narrows one
+  // before indexing a per-value map, and they must name exactly the values
+  // this build has copy for — no more, no fewer.
+  it("narrows each known value, and nothing else", () => {
+    const cases: [(v: string) => boolean, readonly string[]][] = [
+      [isAgentStatus, AGENT_STATUSES],
+      [isAgentSource, AGENT_SOURCES],
+      [isReputationSource, REPUTATION_SOURCES],
+      [isPlanFloorNoticeKind, PLAN_FLOOR_NOTICE_KINDS],
+    ];
+    for (const [narrow, known] of cases) {
+      for (const v of known) expect(narrow(v), v).toBe(true);
+      for (const v of ["", "suspended", "ONCHAIN", "prior ", "delisted"])
+        expect(narrow(v), v).toBe(false);
+    }
+    expect(AGENT_STATUSES).toEqual(["online", "idle", "offline"]);
+    expect(AGENT_SOURCES).toEqual(["seeded", "onchain"]);
+    expect(REPUTATION_SOURCES).toEqual(["onchain", "prior"]);
+    expect(PLAN_FLOOR_NOTICE_KINDS).toEqual([
+      "excluded",
+      "substituted",
+      "degraded",
+    ]);
   });
 });
