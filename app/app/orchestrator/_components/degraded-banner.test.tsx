@@ -96,6 +96,16 @@ describe("DegradedBanner — when it renders at all", () => {
     expect(hasUnverifiedReputation(planFixture())).toBe(false);
   });
 
+  // A step's own failed read is the same fact about one agent. A backend that
+  // stamps the step but not the plan must still put the warning on screen.
+  it("reports the banner as shown when only a step's read failed", () => {
+    const plan = planFixture({ reputation_degraded: false });
+    plan.steps[0].rep_degraded = true;
+    expect(hasUnverifiedReputation(plan)).toBe(true);
+    plan.steps[0].rep_degraded = false;
+    expect(hasUnverifiedReputation(plan)).toBe(false);
+  });
+
   it("renders nothing when the flag is explicitly undefined", () => {
     const { container } = render(
       <DegradedBanner plan={planFixture({ reputation_degraded: undefined })} />,

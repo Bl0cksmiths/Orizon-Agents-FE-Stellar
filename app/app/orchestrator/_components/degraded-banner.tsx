@@ -55,13 +55,20 @@ export const UNVERIFIED_BANNER_ID = "plan-reputation-unverified";
 
 /** Whether the banner renders for this plan — exported so the Authorize
  *  control points `aria-describedby` at it only when it exists; a reference to
- *  an absent id describes nothing and is flagged by accessibility audits.
+ *  an absent id describes nothing and is flagged by accessibility audits. The
+ *  floor summary reads it too, so the card's first claim and its warning can
+ *  never disagree about whether the reads held.
  *
- *  Strict `=== true` rather than a truthy check: the field is optional, so a
+ *  Either flag is enough. The plan-level one is what the backend sets when any
+ *  read failed; a step's own `rep_degraded` is that same fact about one agent,
+ *  and a plan carrying one has had a read fail whatever the plan flag says.
+ *
+ *  Strict `=== true` rather than a truthy check: both fields are optional, so a
  *  backend predating story 3.03 sends nothing at all, and "we have no idea
  *  whether the reads succeeded" must never render as "they failed". */
 export const hasUnverifiedReputation = (plan: DecomposeResponse): boolean =>
-  plan.reputation_degraded === true;
+  plan.reputation_degraded === true ||
+  plan.steps.some((s) => s.rep_degraded === true);
 
 export function DegradedBanner({
   plan,
