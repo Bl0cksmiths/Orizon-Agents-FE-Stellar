@@ -1,4 +1,10 @@
-export type AgentStatus = "online" | "idle" | "offline";
+/** The registry statuses this build has a tone for. A backend may add more,
+ * so `Agent.status` is typed as any string: narrow with `isAgentStatus`
+ * before indexing a per-status map, and render anything else neutrally. */
+export const AGENT_STATUSES = ["online", "idle", "offline"] as const;
+export type AgentStatus = (typeof AGENT_STATUSES)[number];
+export const isAgentStatus = (v: string): v is AgentStatus =>
+  AGENT_STATUSES.some((k) => k === v);
 
 export type Agent = {
   id: string;
@@ -6,7 +12,9 @@ export type Agent = {
   skills: string[];
   price: number;
   rep: number;
-  status: AgentStatus;
+  /** One of `AGENT_STATUSES` today, but any string on the wire: one agent
+   *  with a status this build does not know is still a listed agent. */
+  status: string;
   runs: number;
   /**
    * Whether this agent is backed by a real Agno worker rather than a mock.
