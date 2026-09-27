@@ -34,6 +34,8 @@ import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
+import { isPlanExpired } from "./plan-errors";
+import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -93,6 +95,10 @@ export function ExecutionPlan({
     null,
   );
   const [authorizeHash, setAuthorizeHash] = useState<string | null>(null);
+  // Set when the backend refused to run this plan because it had expired.
+  // The plan cannot run again, so the controls that run it stay disabled and
+  // the notice offers a fresh plan instead.
+  const [expired, setExpired] = useState<ExpiredRun | null>(null);
 
   // What every amount on this card is actually denominated in. `total_usdc`
   // is a legacy field name, not a currency: the cap the buyer signs is that
@@ -110,8 +116,14 @@ export function ExecutionPlan({
 
   /** Simulated path — no wallet required. */
   const simulate = useAsyncAction(async () => {
-    const { task_id } = await execute(plan.plan_id);
-    router.push(`/app/trace?task=${task_id}`);
+    try {
+      const { task_id } = await execute(plan.plan_id);
+      router.push(`/app/trace?task=${task_id}`);
+    } catch (e) {
+      // Not an error to print: the notice below says it in plain words.
+      if (isPlanExpired(e)) setExpired("simulate");
+      else throw e;
+    }
   });
 
   /** Real on-chain path: wallet signs authorize, backend charges + seals. */
@@ -158,6 +170,15 @@ export function ExecutionPlan({
       });
       router.push(`/app/trace?task=${task_id}`);
     } catch (e) {
+      // Refused at `execute`, AFTER the authorization was confirmed on-chain.
+      // Not a payment failure, and the failure card would say it was one: the
+      // confirmed transaction stays shown as confirmed, and the notice says
+      // the plan was too old to run and that nothing was charged.
+      if (isPlanExpired(e)) {
+        setExpired("authorize");
+        setStep("");
+        return;
+      }
       const friendly = classifyError(e);
       setFriendlyError(friendly);
       setTxState("failed");
@@ -185,17 +206,21 @@ export function ExecutionPlan({
       .join(" ") || undefined;
 
   const executing = simulate.pending || authorize.pending;
+  // The controls that run the plan. An expired plan cannot run again, and a
+  // second signature against it would only draw the same refusal.
+  const cannotRun = executing || expired !== null;
   // Authorize failures render in the TxStatus FailedCard (via friendlyError);
   // only the simulate path reports through the alert below.
   const error = simulate.error;
 
   const onSimulate = () => {
+    if (expired) return;
     authorize.reset();
     void simulate.run();
   };
 
   const onAuthorize = () => {
-    if (!wallet.connected || !wallet.address) return;
+    if (expired || !wallet.connected || !wallet.address) return;
     simulate.reset();
     void authorize.run(wallet.address);
   };
@@ -385,7 +410,7 @@ export function ExecutionPlan({
                 <Button
                   variant="outline"
                   onClick={onSimulate}
-                  disabled={executing}
+                  disabled={cannotRun}
                   size="md"
                   aria-describedby={authorizeDescribedBy}
                 >
@@ -395,7 +420,7 @@ export function ExecutionPlan({
                 <Button
                   variant="cyan"
                   onClick={onAuthorize}
-                  disabled={executing}
+                  disabled={cannotRun}
                   size="md"
                   // Tab goes from the exclusions panel straight here, past the
                   // polite notices above, so the button carries them as its
@@ -427,7 +452,7 @@ export function ExecutionPlan({
                 <Button
                   variant="outline"
                   onClick={onSimulate}
-                  disabled={executing}
+                  disabled={cannotRun}
                   size="md"
                   aria-describedby={authorizeDescribedBy}
                 >
@@ -437,6 +462,14 @@ export function ExecutionPlan({
             </div>
           )}
         </m.div>
+
+        {expired && (
+          <PlanExpiredNotice
+            run={expired}
+            onReplan={onReplan}
+            busy={executing}
+          />
+        )}
 
         {error && (
           <div

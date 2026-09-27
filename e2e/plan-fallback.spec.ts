@@ -17,7 +17,9 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockApi, mockPlanExcluded, mockWallet } from "./mocks";
 import {
+  mockAuthorizeConfirmed,
   mockDecomposeSequence,
+  mockExecuteExpired,
   mockPlanPlannerAnswered,
   mockPlanPlannerFallback,
   mockPlanPlannerFallbackUnread,
@@ -336,5 +338,82 @@ test.describe("plan card — a plan built without the planner", () => {
       mockPlanPlannerFallback.intent,
       mockPlanPlannerFallback.intent,
     ]);
+  });
+});
+
+/**
+ * A plan the backend had already let go of by the time it was sent to run
+ * (410 `plan_expired`). On the on-chain path the buyer has signed and
+ * broadcast by then, so the one reading the card must not give is "your
+ * payment failed".
+ */
+test.describe("plan card — a plan that expired before it ran", () => {
+  const expiredNotice = (page: Page) =>
+    page
+      .getByRole("main")
+      .getByRole("alert")
+      .filter({ hasText: /too old to run/i });
+
+  test("after a confirmed authorization, says nothing was charged and rebuilds the same request", async ({
+    page,
+  }) => {
+    await page.setViewportSize(LAPTOP);
+    await mockWallet(page);
+    await mockApi(page);
+    const asked = await mockDecomposeSequence(page, [
+      mockPlanExcluded,
+      mockPlanPlannerAnswered,
+    ]);
+    await mockAuthorizeConfirmed(page);
+    await mockExecuteExpired(page);
+    await page.goto("/app/orchestrator");
+    await page
+      .getByRole("textbox", { name: /intent/i })
+      .fill(mockPlanExcluded.intent);
+    await page.getByRole("button", { name: /decompos/i }).click();
+
+    const authorize = page.getByRole("button", { name: /authorize/i });
+    await authorize.click();
+
+    const notice = expiredNotice(page);
+    await expect(notice).toHaveCount(1);
+    await expect(notice).toContainText(/nothing was charged/i);
+    await expect(notice).toContainText(/authorization you just signed/i);
+    // The signed transaction is shown as what it was — confirmed — and the
+    // card never calls the refusal a failed payment or prints its code.
+    await expect(page.getByText(/transaction confirmed/i)).toBeVisible();
+    await expect(page.getByRole("main")).not.toContainText(
+      /transaction failed|plan_expired|→ 410/i,
+    );
+    await expect(authorize).toBeDisabled();
+
+    // One press builds a fresh plan from the SAME request.
+    await notice.getByRole("button", { name: /build a fresh plan/i }).click();
+    await expect(page.getByText(mockPlanPlannerAnswered.plan_id)).toBeVisible();
+    await expect(expiredNotice(page)).toHaveCount(0);
+    expect(asked).toEqual([mockPlanExcluded.intent, mockPlanExcluded.intent]);
+  });
+
+  test("on a simulated pass, says the same without an authorization to explain", async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE);
+    await mockApi(page, { plan: mockPlanExcluded });
+    await mockExecuteExpired(page);
+    await page.goto("/app/orchestrator");
+    await page
+      .getByRole("textbox", { name: /intent/i })
+      .fill(mockPlanExcluded.intent);
+    await page.getByRole("button", { name: /decompos/i }).click();
+    await page.getByRole("button", { name: /simulate/i }).click();
+
+    const notice = expiredNotice(page);
+    await expect(notice).toContainText(/nothing was charged/i);
+    await expect(notice).not.toContainText(/authorization/i);
+    await expect(page.getByRole("main")).not.toContainText(/410|plan_expired/);
+    expectWithinWidth(await stableBox(notice), PHONE, "the expired notice");
+    await expect(
+      notice.getByRole("button", { name: /build a fresh plan/i }),
+    ).toBeVisible();
   });
 });

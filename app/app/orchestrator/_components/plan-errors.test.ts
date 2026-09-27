@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/lib/api";
-import { decomposeErrorCopy } from "./plan-errors";
+import { decomposeErrorCopy, isPlanExpired } from "./plan-errors";
 
 const PATH = "POST /orchestrator/decompose";
 
@@ -77,5 +77,36 @@ describe("decomposeErrorCopy", () => {
       502,
     );
     expect(decomposeErrorCopy(e)).toBe(e.message);
+  });
+});
+
+describe("isPlanExpired", () => {
+  const EXEC = "POST /orchestrator/execute";
+  it.each([
+    [
+      "the envelope's code",
+      new ApiError(
+        `${EXEC} → 410 — this plan is too old`,
+        410,
+        undefined,
+        "plan_expired",
+      ),
+      true,
+    ],
+    ["a bare 410", new ApiError(`${EXEC} → 410 — gone`, 410), true],
+    ["a legacy token", new ApiError(`${EXEC} → 410 — plan_expired`, 410), true],
+    [
+      "a 503",
+      new ApiError(
+        `${EXEC} → 503 — capacity exhausted`,
+        503,
+        undefined,
+        "capacity_exhausted",
+      ),
+      false,
+    ],
+    ["a network error", new Error("network down"), false],
+  ] as const)("%s → %s", (_name, e, expected) => {
+    expect(isPlanExpired(e)).toBe(expected);
   });
 });

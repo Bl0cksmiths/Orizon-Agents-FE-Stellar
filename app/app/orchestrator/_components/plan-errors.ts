@@ -56,3 +56,13 @@ export function decomposeErrorCopy(e: unknown): string {
   }
   return toMessage(e);
 }
+
+/**
+ * Whether running the plan was refused because the backend no longer holds
+ * it. Stored plans expire after 15 minutes, and `POST /orchestrator/execute`
+ * then answers 410 `plan_expired`: no task is created and nothing is charged.
+ * The status alone is enough — 410 is only ever "that plan is gone" here.
+ */
+export function isPlanExpired(e: unknown): boolean {
+  return hasCode(e, "plan_expired") || fieldsOf(e).status === 410;
+}

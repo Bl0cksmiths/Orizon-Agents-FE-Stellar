@@ -241,6 +241,96 @@ describe("ExecutionPlan · the fiat path", () => {
   });
 });
 
+/** What `POST /orchestrator/execute` rejects with for a plan the backend no
+ *  longer holds, shaped as lib/api.ts builds it from the error envelope. */
+const planExpired = () =>
+  Object.assign(
+    new Error(
+      "POST /orchestrator/execute → 410 — this plan is too old to execute — build a fresh plan from the same intent and authorise that one",
+    ),
+    { status: 410, code: "plan_expired" },
+  );
+
+describe("ExecutionPlan · a plan that expired before it ran", () => {
+  /** Drives the on-chain path to a confirmed authorization whose run is then
+   *  refused as expired. */
+  async function authorizeExpired(onReplan = vi.fn()) {
+    api.buildAuthorize.mockResolvedValue({ xdr: "AAAA" });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "SUCCESS",
+      hash: "a1b2c3",
+      return_value: "0123456789abcdef0123456789abcdef",
+    });
+    api.execute.mockRejectedValue(planExpired());
+    const view = render(<ExecutionPlan plan={plan()} onReplan={onReplan} />);
+    fireEvent.click(authorizeButton());
+    await screen.findByText("This plan was too old to run");
+    return { ...view, onReplan };
+  }
+
+  // The trap: the buyer has already signed and broadcast by the time the plan
+  // is sent to run. The refusal must not read as a payment that failed.
+  it("says nothing was charged, never that the payment failed, after a signed authorization", async () => {
+    const { container } = await authorizeExpired();
+    const text = container.textContent ?? "";
+    expect(text).toContain("Nothing was charged");
+    expect(text).toContain("The authorization you just signed");
+    expect(text).toContain("not drawn on for this plan");
+    // The confirmed transaction stays confirmed; no failure card, no raw code.
+    expect(text).toContain("transaction confirmed");
+    expect(text).not.toMatch(/Transaction failed|410|plan_expired/);
+    expect(api.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers a fresh plan from the same request, and hands it to the page", async () => {
+    const { onReplan } = await authorizeExpired();
+    fireEvent.click(
+      screen.getByRole("button", { name: /build a fresh plan/i }),
+    );
+    expect(onReplan).toHaveBeenCalledTimes(1);
+  });
+
+  // The plan cannot run again: another signature would draw the same refusal.
+  it("stops the controls that run this plan", async () => {
+    await authorizeExpired();
+    expect(authorizeButton().hasAttribute("disabled")).toBe(true);
+    expect(
+      screen
+        .getByRole("button", { name: /simulate/i })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    fireEvent.click(authorizeButton());
+    expect(api.buildAuthorize).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the same on a simulated pass, without an authorization to explain", async () => {
+    api.execute.mockRejectedValue(planExpired());
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    fireEvent.click(screen.getByRole("button", { name: /simulate/i }));
+    await screen.findByText("This plan was too old to run");
+    const text = container.textContent ?? "";
+    expect(text).toContain("Nothing was charged");
+    expect(text).not.toContain("authorization you just signed");
+    expect(text).not.toMatch(/410|plan_expired|POST/);
+    // No page to hand a retry to, so no button that would do nothing.
+    expect(
+      screen.queryByRole("button", { name: /build a fresh plan/i }),
+    ).toBeNull();
+  });
+
+  // Any other refusal is still a failure, and still says so.
+  it("leaves other execute failures on the failure path", async () => {
+    api.execute.mockRejectedValue(
+      new Error("POST /orchestrator/execute → 503 — capacity exhausted"),
+    );
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    fireEvent.click(screen.getByRole("button", { name: /simulate/i }));
+    await screen.findByText(/capacity exhausted/);
+    expect(container.textContent).not.toContain("too old to run");
+  });
+});
+
 describe("ExecutionPlan · the planner-fallback notice", () => {
   const notice = () => document.getElementById(PLANNER_FALLBACK_NOTICE_ID);
 
