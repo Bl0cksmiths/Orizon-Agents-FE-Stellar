@@ -200,12 +200,17 @@ export function ExecutionPlan({
     void authorize.run(wallet.address);
   };
 
+  // Every control on the pay panel starts a payment, or a run of the plan,
+  // so each one carries the notices as its description — not only Authorize.
+  // A buyer with no wallet connected used to reach Connect Wallet, Pay with
+  // Fiat and simulate with none of them describing anything.
   const fiatToggle = (
     <Button
       variant="primary"
       onClick={() => setShowFiat((v) => !v)}
       disabled={executing}
       size="md"
+      aria-describedby={authorizeDescribedBy}
     >
       {showFiat ? "▾ Hide Fiat" : "Pay with Fiat ▸"}
     </Button>
@@ -382,6 +387,7 @@ export function ExecutionPlan({
                   onClick={onSimulate}
                   disabled={executing}
                   size="md"
+                  aria-describedby={authorizeDescribedBy}
                 >
                   simulate
                 </Button>
@@ -416,13 +422,14 @@ export function ExecutionPlan({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
-                <ConnectWallet size="md" />
+                <ConnectWallet size="md" describedBy={authorizeDescribedBy} />
                 {fiatToggle}
                 <Button
                   variant="outline"
                   onClick={onSimulate}
                   disabled={executing}
                   size="md"
+                  aria-describedby={authorizeDescribedBy}
                 >
                   simulate ▸
                 </Button>

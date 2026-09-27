@@ -28,8 +28,12 @@ import type {
   StellarNetworkInfo,
 } from "@/lib/types";
 
-// Hoisted: the vi.mock factories run before module-scope consts exist.
-const { api, wallet } = vi.hoisted(() => ({
+const PAYER = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
+
+// Hoisted: the vi.mock factories run before module-scope consts exist. The
+// wallet is mutable so a test can disconnect it; `beforeEach` reconnects.
+// The fiat quote never settles — the fiat tests are about which panel opens.
+const { api, wallet, pdax } = vi.hoisted(() => ({
   api: {
     getStellarNetwork: vi.fn(),
     buildAuthorize: vi.fn(),
@@ -38,12 +42,21 @@ const { api, wallet } = vi.hoisted(() => ({
   },
   wallet: {
     connected: true,
-    address: "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+    address: null as string | null,
     signXdr: vi.fn(),
+    connect: vi.fn(),
+    loading: false,
+    error: null,
+  },
+  pdax: {
+    pdaxFundingQuote: vi.fn(() => new Promise(() => {})),
+    pdaxReconcileRamp: vi.fn(),
+    pdaxStartOnRamp: vi.fn(),
   },
 }));
 vi.mock("@/lib/api", () => api);
 vi.mock("@/lib/wallet", () => ({ useWallet: () => wallet }));
+vi.mock("@/lib/pdax", () => pdax);
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { ExecutionPlan } from "./execution-plan";
@@ -97,7 +110,16 @@ const authorizeButton = () =>
 
 beforeEach(() => {
   api.getStellarNetwork.mockResolvedValue(TESTNET);
+  wallet.connected = true;
+  wallet.address = PAYER;
 });
+
+/** A buyer who has not connected a wallet: the pay panel offers Connect
+ *  Wallet, Pay with Fiat and simulate, and no Authorize at all. */
+function disconnect() {
+  wallet.connected = false;
+  wallet.address = null;
+}
 
 afterEach(() => {
   cleanup();
@@ -129,6 +151,93 @@ describe("ExecutionPlan · Authorize and the unverified-reputation banner", () =
     render(<ExecutionPlan plan={plan(over)} />);
     expect(authorizeButton().hasAttribute("aria-describedby")).toBe(false);
     expect(document.getElementById(UNVERIFIED_BANNER_ID)).toBeNull();
+  });
+});
+
+describe("ExecutionPlan · every way to pay carries the warning", () => {
+  const described = (name: RegExp) =>
+    screen.getByRole("button", { name }).getAttribute("aria-describedby");
+
+  // Authorize was the only control described by the warning, so a buyer who
+  // paid by fiat, or who had not connected a wallet yet, tabbed onto a pay
+  // control that said nothing about the scores being estimates.
+  it("describes simulate, fiat and Authorize when a wallet is connected", () => {
+    render(<ExecutionPlan plan={plan({ reputation_degraded: true })} />);
+    for (const name of [/^simulate$/i, /pay with fiat/i, /authorize/i]) {
+      expect(described(name), name.source).toBe(UNVERIFIED_SUMMARY_ID);
+    }
+  });
+
+  it("describes Connect Wallet, fiat and simulate when no wallet is connected", () => {
+    disconnect();
+    render(<ExecutionPlan plan={plan({ reputation_degraded: true })} />);
+    expect(screen.queryByRole("button", { name: /authorize/i })).toBeNull();
+    for (const name of [/connect wallet/i, /pay with fiat/i, /simulate/i]) {
+      expect(described(name), name.source).toBe(UNVERIFIED_SUMMARY_ID);
+    }
+  });
+
+  it("composes both notices on every control of a fallback plan with an unread score", () => {
+    disconnect();
+    render(
+      <ExecutionPlan
+        plan={plan({ reputation_degraded: true, planner_fallback: true })}
+      />,
+    );
+    for (const name of [/connect wallet/i, /pay with fiat/i, /simulate/i]) {
+      expect(described(name)?.split(" "), name.source).toEqual([
+        PLANNER_FALLBACK_NOTICE_ID,
+        UNVERIFIED_SUMMARY_ID,
+      ]);
+    }
+  });
+
+  it("leaves every control undescribed when there is nothing to warn about", () => {
+    disconnect();
+    render(<ExecutionPlan plan={plan()} />);
+    for (const name of [/connect wallet/i, /pay with fiat/i, /simulate/i]) {
+      expect(described(name), name.source).toBeNull();
+    }
+  });
+});
+
+describe("ExecutionPlan · with no wallet connected", () => {
+  it("offers the connect, fiat and simulated paths, and no Authorize", () => {
+    disconnect();
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    expect(container.textContent).toContain("wallet required");
+    expect(
+      screen.getByRole("button", { name: /connect wallet/i }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /simulate/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /authorize/i })).toBeNull();
+    expect(container.textContent).not.toContain("authorizing up to");
+  });
+
+  it("runs a simulated pass without a wallet", async () => {
+    disconnect();
+    api.execute.mockResolvedValue({ task_id: "task_sim" });
+    render(<ExecutionPlan plan={plan()} />);
+    fireEvent.click(screen.getByRole("button", { name: /simulate/i }));
+    await waitFor(() => expect(api.execute).toHaveBeenCalledWith("plan_unit"));
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExecutionPlan · the fiat path", () => {
+  it.each([
+    ["connected", () => {}],
+    ["not connected", disconnect],
+  ])("opens and closes the peso panel with a wallet %s", (_name, arrange) => {
+    arrange();
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    expect(container.textContent).not.toMatch(/PDAX/);
+    fireEvent.click(screen.getByRole("button", { name: /pay with fiat/i }));
+    expect(container.textContent).toMatch(/PDAX/);
+    // The quote is priced off the plan's total, whatever the wallet state.
+    expect(pdax.pdaxFundingQuote).toHaveBeenCalledWith("0.123");
+    fireEvent.click(screen.getByRole("button", { name: /hide fiat/i }));
+    expect(container.textContent).not.toMatch(/PDAX/);
   });
 });
 
