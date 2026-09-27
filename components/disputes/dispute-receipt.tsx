@@ -506,7 +506,8 @@ function ArtifactRow({
 
 /**
  * An artifact's state in TxStatus's visual language — a cyan ✓ once
- * confirmed, a pulsing violet dot while in flight — but not TxStatus itself:
+ * confirmed, a pulsing violet dot while in flight, a still hollow one when
+ * nothing is on record — but not TxStatus itself:
  * its Build → Sign → Broadcast trail narrates a transaction the USER signs,
  * and the platform's settler signs these. That trail here would tell the
  * buyer they had signed something they never saw.
@@ -530,13 +531,22 @@ function ArtifactMark({ artifact }: { artifact: DisputeArtifact }) {
       </p>
     );
   }
+  // Only a transaction on its way pulses. With no hash nothing is in flight —
+  // on an upheld dispute nothing may ever be sent without a person — and a
+  // throbbing dot beside "No transaction on record" read as a queue (D-070).
+  const inFlight = artifact.txHash !== null;
   return (
     <p className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-violet-readable">
       <span
         aria-hidden="true"
-        className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-violet shadow-[0_0_8px_#B026FF] motion-reduce:animate-none"
+        className={cn(
+          "h-1.5 w-1.5 shrink-0 rounded-full",
+          inFlight
+            ? "animate-pulse bg-violet shadow-[0_0_8px_#B026FF] motion-reduce:animate-none"
+            : "border border-violet",
+        )}
       />
-      {artifact.txHash
+      {inFlight
         ? "Submitted, waiting for confirmation"
         : "No transaction on record"}
     </p>
