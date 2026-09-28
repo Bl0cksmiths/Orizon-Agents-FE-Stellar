@@ -18,8 +18,13 @@ import { lintSample } from "./lint.mjs";
 import { preflight, runLive } from "./live.mjs";
 import { resolvePython, runOffline } from "./offline.mjs";
 import { parseGuide } from "./parse.mjs";
-import { createValidator } from "./schema.mjs";
-import { sessionEnv } from "./shell.mjs";
+import {
+  envForSample,
+  loadSamplesEnv,
+  staleSampleIds,
+} from "./samples-env.mjs";
+import { createValidator, docWildcards } from "./schema.mjs";
+import { parseCurlSample, resolveWord, sessionEnv } from "./shell.mjs";
 import { checkShaDrift, loadSnapshot } from "./snapshot.mjs";
 
 /**
@@ -32,14 +37,14 @@ import { checkShaDrift, loadSnapshot } from "./snapshot.mjs";
  * @typedef {{
  *   guide: string, snapshot: string, frontmatter: Record<string, string>, backendSha?: string,
  *   modes: { static: true, live: boolean, offline: boolean }, api?: string, network?: string,
- *   guideErrors: string[], samples: SampleResult[],
+ *   guideErrors: string[], samples: SampleResult[], samplesEnv?: string,
  *   counts: { verified: number, failed: number, skipped: number },
  * }} GuideReport
  */
 
 /**
  * @param {{
- *   guidePath: string, snapshotPath: string, repoRoot: string,
+ *   guidePath: string, snapshotPath: string, repoRoot: string, samplesEnvPath?: string,
  *   live?: boolean, offline?: boolean, api?: string,
  *   liveOptions?: import("./live.mjs").LiveOptions,
  *   timeoutMs?: number, python?: { python: string } | { skip: string }, useUnshare?: boolean,
@@ -122,6 +127,31 @@ export async function checkGuide(options) {
   const publicFixtures = Object.fromEntries(
     Object.entries(fixtures).filter(([k]) => !SECRET_FIXTURES.has(k)),
   );
+  const fixtureNames = new Set(Object.keys(fixtures));
+
+  /** @type {import("./samples-env.mjs").SamplesEnv | null} */
+  let samplesEnv = null;
+  if (options.samplesEnvPath !== undefined) {
+    try {
+      samplesEnv = loadSamplesEnv(options.samplesEnvPath);
+      if (samplesEnv !== null) {
+        report.samplesEnv = options.samplesEnvPath;
+        const ids = parsed.samples.map((s) => s.id);
+        for (const id of staleSampleIds(samplesEnv, ids)) {
+          report.guideErrors.push(
+            `${options.samplesEnvPath} names sample ${id}, which the guide does not have`,
+          );
+        }
+        for (const id of ids)
+          envForSample(samplesEnv, id, fixtures, fixtureNames);
+      }
+    } catch (err) {
+      report.guideErrors.push(
+        `${options.samplesEnvPath}: ${err instanceof Error ? err.message : err}`,
+      );
+      samplesEnv = null;
+    }
+  }
 
   let liveGate;
   if (live && parsed.samples.some((s) => s.verify === "live")) {
@@ -211,9 +241,18 @@ export async function checkGuide(options) {
           fail("contract", contract.problems.join("\n"));
         }
       }
+    } else if (sample.external) {
+      result.checks.push(lintExternalCurl(sample, staticEnv, parsed.apiBase));
     } else {
       const lint = lintSample(sample);
       result.checks.push({ name: "lint", ...lint, detail: lint.reason });
+      if (
+        sample.lang === "json" &&
+        sample.attrs.schema !== undefined &&
+        lint.status === "verified"
+      ) {
+        result.checks.push(checkJsonSchema(sample, snapshot?.doc, validator));
+      }
     }
 
     const staticFailed = result.checks.some((c) => c.status === "failed");
@@ -234,7 +273,11 @@ export async function checkGuide(options) {
         fail("live", `not executed: ${liveGate?.problem ?? "no live gate"}`);
       } else {
         const run = await runLive(sample, {
-          env: liveEnv,
+          env: {
+            ...liveEnv,
+            ...envForSample(samplesEnv, sample.id, publicFixtures),
+            ORIZON_API: /** @type {string} */ (api),
+          },
           api: /** @type {string} */ (api),
           wildcards: contract?.wildcards ?? new Map(),
           status: contract?.status ?? "200",
@@ -249,6 +292,8 @@ export async function checkGuide(options) {
         if (run.extra?.length) result.extra = run.extra;
         if (run.status === "failed" && run.stdout) result.output = run.stdout;
       }
+    } else if (sample.verify === "offline" && sample.lang === "json") {
+      // Nothing to execute: its static checks above are the whole check.
     } else if (sample.verify === "offline") {
       if (!offline) {
         result.checks.push({
@@ -264,7 +309,11 @@ export async function checkGuide(options) {
         });
       } else {
         const run = await runOffline(sample, {
-          env: { ...fixtures, ...staticEnv },
+          env: {
+            ...fixtures,
+            ...staticEnv,
+            ...envForSample(samplesEnv, sample.id, fixtures),
+          },
           repoRoot,
           timeoutMs: options.timeoutMs,
           python,
@@ -300,7 +349,9 @@ export async function checkGuide(options) {
       result.reason =
         sample.verify === "manual"
           ? "manual — statically checked, never executed"
-          : result.checks.map((c) => c.name).join(" + ");
+          : sample.lang === "json"
+            ? `json — nothing to execute; ${result.checks.map((c) => c.name).join(" + ")}`
+            : result.checks.map((c) => c.name).join(" + ");
     }
   }
   return finish();
@@ -309,3 +360,78 @@ export async function checkGuide(options) {
 /** @param {GuideReport} report */
 export const reportFailed = (report) =>
   report.guideErrors.length > 0 || report.counts.failed > 0;
+
+/**
+ * A curl to a host other than $ORIZON_API: it must parse as one curl, and must
+ * not be an API call written without $ORIZON_API (which would dodge the
+ * contract check).
+ *
+ * @param {import("./parse.mjs").Fence} sample
+ * @param {Record<string, string>} env
+ * @param {string | undefined} apiBase
+ * @returns {Check}
+ */
+function lintExternalCurl(sample, env, apiBase) {
+  try {
+    const { request } = parseCurlSample(sample.code);
+    const url = resolveWord(request.url, env);
+    if (apiBase !== undefined && url.startsWith(apiBase)) {
+      return {
+        name: "lint",
+        status: "failed",
+        detail: `${url} is the API: write it as $ORIZON_API so it is checked`,
+      };
+    }
+    return {
+      name: "lint",
+      status: "verified",
+      detail: "external curl: parses; outside the API contract",
+    };
+  } catch (err) {
+    return {
+      name: "lint",
+      status: "failed",
+      detail: `the curl does not parse: ${err instanceof Error ? err.message : err}`,
+    };
+  }
+}
+
+/**
+ * A json sample that names a contract schema, validated against it.
+ *
+ * @param {import("./parse.mjs").Fence} sample
+ * @param {Record<string, any> | undefined} doc
+ * @param {ReturnType<typeof createValidator> | undefined} validator
+ * @returns {Check}
+ */
+function checkJsonSchema(sample, doc, validator) {
+  const name = sample.attrs.schema;
+  if (validator === undefined || doc === undefined) {
+    return {
+      name: "schema",
+      status: "failed",
+      detail: "no usable OpenAPI snapshot; see the guide errors",
+    };
+  }
+  if (!Object.hasOwn(doc.components?.schemas ?? {}, name)) {
+    return {
+      name: "schema",
+      status: "failed",
+      detail: `schema=${name} is not a schema in the OpenAPI snapshot`,
+    };
+  }
+  const { errors } = validator.validate(
+    { $ref: `#/components/schemas/${name}` },
+    JSON.parse(sample.code),
+    {
+      wildcard: docWildcards,
+    },
+  );
+  return errors.length === 0
+    ? { name: "schema", status: "verified", detail: `matches ${name}` }
+    : {
+        name: "schema",
+        status: "failed",
+        detail: errors.map((e) => `${e.path}: ${e.message}`).join("\n"),
+      };
+}
