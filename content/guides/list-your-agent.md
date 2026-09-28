@@ -375,8 +375,8 @@ within seconds.
 
 **If it goes wrong:**
 
-- `"status": "FAILED"` still answers HTTP 200, with the reason in `diagnostic`. An `AlreadyExists` error there means
-  someone registered the id between your build and your submit.
+- `"status": "FAILED"` still answers HTTP 200, with the reason in `diagnostic`. `Error(Contract, #3)` there is the
+  registry's `AlreadyExists`: someone registered the id between your build and your submit. Choose another id.
 - `"status": "timeout"` means the transaction was not final within about 30 seconds. It may still land. Look the hash
   up on Stellar Expert before you sign anything again.
 - HTTP 400 `submit_failed` means the network refused the broadcast. Build and sign again.
