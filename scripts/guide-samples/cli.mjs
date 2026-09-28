@@ -21,13 +21,15 @@
  *                        exit 1 if a backend's OpenAPI differs from the snapshot
  *
  *   --guide <path>  --snapshot <path>  --report-dir <dir>  --timeout-ms <n>
+ *   --samples-env <path>  per-sample values (default: samples.env.json beside
+ *                         the guide; see samples-env.mjs)
  *
  * Exit: 0 when nothing failed (skips are reported, never counted as verified),
  * 1 on any failure, 2 on a usage error.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { GUIDE_PATH } from "./parse.mjs";
@@ -56,6 +58,7 @@ export async function main(argv) {
         api: { type: "string" },
         guide: { type: "string" },
         snapshot: { type: "string" },
+        "samples-env": { type: "string" },
         "report-dir": { type: "string" },
         "timeout-ms": { type: "string" },
         "refresh-openapi": { type: "string" },
@@ -140,8 +143,12 @@ export async function main(argv) {
       )
     : undefined;
 
+  const guidePath = resolve(args.guide ?? join(repoRoot, GUIDE_PATH));
   const report = await checkGuide({
-    guidePath: resolve(args.guide ?? join(repoRoot, GUIDE_PATH)),
+    guidePath,
+    samplesEnvPath: resolve(
+      args["samples-env"] ?? join(dirname(guidePath), "samples.env.json"),
+    ),
     snapshotPath,
     repoRoot,
     live: args.live,
