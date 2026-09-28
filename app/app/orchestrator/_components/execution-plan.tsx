@@ -15,7 +15,13 @@ import {
   getStellarNetwork,
   submitSigned,
 } from "@/lib/api";
-import { AUTHORIZE_TTL_SECONDS, ESCROW_BATCH_LABEL } from "@/lib/escrow";
+import {
+  AUTHORIZE_TTL_SECONDS,
+  ESCROW_BATCH_LABEL,
+  checkEscrowFunds,
+  classifyAuthorizeError,
+  insufficientEscrowFunds,
+} from "@/lib/escrow";
 import { assetLabel } from "@/lib/money";
 import { useFetch } from "@/lib/use-fetch";
 import {
@@ -32,7 +38,7 @@ import {
 } from "./planner-fallback-notice";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
-import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
+import type { FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 import { isPlanExpired } from "./plan-errors";
@@ -148,6 +154,21 @@ export function ExecutionPlan({
   const authorize = useAsyncAction(async (payer: string) => {
     setFriendlyError(null);
     setAuthorizeHash(null);
+    // Checked before anything is built or signed. Escrow v2 moves the whole
+    // cap out of the wallet at signing, so a wallet that cannot cover it plus
+    // the fee and reserve would only be refused by the chain after the buyer
+    // had been asked to sign. An unread balance is not a refusal: the chain's
+    // own answer is mapped below.
+    const funds = checkEscrowFunds({
+      balance: wallet.xlmBalance,
+      cap,
+      asset: network?.asset,
+    });
+    if (funds.kind === "short") {
+      setFriendlyError(insufficientEscrowFunds(funds));
+      setTxState("failed");
+      return;
+    }
     try {
       setStep("sign");
       setTxState("building");
@@ -199,7 +220,7 @@ export function ExecutionPlan({
         setStep("");
         return;
       }
-      const friendly = classifyError(e);
+      const friendly = classifyAuthorizeError(e);
       setFriendlyError(friendly);
       setTxState("failed");
       setStep("");

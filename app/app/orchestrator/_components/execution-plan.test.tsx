@@ -43,6 +43,7 @@ const { api, wallet, pdax } = vi.hoisted(() => ({
   wallet: {
     connected: true,
     address: null as string | null,
+    xlmBalance: null as string | null,
     signXdr: vi.fn(),
     connect: vi.fn(),
     loading: false,
@@ -113,6 +114,9 @@ beforeEach(() => {
   api.getStellarNetwork.mockResolvedValue(TESTNET);
   wallet.connected = true;
   wallet.address = PAYER;
+  // Comfortably funded unless a test says otherwise: the escrow pre-check
+  // has its own tests below.
+  wallet.xlmBalance = "10000.0000000";
 });
 
 /** A buyer who has not connected a wallet: the pay panel offers Connect
