@@ -15,6 +15,7 @@
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { motionSettled } from "./motion-settled";
 import { mockApi, mockPlanExcluded, mockWallet } from "./mocks";
 import {
   mockAuthorizeConfirmed,
@@ -230,6 +231,7 @@ test.describe("plan card — a plan built without the planner", () => {
       // the entry fade.
       await stableBox(fallbackNotice(page));
 
+      await motionSettled(page.locator("main"));
       const { violations } = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
         .analyze();
