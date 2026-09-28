@@ -48,7 +48,7 @@ curl -s "$ORIZON_API/stellar/agent-id-available/$ORIZON_AGENT_ID"
 
 ```bash id="endpoint-check" verify="live" title="Is the endpoint allowed?"
 curl -sG "$ORIZON_API/agents/bind/endpoint-check" \
-  --data-urlencode "url=https://agent.example.com/orizon"
+  --data-urlencode "url=$ORIZON_ENDPOINT_URL"
 ```
 
 ```json id="endpoint-check-response"
