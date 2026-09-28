@@ -20,9 +20,11 @@ import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { agentLabel, formatCreditShare, formatUsdc } from "@/lib/disputes";
+import { cn } from "@/lib/utils";
 import type {
   CreditPolicy,
   DisputePanelView,
+  SettlementState,
   DisputeViewer,
   SettlementStepView,
   StepDisputeState,
@@ -72,7 +74,13 @@ export function ReceiptPanel({
 
   if (view.kind === "hidden") return null;
   if (view.kind === "not_settled") {
-    return <NotSettled headingId={headingId} running={view.running} />;
+    return (
+      <NotSettled
+        headingId={headingId}
+        running={view.running}
+        settlementState={view.settlementState ?? null}
+      />
+    );
   }
   return (
     <SettledReceipt
@@ -90,18 +98,34 @@ export function ReceiptPanel({
  * No receipt yet — or none coming. Kept quiet on purpose: this sits above the
  * trace a buyer came to watch, and "not settled" is an answer, not an alarm.
  * It still says why, because a panel that silently vanishes reads as broken.
+ *
+ * Escrow v2 gave "why" more answers than "not yet" and "nothing on record": a
+ * settlement that failed or went unconfirmed writes no record, but the
+ * backend still says which it was, and each one means something different
+ * for the buyer's money — so each is said, and the two that leave funds in
+ * escrow are not quiet. The sentence is a polite live region: it changes on
+ * its own when a running workflow's settlement lands or fails.
  */
 function NotSettled({
   headingId,
   running,
+  settlementState,
 }: {
   headingId: string;
   running: boolean;
+  settlementState: SettlementState | null;
 }) {
+  const said = running ? null : settlementState;
+  const loud = said === "failed" || said === "unconfirmed";
   return (
     <section
       aria-labelledby={headingId}
-      className="clip-cyber-sm border border-border/60 bg-surface/40 px-4 py-3"
+      className={cn(
+        "clip-cyber-sm border px-4 py-3",
+        loud
+          ? "border-magenta/40 bg-magenta/5"
+          : "border-border/60 bg-surface/40",
+      )}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2
@@ -116,16 +140,71 @@ function NotSettled({
           )}
           Receipt
         </h2>
-        <p className="text-xs leading-relaxed text-muted">
-          {/* What is known, not more: the panel has found no charge on
-              record, which is not proof that nothing was ever charged — a
-              record can be lost, or land after the wait was spent. */}
-          {running
-            ? "The receipt appears here once this workflow settles, and disputes open then."
-            : "No charge is on record for this workflow, so there is nothing to dispute."}
+        {said !== null && <SettlementBadge state={said} />}
+        <p role="status" className="text-xs leading-relaxed text-muted">
+          {notSettledSentence(running, said)}
         </p>
       </div>
     </section>
+  );
+}
+
+/**
+ * What a receipt with no settlement on record says, by what the backend
+ * knows. Each sentence states what is established and no more: "no charge is
+ * on record" is not "nothing was charged", and "submitted" is not "paid".
+ */
+function notSettledSentence(
+  running: boolean,
+  state: SettlementState | null,
+): string {
+  if (running)
+    return "The receipt appears here once this workflow settles, and disputes open then.";
+  switch (state) {
+    case null:
+      // What is known, not more: the panel has found no charge on record,
+      // which is not proof that nothing was ever charged — a record can be
+      // lost, or land after the wait was spent.
+      return "No charge is on record for this workflow, so there is nothing to dispute.";
+    case "released":
+      return "Nothing was delivered, so the settlement paid no agent and returned the whole authorization from escrow to the wallet that paid. There is nothing to dispute.";
+    case "skipped":
+      return "Nothing was delivered, so nothing was charged and there is nothing to dispute.";
+    case "unconfirmed":
+      return "The settlement was sent but is not confirmed on-chain, and it may still land. Until it is confirmed nothing here is shown as paid, and there is nothing to dispute.";
+    case "failed":
+      // Not "your funds": anyone with the link may be reading. And not "held
+      // in escrow" outright: a v1 run took no custody, so only what escrow
+      // took is said to stay there.
+      return "The settlement did not go through, so no agent was paid. Anything the authorization moved into escrow stays there: the platform returns it automatically when it can, and otherwise the wallet that paid can reclaim it once the authorization expires.";
+    case "settled":
+      return "This workflow settled on-chain, but its receipt is not on record here, so it cannot be disputed from this page.";
+  }
+}
+
+/** Keyed by the state's own literal type, so a new state cannot reach the
+ * buyer without someone writing down what it looks like. */
+const SETTLEMENT_BADGE: Record<
+  SettlementState,
+  {
+    tone: "success" | "violet" | "magenta" | "muted";
+    glyph: string;
+    label: string;
+  }
+> = {
+  settled: { tone: "success", glyph: "✓", label: "settled" },
+  released: { tone: "muted", glyph: "↩", label: "custody released" },
+  skipped: { tone: "muted", glyph: "–", label: "nothing charged" },
+  unconfirmed: { tone: "violet", glyph: "◷", label: "settlement unconfirmed" },
+  failed: { tone: "magenta", glyph: "✕", label: "settlement failed" },
+};
+
+function SettlementBadge({ state }: { state: SettlementState }) {
+  const { tone, glyph, label } = SETTLEMENT_BADGE[state];
+  return (
+    <Badge tone={tone}>
+      <span aria-hidden="true">{glyph}</span> {label}
+    </Badge>
   );
 }
 
