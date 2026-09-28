@@ -1,4 +1,5 @@
 import { formatRemaining } from "@/lib/disputes";
+import { formatLocalTime } from "@/lib/local-time";
 import type { DisputePanelView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -8,21 +9,9 @@ export type DisputeWindow = Extract<
   { kind: "settled" }
 >["window"];
 
-// The zone is spelled out because the buyer reads this as a deadline: "2:05
-// PM" is a different moment for them and for whoever they forward it to.
-const LOCAL_TIME: Intl.DateTimeFormatOptions = {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZoneName: "short",
-};
-
-/** An instant in the viewer's own locale and time zone, zone named. */
-export function formatLocalTime(ms: number): string {
-  return new Intl.DateTimeFormat(undefined, LOCAL_TIME).format(ms);
-}
+// Moved to lib/local-time so the plan card can date a reclaim without this
+// module's dispute imports; re-exported so every caller here is unchanged.
+export { formatLocalTime };
 
 /**
  * Whether the dispute window is open, and until when.

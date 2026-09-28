@@ -18,7 +18,7 @@
 
 import { useEffect, useId, useState } from "react";
 
-import { formatLocalTime } from "@/components/disputes/window-state";
+import { formatLocalTime } from "@/lib/local-time";
 import { Button } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { StellarExpertLink } from "@/components/ui/stellar-link";

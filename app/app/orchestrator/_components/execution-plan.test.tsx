@@ -68,7 +68,7 @@ vi.mock("@/lib/escrow-address", async (importOriginal) => ({
   pinnedEscrowId: () => escrowPin.value,
 }));
 
-import { formatLocalTime } from "@/components/disputes/window-state";
+import { formatLocalTime } from "@/lib/local-time";
 import { AUTHORIZE_TTL_SECONDS } from "@/lib/escrow";
 import { ExecutionPlan } from "./execution-plan";
 import {

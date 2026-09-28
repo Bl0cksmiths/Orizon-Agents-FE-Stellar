@@ -18,7 +18,7 @@
  * backend does not build the reclaim transaction yet.
  */
 
-import { formatLocalTime } from "@/components/disputes/window-state";
+import { formatLocalTime } from "@/lib/local-time";
 import { ReclaimControl } from "@/components/escrow/reclaim-control";
 import { NETWORK_LABEL, StellarExpertLink } from "@/components/ui/stellar-link";
 import type { HeldAuthorization } from "@/lib/held-authorizations";
