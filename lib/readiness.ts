@@ -138,3 +138,70 @@ export async function getAgentReadiness(
   if (!res.ok) throw await httpError("GET", path, res);
   return ensure(path, isAgentReadiness)(await res.json());
 }
+
+/** Narrows a wire status. Anything this build does not know is `unknown` —
+ * "couldn't check" — and never `done`: a status that cannot be read is not a
+ * step that is finished. */
+export function readinessStatus(raw: string): ReadinessStatus {
+  return (READINESS_STATUSES as readonly string[]).includes(raw)
+    ? (raw as ReadinessStatus)
+    : "unknown";
+}
+
+const isStepKey = (v: string): v is ReadinessStepKey =>
+  (READINESS_STEP_KEYS as readonly string[]).includes(v);
+
+/** One checklist row, ready to render. */
+export type ChecklistStep = {
+  /** The wire key; one of `READINESS_STEP_KEYS` unless a newer backend sent
+   * a step this build has no name for. */
+  key: string;
+  status: ReadinessStatus;
+  detail: string;
+  action: string | null;
+  evidence: ReadinessEvidence | null;
+};
+
+/** What a documented step reads as when the backend sent nothing for it. */
+const MISSING_DETAIL = "The backend did not report this step.";
+
+/**
+ * The checklist, always the seven documented steps in the documented order,
+ * followed by any step this build does not know (in the order it arrived).
+ *
+ * A documented step the payload left out is `unknown` rather than dropped,
+ * and a repeated key keeps its first occurrence — the backend promises one of
+ * each, and showing two answers to one question would be showing neither.
+ */
+export function checklistSteps(r: AgentReadiness): ChecklistStep[] {
+  const byKey = new Map<string, ReadinessStep>();
+  for (const step of r.steps)
+    if (!byKey.has(step.key)) byKey.set(step.key, step);
+  const row = (key: string, step: ReadinessStep | undefined): ChecklistStep =>
+    step
+      ? {
+          key,
+          status: readinessStatus(step.status),
+          detail: step.detail,
+          action: step.action ?? null,
+          evidence: step.evidence ?? null,
+        }
+      : {
+          key,
+          status: "unknown",
+          detail: MISSING_DETAIL,
+          action: null,
+          evidence: null,
+        };
+  const known = READINESS_STEP_KEYS.map((key) => row(key, byKey.get(key)));
+  const extra = [...byKey.entries()]
+    .filter(([key]) => !isStepKey(key))
+    .map(([key, step]) => row(key, step));
+  return [...known, ...extra];
+}
+
+/** The first step that is not done, in checklist order, or null when every
+ * step is. A failed or unchecked step is not done: it is where to look next. */
+export function nextStep(steps: ChecklistStep[]): ChecklistStep | null {
+  return steps.find((s) => s.status !== "done") ?? null;
+}
