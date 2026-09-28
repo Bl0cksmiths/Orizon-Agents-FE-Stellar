@@ -782,6 +782,34 @@ describe("useDisputePanel — what it fetches", () => {
   });
 });
 
+describe("useDisputePanel — a settlement that ended without a record", () => {
+  // The backend has already said how it ended: a failed settlement must not
+  // sit behind "appears here once this workflow settles" for the whole wait.
+  it.each(["failed", "unconfirmed", "released", "skipped"] as const)(
+    "says a sealed run's %s settlement at once",
+    async (state) => {
+      const { result } = await mountWith(
+        answer(H, { settlement: null, settlement_state: state }),
+      );
+      expect(result.current.view).toMatchObject({
+        kind: "not_settled",
+        running: false,
+        settlementState: state,
+      });
+    },
+  );
+
+  it("still waits out the record when the state says settled", async () => {
+    const { result } = await mountWith(
+      answer(H, { settlement: null, settlement_state: "settled" }),
+    );
+    expect(result.current.view).toMatchObject({
+      kind: "not_settled",
+      running: true,
+    });
+  });
+});
+
 describe("useDisputePanel — who is looking", () => {
   it("follows the connected wallet: anonymous, someone else, the payer", async () => {
     wallet.address = null;
