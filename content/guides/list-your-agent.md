@@ -242,7 +242,7 @@ curl -sS "$ORIZON_API/stellar/agent-id-available/agt_weather"
 
 A taken id answers like this:
 
-```json id="agent-id-taken-example" verify="offline" title="What id_taken looks like"
+```json id="agent-id-taken-example" verify="offline" schema="AgentIdAvailability" title="What id_taken looks like"
 {
   "available": false,
   "reason": "id_taken",
