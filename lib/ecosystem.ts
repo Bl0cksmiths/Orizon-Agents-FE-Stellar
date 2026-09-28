@@ -187,3 +187,116 @@ export async function getEcosystemAdoption(): Promise<EcosystemAdoption> {
   if (!res.ok) throw await httpError("GET", ADOPTION_PATH, res);
   return ensure(ADOPTION_PATH, isEcosystemAdoption)(await res.json());
 }
+
+/** What each target is called on the page, and what counts toward it. */
+export const TARGET_COPY: Record<TargetKey, { label: string; counts: string }> =
+  {
+    external_agents: {
+      label: "Externally operated agents",
+      counts: "Agents owned by a wallet the Blocksmiths do not control.",
+    },
+    unique_operator_wallets: {
+      label: "Unique operator wallets",
+      counts: "Distinct external wallets that own at least one agent.",
+    },
+    settled_external_workflows: {
+      label: "Workflows routed to external agents and settled",
+      counts: "Paid workflows, each with a settlement transaction on-chain.",
+    },
+  };
+
+/** One target as the page states it. */
+export type TargetRow = {
+  key: TargetKey;
+  current: number;
+  target: number;
+  met: boolean;
+  /** How many more are needed; 0 when met. */
+  shortBy: number;
+};
+
+/**
+ * The three targets, each met only when the backend says it is met AND its
+ * own total reaches the target. The two disagreeing is a backend defect, and
+ * a defect must never be what turns a miss into a claim of success in front
+ * of a reviewer — so the disagreement reads as the miss the numbers show.
+ */
+export function targetRows(a: EcosystemAdoption): TargetRow[] {
+  return TARGET_KEYS.map((key) => {
+    const current = a.totals[key];
+    const target = a.targets[key];
+    const met = a.met[key] === true && current >= target;
+    return {
+      key,
+      current,
+      target,
+      met,
+      shortBy: met ? 0 : Math.max(0, target - current),
+    };
+  });
+}
+
+/** "0 of 3 targets met." — the page's one-line verdict. */
+export function targetsVerdict(rows: TargetRow[]): string {
+  const met = rows.filter((r) => r.met).length;
+  return `${met} of ${rows.length} targets met.`;
+}
+
+/** The sentence under a missed target. Plain: how many, of how many, and how
+ * far off. Never "almost", never "nearly". */
+export function missSentence(row: TargetRow): string {
+  return `Not met: ${row.current} of ${row.target}, short by ${row.shortBy}.`;
+}
+
+/** Every wallet the team controls, for labelling payers. */
+export function excludedOwners(a: EcosystemAdoption): Set<string> {
+  return new Set(a.excluded.map((w) => w.owner));
+}
+
+/** A settlement paid by one of our own wallets. It is still a real on-chain
+ * settlement, but it is not an outsider paying an outsider, and the page must
+ * not let it pass as one. */
+export function isTeamFunded(payer: string, excluded: Set<string>): boolean {
+  return excluded.has(payer);
+}
+
+/** Why a wallet does not count, in words. A reason this build does not know
+ * is shown as sent: still excluded, never hidden. */
+export function exclusionReason(raw: string): string {
+  switch (raw) {
+    case "team_wallet":
+      return "Team wallet";
+    case "platform_key":
+      return "Platform key";
+    default:
+      return raw.replace(/_/g, " ") || "Excluded";
+  }
+}
+
+/**
+ * The degraded read, as a sentence, or null when the read was whole. Counts
+ * the agents it could not see when the backend names them; says "every agent"
+ * when it only knows the read was partial. Either way it is a gap, and the
+ * sentence says it is not a zero.
+ */
+export function unverifiedSentence(a: EcosystemAdoption): string | null {
+  const n = a.unreadable_agents?.length ?? 0;
+  if (n === 0 && a.degraded !== true) return null;
+  const who =
+    n === 0
+      ? "Couldn't verify every agent right now"
+      : `Couldn't verify ${n} agent${n === 1 ? "" : "s"} right now`;
+  return `${who}. Whatever they would add is missing from the figures below until they can be read again — a gap, not a zero.`;
+}
+
+/** `GABC…WXYZ`. The full address always goes alongside, for screen readers
+ * and for copying. */
+export function shortAddress(g: string): string {
+  return g.length > 12 ? `${g.slice(0, 4)}…${g.slice(-4)}` : g;
+}
+
+/** A USDC amount as paid: up to seven decimals (the asset's precision), no
+ * trailing zeros, never rounded to a figure that was not paid. */
+export function formatUsdcAmount(n: number): string {
+  return `${n.toLocaleString("en-US", { maximumFractionDigits: 7 })} USDC`;
+}
