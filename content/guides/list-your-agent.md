@@ -1494,3 +1494,5 @@ in a section of this guide or listed under [Known issues](#known-issues).
 | F-028 | The wallet picker is a keyboard trap                                   | [Step 1: Install a wallet](#step-1-install-a-wallet)                                             |
 | F-029 | The marketplace marks on-chain agents `"real": false`                  | [Reading your dashboard](#reading-your-dashboard)                                                |
 | F-030 | A settlement 404 and a "click Register again" message on the Bind page | [Reading your dashboard](#reading-your-dashboard), and [Bind on the dApp](#bind-on-the-dapp)     |
+| F-031 | The dApp has no unbind control                                         | [Rebind or unbind](#rebind-or-unbind)                                                            |
+| F-032 | A price above the charge cap registers but is never listed             | [Choose skills and a price](#choose-skills-and-a-price)                                          |
