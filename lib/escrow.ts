@@ -15,28 +15,33 @@ import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
  */
 
 /**
- * How long a signed authorization stays settleable, in seconds — the
+ * How long until a signed authorization EXPIRES, in seconds — the
  * `ttl_seconds` sent to `POST /stellar/build/authorize`, which stamps
  * `expires_at = now + ttl` into the authorization.
  *
- * Escrow v2 turns this one number into a trade-off between the two people the
- * custody protects, because it refuses `settle` once `expires_at` has passed
- * (`Expired`) and refuses the buyer's `reclaim` until it has (`Locked`):
+ * Under escrow v2 the expiry is the point at which the buyer may take their
+ * custody back: `reclaim` is refused before it (`Locked`) and allowed after.
+ * `settle` is NOT cut off by it (interface amendment for finding S3) — a long
+ * run can still pay the operators it used after expiry — but once the buyer
+ * may reclaim, whichever of `settle` and `reclaim` lands first wins. So the
+ * one number is a trade-off between the two parties the custody protects:
  *
  * - Too SHORT, and a slow run — a cold agent endpoint, an LLM retry, a
- *   settlement queued behind the seal — finishes after expiry. The operators
- *   who delivered can then never be paid for it, and the whole maximum sits in
- *   escrow until the buyer reclaims it.
- * - Too LONG, and a run that never settles (a backend restart mid-run, a
- *   settlement that failed) keeps the buyer's funds locked for that long
- *   before `reclaim` is allowed to return them.
+ *   settlement queued behind the seal — is still going when the buyer may
+ *   reclaim, and a reclaim that lands first leaves operators who delivered
+ *   unpaid. The backend also refuses to execute against an authorization
+ *   whose remaining life cannot cover a worst-case run of the plan.
+ * - Too LONG, and a run that never settles — and that the platform could not
+ *   release automatically — keeps the buyer's funds locked for that long
+ *   before they can reclaim them.
  *
- * The backend accepts 30–3600 s (`AuthorizeReq.ttl_seconds`). 1800 s, half
- * an hour, is well past any run the console has timed while keeping a stuck
- * authorization recoverable the same afternoon. v1's 600 s was chosen when an
- * expiry only lapsed a cap; under custody it is also the buyer's lock-up, so
- * it is set deliberately and in one place. The backend lane recommends the
- * final value; change it here and nowhere else.
+ * The backend accepts 30–3600 s (`AuthorizeReq.ttl_seconds`). The worst case
+ * it plans for is six steps at about 120 s each plus the settle — around 15
+ * minutes — before the wallet prompt and cold starts are counted. 1800 s,
+ * half an hour, covers that with margin and still frees a stuck authorization
+ * the same afternoon. v1's 600 s dated from when an expiry only lapsed a cap;
+ * under custody it is also the buyer's lock-up, so it is set here and nowhere
+ * else.
  */
 export const AUTHORIZE_TTL_SECONDS = 1800;
 
