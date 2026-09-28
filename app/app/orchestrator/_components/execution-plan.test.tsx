@@ -59,6 +59,14 @@ vi.mock("@/lib/api", () => api);
 vi.mock("@/lib/wallet", () => ({ useWallet: () => wallet }));
 vi.mock("@/lib/pdax", () => pdax);
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+// The escrow v2 pin ships null until v2 is deployed; tests set one.
+const { escrowPin } = vi.hoisted(() => ({
+  escrowPin: { value: null as string | null },
+}));
+vi.mock("@/lib/escrow-address", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/escrow-address")>()),
+  pinnedEscrowId: () => escrowPin.value,
+}));
 
 import { formatLocalTime } from "@/components/disputes/window-state";
 import { AUTHORIZE_TTL_SECONDS } from "@/lib/escrow";
@@ -135,6 +143,7 @@ function disconnect() {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  escrowPin.value = null;
 });
 
 describe("ExecutionPlan · Authorize and the unverified-reputation banner", () => {
@@ -855,6 +864,53 @@ describe("ExecutionPlan · a wallet that cannot fund the escrow", () => {
     await screen.findByText(/The authorization could not be prepared/);
     expect(container.textContent).toContain("nothing was signed or moved");
     expect(wallet.signXdr).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExecutionPlan · the escrow this console is written for", () => {
+  const V2 = `C${"V".repeat(55)}`;
+  const withEscrow = (id: string) =>
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: id },
+    });
+
+  // Every sentence at the button describes escrow v2's custody. Against any
+  // other escrow the signature would go where the copy does not describe.
+  it("pauses Authorize, and says why, when the backend settles through another escrow", async () => {
+    escrowPin.value = V2;
+    withEscrow(ESCROW_ID);
+    render(<ExecutionPlan plan={plan()} />);
+    const notice = await screen.findByText(/On-chain payment is paused/);
+    expect(notice.textContent).toContain(ESCROW_ID);
+    expect(notice.textContent).toContain(V2);
+    expect(authorizeButton().hasAttribute("disabled")).toBe(true);
+    expect(authorizeButton().getAttribute("aria-describedby")).toBe(notice.id);
+    fireEvent.click(authorizeButton());
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
+    // A simulated pass signs nothing against the escrow.
+    expect(
+      screen
+        .getByRole("button", { name: /simulate/i })
+        .hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("asks for the signature when the backend's escrow is the pinned one", async () => {
+    escrowPin.value = V2;
+    withEscrow(V2);
+    render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    expect(screen.queryByText(/On-chain payment is paused/)).toBeNull();
+    expect(authorizeButton().hasAttribute("disabled")).toBe(false);
+  });
+
+  it("decides nothing while no v2 escrow is pinned", async () => {
+    withEscrow(ESCROW_ID);
+    render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    expect(screen.queryByText(/On-chain payment is paused/)).toBeNull();
+    expect(authorizeButton().hasAttribute("disabled")).toBe(false);
   });
 });
 
