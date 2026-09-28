@@ -151,3 +151,28 @@ test("text output: exact lines, trailing whitespace ignored, <...> matches withi
   );
   assert.equal(compareText("a.c", "abc").ok, false);
 });
+
+test("a string with <...> inside it is a template: literal parts in place", () => {
+  const doc = {
+    explorer:
+      "https://stellar.expert/explorer/testnet/tx/<64-hex transaction hash>",
+  };
+  assert.ok(
+    compareJson(doc, {
+      explorer: `https://stellar.expert/explorer/testnet/tx/${"a".repeat(64)}`,
+    }).ok,
+  );
+  assert.equal(
+    compareJson(doc, {
+      explorer: "https://stellar.expert/explorer/public/tx/abc",
+    }).ok,
+    false,
+  );
+  assert.equal(
+    compareJson(doc, {
+      explorer: "https://stellar.expert/explorer/testnet/tx/",
+    }).ok,
+    false,
+  );
+  assert.equal(compareJson(doc, { explorer: 5 }).ok, false);
+});

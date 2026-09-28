@@ -18,6 +18,7 @@ import {
   childPath,
   jsonType,
   readWildcard,
+  templatePattern,
   valueHasType,
 } from "./wildcard.mjs";
 
@@ -62,7 +63,13 @@ const ANNOTATIONS = new Set([
 /** Documented-response wildcards, `"<...>"` (see wildcard.mjs). */
 export const docWildcards = (value) => {
   const w = readWildcard(value);
-  if (w === null) return null;
+  if (w === null) {
+    // A template string ("https://x/tx/<hash>") is some string: its type is
+    // checked, its value is not held to a pattern it only sketches.
+    return typeof value === "string" && templatePattern(value) !== null
+      ? { types: new Set(["string"]), label: JSON.stringify(value) }
+      : null;
+  }
   return {
     types: w.tag === null ? null : new Set([w.tag]),
     label: `<${w.text}>`,

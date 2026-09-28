@@ -249,3 +249,25 @@ test("a keyword outside the subset is refused, not ignored", () => {
 test("the committed snapshot uses only the implemented subset", () => {
   assert.ok(createValidator(REAL).assertSupported() > 100);
 });
+
+test("a template string is checked as a string, not against the pattern it sketches", () => {
+  const schema = {
+    type: "object",
+    properties: {
+      owner: { type: "string", pattern: "^G[A-Z2-7]{55}$" },
+      n: { type: "integer" },
+    },
+  };
+  assert.deepEqual(
+    messages(
+      schema,
+      { owner: "G<rest of your address>" },
+      { wildcard: docWildcards },
+    ),
+    [],
+  );
+  assert.deepEqual(
+    messages(schema, { n: "about <n>" }, { wildcard: docWildcards }),
+    ['$.n "about <n>" is string, but the contract says integer'],
+  );
+});

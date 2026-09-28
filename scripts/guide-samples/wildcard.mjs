@@ -18,8 +18,9 @@
  *   3. Nothing else. An untagged wildcard where the contract declares no type
  *      (a free-form object) is a string.
  *
- * In a documented `text` output, `<...>` on a line matches any non-empty run of
- * characters on that line.
+ * A string with a `<...>` INSIDE it (`"https://x/tx/<64-hex hash>"`) is a
+ * template: a string with the literal parts in place and each `<...>` any
+ * non-empty run. In a documented `text` output, each line is such a template.
  */
 
 export const JSON_TYPES = [
@@ -129,6 +130,16 @@ export function compareJson(documented, actual, resolved) {
         result.mismatched.push({
           path,
           message: `documented <${wildcard.text}> (${[...types].join(" | ")}), got ${jsonType(real)} ${preview(real)}`,
+        });
+      }
+      return;
+    }
+    const template = typeof doc === "string" ? templatePattern(doc) : null;
+    if (template !== null) {
+      if (typeof real !== "string" || !template.test(real)) {
+        result.mismatched.push({
+          path,
+          message: `documented ${preview(doc)}, got ${preview(real)}`,
         });
       }
       return;
@@ -258,10 +269,21 @@ export function compareText(documented, actual) {
 
 /** @param {string} pattern @param {string} line */
 function lineMatches(pattern, line) {
-  const parts = pattern.split(/<[^<>]+>/);
-  if (parts.length === 1) return pattern === line;
+  const template = templatePattern(pattern);
+  return template === null ? pattern === line : template.test(line);
+}
+
+/**
+ * A string with `<...>` inside it, as a pattern: literal text in place, each
+ * `<...>` any non-empty run. Null when the string holds no placeholder.
+ *
+ * @param {string} text
+ */
+export function templatePattern(text) {
+  const parts = text.split(/<[^<>]+>/);
+  if (parts.length === 1) return null;
   const source = parts
     .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .join(".+?");
-  return new RegExp(`^${source}$`).test(line);
+  return new RegExp(`^${source}$`, "s");
 }
