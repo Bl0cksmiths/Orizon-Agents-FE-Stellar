@@ -141,8 +141,12 @@ test("fence meta: language, id, verify and attributes are required and checked",
       "unknown fence attribute colour",
     ],
     [
-      fence('json id="x" verify="offline"', "{}"),
-      'verify="offline" cannot apply to a json fence',
+      fence('env id="x" verify="offline"', "A=1"),
+      'verify="offline" cannot apply to a env fence',
+    ],
+    [
+      fence('bash id="x" verify="manual" schema="Agent"', "echo"),
+      "schema= only applies to a json sample",
     ],
     [
       fence('python id="x" verify="live"', "print(1)"),
@@ -211,7 +215,7 @@ test("every -response and -output is attached to an existing sample, right after
     ),
   );
   assert.ok(
-    wrongKind.includes("py is not an HTTP sample; it has no response"),
+    wrongKind.includes("py is not a curl sample; it has no response"),
     wrongKind.join("\n"),
   );
 
@@ -219,18 +223,24 @@ test("every -response and -output is attached to an existing sample, right after
     guide(API + curl + fence('text id="net-output"', "x")),
   );
   assert.ok(
-    outputOnCurl.includes("net is an HTTP sample; document it with -response"),
+    outputOnCurl.includes("net is a curl sample; document it with -response"),
     outputOnCurl.join("\n"),
   );
 
-  const verifyOnResponse = messages(
+  const mismatched = messages(
     guide(API + curl + fence('json id="net-response" verify="manual"', "{}")),
   );
   assert.ok(
-    verifyOnResponse.includes(
-      "a -response fence is never executed; drop verify=",
+    mismatched.includes(
+      'net-response says verify="manual" but its sample net is verify="live"',
     ),
-    verifyOnResponse.join("\n"),
+    mismatched.join("\n"),
+  );
+  assert.deepEqual(
+    parseGuide(
+      guide(API + curl + fence('json id="net-response" verify="live"', "{}")),
+    ).errors,
+    [],
   );
 });
 
@@ -315,4 +325,34 @@ test("$ORIZON_API is defined before it is used, once", () => {
     notUrl.includes("ORIZON_API=orizons.xyz is not an http(s) URL"),
     notUrl.join("\n"),
   );
+});
+
+test("a curl to another host is external: manual only, no response required", () => {
+  const faucet =
+    'curl -sS "https://friendbot.stellar.org/?addr=$OPERATOR_PUBLIC_KEY"';
+  const parsed = parseGuide(
+    guide(API + fence('bash id="fund" verify="manual"', faucet)),
+  );
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(parsed.samples.find((s) => s.id === "fund")?.external, true);
+  assert.equal(parsed.samples.find((s) => s.id === "fund")?.http, false);
+  const live = messages(
+    guide(
+      API +
+        fence('bash id="fund" verify="live"', faucet) +
+        fence('json id="fund-response"', "{}"),
+    ),
+  );
+  assert.ok(
+    live.some((m) => m.startsWith("a curl that is not against $ORIZON_API")),
+    live.join("\n"),
+  );
+  const withResponse = parseGuide(
+    guide(
+      API +
+        fence('bash id="fund" verify="manual"', faucet) +
+        fence('json id="fund-response"', "{}"),
+    ),
+  );
+  assert.deepEqual(withResponse.errors, []);
 });
