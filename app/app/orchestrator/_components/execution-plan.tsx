@@ -43,6 +43,7 @@ import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 import { isPlanExpired } from "./plan-errors";
 import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
+import { EscrowHeldNotice, type HeldAuthorization } from "./escrow-held-notice";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -115,6 +116,14 @@ export function ExecutionPlan({
   // The plan cannot run again, so the controls that run it stay disabled and
   // the notice offers a fresh plan instead.
   const [expired, setExpired] = useState<ExpiredRun | null>(null);
+  // An authorization that CONFIRMED, kept for as long as no run has been
+  // seen to take it over. Under escrow v2 its cap is already in escrow, so
+  // if the run is refused or cannot be started the buyer has to be told the
+  // funds are held and how to reclaim them — and must not be offered a
+  // second signature that would lock up a second cap beside the first.
+  const [held, setHeld] = useState<HeldAuthorization | null>(null);
+  // Why the run could not be started after the authorization confirmed.
+  const [runError, setRunError] = useState<string | null>(null);
 
   // What every amount on this card is actually denominated in. `total_usdc`
   // is a legacy field name, not a currency: the cap the buyer signs is that
@@ -157,6 +166,8 @@ export function ExecutionPlan({
   const authorize = useAsyncAction(async (payer: string) => {
     setFriendlyError(null);
     setAuthorizeHash(null);
+    setRunError(null);
+    let confirmed: HeldAuthorization | null = null;
     // Checked before anything is built or signed. Escrow v2 moves the whole
     // cap out of the wallet at signing, so a wallet that cannot cover it plus
     // the fee and reserve would only be refused by the chain after the buyer
@@ -175,7 +186,7 @@ export function ExecutionPlan({
     try {
       setStep("sign");
       setTxState("building");
-      const { xdr } = await buildAuthorize({
+      const { xdr, expires_at } = await buildAuthorize({
         payer,
         // A label only since escrow v2: payouts name their own agents at
         // settle, so this no longer decides who is paid (see lib/escrow.ts).
@@ -206,6 +217,12 @@ export function ExecutionPlan({
 
       setAuthorizeHash(broadcast.hash);
       setTxState("success");
+      confirmed = {
+        authIdHex: authHex,
+        payer,
+        expiresAt: expires_at ?? null,
+      };
+      setHeld(confirmed);
 
       setStep("execute");
       const { task_id } = await execute(plan.plan_id, {
@@ -216,10 +233,20 @@ export function ExecutionPlan({
     } catch (e) {
       // Refused at `execute`, AFTER the authorization was confirmed on-chain.
       // Not a payment failure, and the failure card would say it was one: the
-      // confirmed transaction stays shown as confirmed, and the notice says
-      // the plan was too old to run and that nothing was charged.
+      // confirmed transaction stays shown as confirmed, the notice says the
+      // plan was too old to run, and the held-funds notice says where the
+      // cap is and how to reclaim it.
       if (isPlanExpired(e)) {
         setExpired("authorize");
+        setStep("");
+        return;
+      }
+      // Any other failure after the authorization confirmed is a failure to
+      // START the run, not a failed payment: the confirmed transaction stays
+      // confirmed rather than turning into a failure card, and the reason is
+      // stated beside the held-funds notice.
+      if (confirmed !== null) {
+        setRunError(e instanceof Error ? e.message : String(e));
         setStep("");
         return;
       }
@@ -252,7 +279,7 @@ export function ExecutionPlan({
   const executing = simulate.pending || authorize.pending;
   // The controls that run the plan. An expired plan cannot run again, and a
   // second signature against it would only draw the same refusal.
-  const cannotRun = executing || expired !== null || empty;
+  const cannotRun = executing || expired !== null || held !== null || empty;
   // Authorize failures render in the TxStatus FailedCard (via friendlyError);
   // only the simulate path reports through the alert below.
   const error = simulate.error;
@@ -532,6 +559,25 @@ export function ExecutionPlan({
             run={expired}
             onReplan={onReplan}
             busy={executing}
+          />
+        )}
+
+        {runError && (
+          <div
+            role="alert"
+            className="mt-4 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 font-mono text-xs text-magenta"
+          >
+            The authorization confirmed, but the run could not be started:{" "}
+            {runError}
+          </div>
+        )}
+
+        {held && (expired === "authorize" || runError) && (
+          <EscrowHeldNotice
+            held={held}
+            amount={priced(cap)}
+            escrowId={network?.contracts.payment_escrow || null}
+            runRefused={expired === "authorize"}
           />
         )}
 
