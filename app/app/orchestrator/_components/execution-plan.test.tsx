@@ -60,6 +60,7 @@ vi.mock("@/lib/wallet", () => ({ useWallet: () => wallet }));
 vi.mock("@/lib/pdax", () => pdax);
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
+import { formatLocalTime } from "@/components/disputes/window-state";
 import { AUTHORIZE_TTL_SECONDS, ESCROW_BATCH_LABEL } from "@/lib/escrow";
 import { ExecutionPlan } from "./execution-plan";
 import {
@@ -106,6 +107,11 @@ function plan(over: Partial<DecomposeResponse> = {}): DecomposeResponse {
     ...over,
   };
 }
+
+/** The escrow the fixtures' network read reports, and the expiry the build
+ *  stamps: the held-funds notice prints both. */
+const ESCROW_ID = "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI";
+const EXPIRES_AT = 1_790_000_000;
 
 const authorizeButton = () =>
   screen.getByRole("button", { name: /authorize/i });
@@ -260,7 +266,14 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
   /** Drives the on-chain path to a confirmed authorization whose run is then
    *  refused as expired. */
   async function authorizeExpired(onReplan = vi.fn()) {
-    api.buildAuthorize.mockResolvedValue({ xdr: "AAAA" });
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: ESCROW_ID },
+    });
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
     wallet.signXdr.mockResolvedValue("signed-xdr");
     api.submitSigned.mockResolvedValue({
       status: "SUCCESS",
@@ -275,17 +288,40 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
   }
 
   // The trap: the buyer has already signed and broadcast by the time the plan
-  // is sent to run. The refusal must not read as a payment that failed.
-  it("says nothing was charged, never that the payment failed, after a signed authorization", async () => {
+  // is sent to run. The refusal must not read as a payment that failed — and
+  // under escrow v2 it must not read as "nothing charged" either: the cap is
+  // in escrow, and it does not lapse back on its own.
+  it("says no task ran and the signed cap is held in escrow, never that it lapses", async () => {
     const { container } = await authorizeExpired();
     const text = container.textContent ?? "";
-    expect(text).toContain("Nothing was charged");
-    expect(text).toContain("The authorization you just signed");
-    expect(text).toContain("not drawn on for this plan");
+    expect(text).toContain("No task was started");
+    expect(text).toContain("held in escrow until you reclaim it");
+    expect(text).not.toContain("Nothing was charged");
+    expect(text).not.toMatch(/lapses|only caps|not drawn on/);
     // The confirmed transaction stays confirmed; no failure card, no raw code.
     expect(text).toContain("transaction confirmed");
     expect(text).not.toMatch(/Transaction failed|410|plan_expired/);
     expect(api.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands the buyer everything a reclaim needs", async () => {
+    const { container } = await authorizeExpired();
+    const notice = screen.getByRole("region", {
+      name: "Your funds are held in escrow",
+    });
+    const text = notice.textContent ?? "";
+    expect(text).toContain("0.123 XLM");
+    expect(text).toContain("No run was started");
+    expect(text).toContain("0123456789abcdef0123456789abcdef");
+    expect(text).toContain(PAYER);
+    expect(text).toContain(ESCROW_ID);
+    expect(text).toContain(
+      `-- reclaim --payer ${PAYER} --auth_id 0123456789abcdef0123456789abcdef`,
+    );
+    // When: the expiry the build stamped, never a guess.
+    expect(text).toContain(formatLocalTime(EXPIRES_AT * 1_000));
+    // And the confirmed card names where the cap went.
+    expect(container.textContent).toContain("0.123 XLM → CBJPTM…5525PI");
   });
 
   it("offers a fresh plan from the same request, and hands it to the page", async () => {
@@ -322,6 +358,48 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
     expect(
       screen.queryByRole("button", { name: /build a fresh plan/i }),
     ).toBeNull();
+  });
+
+  // After the authorization confirmed, a run that cannot be STARTED is not a
+  // failed payment — the cap is in escrow — and a second Authorize would lock
+  // up a second cap beside it.
+  it("keeps a confirmed authorization confirmed when the run cannot start", async () => {
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: ESCROW_ID },
+    });
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "SUCCESS",
+      hash: "a1b2c3",
+      return_value: "0123456789abcdef0123456789abcdef",
+    });
+    api.execute.mockRejectedValue(
+      new Error("POST /orchestrator/execute → 503 — capacity exhausted"),
+    );
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/the run could not be started/);
+    const text = container.textContent ?? "";
+    expect(text).toContain("capacity exhausted");
+    expect(text).toContain("transaction confirmed");
+    expect(text).not.toContain("Transaction failed");
+    // Hedged: a failed request may still have started a run that settles.
+    const notice = screen.getByRole("region", {
+      name: "Your funds are held in escrow",
+    });
+    expect(notice.textContent).toContain(
+      "could not confirm that a run started",
+    );
+    expect(notice.textContent).not.toContain("No run was started");
+    expect(authorizeButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(authorizeButton());
+    expect(api.buildAuthorize).toHaveBeenCalledTimes(1);
   });
 
   // Any other refusal is still a failure, and still says so.
