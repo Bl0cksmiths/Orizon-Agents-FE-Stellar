@@ -1209,11 +1209,11 @@ curl -sS "$ORIZON_API/stellar/settlement/$AGENT_ID"
   "asset": "native",
   "window_days": "<days actually scanned, about 7>",
   "scanned_ledgers": "<ledgers scanned>",
-  "entries": [],
-  "total_stroops": 0,
-  "self_payment_stroops": 0,
-  "truncated": false,
-  "unavailable": null
+  "entries": "<one object per charged event in the window; empty when none>",
+  "total_stroops": "<sum of the entries that are not self-payments>",
+  "self_payment_stroops": "<sum of the excluded entries>",
+  "truncated": "<true if the scan stopped early>",
+  "unavailable": "<null, or why no scan could run>"
 }
 ```
 
