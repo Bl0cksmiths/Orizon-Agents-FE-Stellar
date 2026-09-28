@@ -2692,6 +2692,55 @@ describe("disputeView — escrow v2 settlement", () => {
     });
   });
 
+  // The backend names why a delivered step was paid nothing; the receipt
+  // says it that way, and never as paid.
+  it.each([
+    ["no_onchain_owner", "ext_seeded_like", { kind: "platform" }],
+    ["free", "ext_free", { kind: "not_billed", reason: "free" }],
+    [
+      "owner_unreadable",
+      "ext_x",
+      { kind: "not_billed", reason: "owner_unreadable" },
+    ],
+    [
+      "over_authorized_cap",
+      "ext_y",
+      { kind: "not_billed", reason: "over_cap" },
+    ],
+    ["a reason this build does not know", "ext_z", { kind: "not_paid" }],
+  ])("reads an unpaid reason of %s", (reason, agentId, payout) => {
+    const v = settled({
+      res: taskDisputes({
+        settlement_state: "settled",
+        settlement: settlement({
+          steps: [
+            step(0, {
+              agent_id: agentId,
+              delivered: true,
+              price_usdc: 0,
+              paid_usdc: 0,
+              unpaid_reason: reason,
+            }),
+          ],
+        }),
+      }),
+    });
+    expect(v.steps[0].payout).toEqual(payout);
+    expect(v.steps[0].state.kind).toBe("not_charged");
+  });
+
+  it("refuses an unpaid reason that is not a string", async () => {
+    const body = taskDisputes({
+      settlement: settlement({
+        steps: [
+          { ...step(0), unpaid_reason: 3 } as unknown as SettlementStepView,
+        ],
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+
   // Never inferred from a price: a v1 record on a state-aware backend has no
   // per-step payout, and the receipt must not print its price as one.
   it("shows no payout for a settled step whose payout was not reported", () => {

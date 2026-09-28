@@ -989,6 +989,30 @@ describe("ReceiptPanel — an escrow v2 settlement", () => {
     expect(screen.queryByRole("link", { name: /step 2 payout/ })).toBeNull();
   });
 
+  it.each([
+    ["free", "delivered · not billed (free step)"],
+    ["owner_unreadable", "delivered · not paid (operator could not be read)"],
+    ["over_cap", "delivered · not paid (over the authorized maximum)"],
+  ] as const)(
+    "says a delivered %s step was not billed, never paid",
+    (reason, words) => {
+      renderPanel(
+        settled(
+          [
+            {
+              step: step(0, { paid_usdc: 0, delivered: true }),
+              state: { kind: "not_charged" },
+              payout: { kind: "not_billed", reason },
+            },
+          ],
+          { settlementState: "settled", remainder: { kind: "unreported" } },
+        ),
+      );
+      expect(text()).toContain(words);
+      expect(text()).not.toMatch(/\bpaid \d/);
+    },
+  );
+
   it("says the rest went back, and that its amount was not reported", () => {
     renderPanel(v2());
     expect(text()).toContain("the rest, to the payer · amount not reported");
