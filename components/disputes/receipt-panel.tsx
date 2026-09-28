@@ -24,10 +24,12 @@ import { cn } from "@/lib/utils";
 import type {
   CreditPolicy,
   DisputePanelView,
+  SettlementRemainder,
   SettlementState,
   DisputeViewer,
   SettlementStepView,
   StepDisputeState,
+  StepPayout,
 } from "@/lib/types";
 
 import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
@@ -246,6 +248,47 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
   );
 }
 
+/** What a settled receipt says about its settlement, by the reported state. */
+function settledSentence(state: SettlementState): string {
+  switch (state) {
+    case "settled":
+      return "Settled on-chain: each delivered step with an on-chain operator was paid from escrow in one transaction, and the rest of the authorization went back to the wallet that paid.";
+    case "unconfirmed":
+      return "The settlement was sent but is not confirmed on-chain yet, and it may still land. Nothing on this receipt is shown as paid until it is.";
+    case "failed":
+      return notSettledSentence(false, "failed");
+    case "released":
+    case "skipped":
+      return notSettledSentence(false, state);
+  }
+}
+
+/**
+ * What came back to the payer from escrow. One word for the key, like the
+ * rows beside it. A figure only when the backend reported one: the rest of an
+ * authorization is never worked out here from the cap and the payouts.
+ */
+function RemainderRow({ remainder }: { remainder: SettlementRemainder }) {
+  const value = (() => {
+    switch (remainder.kind) {
+      case "returned":
+        return `${formatUsdc(remainder.usdc)} to the payer`;
+      case "unreported":
+        return "the rest, to the payer · amount not reported";
+      case "pending":
+        return "not confirmed yet";
+      case "held":
+        return "none yet · still held in escrow";
+    }
+  })();
+  return (
+    <KVRow k="returned">
+      {/* break-words, not the row's break-all: this is prose, not a hash. */}
+      <span className="break-words">{value}</span>
+    </KVRow>
+  );
+}
+
 /**
  * The coarse cadence the shared stale badge falls back to past an hour. A
  * closed window is at least a whole window old, so nothing finer than this
@@ -305,6 +348,11 @@ function SettledReceipt({
     ? view.window.closesAtMs - view.window.remainingMs
     : (closedNowMs ?? view.window.closesAtMs);
   const steps = view.steps.length;
+  // What a settled receipt could always claim before escrow v2: a record on
+  // file meant a confirmed charge. A reported state other than `settled`
+  // withdraws that, and nothing on the receipt may then read as paid.
+  const confirmed =
+    view.settlementState == null || view.settlementState === "settled";
   // Only someone the page cannot yet place is told how to become able to
   // dispute. A payer already has the buttons; a connected wallet that did not
   // pay is not the payer, and a prompt would invite them to try.
@@ -337,24 +385,55 @@ function SettledReceipt({
                 >
                   Receipt
                 </h2>
-                <Badge tone="success">
-                  <span aria-hidden="true">✓</span> settled
-                </Badge>
+                {/* A backend that reports no state wrote this record only
+                    for a confirmed charge, so it reads as settled, as it
+                    always has. */}
+                <SettlementBadge state={view.settlementState ?? "settled"} />
               </div>
               <p className="mt-1 text-sm text-muted">
-                Settled{" "}
+                {confirmed ? "Settled" : "Recorded"}{" "}
                 <time dateTime={new Date(view.settledAtMs).toISOString()}>
                   {formatAge(nowMs - view.settledAtMs)}
                 </time>{" "}
                 · {steps} step{steps === 1 ? "" : "s"}
               </p>
             </div>
+            {/* Only a confirmed settlement has a total that moved. Any other
+                state gets a dash and a reason — never the record's figure,
+                which would state as paid what the chain has not confirmed. */}
             <StatTile
               label="total charged"
-              value={formatUsdc(view.settledUsdc)}
+              value={
+                confirmed ? (
+                  formatUsdc(view.settledUsdc)
+                ) : (
+                  <>
+                    <span aria-hidden="true">—</span>
+                    <span className="sr-only">not confirmed</span>
+                  </>
+                )
+              }
+              hint={confirmed ? undefined : "nothing is shown as paid"}
               className="sm:text-right"
             />
           </div>
+
+          {view.settlementState != null &&
+            // "Paid from escrow, the rest returned" is v2's story. A v1
+            // record under a state-aware backend has no per-step payout,
+            // and charged a total from custody it never held.
+            (view.settlementState !== "settled" ||
+              view.steps.some(({ payout }) => payout !== undefined)) && (
+              <p
+                role="status"
+                className="max-w-2xl text-xs leading-relaxed text-muted"
+              >
+                {settledSentence(view.settlementState)}
+                {view.settlementStoppedChecking
+                  ? " This page has stopped checking for it — reload to look again."
+                  : null}
+              </p>
+            )}
 
           <dl className="space-y-3 font-mono text-sm">
             {/* One word: a two-word key wraps onto two lines beside a
@@ -370,7 +449,11 @@ function SettledReceipt({
                 <span aria-hidden="true"> ▸</span>
               </StellarExpertLink>
             </KVRow>
-            <KVRow k="settled" value={formatLocalTime(view.settledAtMs)} />
+            <KVRow
+              k={confirmed ? "settled" : "recorded"}
+              value={formatLocalTime(view.settledAtMs)}
+            />
+            {view.remainder && <RemainderRow remainder={view.remainder} />}
             <TxRow label="charge" hash={view.chargeTx} />
             <TxRow label="seal" hash={view.proofTx} />
           </dl>
@@ -400,11 +483,12 @@ function SettledReceipt({
               </p>
             ) : (
               <ol className="space-y-3">
-                {view.steps.map(({ step, state }) => (
+                {view.steps.map(({ step, state, payout }) => (
                   <StepItem
                     key={step.step_index}
                     step={step}
                     state={state}
+                    payout={payout}
                     viewer={view.viewer}
                     nowMs={nowMs}
                     onDispute={onDispute}
@@ -502,12 +586,15 @@ function stepNumber(step: SettlementStepView): number {
 function StepItem({
   step,
   state,
+  payout,
   viewer,
   nowMs,
   onDispute,
 }: {
   step: SettlementStepView;
   state: StepDisputeState;
+  /** Escrow v2's word on this step's payout; absent on a v1 receipt. */
+  payout?: StepPayout;
   viewer: DisputeViewer;
   /** The receipt's clock, on the server's time where the view carries it. */
   nowMs: number;
@@ -543,7 +630,17 @@ function StepItem({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 pl-10 sm:shrink-0 sm:flex-col sm:items-end sm:gap-2 sm:pl-0">
-          <StepPrice step={step} charged={state.kind !== "not_charged"} />
+          <StepPrice
+            step={step}
+            charged={
+              state.kind === "not_charged"
+                ? "no"
+                : state.kind === "payout_unconfirmed"
+                  ? "pending"
+                  : "yes"
+            }
+          />
+          {payout && <StepPayoutLine step={step} payout={payout} />}
           <StepAction step={step} state={state} onDispute={onDispute} />
         </div>
       </div>
@@ -562,11 +659,20 @@ function StepPrice({
   charged,
 }: {
   step: SettlementStepView;
-  charged: boolean;
+  /** `pending`: an unconfirmed settlement — neither paid nor struck off. */
+  charged: "yes" | "no" | "pending";
 }) {
   const price = formatUsdc(step.price_usdc);
-  if (charged) {
+  if (charged === "yes") {
     return <span className="font-mono text-sm text-text">{price}</span>;
+  }
+  if (charged === "pending") {
+    return (
+      <span className="font-mono text-sm text-muted">
+        <span aria-hidden="true">{price}</span>
+        <span className="sr-only">Payout not confirmed, priced at {price}</span>
+      </span>
+    );
   }
   return (
     <span className="font-mono text-sm text-muted">
@@ -576,6 +682,60 @@ function StepPrice({
       <span className="sr-only">Not charged, priced at {price}</span>
     </span>
   );
+}
+
+/**
+ * What escrow v2 paid this step's operator, stated as far as the backend has
+ * confirmed it (`stepPayout` decides; this only draws). A paid step links the
+ * settlement transaction its payout happened in, named for its step so a
+ * links list tells one row's link from another's (WCAG 2.4.4). A seeded
+ * platform agent's step is never shown as paid: it has no on-chain owner, so
+ * the settlement left it out and its share went back to the payer.
+ */
+function StepPayoutLine({
+  step,
+  payout,
+}: {
+  step: SettlementStepView;
+  payout: StepPayout;
+}) {
+  const label = "font-mono text-[10px] leading-relaxed";
+  switch (payout.kind) {
+    case "paid":
+      return (
+        <span className="flex flex-col items-start gap-1 sm:items-end">
+          <span className={cn(label, "text-emerald-300")}>
+            paid {formatUsdc(payout.usdc)} to the operator
+          </span>
+          {payout.tx && (
+            <StellarExpertLink
+              kind="tx"
+              id={payout.tx}
+              className="inline-flex min-h-6 items-center gap-[1ch]"
+            >
+              view step {stepNumber(step)} payout on stellar.expert
+              <span aria-hidden="true"> ▸</span>
+            </StellarExpertLink>
+          )}
+        </span>
+      );
+    case "platform":
+      return (
+        <span className={cn(label, "text-muted")}>
+          {step.delivered ? "delivered · " : ""}not billed (platform agent)
+        </span>
+      );
+    case "pending":
+      return (
+        <span className={cn(label, "text-muted")}>payout not confirmed</span>
+      );
+    case "not_paid":
+      return <span className={cn(label, "text-muted")}>not paid</span>;
+    case "unreported":
+      return (
+        <span className={cn(label, "text-muted")}>payout not reported</span>
+      );
+  }
 }
 
 /**
@@ -636,6 +796,8 @@ function StepAction({
     // Someone who did not pay is shown the receipt and nothing else — no
     // control, no hint, no disabled button.
     case "view_only":
+    // Explained under the row; nothing to act on until the payout confirms.
+    case "payout_unconfirmed":
     // The dispute's receipt under the row opens with its status badge; a
     // second badge up here would say the same thing twice in one step.
     case "disputed":
@@ -665,6 +827,14 @@ function StepDetail({
             it was priced at zero, or the whole settlement moved nothing — so
             it never claims a cause the view did not establish. */}
         Nothing was charged for this step, so there is nothing to dispute.
+      </p>
+    );
+  }
+  if (state.kind === "payout_unconfirmed") {
+    return (
+      <p className="mt-3 border-t border-border/40 pt-3 text-xs leading-relaxed text-muted">
+        This step&apos;s payout is not confirmed on-chain yet, so it cannot be
+        disputed until it is.
       </p>
     );
   }
