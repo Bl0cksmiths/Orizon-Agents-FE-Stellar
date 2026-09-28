@@ -50,10 +50,12 @@ test("the fixture guide parses with no errors and every construct in it", () => 
   ]);
   assert.deepEqual(byMode("offline"), [
     "set-api",
+    "id-taken-example",
     "sign-challenge",
     "digest-message",
   ]);
   assert.deepEqual(byMode("manual"), [
+    "friendbot-fund",
     "bind",
     "bind-bad",
     "read-binding",
@@ -79,6 +81,14 @@ test("the fixture guide parses with no errors and every construct in it", () => 
   assert.equal(
     parsed.samples.find((s) => s.id === "bind-bad")?.response?.attrs.status,
     "422",
+  );
+  assert.equal(
+    parsed.samples.find((s) => s.id === "friendbot-fund")?.external,
+    true,
+  );
+  assert.equal(
+    parsed.samples.find((s) => s.id === "id-taken-example")?.attrs.schema,
+    "AgentIdAvailability",
   );
 });
 

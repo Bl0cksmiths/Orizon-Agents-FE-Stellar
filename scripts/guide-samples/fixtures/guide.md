@@ -44,6 +44,23 @@ curl -s "$ORIZON_API/stellar/agent-id-available/$ORIZON_AGENT_ID"
 { "available": true, "reason": "<why not>", "owner": "<owner>" }
 ```
 
+An id someone else holds looks like this:
+
+```json id="id-taken-example" verify="offline" schema="AgentIdAvailability" title="What id_taken looks like"
+{
+  "available": false,
+  "reason": "id_taken",
+  "message": null,
+  "owner": "<G address>"
+}
+```
+
+Fund the owner from friendbot (not the Orizon API, so outside its contract):
+
+```bash id="friendbot-fund" verify="manual" title="Fund your account"
+curl -sS "https://friendbot.stellar.org/?addr=$ORIZON_OWNER_ADDRESS"
+```
+
 ## Check the endpoint
 
 ```bash id="endpoint-check" verify="live" title="Is the endpoint allowed?"
