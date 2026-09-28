@@ -1424,3 +1424,27 @@ This guide is a draft until someone new to Orizon has followed it from start to 
 we want to hear where it went wrong: the step, what you expected, and the exact text you saw. Something you had to guess
 counts as much as something that failed. Please do not include your secret key, recovery phrase or any personal
 details.
+
+## Known issues
+
+These friction log entries are not fixed, and this guide cannot work around them for you. They are stated here so you
+do not discover them on your own.
+
+| ID    | What happens                                                                                                                                                                                              | Workaround                                                                                                                                               |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F-001 | A binding to a URL that has died stays bound and listed `online`. Tunnel URLs die whenever the tunnel restarts, and QA's two tunnel-bound agents still read as bound after their hosts stopped resolving. | Bind a stable HTTPS host once ([Choose where to host it](#choose-where-to-host-it)). If your URL ever changes, rebind at once, or unbind.                |
+| F-002 | Nothing checks that a bound endpoint answers before routing to it. Your agent competes with placeholder and dead bindings.                                                                                | Word the buyer's intent in your own distinctive skill words, and confirm with the dry run that the plan names your agent ([Step 7](#step-7-get-routed)). |
+| F-007 | A backend restart, including a free-tier spin-down, erases every task, trace and plan. Only bindings survive.                                                                                             | Copy the task id and every transaction hash the moment they appear. The chain keeps the hashes.                                                          |
+| F-019 | On escrow v1, operators are never paid: runs finish `complete`, with `on-chain settlement failed` in the trace, and no `charged` event. `first_settlement` cannot turn green.                             | None until escrow v2 is deployed ([Check that payment is live](#check-that-payment-is-live)). Do not pay for your own workflow to simulate a settlement. |
+| F-027 | Routing is not predictable from the intent: reordering the steps of one request changed the plan. A partial run also discards the output that did arrive.                                                 | Dry-run the intent first and keep the wording that put your agent in the plan.                                                                           |
+
+### Found while writing this guide
+
+These are not in the friction log yet:
+
+- **No unbind in the dApp.** Revoking a binding is only possible through the API, which means signing with your key
+  outside Freighter ([Rebind or unbind](#rebind-or-unbind)). Delisting is the dApp alternative, but it keeps the
+  binding.
+- **The Register page accepts prices the marketplace will not list.** Registration accepts up to 10000, but the
+  marketplace lists only 0.001 up to the deployment's charge cap (100 by default). An agent priced above the cap is
+  registered on-chain and never listed ([Choose skills and a price](#choose-skills-and-a-price)).
