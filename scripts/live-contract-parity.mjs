@@ -69,12 +69,26 @@ const CONTRACT_ID = /^C[A-Z2-7]{55}$/;
  * @returns {Map<string, string>}
  */
 function canonicalContractIds(book) {
-  return new Map(
+  const ids = new Map(
     Object.entries(book).filter(
       ([, value]) => typeof value === "string" && CONTRACT_ID.test(value),
     ),
   );
+  // Escrow v2 is deployed BESIDE v1 (contracts repo `make deploy-escrow-v2`):
+  // the book records it as `payment_escrow_v2` and keeps v1's id under
+  // `payment_escrow` as history. The backend reports the escrow it settles
+  // through as `payment_escrow`, so once a v2 id is recorded that is the one
+  // production must be using — v1's id is history, not a contract to wire.
+  const v2 = ids.get(ESCROW_V2_KEY);
+  if (v2 !== undefined) {
+    ids.set("payment_escrow", v2);
+    ids.delete(ESCROW_V2_KEY);
+  }
+  return ids;
 }
+
+/** Where the address book records the escrow v2 id beside v1's. */
+export const ESCROW_V2_KEY = "payment_escrow_v2";
 
 /**
  * Every contract id the live backend reports, under its address-book name.
@@ -198,6 +212,62 @@ export function compareLiveContracts(live, book) {
           `${row.name}: live ${show(row.live)} != canonical ${show(row.canonical)}`,
       ),
   };
+}
+
+/**
+ * The escrow v2 pin (`lib/escrow-address.json`) against the escrow the live
+ * backend settles through.
+ *
+ * The pin is what this frontend's payment copy describes — custody at
+ * authorize, per-step payouts, reclaim — so a live backend on any other
+ * escrow is serving a console whose words about money are wrong. A null pin
+ * is a network escrow v2 has not reached: nothing to compare, reported as
+ * pending so it is visible, never passed off as checked.
+ *
+ * @param {any} live  body of GET /api/stellar/network
+ * @param {Record<string, unknown>} pins  parsed lib/escrow-address.json
+ * @returns {{ pinned: string | null, problems: string[] }}
+ */
+export function compareEscrowPin(live, pins) {
+  const network = canonicalNetwork(live?.network);
+  if (network === null) {
+    return {
+      pinned: null,
+      problems: [
+        `cannot check the escrow v2 pin: the live network ${JSON.stringify(live?.network)} is not one this frontend builds for`,
+      ],
+    };
+  }
+  const segment = network === "mainnet" ? "public" : "testnet";
+  const pin = pins?.[segment];
+  if (pin === undefined) {
+    return {
+      pinned: null,
+      problems: [`lib/escrow-address.json has no "${segment}" entry`],
+    };
+  }
+  if (pin === null) return { pinned: null, problems: [] };
+  const escrow = live?.contracts?.payment_escrow;
+  return {
+    pinned: String(pin),
+    problems:
+      escrow === pin
+        ? []
+        : [
+            `payment_escrow: live ${show(escrow)} != escrow v2 pin ${String(pin)} (lib/escrow-address.json)`,
+          ],
+  };
+}
+
+/**
+ * Read the frontend's escrow v2 pin from this repository.
+ *
+ * @param {string} [root]
+ * @returns {Record<string, unknown>}
+ */
+export function loadEscrowPins(root = repoRoot) {
+  const path = join(root, "lib", "escrow-address.json");
+  return JSON.parse(readFileSync(path, "utf8"));
 }
 
 /** Where the workflows check the contract repo out to (ci.yml, smoke.yml). */
