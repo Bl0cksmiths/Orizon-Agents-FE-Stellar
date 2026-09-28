@@ -51,7 +51,8 @@ type ExecStep = "" | "sign" | "broadcast" | "execute";
 
 const STEP_LABEL: Record<Exclude<ExecStep, "">, string> = {
   sign: "◉ Freighter…",
-  broadcast: "◉ Broadcasting…",
+  // The broadcast is the moment the cap leaves the wallet for the escrow.
+  broadcast: "◉ Moving funds to escrow…",
   execute: "◉ Launching…",
 };
 
@@ -150,7 +151,9 @@ export function ExecutionPlan({
     }
   });
 
-  /** Real on-chain path: wallet signs authorize, backend charges + seals. */
+  /** Real on-chain path: the wallet signs authorize, which moves the cap
+   *  into escrow; the backend then settles (pays delivered steps, returns the
+   *  rest) and seals. */
   const authorize = useAsyncAction(async (payer: string) => {
     setFriendlyError(null);
     setAuthorizeHash(null);
@@ -451,10 +454,15 @@ export function ExecutionPlan({
                 {empty ? (
                   <div className="text-sm">{EMPTY_PLAN}</div>
                 ) : (
-                  <div className="text-sm">
+                  // Escrow v2 takes custody at authorize: this signature moves
+                  // the money now, not at settlement. A buyer who reads "up
+                  // to" as a cap on a later charge has been told v1's story.
+                  <div className="max-w-xl text-sm leading-relaxed">
                     Freighter will prompt for{" "}
-                    <b className="text-text">one signature</b> authorizing up to{" "}
-                    <b className="text-text">{priced(cap)}</b>.
+                    <b className="text-text">one signature</b> that moves up to{" "}
+                    <b className="text-text">{priced(cap)}</b> from your wallet
+                    into escrow now. Delivered steps are paid from it, and the
+                    rest comes back to you when the run settles.
                   </div>
                 )}
               </div>
@@ -499,7 +507,7 @@ export function ExecutionPlan({
                 <div className="text-sm">
                   {empty
                     ? EMPTY_PLAN
-                    : `Connect Freighter (${NETWORK_LABEL}) to pay with x402 on-chain, or run a simulated pass.`}
+                    : `Connect Freighter (${NETWORK_LABEL}) to pay on-chain: authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles. Or run a simulated pass, which moves no funds.`}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
