@@ -314,7 +314,7 @@ curl -sS -X POST "$ORIZON_API/stellar/build/register-agent" \
 
 Put the `xdr` value in `UNSIGNED_XDR`. Errors come back in one envelope, for example:
 
-```json id="register-build-error-example" verify="offline" title="An error response"
+```json id="register-build-error-example" verify="offline" schema="ErrorEnvelope" title="An error response"
 {
   "detail": "id_taken",
   "error": {
