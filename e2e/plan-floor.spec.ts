@@ -36,7 +36,7 @@ import {
   mockPlanNoSteps,
   mockPlanPartialOutage,
 } from "./plan-degraded-fixtures";
-import { assetLabel } from "../lib/money";
+import { STROOPS_PER_UNIT, assetLabel, formatSettled } from "../lib/money";
 import { scoreOutOfFive } from "../lib/reputation-math";
 import type { DecomposeResponse } from "../lib/types";
 
@@ -715,10 +715,19 @@ test.describe("plan card — what each claim rests on", () => {
     // the assertion follows the deployment: "native" is XLM on testnet.
     const unit = assetLabel(mockTestnetNetwork.asset);
     expect(unit).toBe("XLM");
-    const cap = `${mockPlanStepEvidence.total_usdc.toFixed(3)} ${unit}`;
+    // To the stroop it is signed at (finding S6), never rounded for display.
+    const cap = formatSettled(
+      Math.round(mockPlanStepEvidence.total_usdc * STROOPS_PER_UNIT),
+      mockTestnetNetwork.asset,
+    );
+    expect(cap.endsWith(` ${unit}`)).toBe(true);
 
     // The line a buyer reads immediately before signing, and the total above.
-    await expect(page.getByText(/authorizing up to/i)).toContainText(cap);
+    // Escrow v2 takes custody at authorize, and the line says so.
+    await expect(page.getByText(/moves up to/i)).toContainText(cap);
+    await expect(page.getByText(/moves up to/i)).toContainText(
+      "from your wallet into escrow now",
+    );
     await expect(page.getByText(cap, { exact: true })).toHaveCount(2);
     // `total_usdc` is a field name; nothing on the card may read it aloud.
     await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
@@ -828,7 +837,7 @@ test.describe("plan card — what each claim rests on", () => {
         }
         if (options.wallet) {
           expectWithinWidth(
-            await stableBox(page.getByText(/authorizing up to/i)),
+            await stableBox(page.getByText(/moves up to/i)),
             frame,
             "the authorize line",
           );
@@ -838,7 +847,7 @@ test.describe("plan card — what each claim rests on", () => {
           // so a button past its row is gone even while the page has room.
           const controls = page
             .locator("div")
-            .filter({ has: page.getByText(/authorizing up to/i) })
+            .filter({ has: page.getByText(/moves up to/i) })
             .filter({ has: page.getByRole("button", { name: /authorize/i }) })
             .last();
           const row = await stableBox(controls);
@@ -1038,7 +1047,7 @@ test.describe("plan card — shapes the backend may send", () => {
 
     await expect(steps(page)).toHaveCount(0);
     await expect(planCard(page)).toContainText(/nothing to authorize/i);
-    await expect(page.getByText(/authorizing up to/i)).toHaveCount(0);
+    await expect(page.getByText(/moves up to/i)).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: /authorize/i }),
     ).toBeDisabled();

@@ -285,7 +285,7 @@ test.describe("plan card — a plan built without the planner", () => {
       // controls still inside the row that holds them.
       const controls = page
         .locator("div")
-        .filter({ has: page.getByText(/authorizing up to/i) })
+        .filter({ has: page.getByText(/moves up to/i) })
         .filter({ has: page.getByRole("button", { name: /authorize/i }) })
         .last();
       const row = await stableBox(controls);
@@ -365,7 +365,7 @@ test.describe("plan card — a plan that expired before it ran", () => {
       .getByRole("alert")
       .filter({ hasText: /too old to run/i });
 
-  test("after a confirmed authorization, says nothing was charged and rebuilds the same request", async ({
+  test("after a confirmed authorization, says no task ran, where the funds are, and rebuilds the same request", async ({
     page,
   }) => {
     await page.setViewportSize(LAPTOP);
@@ -388,8 +388,17 @@ test.describe("plan card — a plan that expired before it ran", () => {
 
     const notice = expiredNotice(page);
     await expect(notice).toHaveCount(1);
-    await expect(notice).toContainText(/nothing was charged/i);
-    await expect(notice).toContainText(/authorization you just signed/i);
+    // Escrow v2 took custody when the authorization confirmed: nothing ran
+    // and no agent was paid, but it is not "nothing charged" — the funds are
+    // held until reclaimed, and the card says where and how.
+    await expect(notice).toContainText(/no task was started/i);
+    await expect(notice).toContainText(
+      /authorization you just signed is held in escrow until you reclaim it/i,
+    );
+    await expect(notice).not.toContainText(/nothing was charged|lapses/i);
+    await expect(
+      page.getByRole("region", { name: "Your funds are held in escrow" }),
+    ).toBeVisible();
     // The signed transaction is shown as what it was — confirmed — and the
     // card never calls the refusal a failed payment or prints its code.
     await expect(page.getByText(/transaction confirmed/i)).toBeVisible();
