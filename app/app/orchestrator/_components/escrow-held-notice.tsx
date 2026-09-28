@@ -21,15 +21,9 @@
 import { formatLocalTime } from "@/components/disputes/window-state";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
 
-/** The confirmed authorization the notice is about. */
-export type HeldAuthorization = {
-  /** The 16-byte authorization id, as 32 hex characters. */
-  authIdHex: string;
-  /** The wallet that signed it — the only one `reclaim` accepts. */
-  payer: string;
-  /** Epoch seconds after which reclaim is allowed; null when not reported. */
-  expiresAt: number | null;
-};
+import type { HeldAuthorization } from "@/lib/held-authorizations";
+
+export type { HeldAuthorization };
 
 export const ESCROW_HELD_NOTICE_ID = "escrow-held-notice";
 
