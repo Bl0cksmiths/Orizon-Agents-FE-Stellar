@@ -38,7 +38,7 @@ export type FenceMeta = {
 
 export const KEBAB_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ATTR = /\s*([A-Za-z_][\w-]*)="([^"]*)"/y;
-const KNOWN_ATTRS = new Set(["id", "verify", "title"]);
+const KNOWN_ATTRS = new Set(["id", "verify", "title", "schema", "status"]);
 
 /** Parse a fence's language and meta, or return the problems with it. */
 export function parseFenceInfo(
@@ -71,7 +71,7 @@ export function parseFenceInfo(
     const [, key, value] = m;
     if (!KNOWN_ATTRS.has(key)) {
       problems.push(
-        `${shown}: unknown attribute "${key}" (expected id, verify, title)`,
+        `${shown}: unknown attribute "${key}" (expected id, verify, title, schema, status)`,
       );
     } else if (key in attrs) {
       problems.push(`${shown}: attribute "${key}" is given twice`);
