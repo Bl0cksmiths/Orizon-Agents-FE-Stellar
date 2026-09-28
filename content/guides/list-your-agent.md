@@ -154,3 +154,30 @@ banner.
 > **Limitation:** The wallet picker cannot be closed from the keyboard: it has no Escape handler, and its close button
 > has no accessible name (F-028). If you navigate by keyboard only, you will need a mouse or trackpad for this one
 > dialog.
+
+## Step 2: Fund from friendbot
+
+A Stellar account does not exist until it holds XLM. Friendbot gives testnet accounts free testnet XLM.
+
+1. In the browser, open `https://friendbot.stellar.org/?addr=<your G address>`, or use the fund link on
+   <https://orizons.xyz/app/wallet>. You should get a JSON answer that reports success.
+2. Open `https://stellar.expert/explorer/testnet/account/<your G address>`. Check that the URL says `testnet`.
+
+If you prefer the terminal, this is the same request. It creates your account on testnet, so it is marked `manual`:
+
+```bash id="friendbot-fund" verify="manual" title="Fund your account from friendbot"
+curl -sS "https://friendbot.stellar.org/?addr=$OPERATOR_PUBLIC_KEY"
+```
+
+**What you should see:** Stellar Expert shows the account with an XLM balance.
+
+**If it goes wrong:**
+
+- **Stellar Expert says the account does not exist.** Funding did not land. Run step 1 again. Do not go on unfunded:
+  registration refuses an owner account that does not exist with `owner_account_unfunded`, and the Register page says
+  "Fund this wallet on testnet before registering." (F-004).
+- **A script gets HTTP 403 from friendbot.** Friendbot refuses Python's default `urllib` User-Agent. The browser is not
+  affected. If you script funding, send a User-Agent header of your own (F-026).
+- **Your own tooling gets `Error(Contract, #6)` reading a balance.** For an account that has never been funded, the
+  testnet native asset contract's `balance()` fails with that error instead of answering 0. Treat it as "not funded
+  yet", not as a broken contract (F-003).
