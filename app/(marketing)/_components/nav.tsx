@@ -6,12 +6,14 @@ import { ButtonLink } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { cn } from "@/lib/utils";
 
+// Section links are rooted at "/" so they also work from pages other than
+// the home page that share this nav; on the home page they still just scroll.
 const links = [
-  { href: "#solution", label: "Product" },
-  { href: "#architecture", label: "Architecture" },
-  { href: "#reputation", label: "Reputation" },
-  { href: "#use-cases", label: "Use Cases" },
-  { href: "#roadmap", label: "Roadmap" },
+  { href: "/#solution", label: "Product" },
+  { href: "/#architecture", label: "Architecture" },
+  { href: "/#reputation", label: "Reputation" },
+  { href: "/#use-cases", label: "Use Cases" },
+  { href: "/#roadmap", label: "Roadmap" },
 ];
 
 export function Nav() {
