@@ -289,11 +289,15 @@ export function createValidator(root) {
         if (s.maxItems !== undefined && v.length > s.maxItems) {
           errs.push({ path: at, message: `more than ${s.maxItems} items` });
         }
+        // Only a schema that says something about items looks at them: a
+        // bare `$ref` wrapper must not re-walk them as unconstrained.
         const prefix = s.prefixItems ?? [];
-        v.forEach((item, index) => {
-          const itemSchema = index < prefix.length ? prefix[index] : s.items;
-          run(itemSchema, item, childPath(at, index), errs, wild);
-        });
+        if (s.prefixItems !== undefined || s.items !== undefined) {
+          v.forEach((item, index) => {
+            const itemSchema = index < prefix.length ? prefix[index] : s.items;
+            run(itemSchema, item, childPath(at, index), errs, wild);
+          });
+        }
       }
 
       if (v !== null && typeof v === "object" && !Array.isArray(v)) {
@@ -307,7 +311,11 @@ export function createValidator(root) {
           }
         }
         const props = s.properties ?? {};
-        for (const [key, item] of Object.entries(obj)) {
+        const describesProperties =
+          s.properties !== undefined || s.additionalProperties !== undefined;
+        for (const [key, item] of describesProperties
+          ? Object.entries(obj)
+          : []) {
           const at2 = childPath(at, key);
           if (Object.hasOwn(props, key)) {
             run(props[key], item, at2, errs, wild);
