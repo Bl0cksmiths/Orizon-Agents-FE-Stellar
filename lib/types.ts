@@ -150,6 +150,15 @@ export type PlanFloorNotice = {
    *  when the agent had no reputation entry at all. */
   lower_bound_bps?: number | null;
   floor_bps?: number;
+  /**
+   * The agent was held off (refused, or substituted) because a rating landed
+   * since its last reputation read and the fresh read has not answered yet
+   * (finding S8). `lower_bound_bps` is then the PRE-rating bound and may sit
+   * ABOVE `floor_bps` while `reason_code` still says `below_floor`, so such
+   * a notice must never be worded as a bound under the floor. Optional: an
+   * older backend sends nothing, which means false.
+   */
+  awaiting_fresh_read?: boolean;
 };
 
 export type DecomposeResponse = {

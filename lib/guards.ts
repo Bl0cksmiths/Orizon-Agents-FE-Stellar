@@ -313,7 +313,10 @@ function isPlanFloorNotice(v: unknown): v is PlanFloorNotice {
     isOptionalStr(v.replacement_name) &&
     isOptionalStr(v.reason_code) &&
     isOptionalNum(v.lower_bound_bps) &&
-    isOptionalNum(v.floor_bps)
+    isOptionalNum(v.floor_bps) &&
+    // Strictly boolean: it decides whether a bound is worded as under the
+    // floor, and the string "false" is truthy.
+    isOptionalBool(v.awaiting_fresh_read)
   );
 }
 
