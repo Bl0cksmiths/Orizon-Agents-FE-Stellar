@@ -1,0 +1,1213 @@
+{
+  "x-orizon-snapshot": {
+    "backend_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "backend_ref": "fixture",
+    "source": "subset of content/guides/openapi.snapshot.json",
+    "generated_at": "2026-09-28"
+  },
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Orizon Agents API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["meta"],
+        "summary": "Liveness probe (proxy-reachable)",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stellar/network": {
+      "get": {
+        "tags": ["stellar"],
+        "summary": "Network",
+        "operationId": "network_api_stellar_network_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stellar/agent-id-available/{agent_id}": {
+      "get": {
+        "tags": ["stellar"],
+        "summary": "Agent Id Available",
+        "operationId": "agent_id_available_api_stellar_agent_id_available__agent_id__get",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentIdAvailability"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{agent_id}/bind/challenge": {
+      "post": {
+        "tags": ["binding"],
+        "summary": "Mint a binding challenge to sign",
+        "operationId": "bind_challenge_api_agents__agent_id__bind_challenge_post",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]{1,32}$",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindChallengeReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindChallengeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{agent_id}/bind": {
+      "post": {
+        "tags": ["binding"],
+        "summary": "Bind an endpoint to an agent id",
+        "operationId": "bind_api_agents__agent_id__bind_post",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]{1,32}$",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{agent_id}/binding": {
+      "get": {
+        "tags": ["binding"],
+        "summary": "Read an agent's binding",
+        "operationId": "read_binding_api_agents__agent_id__binding_get",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]{1,32}$",
+              "title": "Agent Id"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/bind/endpoint-check": {
+      "get": {
+        "tags": ["binding"],
+        "summary": "Preflight an endpoint URL",
+        "operationId": "endpoint_check_api_agents_bind_endpoint_check_get",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "title": "Url"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndpointCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stellar/build/register-agent": {
+      "post": {
+        "tags": ["stellar"],
+        "summary": "Build Register Agent",
+        "operationId": "build_register_agent_api_stellar_build_register_agent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterAgentReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/XdrResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "tags": ["agents"],
+        "summary": "List registered agents",
+        "operationId": "list_agents_api_agents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Agent"
+                  },
+                  "type": "array",
+                  "title": "Response List Agents Api Agents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{agent_id}": {
+      "get": {
+        "tags": ["agents"],
+        "summary": "Get one agent by id",
+        "operationId": "get_agent_api_agents__agent_id__get",
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Agent Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Agent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{task_id}": {
+      "get": {
+        "tags": ["tasks"],
+        "summary": "Get a task's status",
+        "operationId": "get_task_api_tasks__task_id__get",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "name": "X-Task-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Task-Token"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited — retry after the indicated delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Agent": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "price": {
+            "type": "number",
+            "title": "Price"
+          },
+          "rep": {
+            "type": "number",
+            "title": "Rep"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["online", "idle", "offline"],
+            "title": "Status"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "real": {
+            "type": "boolean",
+            "title": "Real",
+            "default": false
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["seeded", "onchain"],
+            "title": "Source",
+            "default": "seeded"
+          },
+          "bound": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bound"
+          }
+        },
+        "type": "object",
+        "required": ["id", "name", "skills", "price", "rep", "status", "runs"],
+        "title": "Agent"
+      },
+      "AgentIdAvailability": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          }
+        },
+        "type": "object",
+        "required": ["available"],
+        "title": "AgentIdAvailability"
+      },
+      "BindChallengeReq": {
+        "properties": {
+          "endpoint_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 8,
+            "title": "Endpoint Url"
+          }
+        },
+        "type": "object",
+        "required": ["endpoint_url"],
+        "title": "BindChallengeReq"
+      },
+      "BindChallengeResponse": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "expires_at": {
+            "type": "number",
+            "title": "Expires At"
+          },
+          "ttl_seconds": {
+            "type": "integer",
+            "title": "Ttl Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent_id",
+          "nonce",
+          "message",
+          "expires_at",
+          "ttl_seconds"
+        ],
+        "title": "BindChallengeResponse"
+      },
+      "BindReq": {
+        "properties": {
+          "endpoint_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 8,
+            "title": "Endpoint Url"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Signature",
+            "description": "base64 ed25519 signature"
+          }
+        },
+        "type": "object",
+        "required": ["endpoint_url", "signature"],
+        "title": "BindReq"
+      },
+      "BindingResponse": {
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "endpoint_url": {
+            "type": "string",
+            "title": "Endpoint Url"
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner"
+          },
+          "bound_at": {
+            "type": "number",
+            "title": "Bound At"
+          },
+          "replaced": {
+            "type": "boolean",
+            "title": "Replaced"
+          }
+        },
+        "type": "object",
+        "required": [
+          "agent_id",
+          "endpoint_url",
+          "owner",
+          "bound_at",
+          "replaced"
+        ],
+        "title": "BindingResponse"
+      },
+      "EndpointCheckResponse": {
+        "properties": {
+          "allowed": {
+            "type": "boolean",
+            "title": "Allowed"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": ["allowed"],
+        "title": "EndpointCheckResponse"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "required": ["code", "message", "request_id"],
+        "title": "ErrorBody"
+      },
+      "ErrorEnvelope": {
+        "properties": {
+          "detail": {
+            "title": "Detail"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": ["detail", "error"],
+        "title": "ErrorEnvelope"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "uptime_seconds": {
+            "type": "number",
+            "title": "Uptime Seconds"
+          }
+        },
+        "type": "object",
+        "required": ["status", "version", "uptime_seconds"],
+        "title": "HealthResponse"
+      },
+      "NetworkInfo": {
+        "properties": {
+          "network": {
+            "type": "string",
+            "title": "Network"
+          },
+          "rpc_url": {
+            "type": "string",
+            "title": "Rpc Url"
+          },
+          "network_passphrase": {
+            "type": "string",
+            "title": "Network Passphrase"
+          },
+          "admin": {
+            "type": "string",
+            "title": "Admin"
+          },
+          "dispatch_signer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispatch Signer"
+          },
+          "asset": {
+            "type": "string",
+            "title": "Asset"
+          },
+          "asset_sac": {
+            "type": "string",
+            "title": "Asset Sac"
+          },
+          "contracts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Contracts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "network",
+          "rpc_url",
+          "network_passphrase",
+          "admin",
+          "asset",
+          "asset_sac",
+          "contracts"
+        ],
+        "title": "NetworkInfo"
+      },
+      "RegisterAgentReq": {
+        "properties": {
+          "owner": {
+            "type": "string",
+            "pattern": "^G[A-Z2-7]{55}$",
+            "title": "Owner",
+            "description": "G... address of the agent owner"
+          },
+          "agent_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_]{1,32}$",
+            "title": "Agent Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "skills": {
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_]{1,32}$"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Skills"
+          },
+          "price_usdc": {
+            "type": "number",
+            "maximum": 10000,
+            "exclusiveMinimum": 0,
+            "title": "Price Usdc"
+          }
+        },
+        "type": "object",
+        "required": ["owner", "agent_id", "name", "price_usdc"],
+        "title": "RegisterAgentReq"
+      },
+      "Task": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "intent": {
+            "type": "string",
+            "title": "Intent"
+          },
+          "agents": {
+            "type": "integer",
+            "title": "Agents"
+          },
+          "spent": {
+            "type": "number",
+            "title": "Spent"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "complete", "failed"],
+            "title": "Status"
+          },
+          "started_at": {
+            "type": "number",
+            "title": "Started At"
+          },
+          "charge_tx": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Tx"
+          },
+          "proof_tx": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof Tx"
+          },
+          "settlement": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "settled",
+                  "released",
+                  "skipped",
+                  "unconfirmed",
+                  "failed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settlement"
+          },
+          "artifact": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact"
+          },
+          "started": {
+            "type": "string",
+            "title": "Started",
+            "description": "Human-readable age (\"2m ago\"), computed at serialization time.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": ["id", "intent", "agents", "spent", "status", "started"],
+        "title": "Task"
+      },
+      "XdrResponse": {
+        "properties": {
+          "xdr": {
+            "type": "string",
+            "title": "Xdr"
+          }
+        },
+        "type": "object",
+        "required": ["xdr"],
+        "title": "XdrResponse"
+      }
+    },
+    "securitySchemes": {
+      "OperatorApiKey": {
+        "type": "apiKey",
+        "description": "The operator's API_KEY. Required by the adjudication routes, which spend the platform's own settler balance — they fail CLOSED, so a deployment with no key configured refuses them outright rather than serving them openly.",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  }
+}
