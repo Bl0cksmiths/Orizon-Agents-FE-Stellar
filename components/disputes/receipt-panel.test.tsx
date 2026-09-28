@@ -130,7 +130,7 @@ function disputed(
 
 /** A settled view one hour into a 24-hour window, the payer looking. */
 function settled(
-  rows: { step: SettlementStepView; state: StepDisputeState }[],
+  rows: SettledView["steps"],
   over: Partial<SettledView> = {},
 ): SettledView {
   return {
