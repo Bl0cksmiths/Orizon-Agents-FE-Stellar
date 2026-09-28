@@ -25,6 +25,7 @@ import {
   formatRemaining,
   formatUsdc,
   getTaskDisputes,
+  isPlatformAgent,
   MAX_DISPUTE_REASON_CHARS,
   openDispute,
   raiseDispute,
@@ -2555,5 +2556,216 @@ describe("agentLabel", () => {
     expect(agentLabel(step(0, { agent_name: "  Code Gen  " }))).toBe(
       "Code Gen",
     );
+  });
+});
+
+// ── escrow v2: the settlement state, per-step payouts, the remainder ──
+
+describe("getTaskDisputes — the escrow v2 settlement state", () => {
+  const V2_STEP = {
+    paid_usdc: 0.01,
+    receipt_id_hex: "ab".repeat(16),
+  };
+
+  it("passes a state it knows through, with the v2 step fields", async () => {
+    const body = taskDisputes({
+      settlement_state: "settled",
+      settlement: settlement({
+        steps: [step(0, V2_STEP)],
+        returned_usdc: 0.02,
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
+  });
+
+  // A newer backend's word is not a reason to lose the receipt, and not a
+  // reason to call the money paid either: it reads as the least claim.
+  it("reads a state it cannot name as unconfirmed", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...taskDisputes(), settlement_state: "rebalanced" }),
+    );
+    const res = await getTaskDisputes(TASK);
+    expect(res.settlement_state).toBe("unconfirmed");
+  });
+
+  it("keeps an absent state absent and a null one null", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, taskDisputes()));
+    expect("settlement_state" in (await getTaskDisputes(TASK))).toBe(false);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, taskDisputes({ settlement_state: null })),
+    );
+    expect((await getTaskDisputes(TASK)).settlement_state).toBeNull();
+  });
+
+  it.each([
+    ["a negative payout", { paid_usdc: -0.01 }],
+    ["a payout as a string", { paid_usdc: "0.01" }],
+    ["a receipt id that is not a string", { receipt_id_hex: 7 }],
+  ])("refuses a settlement carrying %s", async (_name, over) => {
+    const body = taskDisputes({
+      settlement: settlement({
+        steps: [{ ...step(0), ...over } as SettlementStepView],
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(
+      `malformed response from /tasks/${TASK}/disputes`,
+    );
+  });
+
+  it("refuses a negative remainder", async () => {
+    const body = taskDisputes({
+      settlement: settlement({ returned_usdc: -1 }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+
+  it("refuses a state that is not a string", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...taskDisputes(), settlement_state: 2 }),
+    );
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+});
+
+describe("isPlatformAgent", () => {
+  it("knows the seeded catalogue by the prefix the backend reserves for it", () => {
+    expect(isPlatformAgent("agt_05x7")).toBe(true);
+    expect(isPlatformAgent("orizon_ref_agent")).toBe(false);
+    expect(isPlatformAgent("code_agt_1")).toBe(false);
+  });
+});
+
+describe("disputeView — escrow v2 settlement", () => {
+  const RECEIPT = "cd".repeat(16);
+  /** A three-step v2 settlement: one operator paid, one seeded platform
+   *  step nobody could pay, one step that did not deliver. */
+  function v2(over: Partial<SettlementView> = {}): SettlementView {
+    return settlement({
+      steps: [
+        step(0, {
+          agent_id: "ext_writer",
+          paid_usdc: 0.01,
+          receipt_id_hex: RECEIPT,
+        }),
+        step(1, { agent_id: "agt_05x7", paid_usdc: 0, delivered: true }),
+        step(2, {
+          agent_id: "ext_critic",
+          paid_usdc: 0,
+          delivered: false,
+          creditable_usdc: 0,
+        }),
+      ],
+      ...over,
+    });
+  }
+  const payouts = (v: SettledView) =>
+    Object.fromEntries(
+      v.steps.map(({ step: s, payout }) => [s.step_index, payout]),
+    );
+
+  // A backend with no state field is read as before: nothing new is said.
+  it("says nothing new on a backend that reports no settlement state", () => {
+    const v = settled();
+    expect(v.settlementState).toBeUndefined();
+    expect(v.remainder).toBeUndefined();
+    expect(v.steps.every(({ payout }) => payout === undefined)).toBe(true);
+  });
+
+  it("pays each step only what the backend reported, in the settlement's transaction", () => {
+    const v = settled({
+      res: taskDisputes({ settlement_state: "settled", settlement: v2() }),
+    });
+    expect(payouts(v)).toEqual({
+      0: { kind: "paid", usdc: 0.01, tx: "tx_charge", receiptIdHex: RECEIPT },
+      1: { kind: "platform" },
+      2: { kind: "not_paid" },
+    });
+    // The platform step and the undelivered one were not billed; neither is
+    // disputable. The operator's step is.
+    expect(kinds(v)).toEqual({
+      0: "disputable",
+      1: "not_charged",
+      2: "not_charged",
+    });
+  });
+
+  // Never inferred from a price: a v1 record on a state-aware backend has no
+  // per-step payout, and the receipt must not print its price as one.
+  it("shows no payout for a settled step whose payout was not reported", () => {
+    const v = settled({ res: taskDisputes({ settlement_state: "settled" }) });
+    expect(v.steps.every(({ payout }) => payout === undefined)).toBe(true);
+  });
+
+  it("states the remainder only as the backend reported it", () => {
+    const unreported = settled({
+      res: taskDisputes({ settlement_state: "settled", settlement: v2() }),
+    });
+    expect(unreported.remainder).toEqual({ kind: "unreported" });
+
+    const reported = settled({
+      res: taskDisputes({
+        settlement_state: "settled",
+        settlement: v2({ returned_usdc: 0.017 }),
+      }),
+    });
+    expect(reported.remainder).toEqual({ kind: "returned", usdc: 0.017 });
+  });
+
+  it("calls nothing paid while the settlement is unconfirmed", () => {
+    const v = settled({
+      res: taskDisputes({ settlement_state: "unconfirmed", settlement: v2() }),
+    });
+    expect(v.steps.every(({ payout }) => payout?.kind === "pending")).toBe(
+      true,
+    );
+    expect(Object.values(kinds(v))).toEqual([
+      "payout_unconfirmed",
+      "payout_unconfirmed",
+      "payout_unconfirmed",
+    ]);
+    expect(v.remainder).toEqual({ kind: "pending" });
+  });
+
+  it("says it stopped checking an unconfirmed settlement once the wait is over", () => {
+    const res = taskDisputes({
+      settlement_state: "unconfirmed",
+      settlement: v2(),
+    });
+    expect(settled({ res }).settlementStoppedChecking).toBeUndefined();
+    expect(settled({ res, waitOver: true }).settlementStoppedChecking).toBe(
+      true,
+    );
+  });
+
+  it("calls nothing paid and the funds held when the settlement failed", () => {
+    const v = settled({
+      res: taskDisputes({ settlement_state: "failed", settlement: v2() }),
+    });
+    expect(v.steps.every(({ payout }) => payout?.kind === "not_paid")).toBe(
+      true,
+    );
+    expect(Object.values(kinds(v))).toEqual([
+      "not_charged",
+      "not_charged",
+      "not_charged",
+    ]);
+    expect(v.remainder).toEqual({ kind: "held" });
+  });
+
+  it("carries the state onto a run with no settlement on record", () => {
+    const failed = view({
+      res: taskDisputes({ settlement: null, settlement_state: "failed" }),
+    });
+    expect(failed).toEqual({
+      kind: "not_settled",
+      running: false,
+      settlementState: "failed",
+    });
+    const legacy = view({ res: taskDisputes({ settlement: null }) });
+    expect(legacy).toEqual({ kind: "not_settled", running: false });
+    expect("settlementState" in legacy).toBe(false);
   });
 });
