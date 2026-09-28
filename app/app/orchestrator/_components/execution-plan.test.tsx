@@ -225,6 +225,16 @@ describe("ExecutionPlan · with no wallet connected", () => {
     expect(container.textContent).not.toContain("authorizing up to");
   });
 
+  it("says what paying on-chain does with the buyer's funds before they connect", () => {
+    disconnect();
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles.",
+    );
+    expect(text).toContain("Or run a simulated pass, which moves no funds.");
+  });
+
   it("runs a simulated pass without a wallet", async () => {
     disconnect();
     api.execute.mockResolvedValue({ task_id: "task_sim" });
@@ -599,6 +609,22 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
     expect(body.ttl_seconds).toBe(1800);
     expect(body.agent_id).toBe(ESCROW_BATCH_LABEL);
     expect(body.payer).toBe(PAYER);
+  });
+
+  // Escrow v2 takes custody at authorize. The sentence at the button is the
+  // buyer's last chance to learn that signing moves the money NOW, what it
+  // pays for, and that the unspent part comes back.
+  it("says the signature moves the cap into escrow now, and what happens to it", async () => {
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await shownCap(container);
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "one signature that moves up to 0.123 XLM from your wallet into escrow now.",
+    );
+    expect(text).toContain(
+      "Delivered steps are paid from it, and the rest comes back to you when the run settles.",
+    );
+    expect(text).not.toMatch(/authorizing up to|nothing is moved/i);
   });
 
   it("signs exactly the cap it shows", async () => {
