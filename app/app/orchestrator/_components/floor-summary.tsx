@@ -50,6 +50,7 @@ import {
 import {
   hiddenNotices,
   hiddenNoticesText,
+  isAwaitingFreshRead,
   isFloorAction,
   isUnbound,
   knownKind,
@@ -107,6 +108,11 @@ export function FloorSummary({
     notices
       .filter((n) => isFloorAction(n) && knownKind(n) === null)
       .map((n) => n.agent_id),
+  ).size;
+  // Held off for a fresh reputation read, not judged under the floor: said
+  // apart so the count above is never read as that many agents below it.
+  const awaiting = new Set(
+    notices.filter(isAwaitingFreshRead).map((n) => n.agent_id),
   ).size;
   const hidden = hiddenNotices(plan);
   const steps = plan.steps.length;
@@ -185,6 +191,10 @@ export function FloorSummary({
         {actedOn === 0
           ? "no agents"
           : `${actedOn} agent${actedOn === 1 ? "" : "s"}`}
+        {awaiting > 0 &&
+          (awaiting === 1
+            ? " · 1 of them was held off until a fresh reputation read answers, not judged under the floor"
+            : ` · ${awaiting} of them were held off until a fresh reputation read answers, not judged under the floor`)}
         {unbound > 0 &&
           (unbound === 1
             ? " · 1 agent with no endpoint bound was never a candidate"

@@ -32,6 +32,7 @@ import {
   UNVERIFIED_SUMMARY_ID,
 } from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
+import { isAwaitingFreshRead } from "./floor-notices";
 import { FloorSummary } from "./floor-summary";
 import {
   isPlannerFallback,
@@ -173,6 +174,11 @@ export function ExecutionPlan({
   // A plan with no steps has nothing to pay for. The guard accepts one, so
   // the card has to refuse to take money for it.
   const empty = plan.steps.length === 0;
+
+  // Agents the floor held off only until a fresh reputation read answers.
+  const heldForFreshRead = new Set(
+    (plan.notices ?? []).filter(isAwaitingFreshRead).map((n) => n.agent_id),
+  );
 
   /** Simulated path — no wallet required. */
   const simulate = useAsyncAction(async () => {
@@ -471,7 +477,14 @@ export function ExecutionPlan({
                 {s.substituted_for && (
                   <span
                     className="max-w-full"
-                    title={`Routed in place of ${s.substituted_for}, which scored below the routing floor.`}
+                    // Not "scored below the floor" when the replaced agent
+                    // was only held off for a fresh reputation read: its
+                    // last bound may clear the floor (finding S8).
+                    title={
+                      heldForFreshRead.has(s.substituted_for)
+                        ? `Routed in place of ${s.substituted_for}, which was rated since its last reputation read and is held off until a fresh read answers.`
+                        : `Routed in place of ${s.substituted_for}, which scored below the routing floor.`
+                    }
                   >
                     {/* The replaced agent's name is as long as any other. */}
                     <Badge tone="cyan" className="max-w-full break-all">

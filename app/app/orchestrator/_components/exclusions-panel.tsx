@@ -44,6 +44,7 @@ import type {
 import {
   hiddenNotices,
   hiddenNoticesText,
+  isAwaitingFreshRead,
   isFloorAction,
   isUnbound,
   knownKind,
@@ -145,6 +146,16 @@ const REASON_COPY: Record<ExclusionReason, string> = {
 };
 
 /**
+ * An agent held off because it was rated since its last reputation read and
+ * the fresh read has not answered yet (finding S8). The backend still codes it
+ * `below_floor`, but its bound is from BEFORE the new rating and can clear the
+ * floor, so the below-floor sentence would state as fact a comparison that
+ * says the opposite. This one says what happened instead.
+ */
+const AWAITING_COPY =
+  "It was rated since its last reputation read, so it is held off routing until a fresh read answers. The bound below is from before that rating, so it is not a verdict that the agent sits under the floor.";
+
+/**
  * Deliberately typed to return `string | undefined`.
  *
  * `screenDecomposeResponse` checks `reason_code` (like `kind`) only as a
@@ -179,7 +190,8 @@ function NoticeRow({
   notice: PlanFloorNotice;
   planFloorBps: number | undefined;
 }): JSX.Element {
-  const copy = reasonCopy(notice.reason_code);
+  const awaiting = isAwaitingFreshRead(notice);
+  const copy = awaiting ? AWAITING_COPY : reasonCopy(notice.reason_code);
   const replacement =
     notice.kind === "substituted" ? replacementOf(notice) : null;
 
@@ -252,7 +264,7 @@ function NoticeRow({
         <p className={numbersRow}>
           {bound !== undefined && (
             <span>
-              lower bound{" "}
+              {awaiting ? "last read lower bound" : "lower bound"}{" "}
               <span className="text-text">
                 {bound === null ? "none on record" : scoreOutOfFive(bound)}
               </span>
