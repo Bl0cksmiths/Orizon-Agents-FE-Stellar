@@ -1617,6 +1617,12 @@ export type MockDisputeApiOptions = {
    * the field's own error in `detail`, and records nothing.
    */
   open?: "created" | "duplicate" | "invalid";
+  /**
+   * The escrow v2 settlement state the read reports (`settlement_state`),
+   * when a spec needs one. Absent by default — the answer of a backend that
+   * predates it.
+   */
+  settlementState?: TaskDisputes["settlement_state"];
 };
 
 /** The `msg` FastAPI puts on a reason over `OpenDisputeReq`'s 500 cap. */
@@ -1661,6 +1667,9 @@ export async function mockDisputeApi(
         ...legacy,
         now: await nowS(),
         settlement,
+        ...(options.settlementState === undefined
+          ? {}
+          : { settlement_state: options.settlementState }),
       };
       return json(route, body);
     }
