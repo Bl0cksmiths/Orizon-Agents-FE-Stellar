@@ -1450,7 +1450,7 @@ do not discover them on your own.
 
 Both are now in the friction log, as F-031 and F-032:
 
-- **No unbind in the dApp.** Revoking a binding is only possible through the API, which means signing with your key
+- **F-031 · No unbind in the dApp.** Revoking a binding is only possible through the API, which means signing with your key
   outside Freighter ([Rebind or unbind](#rebind-or-unbind)). Delisting is the dApp alternative, but it keeps the
   binding.
 - **The Register page accepts prices the marketplace will not list.** Registration accepts up to 10000, but the
