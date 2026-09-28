@@ -15,7 +15,7 @@
  * wallet, a backend or the network.
  */
 
-import { ApiError, buildReclaim, submitSigned } from "./api";
+import { buildReclaim, submitSigned } from "./api";
 import type { RegisterOutcome } from "./register-submit";
 import { signAndSubmit } from "./sign-submit";
 import type { SubmitResult } from "./types";
@@ -104,36 +104,44 @@ export async function reclaimAuthorization(args: {
   try {
     ({ xdr } = await build({ payer: args.payer, auth_id_hex: args.authIdHex }));
   } catch (e) {
-    // A 404 with no code of its own is the route being absent — the answer
-    // FastAPI gives for a path it does not have — not an authorization the
-    // route looked for and could not find.
-    if (
-      e instanceof ApiError &&
-      e.status === 404 &&
-      (e.code === undefined || e.code === "not_found")
-    ) {
-      return { kind: "unavailable" };
-    }
-    if (e instanceof ApiError) {
-      const known = e.code !== undefined ? ROUTE_REFUSALS[e.code] : undefined;
+    // Read by shape, as lib/api's `ApiError` carries it: a rejection with an
+    // HTTP status is an answer from the backend.
+    const answer =
+      typeof e === "object" && e !== null
+        ? (e as {
+            status?: unknown;
+            code?: unknown;
+            body?: unknown;
+            message?: unknown;
+          })
+        : null;
+    if (answer !== null && typeof answer.status === "number") {
+      const code = typeof answer.code === "string" ? answer.code : undefined;
+      const message = typeof answer.message === "string" ? answer.message : "";
+      // A 404 with no code of its own is the route being absent — the
+      // answer FastAPI gives for a path it does not have — not an
+      // authorization the route looked for and could not find.
+      if (answer.status === 404 && (code === undefined || code === "not_found"))
+        return { kind: "unavailable" };
+      const known = code !== undefined ? ROUTE_REFUSALS[code] : undefined;
       if (known !== undefined) return known;
-      const byContract = contractRefusal(escrowErrorCode(e.message));
+      const byContract = contractRefusal(escrowErrorCode(message));
       if (byContract !== null) return byContract;
       // Any other refusal carries the backend's own sentence, which says
       // what is wrong and what to do; that is what the buyer reads.
-      const body = e.body;
+      const body = answer.body;
       const said =
         typeof body === "object" && body !== null && "error" in body
           ? (body as { error?: { message?: unknown } }).error?.message
           : undefined;
-      if (typeof said === "string") {
+      if (typeof said === "string" && said.length > 0) {
         return {
           kind: "failed",
           error: {
             kind: "unknown",
             title: "The reclaim could not be prepared",
             detail: `${said.charAt(0).toUpperCase()}${said.slice(1)}. Nothing was signed or sent.`,
-            raw: e.message,
+            raw: message,
           },
         };
       }

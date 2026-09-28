@@ -13,8 +13,6 @@
  * escrow until the buyer reclaims them after expiry.
  */
 
-import { ApiError } from "./api";
-
 /** Every refusal code the paid execute path answers with before a task is
  *  minted (backend `authorization_guard`, `routers/orchestrator.py`). */
 export const EXECUTE_REFUSAL_CODES = [
@@ -75,18 +73,32 @@ function releaseOf(body: unknown): EscrowRelease {
  * a run MAY have started, and the caller must not say it did not.
  */
 export function executeRefusal(e: unknown): ExecuteRefusal | null {
-  if (!(e instanceof ApiError)) return null;
+  // Read by shape, as lib/api's `ApiError` carries it, rather than by
+  // `instanceof`: a rejection with an HTTP status is an answer from the
+  // backend, whichever copy of the class built it.
+  if (typeof e !== "object" || e === null) return null;
+  const fields = e as {
+    status?: unknown;
+    code?: unknown;
+    body?: unknown;
+    message?: unknown;
+  };
+  if (typeof fields.status !== "number") return null;
   const code =
-    e.code !== undefined && KNOWN.has(e.code)
-      ? (e.code as ExecuteRefusalCode)
+    typeof fields.code === "string" && KNOWN.has(fields.code)
+      ? (fields.code as ExecuteRefusalCode)
       : null;
-  const body = e.body;
+  const body = fields.body;
   const envelope =
     typeof body === "object" && body !== null && "error" in body
       ? (body as { error?: { message?: unknown } }).error
       : undefined;
   const message =
-    typeof envelope?.message === "string" ? envelope.message : e.message;
+    typeof envelope?.message === "string"
+      ? envelope.message
+      : typeof fields.message === "string"
+        ? fields.message
+        : "";
   return { code, message, release: releaseOf(body) };
 }
 
