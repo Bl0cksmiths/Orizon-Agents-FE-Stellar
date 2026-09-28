@@ -59,6 +59,7 @@ vi.mock("@/lib/wallet", () => ({ useWallet: () => wallet }));
 vi.mock("@/lib/pdax", () => pdax);
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
+import { AUTHORIZE_TTL_SECONDS, ESCROW_BATCH_LABEL } from "@/lib/escrow";
 import { ExecutionPlan } from "./execution-plan";
 import {
   UNVERIFIED_BANNER_ID,
@@ -504,6 +505,19 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
     await waitFor(() => expect(api.buildAuthorize).toHaveBeenCalledTimes(1));
     return api.buildAuthorize.mock.calls[0][0].max_amount_usdc;
   }
+
+  // Escrow v2 refuses to settle after `expires_at`, so the TTL is the window
+  // the operators can be paid in and the buyer's lock-up before reclaim. It
+  // has one owner; a literal here would drift from it silently.
+  it("asks for the named escrow ttl and signs under the batch label", async () => {
+    render(<ExecutionPlan plan={plan()} />);
+    await signedCap();
+    const body = api.buildAuthorize.mock.calls[0][0];
+    expect(body.ttl_seconds).toBe(AUTHORIZE_TTL_SECONDS);
+    expect(body.ttl_seconds).toBe(1800);
+    expect(body.agent_id).toBe(ESCROW_BATCH_LABEL);
+    expect(body.payer).toBe(PAYER);
+  });
 
   it("signs exactly the cap it shows", async () => {
     const { container } = render(<ExecutionPlan plan={plan()} />);
