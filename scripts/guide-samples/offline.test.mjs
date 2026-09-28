@@ -63,15 +63,20 @@ test("a non-zero exit, or output that differs from the -output fence, fails", as
   assert.match(differs.diff, /- line 1: length: 64\n\+ line 1: length: 63/);
 });
 
-test("a snippet that runs past the timeout is killed and fails", async () => {
-  const started = Date.now();
-  const r = await run(sample("js", "setInterval(() => {}, 1000);"), {
-    timeoutMs: 500,
-  });
-  assert.equal(r.status, "failed");
-  assert.match(r.reason, /timed out after 500 ms/);
-  assert.ok(Date.now() - started < 4000);
-});
+// Its own timeout: a runner that never kills must fail here, not hang.
+test(
+  "a snippet that runs past the timeout is killed and fails",
+  { timeout: 10_000 },
+  async () => {
+    const started = Date.now();
+    const r = await run(sample("js", "setInterval(() => {}, 1000);"), {
+      timeoutMs: 500,
+    });
+    assert.equal(r.status, "failed");
+    assert.match(r.reason, /timed out after 500 ms/);
+    assert.ok(Date.now() - started < 4000);
+  },
+);
 
 test("the network is denied, even without a network namespace", async () => {
   let hits = 0;
