@@ -20,8 +20,14 @@ import {
   within,
 } from "@testing-library/react";
 
-const { getEcosystemAdoption } = vi.hoisted(() => ({
+const { getEcosystemAdoption, getStellarNetwork } = vi.hoisted(() => ({
   getEcosystemAdoption: vi.fn(),
+  // Unanswered unless a test says otherwise: the asset is then unknown.
+  getStellarNetwork: vi.fn(() => new Promise(() => {})),
+}));
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api")>()),
+  getStellarNetwork,
 }));
 vi.mock("@/lib/ecosystem", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ecosystem")>()),
@@ -127,6 +133,7 @@ function target(label: string): HTMLElement {
 afterEach(() => {
   cleanup();
   getEcosystemAdoption.mockReset();
+  getStellarNetwork.mockImplementation(() => new Promise(() => {}));
 });
 
 describe("AdoptionView — the targets", () => {
@@ -263,12 +270,14 @@ describe("AdoptionView — external operators", () => {
   });
 
   it("lists each settled workflow with its tx link and payer", () => {
-    render(<AdoptionView adoption={withOperator([BUYER])} />);
+    render(<AdoptionView adoption={withOperator([BUYER])} asset="native" />);
     const table = screen.getByRole("table", {
       name: "Settled workflows for ext.translate",
     });
     const [row] = within(table).getAllByRole("row").slice(1);
-    expect(text(row)).toContain("0.01 USDC");
+    // Testnet settles in native XLM, whatever the wire field is called.
+    expect(text(row)).toContain("0.01 XLM");
+    expect(text(row)).not.toContain("USDC");
     expect(text(row)).toContain("GBUY…XXXX");
     const tx = within(row).getByRole("link", { name: /^tx cdcdcdcd…/ });
     expect(tx.getAttribute("href")).toBe(
@@ -379,6 +388,33 @@ describe("EcosystemPage — states", () => {
     expect(
       await screen.findByRole("heading", { name: "No external operators yet" }),
     ).toBeTruthy();
+  });
+
+  it("labels amounts with the asset the network reports, and with none while it is unknown", async () => {
+    getEcosystemAdoption.mockResolvedValue(withOperator([BUYER]));
+    render(<EcosystemPage />);
+    const table = await screen.findByRole("table", {
+      name: "Settled workflows for ext.translate",
+    });
+    const row = () => within(table).getAllByRole("row")[1];
+    expect(text(row())).toContain("0.01");
+    expect(text(row())).not.toMatch(/XLM|USDC/);
+    cleanup();
+
+    getStellarNetwork.mockResolvedValue({
+      network: "testnet",
+      network_passphrase: "Test SDF Network ; September 2015",
+      rpc_url: "https://soroban-testnet.stellar.org",
+      admin: TEAM,
+      asset: "native",
+      asset_sac: "CDLZ",
+      contracts: {},
+    } as never);
+    render(<EcosystemPage />);
+    const again = await screen.findByRole("table", {
+      name: "Settled workflows for ext.translate",
+    });
+    await within(again).findByText(/0\.01 XLM/);
   });
 
   it("renders the payload once it lands", async () => {

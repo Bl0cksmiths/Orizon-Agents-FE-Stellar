@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
+import { getStellarNetwork } from "@/lib/api";
 import { getEcosystemAdoption } from "@/lib/ecosystem";
 import { useFetch } from "@/lib/use-fetch";
 import { AdoptionView } from "./adoption-view";
@@ -25,6 +26,11 @@ export default function EcosystemPage() {
     [],
     { revalidateOnFocus: true },
   );
+
+  // What the settled amounts are in. Best-effort and shared with the top bar
+  // through the GET dedupe: while it is unknown the amounts carry no unit,
+  // never a guessed one — least of all the "usdc" in the wire field's name.
+  const { data: network } = useFetch(getStellarNetwork, []);
 
   return (
     <div className="space-y-6">
@@ -71,7 +77,7 @@ export default function EcosystemPage() {
             lastSuccessAt={lastSuccessAt}
             what="adoption figures"
           />
-          <AdoptionView adoption={data} />
+          <AdoptionView adoption={data} asset={network?.asset ?? null} />
         </>
       )}
     </div>
