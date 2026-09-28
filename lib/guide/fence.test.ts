@@ -117,3 +117,52 @@ describe("parseFenceInfo", () => {
     expect(problems("bash", meta).join("\n")).toContain(problem);
   });
 });
+
+describe("parseFenceInfo — the verifier's attributes", () => {
+  it("accepts schema= on a json sample and status= on a -response block", () => {
+    expect(
+      parseFenceInfo(
+        "json",
+        'id="taken" verify="offline" schema="AgentIdAvailability" title="t"',
+      ).ok,
+    ).toBe(true);
+    expect(
+      parseFenceInfo("json", 'id="build-response" status="422" title="t"').ok,
+    ).toBe(true);
+  });
+
+  it.each([
+    [
+      "bash",
+      'id="a" verify="live" schema="X" title="t"',
+      "schema= only applies to a json block",
+    ],
+    [
+      "json",
+      'id="a-response" schema="X" title="t"',
+      "schema= does not apply to a -response block",
+    ],
+    [
+      "json",
+      'id="a" verify="offline" schema="not a name" title="t"',
+      'schema "not a name" is not a contract schema name',
+    ],
+    [
+      "json",
+      'id="a" verify="offline" status="422" title="t"',
+      "status= only applies to a -response block",
+    ],
+    [
+      "json",
+      'id="a-response" status="42" title="t"',
+      'status "42" is not an HTTP status',
+    ],
+    [
+      "json",
+      'id="a-response" status="600" title="t"',
+      'status "600" is not an HTTP status',
+    ],
+  ])("rejects %s %s", (lang, meta, problem) => {
+    expect(problems(lang, meta).join("\n")).toContain(problem);
+  });
+});
