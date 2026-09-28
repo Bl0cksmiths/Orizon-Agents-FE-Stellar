@@ -14,7 +14,7 @@ import {
   TARGET_KEYS,
   excludedOwners,
   exclusionReason,
-  formatUsdcAmount,
+  formatSettledAmount,
   getEcosystemAdoption,
   isEcosystemAdoption,
   teamFundedLabel,
@@ -377,10 +377,15 @@ describe("formatting", () => {
     expect(shortAddress("GABC")).toBe("GABC");
   });
 
-  it("prints a USDC amount without inventing precision", () => {
-    expect(formatUsdcAmount(0.01)).toBe("0.01 USDC");
-    expect(formatUsdcAmount(0.0000001)).toBe("0.0000001 USDC");
-    expect(formatUsdcAmount(1234.5)).toBe("1,234.5 USDC");
+  it("prints an amount in the asset the network reports, XLM on testnet", () => {
+    expect(formatSettledAmount(0.01, "native")).toBe("0.01 XLM");
+    expect(formatSettledAmount(0.0000001, "native")).toBe("0.0000001 XLM");
+    expect(formatSettledAmount(1234.5, "usdc")).toBe("1,234.5 USDC");
+  });
+
+  it("never labels an amount USDC off the field name, and claims no unit it does not know", () => {
+    expect(formatSettledAmount(0.01, null)).toBe("0.01");
+    expect(formatSettledAmount(0.01, undefined)).toBe("0.01");
   });
 });
 

@@ -15,6 +15,7 @@
  */
 
 import { GET_TIMEOUT_MS, ensure, fetchWithTimeout, httpError } from "./api";
+import { assetLabel } from "./money";
 
 /** The three SOW §6.3 targets, in the order the SOW states them. */
 export const TARGET_KEYS = [
@@ -33,7 +34,7 @@ export type SettledWorkflow = {
   tx_hash: string;
   explorer?: string | null;
   /** Named for mainnet. On testnet the settled asset is native XLM, so the
-   * unit is never read off this field's name — see `amountUnit`. */
+   * unit is never read off this field's name — see `formatSettledAmount`. */
   amount_usdc: number;
   /** Who paid. May be one of the team's own wallets — see `teamFunding`. */
   payer: string;
@@ -329,10 +330,22 @@ export function shortAddress(g: string): string {
   return g.length > 12 ? `${g.slice(0, 4)}…${g.slice(-4)}` : g;
 }
 
-/** A USDC amount as paid: up to seven decimals (the asset's precision), no
- * trailing zeros, never rounded to a figure that was not paid. */
-export function formatUsdcAmount(n: number): string {
-  return `${n.toLocaleString("en-US", { maximumFractionDigits: 7 })} USDC`;
+/**
+ * A settled amount in the unit the escrow actually settles in: `asset` is
+ * what GET /api/stellar/network reports, "native" (XLM) on testnet — the same
+ * source and the same `assetLabel` every other money figure in the console
+ * uses. The wire field is called `amount_usdc`, but that is its mainnet name,
+ * not its unit. Up to seven decimals (the asset's precision), never rounded
+ * to a figure that was not paid; while the asset is unknown, no unit at all
+ * rather than a guessed one.
+ */
+export function formatSettledAmount(
+  n: number,
+  asset: string | null | undefined,
+): string {
+  const figure = n.toLocaleString("en-US", { maximumFractionDigits: 7 });
+  const unit = assetLabel(asset);
+  return unit ? `${figure} ${unit}` : figure;
 }
 
 /**

@@ -25,7 +25,7 @@ import {
   TARGET_COPY,
   excludedOwners,
   exclusionReason,
-  formatUsdcAmount,
+  formatSettledAmount,
   teamFunding,
   teamFundedLabel,
   missSentence,
@@ -47,7 +47,16 @@ import { cn } from "@/lib/utils";
 const body = "font-mono text-[11px] leading-relaxed text-muted";
 const sectionHeading = "text-lg font-semibold tracking-tight";
 
-export function AdoptionView({ adoption }: { adoption: EcosystemAdoption }) {
+export function AdoptionView({
+  adoption,
+  asset = null,
+}: {
+  adoption: EcosystemAdoption;
+  /** What the escrow settles in, from GET /api/stellar/network: "native" on
+   * testnet. Null while that read is pending or failed — amounts then carry
+   * no unit rather than a guessed one. */
+  asset?: string | null;
+}) {
   const rows = targetRows(adoption);
   const ours = excludedOwners(adoption);
   const unverified = unverifiedSentence(adoption);
@@ -104,7 +113,12 @@ export function AdoptionView({ adoption }: { adoption: EcosystemAdoption }) {
           <ul className="space-y-4">
             {adoption.operators.map((op) => (
               <li key={op.owner}>
-                <OperatorCard operator={op} ours={ours} network={network} />
+                <OperatorCard
+                  operator={op}
+                  ours={ours}
+                  network={network}
+                  asset={asset}
+                />
               </li>
             ))}
           </ul>
@@ -244,10 +258,12 @@ function OperatorCard({
   operator,
   ours,
   network,
+  asset,
 }: {
   operator: ExternalOperator;
   ours: Map<string, ExcludedWallet>;
   network: string;
+  asset: string | null;
 }) {
   return (
     <Card className="space-y-4">
@@ -268,7 +284,12 @@ function OperatorCard({
               key={agent.agent_id}
               className="space-y-3 border-t border-border pt-4"
             >
-              <AgentBlock agent={agent} ours={ours} network={network} />
+              <AgentBlock
+                agent={agent}
+                ours={ours}
+                network={network}
+                asset={asset}
+              />
             </li>
           ))}
         </ul>
@@ -315,10 +336,12 @@ function AgentBlock({
   agent,
   ours,
   network,
+  asset,
 }: {
   agent: ExternalAgent;
   ours: Map<string, ExcludedWallet>;
   network: string;
+  asset: string | null;
 }) {
   const settled = agent.settled_workflows;
   return (
@@ -359,7 +382,7 @@ function AgentBlock({
               <span key="job" title={w.job_id_hex}>
                 {w.job_id_hex.slice(0, 8)}…
               </span>,
-              formatUsdcAmount(w.amount_usdc),
+              formatSettledAmount(w.amount_usdc, asset),
               <span key="payer" className="inline-flex flex-wrap gap-2">
                 <WalletLink owner={w.payer} network={network} />
                 <TeamFundedBadge funding={teamFunding(w, ours)} />
