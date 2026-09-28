@@ -2699,6 +2699,12 @@ describe("disputeView — escrow v2 settlement", () => {
     expect(v.steps.every(({ payout }) => payout === undefined)).toBe(true);
   });
 
+  // v1 charged a total and held no custody: there is no "rest" to return.
+  it("claims no remainder on a v1 settlement under a state-aware backend", () => {
+    const v = settled({ res: taskDisputes({ settlement_state: "settled" }) });
+    expect(v.remainder).toBeUndefined();
+  });
+
   it("states the remainder only as the backend reported it", () => {
     const unreported = settled({
       res: taskDisputes({ settlement_state: "settled", settlement: v2() }),

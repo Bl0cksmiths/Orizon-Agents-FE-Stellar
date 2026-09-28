@@ -1005,7 +1005,8 @@ export function settlementRemainder(
   settlement: SettlementView | null,
   settlementState: SettlementState | null | undefined,
 ): SettlementRemainder | undefined {
-  switch (settlementState) {
+  const state = settlementState;
+  switch (state) {
     case undefined:
     case null:
     case "skipped":
@@ -1016,6 +1017,15 @@ export function settlementRemainder(
       return { kind: "held" };
     case "settled":
     case "released": {
+      // A v1 settlement — no step carries a payout of its own — charged a
+      // total and held no custody, so it returned nothing to anyone.
+      const v2 =
+        state === "released" ||
+        (settlement?.steps.some(
+          (s) => s.paid_usdc !== undefined && s.paid_usdc !== null,
+        ) ??
+          false);
+      if (!v2) return undefined;
       const returned = settlement?.returned_usdc;
       return returned === undefined || returned === null
         ? { kind: "unreported" }
