@@ -46,7 +46,7 @@ import type {
   StepPayout,
   TaskDisputes,
 } from "./types";
-import { SETTLEMENT_STATES } from "./types";
+import { readSettlementState } from "./settlement-state";
 
 /**
  * The longest reason the dialog accepts, after trimming. The backend allows
@@ -331,29 +331,9 @@ function isTaskDisputes(v: unknown): v is RawTaskDisputes {
       isSettlement(v.settlement)) &&
     Array.isArray(v.disputes) &&
     // Any string: one this build cannot name is read by
-    // `acceptedSettlementState`, never a reason to lose the receipt.
+    // `readSettlementState`, never a reason to lose the receipt.
     isAbsentOr(v.settlement_state, isNullableStr)
   );
-}
-
-const KNOWN_SETTLEMENT_STATES: ReadonlySet<string> = new Set(SETTLEMENT_STATES);
-
-/**
- * The settlement state as this build can use it.
- *
- * A state it cannot name — a newer backend's — is read as `unconfirmed`, the
- * answer that claims least: nothing shown as paid, nothing as failed, nothing
- * as returned. Dropping it instead would fall back to the pre-v2 reading, in
- * which a settlement on record is a confirmed charge; turning it into an
- * error would lose the receipt for a word this build merely does not know.
- */
-function acceptedSettlementState(
-  v: string | null | undefined,
-): SettlementState | null | undefined {
-  if (v === undefined || v === null) return v;
-  return KNOWN_SETTLEMENT_STATES.has(v)
-    ? (v as SettlementState)
-    : "unconfirmed";
 }
 
 /** A non-empty nonce: the message is checked to END with it, and an empty one
@@ -412,7 +392,7 @@ export async function getTaskDisputes(
     if (accepted !== null) disputes.push(accepted);
   }
   const { settlement_state: state, ...rest } = raw;
-  const settlementState = acceptedSettlementState(state);
+  const settlementState = readSettlementState(state);
   return {
     ...rest,
     disputes,
