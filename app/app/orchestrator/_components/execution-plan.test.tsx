@@ -394,9 +394,11 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
     const { container } = render(<ExecutionPlan plan={plan()} />);
     await screen.findAllByText(/XLM/);
     fireEvent.click(authorizeButton());
-    await screen.findByText(/the run could not be started/);
+    await screen.findByText(/the run was not started/);
     const text = container.textContent ?? "";
-    expect(text).toContain("capacity exhausted");
+    expect(text).toContain(
+      "The request to start it failed: POST /orchestrator/execute → 503 — capacity exhausted",
+    );
     expect(text).toContain("transaction confirmed");
     expect(text).not.toContain("Transaction failed");
     // Hedged: a failed request may still have started a run that settles.
@@ -410,6 +412,144 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
     expect(authorizeButton().hasAttribute("disabled")).toBe(true);
     fireEvent.click(authorizeButton());
     expect(api.buildAuthorize).toHaveBeenCalledTimes(1);
+  });
+
+  /** Confirms an authorization, then has execute refuse with `refusal`. */
+  async function refusedAfterConfirm(refusal: Error) {
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: ESCROW_ID },
+    });
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "SUCCESS",
+      hash: "a1b2c3",
+      return_value: "0123456789abcdef0123456789abcdef",
+    });
+    api.execute.mockRejectedValue(refusal);
+    const view = render(<ExecutionPlan plan={plan()} onReplan={vi.fn()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    return view;
+  }
+
+  /** An execute refusal as lib/api builds it from the envelope. */
+  const refused = (
+    status: number,
+    code: string,
+    message: string,
+    extra: Record<string, unknown> = {},
+  ) =>
+    Object.assign(
+      new Error(`POST /orchestrator/execute → ${status} — ${message}`),
+      {
+        status,
+        code,
+        body: { detail: code, error: { code, message }, ...extra },
+      },
+    );
+
+  const RELEASE_TX = "e".repeat(64);
+
+  // S2: the backend checks the authorization against the plan before any
+  // task is minted. The buyer is told why, in words, and — since no release
+  // is tried for these — that the funds wait in escrow for their reclaim.
+  it("explains an authorization refusal and keeps the funds' way back in view", async () => {
+    const { container } = await refusedAfterConfirm(
+      refused(
+        403,
+        "authorization_plan_mismatch",
+        "this authorization was made for a different plan — authorize this plan again and execute with the new authorization",
+      ),
+    );
+    await screen.findByText(/the run was not started/);
+    expect(container.textContent).toContain(
+      "This authorization was made for a different plan, so it cannot pay for this one. Authorize this plan again.",
+    );
+    expect(container.textContent).not.toMatch(
+      /authorization_plan_mismatch|403/,
+    );
+    const notice = screen.getByRole("region", {
+      name: "Your funds are held in escrow",
+    });
+    expect(notice.textContent).toContain("No run was started");
+    expect(notice.textContent).toContain(
+      "It stays in escrow until you reclaim it.",
+    );
+    expect(
+      screen.getByRole("button", { name: /build a fresh plan/i }),
+    ).toBeTruthy();
+  });
+
+  // The platform handed the custody back itself: said as a fact, with the
+  // transaction that did it, and no reclaim is offered for money that is back.
+  it("says the funds were returned, and links the return, when the backend released them", async () => {
+    const { container } = await refusedAfterConfirm(
+      refused(
+        503,
+        "capacity_exhausted",
+        "the service is at capacity — your authorized funds were returned to your wallet",
+        {
+          release_tx_hash: RELEASE_TX,
+        },
+      ),
+    );
+    await screen.findByText("Your funds were returned");
+    expect(container.textContent).toContain(
+      "The service is at capacity, so the run was not started. Try again shortly.",
+    );
+    const link = screen.getByRole("link", {
+      name: "view the return on stellar.expert",
+    });
+    expect(link.getAttribute("href")).toMatch(new RegExp(`/tx/${RELEASE_TX}$`));
+    expect(
+      screen.queryByRole("region", { name: "Your funds are held in escrow" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /reclaim/i })).toBeNull();
+  });
+
+  // Tried and not confirmed: the buyer's money is still in escrow.
+  it("says a release that did not go through left the funds to reclaim", async () => {
+    await refusedAfterConfirm(
+      refused(
+        404,
+        "not_found",
+        "this plan is no longer held — your authorized funds could not be returned now; reclaim them once it expires",
+        {
+          release_tx_hash: null,
+        },
+      ),
+    );
+    const notice = await screen.findByRole("region", {
+      name: "Your funds are held in escrow",
+    });
+    expect(notice.textContent).toContain(
+      "The platform tried to return it to you and could not, so it stays in escrow until you reclaim it.",
+    );
+    expect(screen.queryByText("Your funds were returned")).toBeNull();
+  });
+
+  it("says an expired plan's authorization was returned when the backend released it", async () => {
+    const expiredWithRelease = Object.assign(planExpired(), {
+      body: {
+        detail: "plan_expired",
+        error: { code: "plan_expired", message: "this plan is too old" },
+        release_tx_hash: RELEASE_TX,
+      },
+    });
+    const { container } = await refusedAfterConfirm(expiredWithRelease);
+    await screen.findByText("This plan was too old to run");
+    expect(container.textContent).toContain(
+      "The platform returned the authorization you just signed from escrow to your wallet",
+    );
+    expect(container.textContent).not.toContain(
+      "held in escrow until you reclaim it",
+    );
+    expect(screen.getByText("Your funds were returned")).toBeTruthy();
   });
 
   // Any other refusal is still a failure, and still says so.
