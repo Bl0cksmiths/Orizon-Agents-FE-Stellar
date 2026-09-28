@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { TxStatus, type TxState } from "@/components/ui/tx-status";
-import { NETWORK_LABEL } from "@/components/ui/stellar-link";
+import {
+  NETWORK_LABEL,
+  defaultExplorerNetwork,
+} from "@/components/ui/stellar-link";
 import {
   buildAuthorize,
   execute,
@@ -40,6 +43,7 @@ import {
   refusalSentence,
   type EscrowRelease,
 } from "@/lib/execute-refusal";
+import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
 import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
@@ -69,6 +73,10 @@ const STEP_LABEL: Record<Exclude<ExecStep, "">, string> = {
 /** The smallest cap an authorization is signed for. A plan priced at zero
  *  still needs a positive cap to authorize against. */
 const MIN_CAP = 0.001;
+
+/** The notice shown when the backend's escrow is not the one this build
+ *  pins; Authorize is described by it while it shows. */
+const ESCROW_MISMATCH_ID = "escrow-mismatch-notice";
 
 /** What the pay panel says in place of a cap when there is nothing to pay. */
 const EMPTY_PLAN =
@@ -296,6 +304,16 @@ export function ExecutionPlan({
     }
   });
 
+  // Everything this card says about paying describes escrow v2. When this
+  // build pins the v2 escrow and the backend reports a different one, a
+  // signature would go to a contract the copy does not describe — so the
+  // card will not ask for one. Simulate and fiat do not sign against it.
+  const escrow = escrowAgreement(
+    network,
+    pinnedEscrowId(defaultExplorerNetwork),
+  );
+  const escrowMismatch = escrow.kind === "mismatch";
+
   // Every notice above the Authorize panel that is on the page, in reading
   // order. Composed, never chosen between: a fallback plan built during a
   // failed reputation read owes the buyer both facts at the button. None at
@@ -308,6 +326,7 @@ export function ExecutionPlan({
       // The banner's one-sentence summary, not the banner: four paragraphs
       // read out as a button's description bury the decision under them.
       hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
+      escrowMismatch && ESCROW_MISMATCH_ID,
     ]
       .filter(Boolean)
       .join(" ") || undefined;
@@ -327,7 +346,8 @@ export function ExecutionPlan({
   };
 
   const onAuthorize = () => {
-    if (cannotRun || !wallet.connected || !wallet.address) return;
+    if (cannotRun || escrowMismatch || !wallet.connected || !wallet.address)
+      return;
     simulate.reset();
     void authorize.run(wallet.address);
   };
@@ -502,6 +522,22 @@ export function ExecutionPlan({
             nothing useful. */}
         <DegradedBanner plan={plan} />
 
+        {escrow.kind === "mismatch" && (
+          <p
+            id={ESCROW_MISMATCH_ID}
+            className="mt-6 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 text-sm leading-relaxed text-magenta"
+          >
+            On-chain payment is paused: the platform is settling through escrow{" "}
+            <span className="break-all font-mono text-xs">
+              {escrow.live ?? "(none reported)"}
+            </span>
+            , but this console is written for escrow{" "}
+            <span className="break-all font-mono text-xs">{escrow.pinned}</span>
+            . Nothing is asked of your wallet until they agree. A simulated pass
+            is unaffected.
+          </p>
+        )}
+
         <m.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -546,7 +582,7 @@ export function ExecutionPlan({
                 <Button
                   variant="cyan"
                   onClick={onAuthorize}
-                  disabled={cannotRun}
+                  disabled={cannotRun || escrowMismatch}
                   size="md"
                   // Tab goes from the exclusions panel straight here, past the
                   // polite notices above, so the button carries them as its
