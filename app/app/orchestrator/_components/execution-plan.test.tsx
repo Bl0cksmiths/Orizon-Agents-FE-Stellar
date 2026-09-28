@@ -541,6 +541,67 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
   });
 });
 
+describe("ExecutionPlan · a wallet that cannot fund the escrow", () => {
+  // Escrow v2 moves the whole cap out of the wallet at signing. A buyer
+  // short of it is told so before the wallet is asked for anything.
+  it("refuses before building or signing, with a typed insufficient balance", async () => {
+    wallet.xlmBalance = "0.5000000";
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/Not enough XLM to fund this authorization/);
+    const text = container.textContent ?? "";
+    expect(text).toContain("insufficient_balance");
+    expect(text).toContain("It holds 0.5 XLM");
+    expect(text).toContain("Nothing was signed or moved.");
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
+    expect(wallet.signXdr).not.toHaveBeenCalled();
+  });
+
+  // Unknown is not zero: the chain decides, and its refusal is mapped.
+  it("goes ahead when the balance could not be read", async () => {
+    wallet.xlmBalance = null;
+    api.buildAuthorize.mockReturnValue(new Promise(() => {}));
+    render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await waitFor(() => expect(api.buildAuthorize).toHaveBeenCalledTimes(1));
+  });
+
+  it("maps the chain's balance refusal to the same typed error", async () => {
+    api.buildAuthorize.mockResolvedValue({ xdr: "AAAA", expires_at: 1 });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "FAILED",
+      hash: "f00d",
+      return_value: null,
+      diagnostic:
+        "<SCVal [type=2, error=<SCError [type=0, contract_code=<Uint32 [uint32=10]>]>]>",
+    });
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/Not enough XLM to fund this authorization/);
+    expect(container.textContent).toContain("insufficient_balance");
+    expect(api.execute).not.toHaveBeenCalled();
+  });
+
+  it("says a failed build moved nothing, and names the likely cause", async () => {
+    api.buildAuthorize.mockRejectedValue(
+      Object.assign(
+        new Error("POST /stellar/build/authorize → 400 — build_failed"),
+        { status: 400, code: "build_failed" },
+      ),
+    );
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/The authorization could not be prepared/);
+    expect(container.textContent).toContain("nothing was signed or moved");
+    expect(wallet.signXdr).not.toHaveBeenCalled();
+  });
+});
+
 describe("ExecutionPlan · a plan with no steps", () => {
   const empty = () => plan({ steps: [], total_usdc: 0 });
   const isDisabled = (name: RegExp) =>
