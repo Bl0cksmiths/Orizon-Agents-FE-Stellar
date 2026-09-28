@@ -1012,6 +1012,7 @@ test.describe("plan card — reputation that could not be read", () => {
     await stableBox(estimateBanner(page));
     await expect(estimateSummary(page)).toHaveText(/estimates/);
 
+    await motionSettled(page.locator("main"));
     const { violations } = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();
