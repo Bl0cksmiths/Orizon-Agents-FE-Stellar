@@ -586,6 +586,8 @@ export type StepPayout =
     }
   /** Delivered by a seeded platform agent: never billed, share returned. */
   | { kind: "platform" }
+  /** Delivered, and paid nothing for a reason the backend named. */
+  | { kind: "not_billed"; reason: "free" | "owner_unreadable" | "over_cap" }
   | { kind: "pending" }
   | { kind: "not_paid" }
   | { kind: "unreported" };
@@ -654,6 +656,14 @@ export type SettlementStepView = {
    * itself happened inside the settlement's transaction, `charge_tx`.
    */
   receipt_id_hex?: string | null;
+  /**
+   * Why a DELIVERED v2 step was paid nothing: "free", "no_onchain_owner" (a
+   * seeded platform agent — a payout naming it would revert the whole
+   * settle), "owner_unreadable" or "over_authorized_cap". Null for a paid
+   * step, an undelivered one and every v1 record. An open string: a reason
+   * this build does not know still reads as "not paid", never as paid.
+   */
+  unpaid_reason?: string | null;
 };
 
 /** A workflow's settlement: what moved, who paid, and until when to dispute. */

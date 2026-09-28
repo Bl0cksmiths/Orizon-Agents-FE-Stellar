@@ -707,6 +707,13 @@ function StepPayoutLine({
           {step.delivered ? "delivered · " : ""}not billed (platform agent)
         </span>
       );
+    case "not_billed":
+      return (
+        <span className={cn(label, "text-muted")}>
+          {step.delivered ? "delivered · " : ""}
+          {NOT_BILLED[payout.reason]}
+        </span>
+      );
     case "pending":
       return (
         <span className={cn(label, "text-muted")}>payout not confirmed</span>
@@ -719,6 +726,16 @@ function StepPayoutLine({
       );
   }
 }
+
+/** Why a delivered step was paid nothing, in the buyer's words. */
+const NOT_BILLED: Record<
+  Extract<StepPayout, { kind: "not_billed" }>["reason"],
+  string
+> = {
+  free: "not billed (free step)",
+  owner_unreadable: "not paid (operator could not be read)",
+  over_cap: "not paid (over the authorized maximum)",
+};
 
 /**
  * The step's one control, or its outcome. Only `disputable` carries an

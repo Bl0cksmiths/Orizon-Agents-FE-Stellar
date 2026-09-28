@@ -218,7 +218,8 @@ function isSettlementStep(v: unknown): v is SettlementStepView {
     isNum(v.creditable_usdc) &&
     isNullableStr(v.output_summary) &&
     isAbsentOr(v.paid_usdc, isNullableAmount) &&
-    isAbsentOr(v.receipt_id_hex, isNullableStr)
+    isAbsentOr(v.receipt_id_hex, isNullableStr) &&
+    isAbsentOr(v.unpaid_reason, isNullableStr)
   );
 }
 
@@ -963,9 +964,25 @@ export function stepPayout(
           receiptIdHex: step.receipt_id_hex ?? null,
         };
       }
-      return isPlatformAgent(step.agent_id)
-        ? { kind: "platform" }
-        : { kind: "not_paid" };
+      // The backend's own reason first; the reserved `agt_` prefix only
+      // for a record written before it named one.
+      switch (step.unpaid_reason) {
+        case "no_onchain_owner":
+          return { kind: "platform" };
+        case "free":
+          return { kind: "not_billed", reason: "free" };
+        case "owner_unreadable":
+          return { kind: "not_billed", reason: "owner_unreadable" };
+        case "over_authorized_cap":
+          return { kind: "not_billed", reason: "over_cap" };
+        case undefined:
+        case null:
+          return isPlatformAgent(step.agent_id)
+            ? { kind: "platform" }
+            : { kind: "not_paid" };
+        default:
+          return { kind: "not_paid" };
+      }
     }
   }
 }
