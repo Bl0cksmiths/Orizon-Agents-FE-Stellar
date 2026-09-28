@@ -77,6 +77,7 @@ export function OnboardingChecklist({ agentId }: { agentId: string }) {
   };
 
   const steps = shown ? checklistSteps(shown) : [];
+  const recheckWord = recheck.pending ? "Re-checking…" : "Re-check";
   const next = nextStep(steps);
 
   return (
@@ -165,9 +166,12 @@ export function OnboardingChecklist({ agentId }: { agentId: string }) {
               size="sm"
               onClick={onRecheck}
               disabled={recheck.pending}
+              // The agent id in the name tells several of these apart when a
+              // screen reader lists the page's buttons; it starts with the
+              // visible words so voice control still finds it by them.
+              aria-label={`${recheckWord} onboarding for ${agentId}`}
             >
-              {recheck.pending ? "Re-checking…" : "Re-check"}
-              <span className="sr-only"> onboarding for {agentId}</span>
+              {recheckWord}
             </Button>
             <p className={body}>
               checked{" "}
