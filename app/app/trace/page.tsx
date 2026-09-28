@@ -261,8 +261,14 @@ function TracePageInner() {
   const visible: TraceLine[] = taskId ? lines : demoTrace.slice(0, demoCursor);
   const total = taskId ? lines.length : demoTrace.length;
 
-  const spent = visible
-    .filter((l) => l.level === "cost")
+  // Only lines that report money that MOVED count as spent. A simulated
+  // run's per-step payments say "(simulated)": summing them under "Spent"
+  // stated as paid a payment nobody made.
+  const isSimulated = (l: TraceLine) => /\(simulated\)/.test(l.msg);
+  const costLines = visible.filter((l) => l.level === "cost");
+  const simulatedOnly = costLines.length > 0 && costLines.every(isSimulated);
+  const spent = costLines
+    .filter((l) => !isSimulated(l))
     .reduce((acc, l) => {
       const m = l.msg.match(/([0-9]+\.[0-9]+)\s+USDC/);
       return acc + (m ? parseFloat(m[1]) : 0);
@@ -327,6 +333,8 @@ function TracePageInner() {
             {spendUnknownReason}
           </div>
         </>
+      ) : simulatedOnly ? (
+        "simulated · no funds moved"
       ) : (
         `${spent.toFixed(3)} USDC`
       ),
