@@ -109,6 +109,27 @@ export function parseFenceInfo(
     );
   }
 
+  const schema = attrs.schema;
+  if (schema !== undefined) {
+    if (lang !== "json") {
+      problems.push(`${shown}: schema= only applies to a json block`);
+    } else if (response) {
+      problems.push(`${shown}: schema= does not apply to a -response block`);
+    } else if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(schema)) {
+      problems.push(
+        `${shown}: schema "${schema}" is not a contract schema name`,
+      );
+    }
+  }
+  const status = attrs.status;
+  if (status !== undefined) {
+    if (!response) {
+      problems.push(`${shown}: status= only applies to a -response block`);
+    } else if (!/^[1-5]\d\d$/.test(status)) {
+      problems.push(`${shown}: status "${status}" is not an HTTP status`);
+    }
+  }
+
   if (problems.length) return { ok: false, problems };
   return {
     ok: true,
