@@ -20,6 +20,7 @@ import { focusRing } from "@/lib/ui";
 import { isAgentStatus, type Agent, type ReputationInfo } from "@/lib/types";
 import { BindingStateBadge } from "../agents/binding-notice";
 import { ManagePanel } from "../agents/manage-panel";
+import { OnboardingChecklist } from "./onboarding-checklist";
 import type { BindingState } from "../agents/use-binding-status";
 import type { ReputationRead } from "@/components/agents/reputation-cell";
 import { RoutingStanding } from "./routing-standing";
@@ -98,6 +99,13 @@ export function AgentCard({
             skills <span className="text-text">{agent.skills.join(", ")}</span>
           </span>
         )}
+      </div>
+
+      {/* First, because it answers the question before all the others: how
+          far along is this agent, and what is the one thing to do next. The
+          panels below explain individual steps in more depth. */}
+      <div className="border-t border-border pt-5">
+        <OnboardingChecklist agentId={agent.id} />
       </div>
 
       {/* Placed above the settings, not below them. This is the answer to the
