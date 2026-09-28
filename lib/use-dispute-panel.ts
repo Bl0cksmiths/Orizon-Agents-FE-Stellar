@@ -646,8 +646,18 @@ export function useDisputePanel(
   const awaitingSinceMs = snapshot?.awaitingSinceMs ?? null;
   const awaitedMs =
     awaitingSinceMs === null ? 0 : Math.max(0, clockMs - awaitingSinceMs);
+  // A backend that reports how the settlement ended without a record —
+  // failed, unconfirmed, released, skipped — has already answered: waiting
+  // out the record would hide a failed settlement behind "appears here once
+  // this workflow settles" for the whole wait. Only `settled` (or no state
+  // at all) says a record is still to come.
+  const reported = snapshot?.res.settlement_state;
+  const answeredWithoutRecord =
+    reported !== undefined && reported !== null && reported !== "settled";
   const stillLooking =
-    awaitingSinceMs !== null && awaitedMs < SETTLEMENT_WAIT_MS;
+    !answeredWithoutRecord &&
+    awaitingSinceMs !== null &&
+    awaitedMs < SETTLEMENT_WAIT_MS;
   // The same, for a receipt still moving: how long since it last moved, or
   // since the buyer last came back to it, whichever is later.
   const movedAtMs = snapshot?.pendingSinceMs ?? null;
