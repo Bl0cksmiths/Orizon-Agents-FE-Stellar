@@ -448,3 +448,110 @@ python3 scripts/verify_registration.py --tx '<your registration tx hash>' --agen
 ```
 
 It ends with `VERDICT: PASS - registration verified` and exits non-zero on any failed check.
+
+## Step 4: Deploy your agent
+
+Your agent is an HTTPS endpoint. The orchestrator POSTs it a signed JSON envelope for each workflow step, and it answers
+with JSON. This step deploys the reference agent, which already does all of that correctly:
+<https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar>. It is `agent.py` (the Python standard library
+plus `pynacl`), a Render Blueprint (`render.yaml`), and a test suite that doubles as the protocol's specification. It
+holds no private key: it verifies signatures, it never makes them.
+
+### Choose where to host it
+
+Bind a URL that will not change. The bind signature covers the exact URL, so when the URL changes, every dispatch goes
+nowhere until you sign a new binding.
+
+> **Warning:** Do not bind a tunnel URL: not a Cloudflare quick tunnel (`*.trycloudflare.com`), not a free ngrok URL.
+> Each gets a new URL when it restarts. The old binding then stays routable, the planner keeps choosing your agent, the
+> buyers' steps fail, and every failure is rated against your agent on-chain. QA bound two agents to quick tunnels; both
+> hosts later stopped resolving while both agents were still listed as bound and `online` (F-001). The readiness check
+> warns on any `trycloudflare.com` endpoint.
+
+A Render web service keeps one URL for its whole life, which is why this guide uses it. Its free plan has one cost:
+
+> **Limitation:** Render's free plan sleeps after about 15 minutes idle and takes about 30 seconds to start again. The
+> dispatch deadline is 100 seconds, measured from before the orchestrator connects, so a cold start uses about a third
+> of it before your code runs. Keep your handler's own work under about 60 seconds. For no sleep, use a paid plan, or
+> Fly.io with `min_machines_running = 1` (F-006).
+
+### Deploy the reference agent on Render
+
+1. Fork the repository to your own GitHub account. Deploy `main`. Do not deploy any other branch.
+2. In Render, choose **New → Blueprint** and pick your fork. Render reads `render.yaml`: a free Python web service that
+   runs `pip install -r requirements.txt`, then `python3 agent.py`, with `ORIZON_NETWORK=testnet` already set.
+3. Render asks for two values. Neither is a secret.
+
+```env id="render-env" verify="manual" title="The two values Render asks for"
+ORIZON_ENDPOINT_URL=https://<your-service-name>.onrender.com/dispatch
+ORIZON_SIGNER=<the dispatch_signer value from GET /api/stellar/network>
+```
+
+- **`ORIZON_ENDPOINT_URL`** is the exact URL you will bind in Step 5, path included. Decide this one string now and use
+  it everywhere (see [Use one exact URL](#use-one-exact-url)). If Render gives your service a different host than you
+  expected, correct this value in the Render dashboard and redeploy **before** you bind.
+- **`ORIZON_SIGNER`** is the `dispatch_signer` from the [network read](#check-the-network-first). Setting it is what
+  makes your agent refuse unsigned dispatches. Pin it now, at deploy time, before you bind. The reference README
+  describes when to pin it in three different places; this order is the one that works (F-024).
+
+> **Warning:** Set `ORIZON_SIGNER` as a real environment variable, which is what the Render dashboard does. `agent.py`
+> never reads a `.env` file. A signer written only in `.env` is silently ignored, and the agent then accepts unsigned
+> dispatches while you believe it is protected (F-009).
+
+4. Do not add `FAULT_MODE` or `FAULT_SCOPE`. See
+   [Fault injection is for testing only](#fault-injection-is-for-testing-only).
+
+Running the agent on your laptop first is optional; you can deploy straight to Render. If you do run it locally, note
+that the reference README's first step is written for macOS and Linux. On Windows, `python3` is the Microsoft Store
+alias and `.venv/bin/activate` does not exist (F-023). Use this instead:
+
+```text id="run-locally-windows" verify="manual" title="Run the reference agent locally on Windows"
+py -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+py agent.py
+```
+
+Locally it listens on `http://127.0.0.1:8787`, which cannot be bound: an endpoint must be public HTTPS.
+
+### Check the deploy
+
+When Render says the service is live, set `ENDPOINT_URL` to the same string you gave `ORIZON_ENDPOINT_URL`, and run
+this twice. The first call may be a cold start:
+
+```bash id="agent-health" verify="manual" title="Check your deployed agent"
+curl -sS "$ENDPOINT_URL"
+```
+
+```json id="agent-health-response" verify="manual" title="Response"
+{
+  "ok": true,
+  "endpoint_url": "<exactly the value of ORIZON_ENDPOINT_URL>",
+  "network": "testnet",
+  "signature_required": true
+}
+```
+
+**What you should see:** `endpoint_url` equal, character for character, to `$ENDPOINT_URL`; `"signature_required":
+true`; and **no** `fault_injection` field.
+
+**If it goes wrong:**
+
+- `"signature_required": false`: `ORIZON_SIGNER` is not set as an environment variable. Set it in Render and redeploy.
+- `endpoint_url` differs from what you will bind: fix `ORIZON_ENDPOINT_URL` in Render and redeploy. A difference of one
+  character, a trailing slash included, fails every dispatch.
+- A `fault_injection` field is present: remove `FAULT_MODE` and `FAULT_SCOPE` and redeploy.
+- No answer at all: open the service's logs in Render. The agent must listen on the `PORT` Render injects, which
+  `agent.py` does by default.
+
+### Fault injection is for testing only
+
+The reference agent can fail on purpose. Its `FAULT_MODE` setting (`hang_after:N`, `delay_ms:M` or `error_after:N`,
+with `FAULT_SCOPE`) came from the `feat/5.01-fault-mode` branch and is now part of `main`. It exists so the platform
+team can test how the orchestrator handles a dead, slow or broken agent.
+
+> **Warning:** Never enable fault injection on an agent you want work for, and never deploy the `feat/5.01-fault-mode`
+> branch. Every faulted dispatch is a real failed step against your agent id: unbilled, and rated 20 out of 100
+> on-chain. Enough of them push your agent below the routing floor and the planner stops choosing it (F-005). If you
+> ever set it, unset both `FAULT_MODE` and `FAULT_SCOPE`, redeploy, and check that `GET` on your endpoint no longer
+> shows a `fault_injection` field.
