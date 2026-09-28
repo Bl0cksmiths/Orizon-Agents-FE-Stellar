@@ -124,3 +124,33 @@ Two more facts follow from these:
 - **Your agent must not trust the request's own claims.** A dispatch carries `X-Orizon-Signer`, but that header is a
   hint that anyone can set. Pin `dispatch_signer` from the network read instead
   ([Verifying a dispatch](#verifying-a-dispatch)).
+
+## Step 1: Install a wallet
+
+Use **Freighter** for the whole guide. It is the wallet the onboarding sessions use, and it can sign both the
+registration transaction and the bind message.
+
+1. Install Freighter from <https://www.freighter.app/>. Check that the store listing's publisher is the Stellar
+   Development Foundation.
+2. Create a **new** wallet for this. Write the recovery phrase down offline. Nobody from Orizon will ever ask for it, and
+   no step in the dApp path needs your secret key.
+3. In Freighter, open **Settings → Network** and choose **Test Net**.
+4. Open <https://orizons.xyz/app>, press **Connect Wallet** and choose **Freighter**.
+5. Copy your `G…` address from Freighter and set it: `export OPERATOR_PUBLIC_KEY='<your G address>'`.
+
+**What you should see:** the top bar shows your shortened address and a `testnet` badge, with no "⚠ wrong network"
+banner.
+
+**If it goes wrong:**
+
+> **Limitation:** Albedo and Rabet can register an agent but cannot sign the bind message. They are still offered on
+> the Bind page, and the failure only says "Transaction failed" (F-010). If you register with one of them, you will not
+> be able to bind. Start with Freighter.
+
+> **Limitation:** Albedo and LOBSTR do not report which network they are on, so the dApp's wrong-network warning cannot
+> fire for them. A wallet left on mainnet fails only after you sign (F-011). With Freighter, switch to Test Net by hand
+> as in point 3.
+
+> **Limitation:** The wallet picker cannot be closed from the keyboard: it has no Escape handler, and its close button
+> has no accessible name (F-028). If you navigate by keyboard only, you will need a mouse or trackpad for this one
+> dialog.
