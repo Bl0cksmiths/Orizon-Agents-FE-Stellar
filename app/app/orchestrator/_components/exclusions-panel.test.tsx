@@ -653,3 +653,36 @@ describe("ExclusionsPanel · wording that must never regress", () => {
     for (const m of mentions) expect(m[1]).toMatch(/\b(not|never|no)\b/i);
   });
 });
+
+describe("ExclusionsPanel — an agent awaiting a fresh reputation read", () => {
+  // The backend holds an agent off when a rating landed since its last read
+  // (finding S8). Its bound is the PRE-rating one and can clear the floor —
+  // 6100 against 5500 here — while the code still says below_floor.
+  const held = notice({
+    reason:
+      "rated since its last reputation read (6100 bps), so held off routing until a fresh read answers (floor 5500 bps)",
+    lower_bound_bps: 6100,
+    awaiting_fresh_read: true,
+  });
+
+  it("says it is held for a fresh read, and never that its bound is under the floor", () => {
+    const { text } = opened(plan({ notices: [held] }));
+    expect(text()).toContain(
+      "It was rated since its last reputation read, so it is held off routing until a fresh read answers.",
+    );
+    expect(text()).toContain("last read lower bound");
+    expect(text()).not.toContain("is below the floor");
+    // The backend's own sentence still renders for an operator.
+    expect(text()).toContain(
+      "held off routing until a fresh read answers (floor 5500 bps)",
+    );
+  });
+
+  it("keeps the below-floor sentence for a notice without the flag", () => {
+    const { text } = opened(
+      plan({ notices: [notice({ awaiting_fresh_read: false })] }),
+    );
+    expect(text()).toContain("is below the floor this plan was built against");
+    expect(text()).not.toContain("last read lower bound");
+  });
+});

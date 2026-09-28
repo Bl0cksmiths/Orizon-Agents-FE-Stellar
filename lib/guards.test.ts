@@ -249,6 +249,38 @@ describe("isFlow", () => {
   });
 });
 
+describe("a plan floor notice's awaiting_fresh_read", () => {
+  const withNotice = (extra: Record<string, unknown>) => ({
+    plan_id: "pln_1",
+    intent: "x",
+    steps: [],
+    total_usdc: 0,
+    total_eta: 0,
+    notices: [
+      {
+        kind: "excluded",
+        agent_id: "a",
+        reason: "r",
+        reason_code: "below_floor",
+        ...extra,
+      },
+    ],
+  });
+
+  // It decides whether a bound is worded as under the floor: a truthy
+  // string must not pass for true.
+  it("keeps a boolean flag and drops a notice whose flag is not one", () => {
+    const kept = screenDecomposeResponse(
+      withNotice({ awaiting_fresh_read: true }),
+    );
+    expect(kept?.notices?.[0]?.awaiting_fresh_read).toBe(true);
+    const dropped = screenDecomposeResponse(
+      withNotice({ awaiting_fresh_read: "false" }),
+    );
+    expect(dropped?.notices ?? []).toHaveLength(0);
+  });
+});
+
 describe("isTaskList", () => {
   const task = {
     id: "tsk_01",

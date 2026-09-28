@@ -951,6 +951,44 @@ describe("ExecutionPlan · the floor's marks on each step", () => {
 
   // The substitution is marked on the step that took the work, naming the
   // agent it stood in for, with the reason on hover.
+  // Finding S8: an agent replaced only because a fresh reputation read had
+  // not answered may have a bound ABOVE the floor. The chip must not say it
+  // scored below it.
+  it("never says a replaced agent held for a fresh read scored below the floor", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({
+          steps: [
+            step({
+              agent_id: "design.figma",
+              agent_name: "design.figma",
+              substituted_for: "vision.ocr",
+            }),
+          ],
+          notices: [
+            {
+              kind: "substituted",
+              agent_id: "vision.ocr",
+              replacement_id: "design.figma",
+              reason:
+                "rated since its last reputation read (6100 bps), so held off routing until a fresh read answers (floor 5500 bps)",
+              reason_code: "below_floor",
+              lower_bound_bps: 6100,
+              floor_bps: 5500,
+              awaiting_fresh_read: true,
+            },
+          ],
+        })}
+      />,
+    );
+    const title = screen
+      .getByText("⇄ for vision.ocr")
+      .closest("[title]")
+      ?.getAttribute("title");
+    expect(title).toContain("held off until a fresh read answers");
+    expect(title).not.toContain("below the routing floor");
+  });
+
   it("marks a substituted step with the agent it replaced", () => {
     render(
       <ExecutionPlan
