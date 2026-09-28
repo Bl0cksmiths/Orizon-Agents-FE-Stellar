@@ -280,9 +280,9 @@ const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=([\s\S]*)$/;
 
 /**
  * `NAME=value` and `export NAME=value` commands, applied in order to `env`.
- * A value that still holds an unknown expansion unsets the name, so a later
- * use falls back to the fixture set (or stays a wildcard) instead of carrying
- * a half-expanded string.
+ * A value that still holds an unknown expansion, or is a `<...>` placeholder
+ * for the reader to fill in, unsets the name, so a later use falls back to the
+ * fixture set (or stays a wildcard) instead of carrying a stand-in string.
  *
  * @param {Command} command
  * @param {Record<string, string>} env
@@ -298,7 +298,8 @@ export function applyAssignments(command, env, pinned = new Set()) {
     const [, name, raw] = /** @type {RegExpExecArray} */ (ASSIGNMENT.exec(w));
     if (pinned.has(name)) continue;
     const value = resolveWord(raw, env);
-    if (hasMarker(value)) delete env[name];
+    // `'<your G address>'` is the reader's to fill in, not a value.
+    if (hasMarker(value) || /^<[^<>]+>$/.test(value)) delete env[name];
     else env[name] = value;
   }
   return true;

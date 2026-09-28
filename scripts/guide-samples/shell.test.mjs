@@ -149,3 +149,10 @@ test("parseJsonWithMarkers: an expansion can stand in for any JSON value", () =>
     n: 1,
   });
 });
+
+test("a <placeholder> assignment is the reader's to fill in, so it leaves the name unset", () => {
+  const session = sessionEnv([
+    `export AGENT_ID='<the agent id you register in Step 3>'\nexport NAME=literal`,
+  ]);
+  assert.deepEqual(session, { NAME: "literal" });
+});
