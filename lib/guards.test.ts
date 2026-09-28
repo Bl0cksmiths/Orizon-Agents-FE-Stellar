@@ -306,6 +306,17 @@ describe("isTraceLine / isTraceLineList", () => {
     }
   });
 
+  // The trace gates its on-chain evidence on this field (finding S7).
+  it("accepts the settlement outcome as a string, null or absent, and nothing else", () => {
+    expect(isTraceLine({ ...line, settlement: "settled" })).toBe(true);
+    expect(isTraceLine({ ...line, settlement: "rebalanced" })).toBe(true);
+    expect(isTraceLine({ ...line, settlement: null })).toBe(true);
+    expect(isTraceLine({ ...line, settlement: 1 })).toBe(false);
+    expect(isTraceLine({ ...line, settlement: { state: "settled" } })).toBe(
+      false,
+    );
+  });
+
   it("rejects a level outside the backend literal (keys the color map)", () => {
     expect(isTraceLine({ ...line, level: "warn" })).toBe(false);
     const { level: _drop, ...missing } = line;
