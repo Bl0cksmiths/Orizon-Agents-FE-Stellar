@@ -2,7 +2,13 @@
  * Unit tests for lib/guide/load.ts: finding and reading guides on disk.
  */
 
-import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -79,7 +85,12 @@ describe("loadGuide", () => {
 
   it("returns null for a missing guide or a slug that is not kebab-case", () => {
     expect(loadGuide("nope", dir)).toBeNull();
-    expect(loadGuide("../etc/passwd", dir)).toBeNull();
+    // A real guide one directory up is still out of reach.
+    const inner = path.join(dir, "guides");
+    mkdirSync(inner);
+    writeFileSync(path.join(dir, "outside.md"), GUIDE("Outside"));
+    expect(loadGuide("../outside", inner)).toBeNull();
+    expect(loadGuide("Outside", dir)).toBeNull();
   });
 
   it("re-reads a file only when it changes", () => {
