@@ -35,6 +35,11 @@ import {
   PLANNER_FALLBACK_NOTICE_ID,
   PlannerFallbackNotice,
 } from "./planner-fallback-notice";
+import {
+  executeRefusal,
+  refusalSentence,
+  type EscrowRelease,
+} from "@/lib/execute-refusal";
 import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
@@ -43,7 +48,11 @@ import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 import { isPlanExpired } from "./plan-errors";
 import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
-import { EscrowHeldNotice, type HeldAuthorization } from "./escrow-held-notice";
+import {
+  EscrowHeldNotice,
+  FundsReturnedNotice,
+  type HeldAuthorization,
+} from "./escrow-held-notice";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -124,6 +133,10 @@ export function ExecutionPlan({
   const [held, setHeld] = useState<HeldAuthorization | null>(null);
   // Why the run could not be started after the authorization confirmed.
   const [runError, setRunError] = useState<string | null>(null);
+  // What the backend said became of that authorization's custody when it
+  // refused the run — returned, tried and failed, or never tried — or null
+  // when there was no answer at all (a run may then have started).
+  const [release, setRelease] = useState<EscrowRelease | null>(null);
 
   // What every amount on this card is actually denominated in. `total_usdc`
   // is a legacy field name, not a currency: the cap the buyer signs is that
@@ -172,6 +185,7 @@ export function ExecutionPlan({
     setFriendlyError(null);
     setAuthorizeHash(null);
     setRunError(null);
+    setRelease(null);
     let confirmed: HeldAuthorization | null = null;
     // Checked before anything is built or signed. Escrow v2 moves the whole
     // cap out of the wallet at signing, so a wallet that cannot cover it plus
@@ -249,17 +263,26 @@ export function ExecutionPlan({
       // confirmed transaction stays shown as confirmed, the notice says the
       // plan was too old to run, and the held-funds notice says where the
       // cap is and how to reclaim it.
+      // The backend's refusal, narrowed: why, and — when it tried to hand
+      // the custody back — whether that confirmed.
+      const refusal = confirmed !== null ? executeRefusal(e) : null;
       if (isPlanExpired(e)) {
         setExpired("authorize");
+        setRelease(refusal?.release ?? { kind: "not_attempted" });
         setStep("");
         return;
       }
       // Any other failure after the authorization confirmed is a failure to
       // START the run, not a failed payment: the confirmed transaction stays
       // confirmed rather than turning into a failure card, and the reason is
-      // stated beside the held-funds notice.
+      // stated beside what became of the funds.
       if (confirmed !== null) {
-        setRunError(e instanceof Error ? e.message : String(e));
+        setRunError(
+          refusal !== null
+            ? refusalSentence(refusal)
+            : `The request to start it failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        setRelease(refusal?.release ?? null);
         setStep("");
         return;
       }
@@ -572,27 +595,47 @@ export function ExecutionPlan({
             run={expired}
             onReplan={onReplan}
             busy={executing}
+            fundsReturned={release?.kind === "returned"}
           />
         )}
 
         {runError && (
           <div
             role="alert"
-            className="mt-4 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 font-mono text-xs text-magenta"
+            className="mt-4 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 text-sm leading-relaxed text-magenta"
           >
-            The authorization confirmed, but the run could not be started:{" "}
-            {runError}
+            <p>The authorization confirmed, but the run was not started.</p>
+            <p className="mt-1 text-text/90">{runError}</p>
+            {onReplan && (
+              <Button
+                type="button"
+                variant="cyan"
+                size="sm"
+                className="mt-3"
+                onClick={onReplan}
+                disabled={executing}
+              >
+                Build a fresh plan ▸
+              </Button>
+            )}
           </div>
         )}
 
-        {held && (expired === "authorize" || runError) && (
-          <EscrowHeldNotice
-            held={held}
-            amount={priced(cap)}
-            escrowId={network?.contracts.payment_escrow || null}
-            runRefused={expired === "authorize"}
-          />
-        )}
+        {held &&
+          (expired === "authorize" || runError) &&
+          (release?.kind === "returned" ? (
+            <FundsReturnedNotice amount={priced(cap)} txHash={release.txHash} />
+          ) : (
+            <EscrowHeldNotice
+              held={held}
+              amount={priced(cap)}
+              escrowId={network?.contracts.payment_escrow || null}
+              // The backend answered: no task was minted. Without an answer
+              // a run may have started and will settle as usual.
+              runRefused={release !== null}
+              releaseFailed={release?.kind === "not_returned"}
+            />
+          ))}
 
         {error && (
           <div

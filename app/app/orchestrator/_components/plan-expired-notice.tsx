@@ -26,8 +26,11 @@ export function PlanExpiredNotice({
   run,
   onReplan,
   busy,
+  fundsReturned = false,
 }: {
   run: ExpiredRun;
+  /** The platform returned the authorization's custody in full. */
+  fundsReturned?: boolean;
   /** Decomposes this plan's intent again, as the page's own submit does. */
   onReplan?: () => void;
   busy?: boolean;
@@ -55,8 +58,10 @@ export function PlanExpiredNotice({
           <p>
             Plans are kept for 15 minutes, and this one had expired by the time
             it was sent to run. <b className="text-text">No task was started</b>{" "}
-            and no agent was paid — but the authorization you just signed is
-            held in escrow until you reclaim it, as set out below.
+            and no agent was paid.{" "}
+            {fundsReturned
+              ? "The platform returned the authorization you just signed from escrow to your wallet, as shown below."
+              : "The authorization you just signed is held in escrow until you reclaim it, as set out below."}
           </p>
         ) : (
           <p>
