@@ -259,16 +259,39 @@ export function missSentence(row: TargetRow): string {
   return `Not met: ${row.current} of ${row.target}, short by ${row.shortBy}.`;
 }
 
-/** Every wallet the team controls, for labelling payers. */
-export function excludedOwners(a: EcosystemAdoption): Set<string> {
-  return new Set(a.excluded.map((w) => w.owner));
+/** Every wallet the team controls, keyed by owner, for labelling payers. */
+export function excludedOwners(
+  a: EcosystemAdoption,
+): Map<string, ExcludedWallet> {
+  return new Map(a.excluded.map((w) => [w.owner, w]));
 }
 
-/** A settlement paid by one of our own wallets. It is still a real on-chain
- * settlement, but it is not an outsider paying an outsider, and the page must
- * not let it pass as one. */
-export function isTeamFunded(payer: string, excluded: Set<string>): boolean {
-  return excluded.has(payer);
+/**
+ * Whether one of our own wallets paid for a settlement, and in what role; null
+ * when an outsider paid. It is still a real on-chain settlement, but it is not
+ * an outsider paying an outsider, and the page must not let it pass as one.
+ *
+ * `payer_team_role` decides: a string is the backend reading its own team
+ * wallet register. The `excluded` list is the fallback — when the field is
+ * absent (an older backend), and also when it is null for a payer the very
+ * same payload lists as ours. That contradiction is resolved toward the label,
+ * because the failure it guards against is a team payment passing as an
+ * outsider's in front of a reviewer.
+ */
+export function teamFunding(
+  w: Pick<SettledWorkflow, "payer" | "payer_team_role">,
+  excluded: Map<string, ExcludedWallet>,
+): { role: string | null } | null {
+  if (typeof w.payer_team_role === "string") {
+    return { role: w.payer_team_role.trim() || null };
+  }
+  const ours = excluded.get(w.payer);
+  return ours ? { role: ours.role?.trim() || null } : null;
+}
+
+/** "team-funded: settler", or plain "team-funded" when no role is known. */
+export function teamFundedLabel(funding: { role: string | null }): string {
+  return funding.role ? `team-funded: ${funding.role}` : "team-funded";
 }
 
 /** Why a wallet does not count, in words. A reason this build does not know

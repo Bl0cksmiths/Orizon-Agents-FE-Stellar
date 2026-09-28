@@ -17,7 +17,8 @@ import {
   formatUsdcAmount,
   getEcosystemAdoption,
   isEcosystemAdoption,
-  isTeamFunded,
+  teamFundedLabel,
+  teamFunding,
   missSentence,
   shortAddress,
   targetRows,
@@ -102,6 +103,14 @@ describe("isEcosystemAdoption", () => {
     expect(isEcosystemAdoption(withOperator())).toBe(true);
   });
 
+  it("accepts a payer team role, and a null one", () => {
+    const a = withOperator(TEAM);
+    a.operators[0].agents[0].settled_workflows[0].payer_team_role = "settler";
+    expect(isEcosystemAdoption(a)).toBe(true);
+    a.operators[0].agents[0].settled_workflows[0].payer_team_role = null;
+    expect(isEcosystemAdoption(a)).toBe(true);
+  });
+
   it("accepts a backend that omits the optional fields", () => {
     const a: Record<string, unknown> = { ...zero() };
     delete a.degraded;
@@ -163,6 +172,19 @@ describe("isEcosystemAdoption", () => {
             unknown
           >
         ).payer;
+        a.operators = w.operators;
+      },
+    ],
+    [
+      "a payer team role that is not a string",
+      (a) => {
+        const w = withOperator();
+        (
+          w.operators[0].agents[0].settled_workflows[0] as Record<
+            string,
+            unknown
+          >
+        ).payer_team_role = true;
         a.operators = w.operators;
       },
     ],
@@ -259,14 +281,50 @@ describe("the miss copy", () => {
 });
 
 describe("team-funded payers", () => {
-  it("labels a payer who is one of our wallets", () => {
-    const a = withOperator(TEAM);
-    const payer = a.operators[0].agents[0].settled_workflows[0].payer;
-    expect(isTeamFunded(payer, excludedOwners(a))).toBe(true);
+  const ours = excludedOwners(zero());
+
+  it("takes the role from payer_team_role when the backend sends one", () => {
+    expect(
+      teamFunding({ payer: BUYER, payer_team_role: "developer" }, ours),
+    ).toEqual({ role: "developer" });
   });
 
-  it("does not label an outside payer", () => {
-    expect(isTeamFunded(BUYER, excludedOwners(withOperator()))).toBe(false);
+  it("does not label an outside payer the backend says is not ours", () => {
+    expect(
+      teamFunding({ payer: BUYER, payer_team_role: null }, ours),
+    ).toBeNull();
+  });
+
+  it("falls back to the excluded list, with its role, when the field is absent", () => {
+    expect(teamFunding({ payer: TEAM }, ours)).toEqual({
+      role: "settler",
+    });
+    expect(teamFunding({ payer: BUYER }, ours)).toBeNull();
+  });
+
+  it("still labels a payer the same payload lists as ours, whatever the field says", () => {
+    expect(teamFunding({ payer: TEAM, payer_team_role: null }, ours)).toEqual({
+      role: "settler",
+    });
+  });
+
+  it("labels a team payer whose role is blank without inventing one", () => {
+    expect(teamFunding({ payer: BUYER, payer_team_role: "  " }, ours)).toEqual({
+      role: null,
+    });
+    const noRole = excludedOwners(
+      zero({
+        excluded: [{ owner: TEAM, reason: "team_wallet", agent_ids: [] }],
+      }),
+    );
+    expect(teamFunding({ payer: TEAM }, noRole)).toEqual({ role: null });
+  });
+
+  it("words the label with the role when there is one", () => {
+    expect(teamFundedLabel({ role: "developer" })).toBe(
+      "team-funded: developer",
+    );
+    expect(teamFundedLabel({ role: null })).toBe("team-funded");
   });
 });
 

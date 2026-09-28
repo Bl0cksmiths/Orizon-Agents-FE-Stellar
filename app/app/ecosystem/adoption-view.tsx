@@ -26,7 +26,8 @@ import {
   excludedOwners,
   exclusionReason,
   formatUsdcAmount,
-  isTeamFunded,
+  teamFunding,
+  teamFundedLabel,
   missSentence,
   shortAddress,
   targetRows,
@@ -245,7 +246,7 @@ function OperatorCard({
   network,
 }: {
   operator: ExternalOperator;
-  ours: Set<string>;
+  ours: Map<string, ExcludedWallet>;
   network: string;
 }) {
   return (
@@ -316,7 +317,7 @@ function AgentBlock({
   network,
 }: {
   agent: ExternalAgent;
-  ours: Set<string>;
+  ours: Map<string, ExcludedWallet>;
   network: string;
 }) {
   const settled = agent.settled_workflows;
@@ -361,15 +362,7 @@ function AgentBlock({
               formatUsdcAmount(w.amount_usdc),
               <span key="payer" className="inline-flex flex-wrap gap-2">
                 <WalletLink owner={w.payer} network={network} />
-                {isTeamFunded(w.payer, ours) && (
-                  <Badge tone="violet">
-                    team-funded
-                    <span className="sr-only">
-                      {" "}
-                      — paid by a wallet we control
-                    </span>
-                  </Badge>
-                )}
+                <TeamFundedBadge funding={teamFunding(w, ours)} />
               </span>,
               formatLocalTime(w.settled_at * 1_000),
               <TxLink
@@ -383,6 +376,21 @@ function AgentBlock({
         />
       )}
     </>
+  );
+}
+
+/** Shown beside a payer that is one of our wallets; nothing otherwise. */
+function TeamFundedBadge({
+  funding,
+}: {
+  funding: { role: string | null } | null;
+}) {
+  if (!funding) return null;
+  return (
+    <Badge tone="violet" className="max-w-full whitespace-normal break-words">
+      {teamFundedLabel(funding)}
+      <span className="sr-only"> — paid by a wallet we control</span>
+    </Badge>
   );
 }
 
