@@ -11,8 +11,8 @@ type Stage = {
 const STAGES: Stage[] = [
   {
     title: "Settle",
-    body: "A workflow step completes and settles real USDC via the x402 escrow; only settled work may rate.",
-    call: "PaymentEscrow.charge",
+    body: "A workflow step completes and its operator is paid from the buyer's escrowed funds when the run settles; only settled work may rate.",
+    call: "PaymentEscrow.settle",
     note: "verified-purchase provenance — no payment, no opinion.",
   },
   {
