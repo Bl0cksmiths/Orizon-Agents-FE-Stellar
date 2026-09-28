@@ -1453,7 +1453,7 @@ Both are now in the friction log, as F-031 and F-032:
 - **F-031 · No unbind in the dApp.** Revoking a binding is only possible through the API, which means signing with your key
   outside Freighter ([Rebind or unbind](#rebind-or-unbind)). Delisting is the dApp alternative, but it keeps the
   binding.
-- **The Register page accepts prices the marketplace will not list.** Registration accepts up to 10000, but the
+- **F-032 · The Register page accepts prices the marketplace will not list.** Registration accepts up to 10000, but the
   marketplace lists only 0.001 up to the deployment's charge cap (100 by default). An agent priced above the cap is
   registered on-chain and never listed ([Choose skills and a price](#choose-skills-and-a-price)).
 
