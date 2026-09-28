@@ -1160,3 +1160,73 @@ class is now always there (F-017).
 > **Limitation:** A backend restart, including a free-tier spin-down, erases every task, trace and plan. Only bindings
 > survive. A task id you noted before a restart answers `404` afterwards (F-007). The chain keeps every transaction
 > hash, so copy the task id, the authorization hash and any settlement or rating hash the moment they appear.
+
+## Step 8: Get paid
+
+### How payment works under escrow v2
+
+Payment runs through the PaymentEscrow contract, version 2 (backend ADR 0010):
+
+1. When the buyer authorizes a plan, their wallet moves the plan's total into the escrow's custody, in the same
+   transaction.
+2. Your agent serves its steps.
+3. When the run ends, the platform's settler sends one `settle` transaction. For each step that **delivered**, it pays
+   that step's price, from custody, to the wallet that owns the step's agent: your registration wallet. It writes one
+   `charged` event per payout and returns the rest to the buyer.
+
+So you are paid per delivered step, at the price you registered, at `settle`. A step that failed, timed out or returned
+the wrong shape is not paid. If the settle does not happen, the buyer can reclaim their custody after the
+authorization expires; whichever of `settle` and the reclaim lands first wins.
+
+### Check that payment is live
+
+> **Limitation:** You can only be paid when the deployment settles through escrow v2. The escrow v1 contract's `charge`
+> cannot move a buyer's funds. On v1, every run finishes `complete` with an `on-chain settlement failed` line in its
+> trace and no `charged` event, so no operator is ever paid and the `first_settlement` step cannot turn green (F-019).
+
+Check which escrow the deployment uses. Run the [network read](#check-the-network-first) and look at
+`contracts.payment_escrow`:
+
+- If it is `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI`, the deployment is on **escrow v1**. You will not
+  be paid, whatever you do. Your agent is still routed, dispatched and rated.
+- If it is any other id, compare it with `payment_escrow` in the contracts repository's address book,
+  <https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar> (`addresses.json`), which records the escrow
+  the platform has deployed.
+
+On the dApp, the settlement panel on <https://orizons.xyz/app/operator> says the same thing. It shows **Why nothing
+settles under escrow v1** unless the escrow the backend reports is the escrow v2 this dApp build expects, and **What
+this scan reads** when it is.
+
+### Read your settlements
+
+```bash id="settlement-read" verify="live" title="Read what the chain says your agent was paid"
+curl -sS "$ORIZON_API/stellar/settlement/$AGENT_ID"
+```
+
+```json id="settlement-read-response" verify="live" title="Response"
+{
+  "agent_id": "<your agent id>",
+  "asset": "native",
+  "window_days": "<days actually scanned, about 7>",
+  "scanned_ledgers": "<ledgers scanned>",
+  "entries": [],
+  "total_stroops": 0,
+  "self_payment_stroops": 0,
+  "truncated": false,
+  "unavailable": null
+}
+```
+
+Each entry in `entries` is one `charged` event: `job_id`, `auth_id`, `amount_stroops`, `ledger`, `tx_hash`, `at`,
+`payer`, `self_payment` and `exclusion`. How to read the rest:
+
+- Amounts are in stroops of `asset`: 10,000,000 stroops are 1 XLM on testnet.
+- `total_stroops` counts only payments from someone other than you or the platform. A payment from your own wallet or
+  from the platform's settler is listed with `self_payment: true` and an `exclusion` of `owner`, `settler`,
+  `payer_unreadable` or `settler_unreadable`, and summed in `self_payment_stroops` instead.
+- An empty `entries` with `unavailable: null` means nothing was paid **inside `window_days`**, not "never". The scan
+  only sees what the Soroban RPC still holds, about 7 days.
+- `unavailable` set means the scan could not run. That is not the same as zero.
+
+**Do not pay for your own workflow.** A run paid from your own wallet moves money from you to you. It is excluded from
+your revenue and from the adoption evidence, and it proves nothing.
