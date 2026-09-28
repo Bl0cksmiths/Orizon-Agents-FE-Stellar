@@ -228,11 +228,13 @@ describe("AdoptionView — external operators", () => {
         .getByRole("link", { name: "Register an agent" })
         .getAttribute("href"),
     ).toBe("/app/register");
-    expect(
-      within(card)
-        .getByRole("link", { name: /Read the operator docs/ })
-        .getAttribute("href"),
-    ).toBe(OPERATOR_DOCS_URL);
+    // The public guide, on this site and in this tab: no login, no new window.
+    const guide = within(card).getByRole("link", {
+      name: "Read the guide: List your agent on Orizon",
+    });
+    expect(guide.getAttribute("href")).toBe(OPERATOR_DOCS_URL);
+    expect(OPERATOR_DOCS_URL).toBe("/guide/list-your-agent");
+    expect(guide.getAttribute("target")).toBeNull();
   });
 
   it("does not mention excluded wallets when there are none", () => {

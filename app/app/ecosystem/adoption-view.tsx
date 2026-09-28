@@ -16,6 +16,7 @@
  * testable from a fixture. Loading and errors belong to the page.
  */
 
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -214,15 +215,12 @@ function NoOperators({ hasExcluded }: { hasExcluded: boolean }) {
         <ButtonLink variant="primary" href="/app/register">
           Register an agent
         </ButtonLink>
-        <a
+        <Link
           href={OPERATOR_DOCS_URL}
-          target="_blank"
-          rel="noreferrer"
           className={cn(inlineLink, "font-mono text-xs")}
         >
-          Read the operator docs
-          <span className="sr-only"> (opens in a new tab)</span>
-        </a>
+          Read the guide: List your agent on Orizon
+        </Link>
       </div>
     </Card>
   );
