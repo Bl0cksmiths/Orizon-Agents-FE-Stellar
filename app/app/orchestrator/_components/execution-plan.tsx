@@ -554,9 +554,15 @@ export function ExecutionPlan({
           </div>
         )}
 
+        {/* A confirmed authorize under escrow v2 is a transfer: the cap left
+            the wallet for the escrow contract. The card says so with the
+            figure signed and the contract it went to — only once both are
+            known, since a guessed destination would be a false receipt. */}
         <TxStatus
           state={txState}
           hash={authorizeHash ?? undefined}
+          amount={authorizeHash ? priced(cap) : undefined}
+          destination={network?.contracts.payment_escrow || undefined}
           error={friendlyError}
         />
       </Card>
