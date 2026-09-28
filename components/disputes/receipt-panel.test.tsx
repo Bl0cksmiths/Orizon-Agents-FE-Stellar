@@ -856,3 +856,244 @@ describe("ReceiptPanel — reasons the backend withheld", () => {
     expect(screen.getByRole("button", { name: OFFER })).toBeTruthy();
   });
 });
+
+// ── escrow v2: what the settlement did with the buyer's money ──
+
+describe("ReceiptPanel — a workflow with no settlement on record", () => {
+  const status = () => screen.getByRole("status");
+
+  it.each([
+    [
+      "failed",
+      "settlement failed",
+      "The settlement did not go through, so no agent was paid.",
+    ],
+    [
+      "unconfirmed",
+      "settlement unconfirmed",
+      "is not confirmed on-chain, and it may still land",
+    ],
+    [
+      "released",
+      "custody released",
+      "returned the whole authorization from escrow to the wallet that paid",
+    ],
+    ["skipped", "nothing charged", "nothing was charged"],
+  ] as const)(
+    "says a %s settlement is exactly that, in a live region",
+    (state, badge, sentence) => {
+      renderPanel({
+        kind: "not_settled",
+        running: false,
+        settlementState: state,
+      });
+      expect(text()).toContain(badge);
+      expect(status().textContent).toContain(sentence);
+      // Never the words of a finished, paid run.
+      expect(text()).not.toMatch(/✓|\bpaid \d/);
+      expect(screen.queryAllByRole("button")).toHaveLength(0);
+    },
+  );
+
+  // The failed state is the one that leaves funds in escrow: the buyer is
+  // told who returns them and how, without "your" to a stranger reading.
+  it("says how funds left in escrow by a failed settlement come back", () => {
+    renderPanel({
+      kind: "not_settled",
+      running: false,
+      settlementState: "failed",
+    });
+    expect(status().textContent).toContain(
+      "the platform returns it automatically when it can, and otherwise the wallet that paid can reclaim it once the authorization expires.",
+    );
+  });
+
+  it("keeps the running sentence while the workflow is still going", () => {
+    renderPanel({
+      kind: "not_settled",
+      running: true,
+      settlementState: "failed",
+    });
+    expect(text()).toContain("once this workflow settles");
+    expect(text()).not.toContain("settlement failed");
+  });
+
+  it("says no charge is on record when the backend knows no state", () => {
+    renderPanel({ kind: "not_settled", running: false, settlementState: null });
+    expect(status().textContent).toBe(
+      "No charge is on record for this workflow, so there is nothing to dispute.",
+    );
+  });
+});
+
+describe("ReceiptPanel — an escrow v2 settlement", () => {
+  const PAID: SettlementStepView = step(0, { paid_usdc: 0.054 });
+  const PLATFORM: SettlementStepView = step(1, {
+    agent_id: "agt_05x7",
+    agent_name: "seo.brief",
+    paid_usdc: 0,
+    delivered: true,
+    creditable_usdc: 0,
+  });
+
+  /** The settlement sentence — the receipt's window state is a status too. */
+  const settlementStatus = () =>
+    screen
+      .getAllByRole("status")
+      .find((el) => /escrow|settle|on-chain/i.test(el.textContent ?? ""));
+
+  function v2(over: Partial<SettledView> = {}): SettledView {
+    return settled(
+      [
+        {
+          step: PAID,
+          state: { kind: "disputable" },
+          payout: {
+            kind: "paid",
+            usdc: 0.054,
+            tx: CHARGE_TX,
+            receiptIdHex: null,
+          },
+        },
+        {
+          step: PLATFORM,
+          state: { kind: "not_charged" },
+          payout: { kind: "platform" },
+        },
+      ],
+      {
+        settlementState: "settled",
+        remainder: { kind: "unreported" },
+        ...over,
+      },
+    );
+  }
+
+  it("shows each paid step's payout with a link of its own to the settlement", () => {
+    renderPanel(v2());
+    expect(text()).toContain(`paid ${formatUsdc(0.054)} to the operator`);
+    const link = screen.getByRole("link", {
+      name: "view step 1 payout on stellar.expert",
+    });
+    expect(link.getAttribute("href")).toMatch(new RegExp(`/tx/${CHARGE_TX}$`));
+  });
+
+  // A seeded platform agent has no on-chain owner: it was never paid.
+  it("shows a platform agent's step as delivered and not billed, never as paid", () => {
+    renderPanel(v2());
+    const row = screen.getByText("seo.brief").closest("li");
+    expect(row?.textContent).toContain(
+      "delivered · not billed (platform agent)",
+    );
+    expect(row?.textContent).not.toMatch(/\bpaid\b/);
+    expect(screen.queryByRole("link", { name: /step 2 payout/ })).toBeNull();
+  });
+
+  it("says the rest went back, and that its amount was not reported", () => {
+    renderPanel(v2());
+    expect(text()).toContain("the rest, to the payer · amount not reported");
+    expect(settlementStatus()?.textContent).toContain(
+      "the rest of the authorization went back to the wallet that paid",
+    );
+  });
+
+  it("states a remainder the backend reported", () => {
+    renderPanel(v2({ remainder: { kind: "returned", usdc: 0.017 } }));
+    expect(text()).toContain(`${formatUsdc(0.017)} to the payer`);
+  });
+
+  it("links nothing for a payout whose transaction was not recorded", () => {
+    const view = v2();
+    view.steps[0] = {
+      ...view.steps[0],
+      payout: { kind: "paid", usdc: 0.054, tx: null, receiptIdHex: null },
+    };
+    renderPanel(view);
+    expect(screen.queryByRole("link", { name: /payout/ })).toBeNull();
+  });
+
+  // Nothing on an unconfirmed or failed settlement may read as money moved.
+  it.each([
+    ["unconfirmed", "not confirmed yet"],
+    ["failed", "none yet · still held in escrow"],
+  ] as const)(
+    "shows no total and nothing paid when the settlement is %s",
+    (state, remainder) => {
+      renderPanel(
+        settled(
+          [
+            {
+              step: PAID,
+              state:
+                state === "unconfirmed"
+                  ? { kind: "payout_unconfirmed" }
+                  : { kind: "not_charged" },
+              payout:
+                state === "unconfirmed"
+                  ? { kind: "pending" }
+                  : { kind: "not_paid" },
+            },
+          ],
+          {
+            settlementState: state,
+            remainder:
+              state === "unconfirmed" ? { kind: "pending" } : { kind: "held" },
+          },
+        ),
+      );
+      expect(text()).not.toContain(formatUsdc(0.162));
+      expect(text()).toContain("nothing is shown as paid");
+      expect(text()).not.toMatch(/\bpaid \d|✓ settled|Settled \d/);
+      expect(text()).toContain(remainder);
+      expect(text()).toContain(
+        state === "unconfirmed"
+          ? "settlement unconfirmed"
+          : "settlement failed",
+      );
+    },
+  );
+
+  it("offers no dispute on a step whose payout is unconfirmed, and says why", () => {
+    renderPanel(
+      settled(
+        [
+          {
+            step: PAID,
+            state: { kind: "payout_unconfirmed" },
+            payout: { kind: "pending" },
+          },
+        ],
+        { settlementState: "unconfirmed", remainder: { kind: "pending" } },
+      ),
+    );
+    expect(actionButtons()).toHaveLength(0);
+    expect(text()).toContain("payout not confirmed");
+    expect(text()).toContain(
+      "This step's payout is not confirmed on-chain yet, so it cannot be disputed until it is.",
+    );
+    expect(text()).toContain(
+      `Payout not confirmed, priced at ${formatUsdc(0.054)}`,
+    );
+  });
+
+  it("says it stopped checking an unconfirmed settlement", () => {
+    renderPanel(
+      settled([], {
+        settlementState: "unconfirmed",
+        remainder: { kind: "pending" },
+        settlementStoppedChecking: true,
+      }),
+    );
+    expect(settlementStatus()?.textContent).toContain(
+      "This page has stopped checking for it — reload to look again.",
+    );
+  });
+
+  // A pre-v2 receipt reads exactly as before.
+  it("adds nothing to a receipt from a backend that reports no state", () => {
+    renderPanel(settled([{ step: step(0), state: { kind: "disputable" } }]));
+    expect(text()).toContain("settled");
+    expect(text()).not.toMatch(/returned|payout|platform agent/);
+    expect(settlementStatus()).toBeUndefined();
+  });
+});
