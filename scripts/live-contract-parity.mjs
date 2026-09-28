@@ -260,13 +260,18 @@ export function compareEscrowPin(live, pins) {
 }
 
 /**
- * Read the frontend's escrow v2 pin from this repository.
+ * Read the frontend's escrow v2 pin: this repository's
+ * `lib/escrow-address.json`, or the file `$ORIZON_ESCROW_PINS` names — how a
+ * test, or an operator checking a pin before committing it, points the smoke
+ * at another one.
  *
+ * @param {Record<string, string | undefined>} [env]
  * @param {string} [root]
  * @returns {Record<string, unknown>}
  */
-export function loadEscrowPins(root = repoRoot) {
-  const path = join(root, "lib", "escrow-address.json");
+export function loadEscrowPins(env = process.env, root = repoRoot) {
+  const path =
+    env.ORIZON_ESCROW_PINS || join(root, "lib", "escrow-address.json");
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
