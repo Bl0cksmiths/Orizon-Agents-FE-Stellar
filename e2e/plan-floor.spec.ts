@@ -14,6 +14,7 @@
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { motionSettled } from "./motion-settled";
 import {
   mockApi,
   mockPlan,
@@ -453,6 +454,7 @@ test.describe("plan card — reputation, source and exclusions", () => {
     // warning — has ever reached axe. It is also the state that most wants
     // checking: three components composed by a fourth, each carrying meaning
     // in colour, and a decision about money at the end of it.
+    await motionSettled(page.locator("main"));
     const { violations } = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();
