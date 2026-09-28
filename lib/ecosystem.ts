@@ -16,6 +16,7 @@
 
 import { GET_TIMEOUT_MS, ensure, fetchWithTimeout, httpError } from "./api";
 import { assetLabel } from "./money";
+import { LIST_YOUR_AGENT_PATH } from "./guide/display";
 
 /** The three SOW §6.3 targets, in the order the SOW states them. */
 export const TARGET_KEYS = [
@@ -350,8 +351,7 @@ export function formatSettledAmount(
 
 /**
  * The operator docs: how an outside operator registers, binds and verifies a
- * dispatch. They live in the backend repository, next to the code they
- * describe; this frontend repository has no operator guide of its own.
+ * dispatch. It is the public guide on this site, readable with no login and
+ * versioned against the backend commit it was checked on.
  */
-export const OPERATOR_DOCS_URL =
-  "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/tree/main/docs/operators";
+export const OPERATOR_DOCS_URL = LIST_YOUR_AGENT_PATH;
