@@ -162,6 +162,43 @@ const items = [
     ),
   },
   {
+    // Every operator besides us, against the SOW §6.3 adoption targets —
+    // and the wallets we control, listed as not counting.
+    href: "/app/ecosystem",
+    label: "Ecosystem",
+    icon: (
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        className="h-4 w-4"
+        aria-hidden="true"
+      >
+        <circle cx="10" cy="10" r="2" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="4" cy="5" r="1.5" stroke="currentColor" strokeWidth="1.5" />
+        <circle
+          cx="16"
+          cy="5"
+          r="1.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <circle
+          cx="10"
+          cy="17"
+          r="1.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <path
+          d="M5.2 6l3.3 2.8M14.8 6l-3.3 2.8M10 12v3.5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    ),
+  },
+  {
     href: "/app/reputation",
     label: "Reputation",
     icon: (
