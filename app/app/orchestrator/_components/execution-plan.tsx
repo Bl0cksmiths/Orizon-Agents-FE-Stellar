@@ -35,6 +35,7 @@ import {
   PLANNER_FALLBACK_NOTICE_ID,
   PlannerFallbackNotice,
 } from "./planner-fallback-notice";
+import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import type { FriendlyError } from "@/lib/wallet-errors";
@@ -237,6 +238,10 @@ export function ExecutionPlan({
         auth_id_hex: authHex,
         payer,
       });
+      // The trace's receipt needs the authorization to offer a reclaim if
+      // the run's settlement fails, and the backend keeps its id off the
+      // receipt: this session is the one place that holds it.
+      rememberHeldAuthorization(task_id, confirmed);
       router.push(`/app/trace?task=${task_id}`);
     } catch (e) {
       // Refused at `execute`, AFTER the authorization was confirmed on-chain.
