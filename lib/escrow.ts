@@ -15,18 +15,6 @@ import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
  */
 
 /**
- * The `agent_id` every console authorization is signed under.
- *
- * Only a LABEL since escrow v2. v1 paid `owner_of(auth.agent_id)` at charge
- * time, so this symbol decided who got paid — and because `orizon_batch` is
- * owned by the settler, no external operator ever could be. v2 names the
- * agent on each payout at `settle` instead, and keeps this argument (same
- * signature as v1, so every transaction builder still works) purely to tag
- * the authorization in its `authd` event. Changing it changes no payment.
- */
-export const ESCROW_BATCH_LABEL = "orizon_batch";
-
-/**
  * How long a signed authorization stays settleable, in seconds — the
  * `ttl_seconds` sent to `POST /stellar/build/authorize`, which stamps
  * `expires_at = now + ttl` into the authorization.

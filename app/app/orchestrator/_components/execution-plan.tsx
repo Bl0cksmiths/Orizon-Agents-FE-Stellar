@@ -17,7 +17,6 @@ import {
 } from "@/lib/api";
 import {
   AUTHORIZE_TTL_SECONDS,
-  ESCROW_BATCH_LABEL,
   checkEscrowFunds,
   classifyAuthorizeError,
   insufficientEscrowFunds,
@@ -188,9 +187,13 @@ export function ExecutionPlan({
       setTxState("building");
       const { xdr, expires_at } = await buildAuthorize({
         payer,
-        // A label only since escrow v2: payouts name their own agents at
-        // settle, so this no longer decides who is paid (see lib/escrow.ts).
-        agent_id: ESCROW_BATCH_LABEL,
+        // The authorization's LABEL, which is the plan being paid for
+        // (`pln_` + 8 hex, a valid Symbol). Escrow v2 names the agent on each
+        // payout at settle, so this decides nobody's pay — v1 paid its owner,
+        // which is why the old `orizon_batch` could never pay an operator.
+        // The backend refuses to execute a plan against an authorization
+        // whose label, payer, cap or state does not match (finding S2).
+        agent_id: plan.plan_id,
         max_amount_usdc: cap,
         ttl_seconds: AUTHORIZE_TTL_SECONDS,
       });
