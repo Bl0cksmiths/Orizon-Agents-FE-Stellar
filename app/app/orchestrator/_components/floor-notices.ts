@@ -32,6 +32,14 @@ export const isUnbound = (n: PlanFloorNotice): boolean =>
 export const isFloorAction = (n: PlanFloorNotice): boolean => !isUnbound(n);
 
 /**
+ * An agent held off because it was rated since its last reputation read and
+ * the fresh read has not answered (finding S8). Its bound is from BEFORE that
+ * rating and may clear the floor, so nothing may call it below the floor.
+ */
+export const isAwaitingFreshRead = (n: PlanFloorNotice): boolean =>
+  n.awaiting_fresh_read === true;
+
+/**
  * The notice's kind when this build has a mark and copy for it, otherwise
  * null. `kind` is any string on the wire so that a backend adding one (say
  * `"delisted"`) cannot blank the plan; a null here is the cue to render the

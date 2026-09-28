@@ -37,6 +37,21 @@ const statusTone = {
 const toneOf = (status: string) =>
   isAgentStatus(status) ? statusTone[status] : ("muted" as const);
 
+/**
+ * How old the registry and the reputation batch may be before coming back to
+ * the tab reads them again. A minute, the hook's default, meant a score that
+ * fell after a dispute was ruled still read as it was for up to a minute on
+ * return — and the story's acceptance check is watching it fall here. Five
+ * seconds keeps a return-to-tab fresh without turning every focus flicker
+ * into a request; the Refresh control below reads at once.
+ */
+const AGENTS_STALE_AFTER_MS = 5_000;
+
+/** "12:04:31" in the reader's locale. */
+function readAt(ms: number): string {
+  return new Date(ms).toLocaleTimeString();
+}
+
 export default function AgentsPage() {
   const {
     data: agents,
@@ -47,6 +62,7 @@ export default function AgentsPage() {
     reload: reloadAgents,
   } = useFetch(listAgents, [], {
     revalidateOnFocus: true,
+    staleAfterMs: AGENTS_STALE_AFTER_MS,
   });
   // On-chain reputation is best-effort — a failed read never blanks the
   // registry — but it is never papered over either: a row with no live entry
@@ -58,7 +74,10 @@ export default function AgentsPage() {
     retrying: repRetrying,
     lastSuccessAt: repLastReadAt,
     reload: reloadReputation,
-  } = useFetch(listReputation, [], { revalidateOnFocus: true });
+  } = useFetch(listReputation, [], {
+    revalidateOnFocus: true,
+    staleAfterMs: AGENTS_STALE_AFTER_MS,
+  });
   // A batch on screen is a reading even when a later refresh failed; only a
   // read that never landed leaves the column with nothing to show.
   const repRead: ReputationRead = repBatch
@@ -178,9 +197,38 @@ export default function AgentsPage() {
             ERC-8004 profiles — identity, skills, price, reputation.
           </p>
         </div>
-        <ButtonLink variant="primary" href="/app/register">
-          + Register agent
-        </ButtonLink>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* When the scores on screen were read, and a way to read them
+              again now. Only once something has landed: before that there
+              is no reading to date. The older of the two reads is the one
+              shown, since a row is only as fresh as its staler half. */}
+          {lastSuccessAt !== null && (
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted">
+              updated{" "}
+              <time
+                dateTime={new Date(
+                  Math.min(lastSuccessAt, repLastReadAt ?? lastSuccessAt),
+                ).toISOString()}
+              >
+                {readAt(
+                  Math.min(lastSuccessAt, repLastReadAt ?? lastSuccessAt),
+                )}
+              </time>
+            </span>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={retry}
+            disabled={loading || repLoading}
+          >
+            {loading || repLoading ? "◉ Refreshing…" : "↻ Refresh"}
+          </Button>
+          <ButtonLink variant="primary" href="/app/register">
+            + Register agent
+          </ButtonLink>
+        </div>
       </div>
 
       {/* Above the table, because it states the threshold every verdict inside

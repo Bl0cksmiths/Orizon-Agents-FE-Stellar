@@ -30,8 +30,18 @@ import {
 import type { AgentSettlement, SettlementEntry } from "@/lib/types";
 
 // Hoisted: the vi.mock factory runs before module-scope consts exist.
-const { getSettlement } = vi.hoisted(() => ({ getSettlement: vi.fn() }));
-vi.mock("@/lib/api", () => ({ getSettlement }));
+const { getSettlement, getStellarNetwork, escrowPin } = vi.hoisted(() => ({
+  getSettlement: vi.fn(),
+  // Unanswered unless a test says otherwise: the panel then cannot tell which
+  // escrow its scan reads, and keeps the v1 explanation.
+  getStellarNetwork: vi.fn(() => new Promise(() => {})),
+  escrowPin: { value: null as string | null },
+}));
+vi.mock("@/lib/api", () => ({ getSettlement, getStellarNetwork }));
+vi.mock("@/lib/escrow-address", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/escrow-address")>()),
+  pinnedEscrowId: () => escrowPin.value,
+}));
 
 import { SettlementPanel } from "./settlement-panel";
 
@@ -104,6 +114,8 @@ function tileFigure(label: string): { value: string; unit: string } {
 afterEach(() => {
   cleanup();
   getSettlement.mockReset();
+  getStellarNetwork.mockImplementation(() => new Promise(() => {}));
+  escrowPin.value = null;
 });
 
 describe("SettlementPanel — before an answer arrives", () => {
@@ -229,13 +241,13 @@ describe("SettlementPanel — a window that ran and found nothing", () => {
     renderPanel();
 
     const heading = await screen.findByRole("heading", {
-      name: "Why nothing settles",
+      name: "Why nothing settles under escrow v1",
     });
     expect(heading.tagName).toBe("H3");
 
     const text = visibleText();
     expect(text).toContain(
-      "The escrow's charge path cannot move a customer's funds",
+      "Escrow v1's charge path cannot move a customer's funds",
     );
     expect(text).toContain(
       "That transfer fails without failing the run — the run still finalizes as complete",
@@ -395,7 +407,9 @@ describe("SettlementPanel — a charge a customer actually paid", () => {
     // An agent with real revenue is not living under the charge defect, and a
     // standing contract-bug essay over a working figure would be noise.
     expect(
-      screen.queryByRole("heading", { name: "Why nothing settles" }),
+      screen.queryByRole("heading", {
+        name: "Why nothing settles under escrow v1",
+      }),
     ).toBeNull();
     expect(visibleText()).not.toContain("has settled to");
   });
@@ -598,5 +612,54 @@ describe("SettlementPanel — structure", () => {
 
     fireEvent.click(button);
     await waitFor(() => expect(getSettlement).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("SettlementPanel — which escrow the scan reads", () => {
+  const V2 = `C${"V".repeat(55)}`;
+  const V1 = `C${"W".repeat(55)}`;
+  const onEscrow = (id: string) =>
+    getStellarNetwork.mockResolvedValue({
+      network: "testnet",
+      rpc_url: "https://soroban-testnet.stellar.org",
+      network_passphrase: "Test SDF Network ; September 2015",
+      admin: PLATFORM,
+      contracts: { payment_escrow: id },
+      asset: "native",
+      asset_sac: `C${"S".repeat(55)}`,
+    });
+
+  // Under v2 a zero is a finding about the window, not the v1 defect, and
+  // the defect's story must not be told about a contract that does not have it.
+  it("explains a zero on escrow v2 without the v1 defect", async () => {
+    escrowPin.value = V2;
+    onEscrow(V2);
+    getSettlement.mockResolvedValue(settlement());
+    renderPanel();
+    await screen.findByRole("heading", { name: "What this scan reads" });
+    const text = visibleText();
+    expect(text).toContain(`None paid ${AGENT} in the last 7 days.`);
+    expect(text).toContain("Charges made under escrow v1 are not in this scan");
+    expect(
+      screen.queryByRole("heading", { name: /Why nothing settles/ }),
+    ).toBeNull();
+    expect(text).not.toMatch(/will be paid|paid later|pending payment/i);
+  });
+
+  it.each([
+    ["the backend settles through another escrow", V2, V1],
+    ["no v2 escrow is pinned", null, V2],
+  ])("keeps the v1 explanation, by name, when %s", async (_name, pin, live) => {
+    escrowPin.value = pin;
+    onEscrow(live);
+    getSettlement.mockResolvedValue(settlement());
+    renderPanel();
+    await screen.findByRole("heading", {
+      name: "Why nothing settles under escrow v1",
+    });
+    await waitFor(() => expect(getStellarNetwork).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("heading", { name: "What this scan reads" }),
+    ).toBeNull();
   });
 });

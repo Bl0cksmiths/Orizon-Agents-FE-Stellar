@@ -249,6 +249,38 @@ describe("isFlow", () => {
   });
 });
 
+describe("a plan floor notice's awaiting_fresh_read", () => {
+  const withNotice = (extra: Record<string, unknown>) => ({
+    plan_id: "pln_1",
+    intent: "x",
+    steps: [],
+    total_usdc: 0,
+    total_eta: 0,
+    notices: [
+      {
+        kind: "excluded",
+        agent_id: "a",
+        reason: "r",
+        reason_code: "below_floor",
+        ...extra,
+      },
+    ],
+  });
+
+  // It decides whether a bound is worded as under the floor: a truthy
+  // string must not pass for true.
+  it("keeps a boolean flag and drops a notice whose flag is not one", () => {
+    const kept = screenDecomposeResponse(
+      withNotice({ awaiting_fresh_read: true }),
+    );
+    expect(kept?.notices?.[0]?.awaiting_fresh_read).toBe(true);
+    const dropped = screenDecomposeResponse(
+      withNotice({ awaiting_fresh_read: "false" }),
+    );
+    expect(dropped?.notices ?? []).toHaveLength(0);
+  });
+});
+
 describe("isTaskList", () => {
   const task = {
     id: "tsk_01",
@@ -274,6 +306,20 @@ describe("isTaskList", () => {
     for (const status of ["pending", "running", "complete", "failed"]) {
       expect(isTaskList([{ ...task, status }])).toBe(true);
     }
+  });
+
+  // What happened to the run's money (escrow v2, ADR 0010).
+  it("accepts a settlement outcome as a string, null or absent, and nothing else", () => {
+    for (const settlement of [
+      "settled",
+      "released",
+      "failed",
+      null,
+      undefined,
+    ]) {
+      expect(isTaskList([{ ...task, settlement }])).toBe(true);
+    }
+    expect(isTaskList([{ ...task, settlement: false }])).toBe(false);
   });
 
   it("rejects a status outside the backend literal (keys the tone map)", () => {
@@ -304,6 +350,17 @@ describe("isTraceLine / isTraceLineList", () => {
     ]) {
       expect(isTraceLine({ ...line, level })).toBe(true);
     }
+  });
+
+  // The trace gates its on-chain evidence on this field (finding S7).
+  it("accepts the settlement outcome as a string, null or absent, and nothing else", () => {
+    expect(isTraceLine({ ...line, settlement: "settled" })).toBe(true);
+    expect(isTraceLine({ ...line, settlement: "rebalanced" })).toBe(true);
+    expect(isTraceLine({ ...line, settlement: null })).toBe(true);
+    expect(isTraceLine({ ...line, settlement: 1 })).toBe(false);
+    expect(isTraceLine({ ...line, settlement: { state: "settled" } })).toBe(
+      false,
+    );
   });
 
   it("rejects a level outside the backend literal (keys the color map)", () => {
@@ -1045,9 +1102,15 @@ describe("isAuthorizeBuild", () => {
     expect(isAuthorizeBuild({ ...valid, extra: 1 })).toBe(true);
   });
 
-  it("accepts a build with no expires_at (never read by the UI)", () => {
+  it("accepts a build with no expires_at (the held-funds notice words around it)", () => {
     const { expires_at: _drop, ...rest } = valid;
     expect(isAuthorizeBuild(rest)).toBe(true);
+  });
+
+  // Read since escrow v2: it is when a buyer's held funds become reclaimable.
+  it("rejects an expires_at that is not a number", () => {
+    expect(isAuthorizeBuild({ ...valid, expires_at: "soon" })).toBe(false);
+    expect(isAuthorizeBuild({ ...valid, expires_at: null })).toBe(false);
   });
 
   it("rejects a missing or non-string xdr (handed to the wallet to sign)", () => {

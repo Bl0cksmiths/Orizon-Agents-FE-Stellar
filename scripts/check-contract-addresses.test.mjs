@@ -114,6 +114,7 @@ function check({
   readmeText = readme(),
   fallbacks = FALLBACKS,
   books = {},
+  pins = { public: null, testnet: null },
 } = {}) {
   const root = join(scratch, String((runs += 1)));
   mkdirSync(join(root, "scripts"), { recursive: true });
@@ -124,6 +125,7 @@ function check({
     join(root, "lib", "contract-addresses.json"),
     JSON.stringify(fallbacks),
   );
+  writeFileSync(join(root, "lib", "escrow-address.json"), JSON.stringify(pins));
   const contracts = join(root, "contracts");
   if (books !== null) {
     mkdirSync(contracts);
@@ -229,6 +231,52 @@ test("fails when a fallback id drifts from its book", () => {
   });
   assert.equal(status, 1, out);
   assert.match(out, /FAIL {2}reputation_ledger \(testnet\)/);
+});
+
+// ── the escrow v2 pin ─────────────────────────────────────────
+
+const V2 = id("TV");
+
+test("reports an unset escrow v2 pin as pending, not as a pass or a failure", () => {
+  const { status, out } = check();
+  assert.equal(status, 0, out);
+  assert.match(out, /pend {2}escrow v2 pin \(testnet\) {2}not pinned/);
+  assert.match(out, /pend {2}escrow v2 pin \(public\)/);
+  // Pending is not compared: the total still counts only real comparisons.
+  assert.match(out, /All 2 fallback contract ids/);
+});
+
+test("passes a pin that matches the v2 id the deploy recorded", () => {
+  const { status, out } = check({
+    pins: { public: null, testnet: V2 },
+    books: { testnet: { ...TESTNET, payment_escrow_v2: V2 } },
+  });
+  assert.equal(status, 0, out);
+  assert.match(out, new RegExp(`  ok {2}escrow v2 pin \\(testnet\\) {2}${V2}`));
+  assert.match(out, /All 3 fallback contract ids/);
+});
+
+// v1's id stays in the book as history under `payment_escrow`: a pin that
+// names it is the build describing custody v1 never took.
+test("fails a pin that names v1's escrow instead of the v2 entry", () => {
+  const { status, out } = check({
+    pins: { public: null, testnet: TESTNET.payment_escrow },
+    books: { testnet: { ...TESTNET, payment_escrow_v2: V2 } },
+  });
+  assert.equal(status, 1, out);
+  assert.match(out, /FAIL {2}escrow v2 pin \(testnet\)/);
+});
+
+test("fails a pin set before the deploy recorded any v2 id", () => {
+  const { status, out } = check({ pins: { public: null, testnet: V2 } });
+  assert.equal(status, 1, out);
+  assert.match(out, /no "payment_escrow_v2" in addresses\.json/);
+});
+
+test("fails when the pin file is missing a network", () => {
+  const { status, out } = check({ pins: { testnet: null } });
+  assert.equal(status, 1, out);
+  assert.match(out, /escrow-address\.json is missing the "public" entry/);
 });
 
 test("fails, never skips, when the address books are missing", () => {

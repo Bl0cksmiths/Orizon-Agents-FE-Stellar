@@ -200,9 +200,12 @@ export default function EventsPage() {
               <Link href="/app/orchestrator" className={inlineLink}>
                 /app/orchestrator
               </Link>{" "}
-              — it'll publish <code className="text-cyan">charge</code> and{" "}
-              <code className="text-cyan">seal</code> events that show up here
-              within a ledger.
+              — it publishes <code className="text-cyan">authd</code> when you
+              authorize, <code className="text-cyan">charged</code> for each
+              step's payout and <code className="text-cyan">settled</code> when
+              the run settles, then the attestation's{" "}
+              <code className="text-cyan">seal</code>, each here within a
+              ledger.
             </div>
             <div className="flex gap-3 pt-3">
               {[1, 2, 3, 4].map((i) => (

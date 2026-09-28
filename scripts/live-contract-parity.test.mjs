@@ -18,8 +18,10 @@ import { test } from "node:test";
 import {
   CHECKOUT_DIR,
   canonicalNetwork,
+  compareEscrowPin,
   compareLiveContracts,
   loadAddressBook,
+  loadEscrowPins,
   resolveContractsDir,
 } from "./live-contract-parity.mjs";
 
@@ -264,4 +266,89 @@ test("throws on a network that keeps no address book", (t) => {
     () => loadAddressBook("constructor", tempDir(t)),
     /No address book is kept for network constructor/,
   );
+});
+
+// ── escrow v2 ─────────────────────────────────────────────────
+
+/** The book once `make deploy-escrow-v2` has run: v1 kept as history. */
+const V2_BOOK = Object.freeze({ ...TESTNET_BOOK, payment_escrow_v2: id("V") });
+
+test("expects production on the book's v2 escrow once one is recorded", () => {
+  const { problems, rows } = compareLiveContracts(
+    liveBody({
+      contracts: { agent_registry: id("R"), payment_escrow: id("V") },
+    }),
+    V2_BOOK,
+  );
+  assert.deepEqual(problems, []);
+  // v1's id is history, and the v2 key is not a contract the backend wires.
+  assert.deepEqual(
+    rows.map((row) => row.name),
+    ["agent_registry", "asset_sac", "payment_escrow"],
+  );
+});
+
+test("fails production still on v1 after the book recorded v2", () => {
+  const { problems } = compareLiveContracts(liveBody(), V2_BOOK);
+  assert.deepEqual(problems, [
+    `payment_escrow: live ${id("E")} != canonical ${id("V")}`,
+  ]);
+});
+
+test("passes an unset pin as pending, with nothing compared", () => {
+  assert.deepEqual(
+    compareEscrowPin(liveBody(), { public: null, testnet: null }),
+    {
+      pinned: null,
+      problems: [],
+    },
+  );
+});
+
+test("passes a pin the live escrow matches, on the pin for its own network", () => {
+  const live = liveBody({ contracts: { payment_escrow: id("V") } });
+  assert.deepEqual(
+    compareEscrowPin(live, { public: id("M"), testnet: id("V") }),
+    {
+      pinned: id("V"),
+      problems: [],
+    },
+  );
+});
+
+test("fails a live escrow that is not the pin", () => {
+  const { problems } = compareEscrowPin(liveBody(), {
+    public: null,
+    testnet: id("V"),
+  });
+  assert.deepEqual(problems, [
+    `payment_escrow: live ${id("E")} != escrow v2 pin ${id("V")} (lib/escrow-address.json)`,
+  ]);
+});
+
+test("fails a pin file missing the live network's entry, and an unknown network", () => {
+  assert.equal(
+    compareEscrowPin(liveBody(), { public: null }).problems.length,
+    1,
+  );
+  assert.equal(
+    compareEscrowPin(liveBody({ network: "futurenet" }), {
+      public: null,
+      testnet: null,
+    }).problems.length,
+    1,
+  );
+});
+
+test("reads the repository's pin, or the file ORIZON_ESCROW_PINS names", () => {
+  const repo = loadEscrowPins({});
+  assert.deepEqual(Object.keys(repo).sort(), ["public", "testnet"]);
+  const dir = mkdtempSync(join(tmpdir(), "escrow-pins-"));
+  try {
+    const file = join(dir, "pins.json");
+    writeFileSync(file, JSON.stringify({ public: null, testnet: id("V") }));
+    assert.equal(loadEscrowPins({ ORIZON_ESCROW_PINS: file }).testnet, id("V"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

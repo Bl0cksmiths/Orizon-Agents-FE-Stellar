@@ -5,10 +5,14 @@
  * The trap this exists for: on the on-chain path the buyer has ALREADY signed
  * and broadcast the authorization by the time the plan is sent to run. So the
  * refusal lands straight after a confirmed transaction, and the generic
- * failure card would read as a failed payment — the one reading that is
- * false. Nothing was charged: no task was created, and an authorization is a
- * cap on what may be charged, not a charge. The notice says exactly that, and
- * hands the buyer the one useful next step: a fresh plan from the same intent.
+ * failure card would read as a failed payment — which it is not: no task was
+ * created and no agent was paid. But under escrow v2 it is not "nothing
+ * charged" either. The authorization took custody of the cap when it
+ * confirmed, and it stays in escrow until the buyer reclaims it, so this
+ * notice no longer says the authorization lapses on its own; the card shows
+ * `EscrowHeldNotice` beside it with what a reclaim needs. It still hands the
+ * buyer the one useful next step for the plan: a fresh one from the same
+ * intent.
  */
 
 import { Badge } from "@/components/ui/badge";
@@ -22,8 +26,11 @@ export function PlanExpiredNotice({
   run,
   onReplan,
   busy,
+  fundsReturned = false,
 }: {
   run: ExpiredRun;
+  /** The platform returned the authorization's custody in full. */
+  fundsReturned?: boolean;
   /** Decomposes this plan's intent again, as the page's own submit does. */
   onReplan?: () => void;
   busy?: boolean;
@@ -47,16 +54,20 @@ export function PlanExpiredNotice({
         </h3>
       </div>
       <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
-        <p>
-          Plans are kept for 15 minutes, and this one had expired by the time it
-          was sent to run. <b className="text-text">Nothing was charged</b> and
-          no task was started.
-        </p>
-        {run === "authorize" && (
+        {run === "authorize" ? (
           <p>
-            The authorization you just signed only caps what may be charged; it
-            was not drawn on for this plan, and it lapses on its own within 10
-            minutes.
+            Plans are kept for 15 minutes, and this one had expired by the time
+            it was sent to run. <b className="text-text">No task was started</b>{" "}
+            and no agent was paid.{" "}
+            {fundsReturned
+              ? "The platform returned the authorization you just signed from escrow to your wallet, as shown below."
+              : "The authorization you just signed is held in escrow until you reclaim it, as set out below."}
+          </p>
+        ) : (
+          <p>
+            Plans are kept for 15 minutes, and this one had expired by the time
+            it was sent to run. <b className="text-text">Nothing was charged</b>{" "}
+            and no task was started.
           </p>
         )}
         <p>Build a fresh plan from the same request to continue.</p>

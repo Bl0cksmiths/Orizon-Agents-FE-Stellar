@@ -57,6 +57,15 @@ export type Task = {
   spent: number;
   status: TaskStatus;
   started: string;
+  /**
+   * What happened to a paid run's money (`TaskSummary.settlement`); null on
+   * a simulated run and absent on a backend that predates it. A run whose
+   * settlement failed still finalizes `complete` when it delivered, so
+   * `status` alone never says the money moved. Read through
+   * `readSettlementState`, which reads a word it does not know as
+   * `unconfirmed`.
+   */
+  settlement?: string | null;
 };
 
 export type PlanStep = {
@@ -141,6 +150,15 @@ export type PlanFloorNotice = {
    *  when the agent had no reputation entry at all. */
   lower_bound_bps?: number | null;
   floor_bps?: number;
+  /**
+   * The agent was held off (refused, or substituted) because a rating landed
+   * since its last reputation read and the fresh read has not answered yet
+   * (finding S8). `lower_bound_bps` is then the PRE-rating bound and may sit
+   * ABOVE `floor_bps` while `reason_code` still says `below_floor`, so such
+   * a notice must never be worded as a bound under the floor. Optional: an
+   * older backend sends nothing, which means false.
+   */
+  awaiting_fresh_read?: boolean;
 };
 
 export type DecomposeResponse = {
@@ -182,7 +200,17 @@ export type ExecuteResponse = {
 
 export type TraceLevel =
   "input" | "exec" | "proof" | "cost" | "out" | "error" | "artifact";
-export type TraceLine = { t: string; level: TraceLevel; msg: string };
+export type TraceLine = {
+  t: string;
+  level: TraceLevel;
+  msg: string;
+  /**
+   * Set on the one line that reports a paid run's settlement outcome, and on
+   * no other, so the trace can say what happened to the money without
+   * parsing `msg`. Absent on a backend that predates it.
+   */
+  settlement?: SettlementState | null;
+};
 
 export type ArtifactFile = {
   path: string;
@@ -362,7 +390,13 @@ export type ReputationParams = {
  * authorization the wallet is asked to sign. */
 export type AuthorizeBuild = {
   xdr: string;
-  expires_at: number;
+  /**
+   * Epoch seconds stamped into the authorization: escrow v2 refuses to
+   * settle after it and refuses the buyer's reclaim before it. Optional on
+   * read — every backend sends it, but the card only needs it to tell a buyer
+   * when held funds can be reclaimed, and says "once it expires" without it.
+   */
+  expires_at?: number;
 };
 
 /** Response of POST /api/stellar/submit — the outcome of broadcasting a
@@ -529,6 +563,60 @@ export type BindErrorCode =
  * outcome anyone chooses: it is a refund in flight, held so a retry can never
  * pay twice (story 4.03).
  */
+/**
+ * What happened to a paid run's money, as the backend reports it
+ * (`SettlementState` in its app/schemas.py, ADR 0010). Null — or absent, on
+ * a backend that predates it — is a run that asked for no on-chain
+ * settlement, or one the backend no longer holds: "not attempted" as far as
+ * anyone can say.
+ *
+ * - `settled`: the settle CONFIRMED — each delivered step's operator paid
+ *   from escrow, the rest returned to the payer.
+ * - `released`: v2 only. Nothing was delivered, so an empty settle returned
+ *   the payer's whole custody and paid nobody.
+ * - `skipped`: v1 only. Nothing was delivered, so nothing was charged.
+ * - `unconfirmed`: submitted and then lost track of. It MAY still land and is
+ *   never retried; nothing is shown as paid until it is known.
+ * - `failed`: definitely moved no money — refused before it was sent, or
+ *   rejected by the ledger. Under v2 the funds stay in escrow.
+ */
+export const SETTLEMENT_STATES = [
+  "settled",
+  "released",
+  "skipped",
+  "unconfirmed",
+  "failed",
+] as const;
+export type SettlementState = (typeof SETTLEMENT_STATES)[number];
+
+/**
+ * One step's payout as the receipt may state it. `paid` only when the
+ * settlement is confirmed AND the backend reported the amount; everything
+ * else says what is known and no more.
+ */
+export type StepPayout =
+  | {
+      kind: "paid";
+      usdc: number;
+      /** The settle transaction the payout happened in, when recorded. */
+      tx: string | null;
+      receiptIdHex: string | null;
+    }
+  /** Delivered by a seeded platform agent: never billed, share returned. */
+  | { kind: "platform" }
+  /** Delivered, and paid nothing for a reason the backend named. */
+  | { kind: "not_billed"; reason: "free" | "owner_unreadable" | "over_cap" }
+  | { kind: "pending" }
+  | { kind: "not_paid" }
+  | { kind: "unreported" };
+
+/** What came back to the payer from escrow, on the same terms. */
+export type SettlementRemainder =
+  | { kind: "returned"; usdc: number }
+  | { kind: "pending" }
+  | { kind: "held" }
+  | { kind: "unreported" };
+
 export type DisputeStatus =
   "open" | "upheld" | "crediting" | "credited" | "rejected";
 
@@ -570,6 +658,30 @@ export type SettlementStepView = {
   creditable_usdc: number;
   /** The one line the step produced; null when it was not recorded. */
   output_summary: string | null;
+  // Escrow v2's payout, per step. OPTIONAL like story 4.06's dispute fields:
+  // this client deploys ahead of the backend, and a backend on escrow v1 has
+  // no per-step payout to report. Absent means "not reported", never zero.
+  /**
+   * What `settle` paid this step's operator, from its `charged` event. Null
+   * on a v1 settlement, which paid one total for the run. 0 on a v2 step no
+   * one was paid for: undelivered, free, or run by a seeded platform agent
+   * with no on-chain owner, whose share went back to the buyer. Only read as
+   * money moved when the settlement is `settled`.
+   */
+  paid_usdc?: number | null;
+  /**
+   * The on-chain receipt that payout minted (16 bytes, hex). The payout
+   * itself happened inside the settlement's transaction, `charge_tx`.
+   */
+  receipt_id_hex?: string | null;
+  /**
+   * Why a DELIVERED v2 step was paid nothing: "free", "no_onchain_owner" (a
+   * seeded platform agent — a payout naming it would revert the whole
+   * settle), "owner_unreadable" or "over_authorized_cap". Null for a paid
+   * step, an undelivered one and every v1 record. An open string: a reason
+   * this build does not know still reads as "not paid", never as paid.
+   */
+  unpaid_reason?: string | null;
 };
 
 /** A workflow's settlement: what moved, who paid, and until when to dispute. */
@@ -586,6 +698,14 @@ export type SettlementView = {
   proof_tx: string | null;
   steps: SettlementStepView[];
   policy: CreditPolicy;
+  /**
+   * What `settle` returned to the payer from escrow — the maximum they
+   * authorized less what the steps were paid — as the `settled` event states
+   * it. Optional and nullable: v1 had no remainder, and an unreported one is
+   * never derived here from other figures, because a computed refund is a
+   * claim about money the chain has not been read for.
+   */
+  returned_usdc?: number | null;
 };
 
 /** One buyer's dispute of one settled step. */
@@ -661,6 +781,15 @@ export type Dispute = {
  */
 export type TaskDisputes = {
   task_id: string;
+  /**
+   * The backend's machine-readable answer to "did this run's escrow v2
+   * settlement land?" — present whether or not a settlement is on record,
+   * because a failed or unconfirmed settle writes none. Absent on a backend
+   * that predates it, which is read exactly as before: a record means a
+   * confirmed charge. A value this build does not know is read as
+   * `unconfirmed`, the answer that claims the least.
+   */
+  settlement_state?: SettlementState | null;
   /** Kept for older clients; equals `settlement.window_closes_at`. */
   window_closes_at: number | null;
   /** The server's clock at response time, in epoch seconds. */
@@ -749,6 +878,8 @@ export type StepDisputeState =
       receipt: DisputeReceiptView;
     }
   | { kind: "not_charged" }
+  /** The settlement is not confirmed: nothing to dispute until it is. */
+  | { kind: "payout_unconfirmed" }
   | { kind: "window_closed" }
   | { kind: "view_only" };
 
@@ -767,7 +898,14 @@ export type StepDisputeState =
  */
 export type DisputePanelView =
   | { kind: "hidden" }
-  | { kind: "not_settled"; running: boolean }
+  | {
+      kind: "not_settled";
+      running: boolean;
+      /** The backend's settlement state, when it reports one. */
+      settlementState?: SettlementState | null;
+      /** The panel stopped re-reading an unconfirmed settlement. */
+      settlementStoppedChecking?: boolean;
+    }
   | {
       kind: "settled";
       viewer: DisputeViewer;
@@ -786,7 +924,24 @@ export type DisputePanelView =
       chargeTx: string | null;
       proofTx: string | null;
       policy: CreditPolicy;
-      steps: { step: SettlementStepView; state: StepDisputeState }[];
+      steps: {
+        step: SettlementStepView;
+        state: StepDisputeState;
+        /** Absent on a backend that reports no settlement state (v1). */
+        payout?: StepPayout;
+      }[];
+      /**
+       * The backend's settlement state; absent or null on a backend that
+       * predates it, where a record on file means a confirmed charge.
+       */
+      settlementState?: SettlementState | null;
+      /** What came back to the payer; absent where no state is reported. */
+      remainder?: SettlementRemainder;
+      /**
+       * The panel stopped re-reading an unconfirmed settlement: whatever it
+       * says is only as fresh as the last read.
+       */
+      settlementStoppedChecking?: boolean;
       /**
        * The payer is looking, and the backend withheld their own dispute
        * words from this read (D-067): they may sign to read them. Always

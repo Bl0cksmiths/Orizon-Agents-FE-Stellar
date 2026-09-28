@@ -20,7 +20,9 @@ import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { getArtifact, openTraceStream } from "@/lib/api";
+import { traceSettlementState } from "@/lib/settlement-state";
 import type { ArtifactResponse, TraceLine } from "@/lib/types";
+import { OnChainReceipts } from "./on-chain-receipts";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
@@ -259,8 +261,14 @@ function TracePageInner() {
   const visible: TraceLine[] = taskId ? lines : demoTrace.slice(0, demoCursor);
   const total = taskId ? lines.length : demoTrace.length;
 
-  const spent = visible
-    .filter((l) => l.level === "cost")
+  // Only lines that report money that MOVED count as spent. A simulated
+  // run's per-step payments say "(simulated)": summing them under "Spent"
+  // stated as paid a payment nobody made.
+  const isSimulated = (l: TraceLine) => /\(simulated\)/.test(l.msg);
+  const costLines = visible.filter((l) => l.level === "cost");
+  const simulatedOnly = costLines.length > 0 && costLines.every(isSimulated);
+  const spent = costLines
+    .filter((l) => !isSimulated(l))
     .reduce((acc, l) => {
       const m = l.msg.match(/([0-9]+\.[0-9]+)\s+USDC/);
       return acc + (m ? parseFloat(m[1]) : 0);
@@ -283,6 +291,10 @@ function TracePageInner() {
         : null;
 
   const artifact = artifactData?.artifact ?? null;
+  // What the backend says happened to the run's money, from the one trace
+  // line that reports it. Undefined until that line arrives, and on a
+  // simulated run or a backend that predates it.
+  const settlementState = taskId ? traceSettlementState(visible) : undefined;
 
   const proofMsg = visible.find((l) => l.level === "proof")?.msg ?? null;
   const proofTx = artifactData?.proof_tx ?? null;
@@ -321,6 +333,8 @@ function TracePageInner() {
             {spendUnknownReason}
           </div>
         </>
+      ) : simulatedOnly ? (
+        "simulated · no funds moved"
       ) : (
         `${spent.toFixed(3)} USDC`
       ),
@@ -444,20 +458,14 @@ function TracePageInner() {
           className="space-y-6"
         >
           <ArtifactViewer artifact={artifact} />
-          {(artifactData?.charge_tx || artifactData?.proof_tx) && (
-            <Card>
-              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-magenta mb-4">
-                On-chain receipts
-              </div>
-              <dl className="space-y-3 text-sm font-mono">
-                {artifactData?.charge_tx && (
-                  <TxRow label="charge" hash={artifactData.charge_tx} />
-                )}
-                {artifactData?.proof_tx && (
-                  <TxRow label="seal" hash={artifactData.proof_tx} />
-                )}
-              </dl>
-            </Card>
+          {(artifactData?.charge_tx ||
+            artifactData?.proof_tx ||
+            settlementState !== undefined) && (
+            <OnChainReceipts
+              state={settlementState}
+              chargeTx={artifactData?.charge_tx ?? null}
+              proofTx={artifactData?.proof_tx ?? null}
+            />
           )}
         </div>
       ) : (
@@ -606,15 +614,6 @@ function TracePageInner() {
         </div>
       )}
     </div>
-  );
-}
-
-function TxRow({ label, hash }: { label: string; hash: string }) {
-  return (
-    <KVRow k={label}>
-      <div className="break-all">{hash}</div>
-      <StellarExpertLink kind="tx" id={hash} className="inline-block mt-1" />
-    </KVRow>
   );
 }
 

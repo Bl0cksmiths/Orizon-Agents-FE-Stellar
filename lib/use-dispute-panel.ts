@@ -165,7 +165,7 @@ function jobDisputes(res: TaskDisputes): Dispute[] {
  * fast cadence again. It is a record that stays put that runs its wait out.
  */
 export function pendingKey(res: TaskDisputes): string {
-  return jobDisputes(res)
+  const keys = jobDisputes(res)
     .filter(receiptStillMoving)
     .map((d) =>
       [
@@ -176,9 +176,13 @@ export function pendingKey(res: TaskDisputes): string {
         d.rating_tx,
         d.rating_confirmed,
       ].join("|"),
-    )
-    .sort()
-    .join(",");
+    );
+  // An unconfirmed escrow v2 settlement may still land, and nothing the
+  // buyer does would fetch again when it does. It waits on the chain like a
+  // refund does, record or no record, and is bounded the same way.
+  if (res.settlement_state === "unconfirmed")
+    keys.push("settlement:unconfirmed");
+  return keys.sort().join(",");
 }
 
 /**
@@ -226,12 +230,18 @@ export function disputePollMs(state: DisputePollState | null): number | null {
   if (state === null) return null;
   const { res } = state;
   if (res.settlement === undefined) return null;
+  const waitedMs = state.pendingAwaitedMs ?? 0;
+  // An unconfirmed settlement is re-read on the chain-wait cadence: fast,
+  // then slow, then not at all — and the receipt then says it stopped.
+  let ms: number | null = null;
+  if (res.settlement_state === "unconfirmed" && state.doneAtRequest) {
+    if (waitedMs < PENDING_FAST_WAIT_MS) return CREDIT_POLL_MS;
+    if (waitedMs < PENDING_WAIT_MS) ms = ADJUDICATION_POLL_MS;
+  }
   if (res.settlement === null) {
     if (!state.doneAtRequest) return null;
-    return state.awaitedMs < SETTLEMENT_WAIT_MS ? SETTLEMENT_POLL_MS : null;
+    return state.awaitedMs < SETTLEMENT_WAIT_MS ? SETTLEMENT_POLL_MS : ms;
   }
-  const waitedMs = state.pendingAwaitedMs ?? 0;
-  let ms: number | null = null;
   for (const dispute of jobDisputes(res)) {
     if (receiptAwaitsChain(dispute) || ratingStillComing(dispute)) {
       if (waitedMs < PENDING_FAST_WAIT_MS) return CREDIT_POLL_MS;
@@ -636,8 +646,18 @@ export function useDisputePanel(
   const awaitingSinceMs = snapshot?.awaitingSinceMs ?? null;
   const awaitedMs =
     awaitingSinceMs === null ? 0 : Math.max(0, clockMs - awaitingSinceMs);
+  // A backend that reports how the settlement ended without a record —
+  // failed, unconfirmed, released, skipped — has already answered: waiting
+  // out the record would hide a failed settlement behind "appears here once
+  // this workflow settles" for the whole wait. Only `settled` (or no state
+  // at all) says a record is still to come.
+  const reported = snapshot?.res.settlement_state;
+  const answeredWithoutRecord =
+    reported !== undefined && reported !== null && reported !== "settled";
   const stillLooking =
-    awaitingSinceMs !== null && awaitedMs < SETTLEMENT_WAIT_MS;
+    !answeredWithoutRecord &&
+    awaitingSinceMs !== null &&
+    awaitedMs < SETTLEMENT_WAIT_MS;
   // The same, for a receipt still moving: how long since it last moved, or
   // since the buyer last came back to it, whichever is later.
   const movedAtMs = snapshot?.pendingSinceMs ?? null;

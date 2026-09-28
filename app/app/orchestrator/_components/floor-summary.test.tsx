@@ -505,3 +505,20 @@ describe("FloorSummary — wording that has been wrong before", () => {
     expect(shown).not.toMatch(/deliver|poor|bad work|underperform/i);
   });
 });
+
+describe("FloorSummary — an agent awaiting a fresh reputation read", () => {
+  it("counts it apart, as held for a fresh read and not judged under the floor", () => {
+    const t = text({
+      notices: [notice({ lower_bound_bps: 6100, awaiting_fresh_read: true })],
+    });
+    expect(t).toContain(
+      "1 of them was held off until a fresh reputation read answers, not judged under the floor",
+    );
+  });
+
+  it("adds nothing for a plan without such a notice", () => {
+    expect(text({ notices: [notice()] })).not.toContain(
+      "fresh reputation read",
+    );
+  });
+});

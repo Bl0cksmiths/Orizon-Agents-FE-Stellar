@@ -3,6 +3,7 @@ import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { DisputeDialogCloseReason } from "@/components/disputes/dispute-dialog";
 import { ReceiptPanel } from "@/components/disputes/receipt-panel";
+import { ReclaimControl } from "@/components/escrow/reclaim-control";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +13,10 @@ import type {
   SettlementStepView,
   SettlementView,
 } from "@/lib/types";
+import {
+  getHeldAuthorization,
+  type HeldAuthorization,
+} from "@/lib/held-authorizations";
 import { useDisputePanel } from "@/lib/use-dispute-panel";
 import { useReasonUnlock } from "@/lib/use-reason-unlock";
 import { cn } from "@/lib/utils";
@@ -285,6 +290,32 @@ type Props = {
  * the same reason in the other direction: the page re-renders on every trace
  * line, and no trace line changes what the receipt says.
  */
+/**
+ * The way back for funds a failed settlement left in escrow, offered on the
+ * receipt only to the session that signed the authorization.
+ */
+function ReceiptReclaim({ held }: { held: HeldAuthorization }) {
+  return (
+    <section
+      aria-labelledby="receipt-reclaim-heading"
+      className="clip-cyber-sm border border-magenta/40 bg-magenta/5 p-4"
+    >
+      <h3
+        id="receipt-reclaim-heading"
+        className="text-sm font-semibold tracking-tight"
+      >
+        Reclaim your funds
+      </h3>
+      <p className="mt-1 mb-3 text-xs leading-relaxed text-muted">
+        You signed this run&apos;s authorization in this browser session, so you
+        can take back what it moved into escrow here. If the platform has
+        already returned it, the escrow says so and nothing is sent.
+      </p>
+      <ReclaimControl held={held} />
+    </section>
+  );
+}
+
 export const DisputeSection = memo(function DisputeSection({
   taskId,
   workflowDone,
@@ -298,6 +329,23 @@ export const DisputeSection = memo(function DisputeSection({
     },
   );
   const { connect } = useWallet();
+  // A settlement that FAILED leaves whatever the authorization moved into
+  // escrow there, and the platform may not have released it. The reclaim
+  // needs the authorization id, which the receipt deliberately does not
+  // carry — only the session that signed it holds it. Read after mount:
+  // sessionStorage does not exist on the server, and reading it in render
+  // would draw a different tree on each side of hydration.
+  const settlementFailed =
+    (view.kind === "not_settled" || view.kind === "settled") &&
+    view.settlementState === "failed";
+  const [reclaimable, setReclaimable] = useState<HeldAuthorization | null>(
+    null,
+  );
+  useEffect(() => {
+    setReclaimable(
+      settlementFailed && taskId ? getHeldAuthorization(taskId) : null,
+    );
+  }, [settlementFailed, taskId]);
   // The payer's own words, withheld from a tab without the task's token,
   // shown again on their signature (D-067). Only a click signs.
   const unlock = useReasonUnlock(demo ? null : taskId, refresh);
@@ -465,6 +513,7 @@ export const DisputeSection = memo(function DisputeSection({
           unlock.unavailable ? null : { status: unlock.status, onUnlock }
         }
       />
+      {reclaimable && <ReceiptReclaim held={reclaimable} />}
       {/* Mounted while a step can be disputed — which keeps a half-typed
           reason across an accidental close — or while its dialog is still
           open after the last step stopped being disputable. */}

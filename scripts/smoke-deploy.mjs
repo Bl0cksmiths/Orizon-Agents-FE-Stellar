@@ -26,8 +26,10 @@
  */
 import {
   canonicalNetwork,
+  compareEscrowPin,
   compareLiveContracts,
   loadAddressBook,
+  loadEscrowPins,
   resolveContractsDir,
 } from "./live-contract-parity.mjs";
 
@@ -250,7 +252,39 @@ async function main() {
     );
   }
 
-  const total = CHECKS.length + 1;
+  // The frontend's escrow v2 pin against the escrow production settles
+  // through: the console's payment copy describes the pinned one.
+  let pin;
+  try {
+    const live = bodies.get(NETWORK_PATH);
+    pin =
+      live === undefined
+        ? {
+            pinned: null,
+            problems: [
+              `${NETWORK_PATH} returned no JSON body; see its check above`,
+            ],
+          }
+        : compareEscrowPin(live, loadEscrowPins());
+  } catch (err) {
+    pin = {
+      pinned: null,
+      problems: [err instanceof Error ? err.message : String(err)],
+    };
+  }
+  if (pin.problems.length === 0) {
+    console.log(
+      pin.pinned === null
+        ? "  ✓ escrow v2 pin → not pinned for this network yet (pending)"
+        : `  ✓ escrow v2 pin → live escrow is ${pin.pinned}`,
+    );
+  } else {
+    console.log("  ✗ escrow v2 pin");
+    for (const problem of pin.problems) console.log(`    FAIL  ${problem}`);
+    failures.push(`escrow v2 pin → ${pin.problems.join("; ")}`);
+  }
+
+  const total = CHECKS.length + 2;
   if (failures.length > 0) {
     console.error(
       `\n${failures.length}/${total} checks failed against ${ORIGIN}:`,

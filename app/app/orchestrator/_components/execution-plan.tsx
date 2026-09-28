@@ -8,14 +8,23 @@ import { Button } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import { TxStatus, type TxState } from "@/components/ui/tx-status";
-import { NETWORK_LABEL } from "@/components/ui/stellar-link";
+import {
+  NETWORK_LABEL,
+  defaultExplorerNetwork,
+} from "@/components/ui/stellar-link";
 import {
   buildAuthorize,
   execute,
   getStellarNetwork,
   submitSigned,
 } from "@/lib/api";
-import { assetLabel } from "@/lib/money";
+import {
+  AUTHORIZE_TTL_SECONDS,
+  checkEscrowFunds,
+  classifyAuthorizeError,
+  insufficientEscrowFunds,
+} from "@/lib/escrow";
+import { STROOPS_PER_UNIT, formatSettled } from "@/lib/money";
 import { useFetch } from "@/lib/use-fetch";
 import {
   DegradedBanner,
@@ -23,19 +32,32 @@ import {
   UNVERIFIED_SUMMARY_ID,
 } from "./degraded-banner";
 import { ExclusionsPanel } from "./exclusions-panel";
+import { isAwaitingFreshRead } from "./floor-notices";
 import { FloorSummary } from "./floor-summary";
 import {
   isPlannerFallback,
   PLANNER_FALLBACK_NOTICE_ID,
   PlannerFallbackNotice,
 } from "./planner-fallback-notice";
+import {
+  executeRefusal,
+  refusalSentence,
+  type EscrowRelease,
+} from "@/lib/execute-refusal";
+import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
+import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
-import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
+import type { FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 import { isPlanExpired } from "./plan-errors";
 import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
+import {
+  EscrowHeldNotice,
+  FundsReturnedNotice,
+  type HeldAuthorization,
+} from "./escrow-held-notice";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -44,13 +66,18 @@ type ExecStep = "" | "sign" | "broadcast" | "execute";
 
 const STEP_LABEL: Record<Exclude<ExecStep, "">, string> = {
   sign: "◉ Freighter…",
-  broadcast: "◉ Broadcasting…",
+  // The broadcast is the moment the cap leaves the wallet for the escrow.
+  broadcast: "◉ Moving funds to escrow…",
   execute: "◉ Launching…",
 };
 
 /** The smallest cap an authorization is signed for. A plan priced at zero
  *  still needs a positive cap to authorize against. */
 const MIN_CAP = 0.001;
+
+/** The notice shown when the backend's escrow is not the one this build
+ *  pins; Authorize is described by it while it shows. */
+const ESCROW_MISMATCH_ID = "escrow-mismatch-notice";
 
 /** What the pay panel says in place of a cap when there is nothing to pay. */
 const EMPTY_PLAN =
@@ -107,20 +134,37 @@ export function ExecutionPlan({
   // The plan cannot run again, so the controls that run it stay disabled and
   // the notice offers a fresh plan instead.
   const [expired, setExpired] = useState<ExpiredRun | null>(null);
+  // An authorization that CONFIRMED, kept for as long as no run has been
+  // seen to take it over. Under escrow v2 its cap is already in escrow, so
+  // if the run is refused or cannot be started the buyer has to be told the
+  // funds are held and how to reclaim them — and must not be offered a
+  // second signature that would lock up a second cap beside the first.
+  const [held, setHeld] = useState<HeldAuthorization | null>(null);
+  // Why the run could not be started after the authorization confirmed.
+  const [runError, setRunError] = useState<string | null>(null);
+  // What the backend said became of that authorization's custody when it
+  // refused the run — returned, tried and failed, or never tried — or null
+  // when there was no answer at all (a run may then have started).
+  const [release, setRelease] = useState<EscrowRelease | null>(null);
 
   // What every amount on this card is actually denominated in. `total_usdc`
   // is a legacy field name, not a currency: the cap the buyer signs is that
   // figure in stroops of whatever the escrow's SAC wraps, and on testnet that
-  // is native XLM. Until the network read lands — or if it fails — `unit` is
-  // empty and amounts print bare, because a guessed "USDC" is the false claim
-  // this replaces.
+  // is native XLM. Until the network read lands — or if it fails — the unit
+  // is unknown and amounts print bare, because a guessed "USDC" is the false
+  // claim this replaces.
   const { data: network } = useFetch(getStellarNetwork, [], {
     revalidateOnFocus: true,
   });
-  const unit = assetLabel(network?.asset);
-  /** An amount with its real unit, or bare while the unit is unknown. */
+  /**
+   * An amount exactly as it is signed, with its real unit — or bare while the
+   * unit is unknown. Rounded to the stroop, as the backend converts it
+   * (`usdc_to_i128` rounds to 7 decimals), never to a display precision:
+   * `toFixed(3)` printed 0.1234 as "0.123", a cap on the page smaller than
+   * the one that leaves the wallet (finding S6).
+   */
   const priced = (value: number) =>
-    unit ? `${value.toFixed(3)} ${unit}` : value.toFixed(3);
+    formatSettled(Math.round(value * STROOPS_PER_UNIT), network?.asset);
 
   // The cap the buyer signs, computed ONCE and used for both the sentence
   // they read and the authorization they sign. They used to be computed
@@ -130,6 +174,11 @@ export function ExecutionPlan({
   // A plan with no steps has nothing to pay for. The guard accepts one, so
   // the card has to refuse to take money for it.
   const empty = plan.steps.length === 0;
+
+  // Agents the floor held off only until a fresh reputation read answers.
+  const heldForFreshRead = new Set(
+    (plan.notices ?? []).filter(isAwaitingFreshRead).map((n) => n.agent_id),
+  );
 
   /** Simulated path — no wallet required. */
   const simulate = useAsyncAction(async () => {
@@ -143,18 +192,44 @@ export function ExecutionPlan({
     }
   });
 
-  /** Real on-chain path: wallet signs authorize, backend charges + seals. */
+  /** Real on-chain path: the wallet signs authorize, which moves the cap
+   *  into escrow; the backend then settles (pays delivered steps, returns the
+   *  rest) and seals. */
   const authorize = useAsyncAction(async (payer: string) => {
     setFriendlyError(null);
     setAuthorizeHash(null);
+    setRunError(null);
+    setRelease(null);
+    let confirmed: HeldAuthorization | null = null;
+    // Checked before anything is built or signed. Escrow v2 moves the whole
+    // cap out of the wallet at signing, so a wallet that cannot cover it plus
+    // the fee and reserve would only be refused by the chain after the buyer
+    // had been asked to sign. An unread balance is not a refusal: the chain's
+    // own answer is mapped below.
+    const funds = checkEscrowFunds({
+      balance: wallet.xlmBalance,
+      cap,
+      asset: network?.asset,
+    });
+    if (funds.kind === "short") {
+      setFriendlyError(insufficientEscrowFunds(funds));
+      setTxState("failed");
+      return;
+    }
     try {
       setStep("sign");
       setTxState("building");
-      const { xdr } = await buildAuthorize({
+      const { xdr, expires_at } = await buildAuthorize({
         payer,
-        agent_id: "orizon_batch",
+        // The authorization's LABEL, which is the plan being paid for
+        // (`pln_` + 8 hex, a valid Symbol). Escrow v2 names the agent on each
+        // payout at settle, so this decides nobody's pay — v1 paid its owner,
+        // which is why the old `orizon_batch` could never pay an operator.
+        // The backend refuses to execute a plan against an authorization
+        // whose label, payer, cap or state does not match (finding S2).
+        agent_id: plan.plan_id,
         max_amount_usdc: cap,
-        ttl_seconds: 600,
+        ttl_seconds: AUTHORIZE_TTL_SECONDS,
       });
 
       setTxState("signing");
@@ -179,24 +254,53 @@ export function ExecutionPlan({
 
       setAuthorizeHash(broadcast.hash);
       setTxState("success");
+      confirmed = {
+        authIdHex: authHex,
+        payer,
+        expiresAt: expires_at ?? null,
+      };
+      setHeld(confirmed);
 
       setStep("execute");
       const { task_id } = await execute(plan.plan_id, {
         auth_id_hex: authHex,
         payer,
       });
+      // The trace's receipt needs the authorization to offer a reclaim if
+      // the run's settlement fails, and the backend keeps its id off the
+      // receipt: this session is the one place that holds it.
+      rememberHeldAuthorization(task_id, confirmed);
       router.push(`/app/trace?task=${task_id}`);
     } catch (e) {
       // Refused at `execute`, AFTER the authorization was confirmed on-chain.
       // Not a payment failure, and the failure card would say it was one: the
-      // confirmed transaction stays shown as confirmed, and the notice says
-      // the plan was too old to run and that nothing was charged.
+      // confirmed transaction stays shown as confirmed, the notice says the
+      // plan was too old to run, and the held-funds notice says where the
+      // cap is and how to reclaim it.
+      // The backend's refusal, narrowed: why, and — when it tried to hand
+      // the custody back — whether that confirmed.
+      const refusal = confirmed !== null ? executeRefusal(e) : null;
       if (isPlanExpired(e)) {
         setExpired("authorize");
+        setRelease(refusal?.release ?? { kind: "not_attempted" });
         setStep("");
         return;
       }
-      const friendly = classifyError(e);
+      // Any other failure after the authorization confirmed is a failure to
+      // START the run, not a failed payment: the confirmed transaction stays
+      // confirmed rather than turning into a failure card, and the reason is
+      // stated beside what became of the funds.
+      if (confirmed !== null) {
+        setRunError(
+          refusal !== null
+            ? refusalSentence(refusal)
+            : `The request to start it failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        setRelease(refusal?.release ?? null);
+        setStep("");
+        return;
+      }
+      const friendly = classifyAuthorizeError(e);
       setFriendlyError(friendly);
       setTxState("failed");
       setStep("");
@@ -205,6 +309,16 @@ export function ExecutionPlan({
       // second time via useAsyncAction's captured error.
     }
   });
+
+  // Everything this card says about paying describes escrow v2. When this
+  // build pins the v2 escrow and the backend reports a different one, a
+  // signature would go to a contract the copy does not describe — so the
+  // card will not ask for one. Simulate and fiat do not sign against it.
+  const escrow = escrowAgreement(
+    network,
+    pinnedEscrowId(defaultExplorerNetwork),
+  );
+  const escrowMismatch = escrow.kind === "mismatch";
 
   // Every notice above the Authorize panel that is on the page, in reading
   // order. Composed, never chosen between: a fallback plan built during a
@@ -218,6 +332,7 @@ export function ExecutionPlan({
       // The banner's one-sentence summary, not the banner: four paragraphs
       // read out as a button's description bury the decision under them.
       hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
+      escrowMismatch && ESCROW_MISMATCH_ID,
     ]
       .filter(Boolean)
       .join(" ") || undefined;
@@ -225,7 +340,7 @@ export function ExecutionPlan({
   const executing = simulate.pending || authorize.pending;
   // The controls that run the plan. An expired plan cannot run again, and a
   // second signature against it would only draw the same refusal.
-  const cannotRun = executing || expired !== null || empty;
+  const cannotRun = executing || expired !== null || held !== null || empty;
   // Authorize failures render in the TxStatus FailedCard (via friendlyError);
   // only the simulate path reports through the alert below.
   const error = simulate.error;
@@ -237,7 +352,8 @@ export function ExecutionPlan({
   };
 
   const onAuthorize = () => {
-    if (cannotRun || !wallet.connected || !wallet.address) return;
+    if (cannotRun || escrowMismatch || !wallet.connected || !wallet.address)
+      return;
     simulate.reset();
     void authorize.run(wallet.address);
   };
@@ -361,7 +477,14 @@ export function ExecutionPlan({
                 {s.substituted_for && (
                   <span
                     className="max-w-full"
-                    title={`Routed in place of ${s.substituted_for}, which scored below the routing floor.`}
+                    // Not "scored below the floor" when the replaced agent
+                    // was only held off for a fresh reputation read: its
+                    // last bound may clear the floor (finding S8).
+                    title={
+                      heldForFreshRead.has(s.substituted_for)
+                        ? `Routed in place of ${s.substituted_for}, which was rated since its last reputation read and is held off until a fresh read answers.`
+                        : `Routed in place of ${s.substituted_for}, which scored below the routing floor.`
+                    }
                   >
                     {/* The replaced agent's name is as long as any other. */}
                     <Badge tone="cyan" className="max-w-full break-all">
@@ -412,6 +535,22 @@ export function ExecutionPlan({
             nothing useful. */}
         <DegradedBanner plan={plan} />
 
+        {escrow.kind === "mismatch" && (
+          <p
+            id={ESCROW_MISMATCH_ID}
+            className="mt-6 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 text-sm leading-relaxed text-magenta"
+          >
+            On-chain payment is paused: the platform is settling through escrow{" "}
+            <span className="break-all font-mono text-xs">
+              {escrow.live ?? "(none reported)"}
+            </span>
+            , but this console is written for escrow{" "}
+            <span className="break-all font-mono text-xs">{escrow.pinned}</span>
+            . Nothing is asked of your wallet until they agree. A simulated pass
+            is unaffected.
+          </p>
+        )}
+
         <m.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -427,10 +566,15 @@ export function ExecutionPlan({
                 {empty ? (
                   <div className="text-sm">{EMPTY_PLAN}</div>
                 ) : (
-                  <div className="text-sm">
+                  // Escrow v2 takes custody at authorize: this signature moves
+                  // the money now, not at settlement. A buyer who reads "up
+                  // to" as a cap on a later charge has been told v1's story.
+                  <div className="max-w-xl text-sm leading-relaxed">
                     Freighter will prompt for{" "}
-                    <b className="text-text">one signature</b> authorizing up to{" "}
-                    <b className="text-text">{priced(cap)}</b>.
+                    <b className="text-text">one signature</b> that moves up to{" "}
+                    <b className="text-text">{priced(cap)}</b> from your wallet
+                    into escrow now. Delivered steps are paid from it, and the
+                    rest comes back to you when the run settles.
                   </div>
                 )}
               </div>
@@ -451,7 +595,7 @@ export function ExecutionPlan({
                 <Button
                   variant="cyan"
                   onClick={onAuthorize}
-                  disabled={cannotRun}
+                  disabled={cannotRun || escrowMismatch}
                   size="md"
                   // Tab goes from the exclusions panel straight here, past the
                   // polite notices above, so the button carries them as its
@@ -475,7 +619,7 @@ export function ExecutionPlan({
                 <div className="text-sm">
                   {empty
                     ? EMPTY_PLAN
-                    : `Connect Freighter (${NETWORK_LABEL}) to pay with x402 on-chain, or run a simulated pass.`}
+                    : `Connect Freighter (${NETWORK_LABEL}) to pay on-chain: authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles. Or run a simulated pass, which moves no funds.`}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
@@ -500,8 +644,47 @@ export function ExecutionPlan({
             run={expired}
             onReplan={onReplan}
             busy={executing}
+            fundsReturned={release?.kind === "returned"}
           />
         )}
+
+        {runError && (
+          <div
+            role="alert"
+            className="mt-4 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 text-sm leading-relaxed text-magenta"
+          >
+            <p>The authorization confirmed, but the run was not started.</p>
+            <p className="mt-1 text-text/90">{runError}</p>
+            {onReplan && (
+              <Button
+                type="button"
+                variant="cyan"
+                size="sm"
+                className="mt-3"
+                onClick={onReplan}
+                disabled={executing}
+              >
+                Build a fresh plan ▸
+              </Button>
+            )}
+          </div>
+        )}
+
+        {held &&
+          (expired === "authorize" || runError) &&
+          (release?.kind === "returned" ? (
+            <FundsReturnedNotice amount={priced(cap)} txHash={release.txHash} />
+          ) : (
+            <EscrowHeldNotice
+              held={held}
+              amount={priced(cap)}
+              escrowId={network?.contracts.payment_escrow || null}
+              // The backend answered: no task was minted. Without an answer
+              // a run may have started and will settle as usual.
+              runRefused={release !== null}
+              releaseFailed={release?.kind === "not_returned"}
+            />
+          ))}
 
         {error && (
           <div
@@ -522,9 +705,15 @@ export function ExecutionPlan({
           </div>
         )}
 
+        {/* A confirmed authorize under escrow v2 is a transfer: the cap left
+            the wallet for the escrow contract. The card says so with the
+            figure signed and the contract it went to — only once both are
+            known, since a guessed destination would be a false receipt. */}
         <TxStatus
           state={txState}
           hash={authorizeHash ?? undefined}
+          amount={authorizeHash ? priced(cap) : undefined}
+          destination={network?.contracts.payment_escrow || undefined}
           error={friendlyError}
         />
       </Card>

@@ -205,7 +205,11 @@ export function isTaskList(v: unknown): v is Task[] {
         isStr(t.id) &&
         isNum(t.spent) &&
         isStr(t.status) &&
-        TASK_STATUSES.has(t.status),
+        TASK_STATUSES.has(t.status) &&
+        // The settlement outcome: any string, null, or absent (see Task).
+        (t.settlement === undefined ||
+          t.settlement === null ||
+          isStr(t.settlement)),
     )
   );
 }
@@ -235,7 +239,12 @@ export function isTraceLine(v: unknown): v is TraceLine {
     isStr(v.t) &&
     isStr(v.msg) &&
     isStr(v.level) &&
-    TRACE_LEVELS.has(v.level)
+    TRACE_LEVELS.has(v.level) &&
+    // The settlement outcome the trace gates its on-chain evidence on: absent
+    // on an older backend, null on every other line, and a string when set —
+    // any string, since `readSettlementState` reads one it cannot name as
+    // unconfirmed rather than dropping the line.
+    (v.settlement === undefined || v.settlement === null || isStr(v.settlement))
   );
 }
 
@@ -304,7 +313,10 @@ function isPlanFloorNotice(v: unknown): v is PlanFloorNotice {
     isOptionalStr(v.replacement_name) &&
     isOptionalStr(v.reason_code) &&
     isOptionalNum(v.lower_bound_bps) &&
-    isOptionalNum(v.floor_bps)
+    isOptionalNum(v.floor_bps) &&
+    // Strictly boolean: it decides whether a bound is worded as under the
+    // floor, and the string "false" is truthy.
+    isOptionalBool(v.awaiting_fresh_read)
   );
 }
 
@@ -535,10 +547,16 @@ export function isStellarNetworkInfo(v: unknown): v is StellarNetworkInfo {
 /** Authorize build: `xdr` is handed straight to the wallet
  * (`wallet.signXdr(xdr)`) as the transaction to sign, so a missing one
  * reaches Freighter as the literal "undefined" and comes back as an opaque
- * wallet error rather than the backend failure it is. `expires_at` is
- * returned but never read by the UI, so it stays unchecked. */
+ * wallet error rather than the backend failure it is. `expires_at` tells a
+ * buyer whose funds are held in escrow when they can reclaim them, so it is
+ * a number when present — a string would print as a time that never was —
+ * and absent is tolerated: the notice then says "once it expires". */
 export function isAuthorizeBuild(v: unknown): v is AuthorizeBuild {
-  return isRecord(v) && isStr(v.xdr);
+  return (
+    isRecord(v) &&
+    isStr(v.xdr) &&
+    (v.expires_at === undefined || isNum(v.expires_at))
+  );
 }
 
 /** Submit result: the plan card branches on `status !== "SUCCESS"` and links

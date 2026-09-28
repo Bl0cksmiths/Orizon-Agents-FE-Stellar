@@ -115,8 +115,49 @@ function smoke(target, env = {}) {
 test("exits 0 when every check passes and the contracts match", async () => {
   const { code, out } = await smoke(await origin(HEALTHY));
   assert.equal(code, 0, out);
-  assert.match(out, /all 7 checks passed/);
+  assert.match(out, /all 8 checks passed/);
   assert.match(out, /3 live contract ids match/);
+  // The repository's own pin is unset until escrow v2 is deployed.
+  assert.match(
+    out,
+    /escrow v2 pin → not pinned for this network yet \(pending\)/,
+  );
+});
+
+/** Runs the smoke with `pins` as the frontend's escrow v2 pin. */
+async function smokeWithPins(pins, routes = HEALTHY) {
+  const file = join(
+    scratch,
+    `pins-${Math.random().toString(36).slice(2)}.json`,
+  );
+  writeFileSync(file, JSON.stringify(pins));
+  return smoke(await origin(routes), { ORIZON_ESCROW_PINS: file });
+}
+
+test("passes when production settles through the pinned escrow v2", async () => {
+  const { code, out } = await smokeWithPins({
+    public: null,
+    testnet: BOOK.payment_escrow,
+  });
+  assert.equal(code, 0, out);
+  assert.match(
+    out,
+    new RegExp(`escrow v2 pin → live escrow is ${BOOK.payment_escrow}`),
+  );
+});
+
+// The console's copy describes the pinned escrow; production on another one
+// is a console whose words about money are wrong.
+test("exits 1 when production settles through an escrow other than the pin", async () => {
+  const { code, out } = await smokeWithPins({ public: null, testnet: id("V") });
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ escrow v2 pin/);
+  assert.match(
+    out,
+    new RegExp(
+      `payment_escrow: live ${BOOK.payment_escrow} != escrow v2 pin ${id("V")}`,
+    ),
+  );
 });
 
 test("exits 1 without running a check when the origin is unreachable", async () => {
@@ -137,7 +178,7 @@ test("exits 1 and names the proxy when a proxied route 404s", async () => {
     await origin({ ...HEALTHY, "/api/agents": 404 }),
   );
   assert.equal(code, 1, out);
-  assert.match(out, /1\/7 checks failed/);
+  assert.match(out, /1\/8 checks failed/);
   assert.match(out, /\/api\/agents → HTTP 404/);
   assert.match(out, /check NEXT_PUBLIC_API_BASE/);
 });

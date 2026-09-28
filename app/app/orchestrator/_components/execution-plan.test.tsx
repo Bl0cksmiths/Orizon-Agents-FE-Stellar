@@ -43,6 +43,7 @@ const { api, wallet, pdax } = vi.hoisted(() => ({
   wallet: {
     connected: true,
     address: null as string | null,
+    xlmBalance: null as string | null,
     signXdr: vi.fn(),
     connect: vi.fn(),
     loading: false,
@@ -58,7 +59,17 @@ vi.mock("@/lib/api", () => api);
 vi.mock("@/lib/wallet", () => ({ useWallet: () => wallet }));
 vi.mock("@/lib/pdax", () => pdax);
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+// The escrow v2 pin ships null until v2 is deployed; tests set one.
+const { escrowPin } = vi.hoisted(() => ({
+  escrowPin: { value: null as string | null },
+}));
+vi.mock("@/lib/escrow-address", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/escrow-address")>()),
+  pinnedEscrowId: () => escrowPin.value,
+}));
 
+import { formatLocalTime } from "@/lib/local-time";
+import { AUTHORIZE_TTL_SECONDS } from "@/lib/escrow";
 import { ExecutionPlan } from "./execution-plan";
 import {
   UNVERIFIED_BANNER_ID,
@@ -105,6 +116,11 @@ function plan(over: Partial<DecomposeResponse> = {}): DecomposeResponse {
   };
 }
 
+/** The escrow the fixtures' network read reports, and the expiry the build
+ *  stamps: the held-funds notice prints both. */
+const ESCROW_ID = "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI";
+const EXPIRES_AT = 1_790_000_000;
+
 const authorizeButton = () =>
   screen.getByRole("button", { name: /authorize/i });
 
@@ -112,6 +128,9 @@ beforeEach(() => {
   api.getStellarNetwork.mockResolvedValue(TESTNET);
   wallet.connected = true;
   wallet.address = PAYER;
+  // Comfortably funded unless a test says otherwise: the escrow pre-check
+  // has its own tests below.
+  wallet.xlmBalance = "10000.0000000";
 });
 
 /** A buyer who has not connected a wallet: the pay panel offers Connect
@@ -124,6 +143,7 @@ function disconnect() {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  escrowPin.value = null;
 });
 
 describe("ExecutionPlan · Authorize and the unverified-reputation banner", () => {
@@ -214,6 +234,16 @@ describe("ExecutionPlan · with no wallet connected", () => {
     expect(container.textContent).not.toContain("authorizing up to");
   });
 
+  it("says what paying on-chain does with the buyer's funds before they connect", () => {
+    disconnect();
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles.",
+    );
+    expect(text).toContain("Or run a simulated pass, which moves no funds.");
+  });
+
   it("runs a simulated pass without a wallet", async () => {
     disconnect();
     api.execute.mockResolvedValue({ task_id: "task_sim" });
@@ -255,7 +285,14 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
   /** Drives the on-chain path to a confirmed authorization whose run is then
    *  refused as expired. */
   async function authorizeExpired(onReplan = vi.fn()) {
-    api.buildAuthorize.mockResolvedValue({ xdr: "AAAA" });
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: ESCROW_ID },
+    });
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
     wallet.signXdr.mockResolvedValue("signed-xdr");
     api.submitSigned.mockResolvedValue({
       status: "SUCCESS",
@@ -270,17 +307,40 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
   }
 
   // The trap: the buyer has already signed and broadcast by the time the plan
-  // is sent to run. The refusal must not read as a payment that failed.
-  it("says nothing was charged, never that the payment failed, after a signed authorization", async () => {
+  // is sent to run. The refusal must not read as a payment that failed — and
+  // under escrow v2 it must not read as "nothing charged" either: the cap is
+  // in escrow, and it does not lapse back on its own.
+  it("says no task ran and the signed cap is held in escrow, never that it lapses", async () => {
     const { container } = await authorizeExpired();
     const text = container.textContent ?? "";
-    expect(text).toContain("Nothing was charged");
-    expect(text).toContain("The authorization you just signed");
-    expect(text).toContain("not drawn on for this plan");
+    expect(text).toContain("No task was started");
+    expect(text).toContain("held in escrow until you reclaim it");
+    expect(text).not.toContain("Nothing was charged");
+    expect(text).not.toMatch(/lapses|only caps|not drawn on/);
     // The confirmed transaction stays confirmed; no failure card, no raw code.
     expect(text).toContain("transaction confirmed");
     expect(text).not.toMatch(/Transaction failed|410|plan_expired/);
     expect(api.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands the buyer everything a reclaim needs", async () => {
+    const { container } = await authorizeExpired();
+    const notice = screen.getByRole("region", {
+      name: "Your funds are held in escrow",
+    });
+    const text = notice.textContent ?? "";
+    expect(text).toContain("0.123 XLM");
+    expect(text).toContain("No run was started");
+    expect(text).toContain("0123456789abcdef0123456789abcdef");
+    expect(text).toContain(PAYER);
+    expect(text).toContain(ESCROW_ID);
+    expect(text).toContain(
+      `-- reclaim --payer ${PAYER} --auth_id 0123456789abcdef0123456789abcdef`,
+    );
+    // When: the expiry the build stamped, never a guess.
+    expect(text).toContain(formatLocalTime(EXPIRES_AT * 1_000));
+    // And the confirmed card names where the cap went.
+    expect(container.textContent).toContain("0.123 XLM → CBJPTM…5525PI");
   });
 
   it("offers a fresh plan from the same request, and hands it to the page", async () => {
@@ -317,6 +377,188 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
     expect(
       screen.queryByRole("button", { name: /build a fresh plan/i }),
     ).toBeNull();
+  });
+
+  // After the authorization confirmed, a run that cannot be STARTED is not a
+  // failed payment — the cap is in escrow — and a second Authorize would lock
+  // up a second cap beside it.
+  it("keeps a confirmed authorization confirmed when the run cannot start", async () => {
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: ESCROW_ID },
+    });
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "SUCCESS",
+      hash: "a1b2c3",
+      return_value: "0123456789abcdef0123456789abcdef",
+    });
+    api.execute.mockRejectedValue(
+      new Error("POST /orchestrator/execute → 503 — capacity exhausted"),
+    );
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/the run was not started/);
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "The request to start it failed: POST /orchestrator/execute → 503 — capacity exhausted",
+    );
+    expect(text).toContain("transaction confirmed");
+    expect(text).not.toContain("Transaction failed");
+    // Hedged: a failed request may still have started a run that settles.
+    const notice = screen.getByRole("region", {
+      name: "Your funds are held in escrow",
+    });
+    expect(notice.textContent).toContain(
+      "could not confirm that a run started",
+    );
+    expect(notice.textContent).not.toContain("No run was started");
+    expect(authorizeButton().hasAttribute("disabled")).toBe(true);
+    fireEvent.click(authorizeButton());
+    expect(api.buildAuthorize).toHaveBeenCalledTimes(1);
+  });
+
+  /** Confirms an authorization, then has execute refuse with `refusal`. */
+  async function refusedAfterConfirm(refusal: Error) {
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: ESCROW_ID },
+    });
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "SUCCESS",
+      hash: "a1b2c3",
+      return_value: "0123456789abcdef0123456789abcdef",
+    });
+    api.execute.mockRejectedValue(refusal);
+    const view = render(<ExecutionPlan plan={plan()} onReplan={vi.fn()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    return view;
+  }
+
+  /** An execute refusal as lib/api builds it from the envelope. */
+  const refused = (
+    status: number,
+    code: string,
+    message: string,
+    extra: Record<string, unknown> = {},
+  ) =>
+    Object.assign(
+      new Error(`POST /orchestrator/execute → ${status} — ${message}`),
+      {
+        status,
+        code,
+        body: { detail: code, error: { code, message }, ...extra },
+      },
+    );
+
+  const RELEASE_TX = "e".repeat(64);
+
+  // S2: the backend checks the authorization against the plan before any
+  // task is minted. The buyer is told why, in words, and — since no release
+  // is tried for these — that the funds wait in escrow for their reclaim.
+  it("explains an authorization refusal and keeps the funds' way back in view", async () => {
+    const { container } = await refusedAfterConfirm(
+      refused(
+        403,
+        "authorization_plan_mismatch",
+        "this authorization was made for a different plan — authorize this plan again and execute with the new authorization",
+      ),
+    );
+    await screen.findByText(/the run was not started/);
+    expect(container.textContent).toContain(
+      "This authorization was made for a different plan, so it cannot pay for this one. Authorize this plan again.",
+    );
+    expect(container.textContent).not.toMatch(
+      /authorization_plan_mismatch|403/,
+    );
+    const notice = screen.getByRole("region", {
+      name: "Your funds are held in escrow",
+    });
+    expect(notice.textContent).toContain("No run was started");
+    expect(notice.textContent).toContain(
+      "It stays in escrow until you reclaim it.",
+    );
+    expect(
+      screen.getByRole("button", { name: /build a fresh plan/i }),
+    ).toBeTruthy();
+  });
+
+  // The platform handed the custody back itself: said as a fact, with the
+  // transaction that did it, and no reclaim is offered for money that is back.
+  it("says the funds were returned, and links the return, when the backend released them", async () => {
+    const { container } = await refusedAfterConfirm(
+      refused(
+        503,
+        "capacity_exhausted",
+        "the service is at capacity — your authorized funds were returned to your wallet",
+        {
+          release_tx_hash: RELEASE_TX,
+        },
+      ),
+    );
+    await screen.findByText("Your funds were returned");
+    expect(container.textContent).toContain(
+      "The service is at capacity, so the run was not started. Try again shortly.",
+    );
+    const link = screen.getByRole("link", {
+      name: "view the return on stellar.expert",
+    });
+    expect(link.getAttribute("href")).toMatch(new RegExp(`/tx/${RELEASE_TX}$`));
+    expect(
+      screen.queryByRole("region", { name: "Your funds are held in escrow" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /reclaim/i })).toBeNull();
+  });
+
+  // Tried and not confirmed: the buyer's money is still in escrow.
+  it("says a release that did not go through left the funds to reclaim", async () => {
+    await refusedAfterConfirm(
+      refused(
+        404,
+        "not_found",
+        "this plan is no longer held — your authorized funds could not be returned now; reclaim them once it expires",
+        {
+          release_tx_hash: null,
+        },
+      ),
+    );
+    const notice = await screen.findByRole("region", {
+      name: "Your funds are held in escrow",
+    });
+    expect(notice.textContent).toContain(
+      "The platform tried to return it to you and could not, so it stays in escrow until you reclaim it.",
+    );
+    expect(screen.queryByText("Your funds were returned")).toBeNull();
+  });
+
+  it("says an expired plan's authorization was returned when the backend released it", async () => {
+    const expiredWithRelease = Object.assign(planExpired(), {
+      body: {
+        detail: "plan_expired",
+        error: { code: "plan_expired", message: "this plan is too old" },
+        release_tx_hash: RELEASE_TX,
+      },
+    });
+    const { container } = await refusedAfterConfirm(expiredWithRelease);
+    await screen.findByText("This plan was too old to run");
+    expect(container.textContent).toContain(
+      "The platform returned the authorization you just signed from escrow to your wallet",
+    );
+    expect(container.textContent).not.toContain(
+      "held in escrow until you reclaim it",
+    );
+    expect(screen.getByText("Your funds were returned")).toBeTruthy();
   });
 
   // Any other refusal is still a failure, and still says so.
@@ -505,10 +747,51 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
     return api.buildAuthorize.mock.calls[0][0].max_amount_usdc;
   }
 
+  // Escrow v2 refuses to settle after `expires_at`, so the TTL is the window
+  // the operators can be paid in and the buyer's lock-up before reclaim. It
+  // has one owner; a literal here would drift from it silently.
+  it("asks for the named escrow ttl and labels the authorization with the plan", async () => {
+    render(<ExecutionPlan plan={plan()} />);
+    await signedCap();
+    const body = api.buildAuthorize.mock.calls[0][0];
+    expect(body.ttl_seconds).toBe(AUTHORIZE_TTL_SECONDS);
+    expect(body.ttl_seconds).toBe(1800);
+    // The backend refuses to run a plan against an authorization labelled
+    // for another one, so the label is this plan's id and nothing else.
+    expect(body.agent_id).toBe("plan_unit");
+    expect(body.payer).toBe(PAYER);
+  });
+
+  // Escrow v2 takes custody at authorize. The sentence at the button is the
+  // buyer's last chance to learn that signing moves the money NOW, what it
+  // pays for, and that the unspent part comes back.
+  it("says the signature moves the cap into escrow now, and what happens to it", async () => {
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await shownCap(container);
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "one signature that moves up to 0.123 XLM from your wallet into escrow now.",
+    );
+    expect(text).toContain(
+      "Delivered steps are paid from it, and the rest comes back to you when the run settles.",
+    );
+    expect(text).not.toMatch(/authorizing up to|nothing is moved/i);
+  });
+
   it("signs exactly the cap it shows", async () => {
     const { container } = render(<ExecutionPlan plan={plan()} />);
     expect(await shownCap(container)).toBe("0.123 XLM");
     expect(await signedCap()).toBe(0.123);
+  });
+
+  // Finding S6: the backend stopped rounding the total, and a cap printed to
+  // three places showed 0.1234 as 0.123 — less than leaves the wallet.
+  it("shows a cap past three decimals exactly as it is signed, never rounded down", async () => {
+    const { container } = render(
+      <ExecutionPlan plan={plan({ total_usdc: 0.1234567 })} />,
+    );
+    expect(await shownCap(container)).toBe("0.1234567 XLM");
+    expect(await signedCap()).toBe(0.1234567);
   });
 
   // The case the two used to disagree on: a plan priced at zero still signs a
@@ -520,6 +803,114 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
     expect(await shownCap(container)).toBe("0.001 XLM");
     expect(await signedCap()).toBe(0.001);
     expect(container.textContent).not.toMatch(/up to\s*0\.000/);
+  });
+});
+
+describe("ExecutionPlan · a wallet that cannot fund the escrow", () => {
+  // Escrow v2 moves the whole cap out of the wallet at signing. A buyer
+  // short of it is told so before the wallet is asked for anything.
+  it("refuses before building or signing, with a typed insufficient balance", async () => {
+    wallet.xlmBalance = "0.5000000";
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/Not enough XLM to fund this authorization/);
+    const text = container.textContent ?? "";
+    expect(text).toContain("insufficient_balance");
+    expect(text).toContain("It holds 0.5 XLM");
+    expect(text).toContain("Nothing was signed or moved.");
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
+    expect(wallet.signXdr).not.toHaveBeenCalled();
+  });
+
+  // Unknown is not zero: the chain decides, and its refusal is mapped.
+  it("goes ahead when the balance could not be read", async () => {
+    wallet.xlmBalance = null;
+    api.buildAuthorize.mockReturnValue(new Promise(() => {}));
+    render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await waitFor(() => expect(api.buildAuthorize).toHaveBeenCalledTimes(1));
+  });
+
+  it("maps the chain's balance refusal to the same typed error", async () => {
+    api.buildAuthorize.mockResolvedValue({ xdr: "AAAA", expires_at: 1 });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "FAILED",
+      hash: "f00d",
+      return_value: null,
+      diagnostic:
+        "<SCVal [type=2, error=<SCError [type=0, contract_code=<Uint32 [uint32=10]>]>]>",
+    });
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/Not enough XLM to fund this authorization/);
+    expect(container.textContent).toContain("insufficient_balance");
+    expect(api.execute).not.toHaveBeenCalled();
+  });
+
+  it("says a failed build moved nothing, and names the likely cause", async () => {
+    api.buildAuthorize.mockRejectedValue(
+      Object.assign(
+        new Error("POST /stellar/build/authorize → 400 — build_failed"),
+        { status: 400, code: "build_failed" },
+      ),
+    );
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/The authorization could not be prepared/);
+    expect(container.textContent).toContain("nothing was signed or moved");
+    expect(wallet.signXdr).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExecutionPlan · the escrow this console is written for", () => {
+  const V2 = `C${"V".repeat(55)}`;
+  const withEscrow = (id: string) =>
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: id },
+    });
+
+  // Every sentence at the button describes escrow v2's custody. Against any
+  // other escrow the signature would go where the copy does not describe.
+  it("pauses Authorize, and says why, when the backend settles through another escrow", async () => {
+    escrowPin.value = V2;
+    withEscrow(ESCROW_ID);
+    render(<ExecutionPlan plan={plan()} />);
+    const notice = await screen.findByText(/On-chain payment is paused/);
+    expect(notice.textContent).toContain(ESCROW_ID);
+    expect(notice.textContent).toContain(V2);
+    expect(authorizeButton().hasAttribute("disabled")).toBe(true);
+    expect(authorizeButton().getAttribute("aria-describedby")).toBe(notice.id);
+    fireEvent.click(authorizeButton());
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
+    // A simulated pass signs nothing against the escrow.
+    expect(
+      screen
+        .getByRole("button", { name: /simulate/i })
+        .hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("asks for the signature when the backend's escrow is the pinned one", async () => {
+    escrowPin.value = V2;
+    withEscrow(V2);
+    render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    expect(screen.queryByText(/On-chain payment is paused/)).toBeNull();
+    expect(authorizeButton().hasAttribute("disabled")).toBe(false);
+  });
+
+  it("decides nothing while no v2 escrow is pinned", async () => {
+    withEscrow(ESCROW_ID);
+    render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    expect(screen.queryByText(/On-chain payment is paused/)).toBeNull();
+    expect(authorizeButton().hasAttribute("disabled")).toBe(false);
   });
 });
 
@@ -560,6 +951,44 @@ describe("ExecutionPlan · the floor's marks on each step", () => {
 
   // The substitution is marked on the step that took the work, naming the
   // agent it stood in for, with the reason on hover.
+  // Finding S8: an agent replaced only because a fresh reputation read had
+  // not answered may have a bound ABOVE the floor. The chip must not say it
+  // scored below it.
+  it("never says a replaced agent held for a fresh read scored below the floor", () => {
+    render(
+      <ExecutionPlan
+        plan={plan({
+          steps: [
+            step({
+              agent_id: "design.figma",
+              agent_name: "design.figma",
+              substituted_for: "vision.ocr",
+            }),
+          ],
+          notices: [
+            {
+              kind: "substituted",
+              agent_id: "vision.ocr",
+              replacement_id: "design.figma",
+              reason:
+                "rated since its last reputation read (6100 bps), so held off routing until a fresh read answers (floor 5500 bps)",
+              reason_code: "below_floor",
+              lower_bound_bps: 6100,
+              floor_bps: 5500,
+              awaiting_fresh_read: true,
+            },
+          ],
+        })}
+      />,
+    );
+    const title = screen
+      .getByText("⇄ for vision.ocr")
+      .closest("[title]")
+      ?.getAttribute("title");
+    expect(title).toContain("held off until a fresh read answers");
+    expect(title).not.toContain("below the routing floor");
+  });
+
   it("marks a substituted step with the agent it replaced", () => {
     render(
       <ExecutionPlan

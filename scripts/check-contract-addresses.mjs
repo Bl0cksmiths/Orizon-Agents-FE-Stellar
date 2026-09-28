@@ -105,6 +105,20 @@ const frontend = readJson(
   "The frontend address book",
 );
 
+// The escrow v2 pin (lib/escrow-address.ts): the PaymentEscrow this build's
+// payment copy describes. Null on a network v2 has not reached yet — never a
+// guessed id — and reported as pending rather than compared; once set, it is
+// held to the id the deploy scripts recorded for v2 on that network like any
+// fallback. `make deploy-escrow-v2` records it as `payment_escrow_v2` and
+// keeps v1's id under `payment_escrow` as history, so that is the key the
+// pin answers to. Both segments must be present, so a typo cannot read as
+// "null".
+const escrowPins = readJson(
+  join(root, "lib", "escrow-address.json"),
+  "The escrow v2 pin",
+);
+const CANONICAL_ESCROW_KEY = "payment_escrow_v2";
+
 const rows = [];
 let failed = false;
 let compared = 0;
@@ -145,6 +159,36 @@ for (const { segment, file, network } of MIRRORS) {
     const ok = mine === theirs;
     if (!ok) failed = true;
     rows.push({ ok, contract, segment, mine, theirs });
+  }
+
+  const pin = escrowPins[segment];
+  if (pin === undefined) {
+    fail(
+      `lib/escrow-address.json is missing the "${segment}" entry. Set it to ` +
+        "null until escrow v2 is deployed on that network, then to its id.",
+    );
+  }
+  if (pin === null) {
+    rows.push({
+      ok: true,
+      pending: true,
+      contract: "escrow v2 pin",
+      segment,
+      mine: "not pinned — escrow v2 is not deployed on this network yet",
+      theirs: "",
+    });
+  } else {
+    compared += 1;
+    const theirs = canonical[CANONICAL_ESCROW_KEY];
+    const ok = pin === theirs;
+    if (!ok) failed = true;
+    rows.push({
+      ok,
+      contract: "escrow v2 pin",
+      segment,
+      mine: String(pin),
+      theirs: theirs ?? `no "${CANONICAL_ESCROW_KEY}" in ${file}`,
+    });
   }
 }
 
@@ -285,9 +329,10 @@ for (const id of new Set(readmeText.match(/C[A-Z2-7]{55}/g) ?? [])) {
   });
 }
 
-for (const { ok, contract, segment, mine, theirs } of rows) {
+for (const { ok, pending, contract, segment, mine, theirs } of rows) {
+  const mark = pending ? "pend" : ok ? "  ok" : "FAIL";
   console.log(
-    `${ok ? "  ok" : "FAIL"}  ${contract} (${segment})  ${ok ? mine : `${mine} != ${theirs}`}`,
+    `${mark}  ${contract} (${segment})  ${ok ? mine : `${mine} != ${theirs}`}`,
   );
 }
 
