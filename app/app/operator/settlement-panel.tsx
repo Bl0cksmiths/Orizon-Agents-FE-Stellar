@@ -25,8 +25,12 @@ import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
-import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { getSettlement } from "@/lib/api";
+import {
+  StellarExpertLink,
+  defaultExplorerNetwork,
+} from "@/components/ui/stellar-link";
+import { getSettlement, getStellarNetwork } from "@/lib/api";
+import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
 import { assetLabel, formatSettled } from "@/lib/money";
 import type { AgentSettlement, SettlementEntry } from "@/lib/types";
 import { focusRing } from "@/lib/ui";
@@ -167,25 +171,23 @@ function TruncatedNotice({ data }: { data: AgentSettlement }) {
 }
 
 /**
- * Why a completed run can leave no payment behind.
+ * Why a completed run could leave no payment behind — under escrow v1.
  *
- * This is the finding, not a caveat. `PaymentEscrow.authorize` records an
+ * This is the finding, not a caveat. v1's `authorize` recorded an
  * authorization while taking neither custody of the payer's funds nor an
- * allowance against them, so `charge` later calls `transfer` from the payer —
+ * allowance against them, so `charge` later called `transfer` from the payer —
  * an account that did not sign the settling transaction, whose
- * `require_auth()` therefore cannot pass. The settler is the only signer, so
- * the settler's own balance is the only one the call can ever move. Worse,
- * the failure does not propagate: the run finalizes as `complete` either way,
- * which is why the job log and the money disagree and nobody noticed.
+ * `require_auth()` therefore could not pass. The settler was the only signer,
+ * so the settler's own balance was the only one the call could ever move.
+ * Worse, the failure did not propagate: the run finalized as `complete`
+ * either way, which is why the job log and the money disagreed.
  *
- * It is stated on the operator's dashboard, in the place the missing money
- * would otherwise be, because the operator is the person who pays for this
- * silence — and because the wording has to rule out the inference they will
- * otherwise draw, which is that the market passed them over. The closing
- * sentences are deliberately negative claims ("not a measure of", "not a
- * signal about") rather than a reassurance about the future: nobody can
- * promise this agent will be paid once the contract is fixed, so nothing here
- * says so.
+ * Escrow v2 does not have this defect, so the note is scoped to v1 by name:
+ * it is shown whenever the panel cannot establish that the scan reads the v2
+ * escrow this build pins (`escrowAgreement`), and `EscrowV2Note` replaces it
+ * when it can. The closing sentences stay deliberately negative claims ("not
+ * a measure of", "not a signal about") rather than a reassurance about the
+ * future: nobody can promise this agent will be paid, so nothing here says so.
  */
 function ChargeDefectNote() {
   return (
@@ -195,15 +197,15 @@ function ChargeDefectNote() {
     // the explanation below reads as that tile's footnote.
     <div className="space-y-2 border-t border-border/60 pt-5">
       <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
-        Why nothing settles
+        Why nothing settles under escrow v1
       </h3>
       <p className="max-w-2xl text-xs leading-relaxed text-muted">
-        The escrow's charge path cannot move a customer's funds. Authorizing a
-        payment takes no custody of the payer's balance and no allowance against
-        it, so at settlement the transfer is attempted from an account that
-        never signed the settling transaction. The only account that signs one
-        is the platform's own settler, and its balance is the only one the call
-        can draw on.
+        Escrow v1&apos;s charge path cannot move a customer&apos;s funds.
+        Authorizing a payment under v1 takes no custody of the payer&apos;s
+        balance and no allowance against it, so at settlement the transfer is
+        attempted from an account that never signed the settling transaction.
+        The only account that signs one is the platform&apos;s own settler, and
+        its balance is the only one the call can draw on.
       </p>
       <p className="max-w-2xl text-xs leading-relaxed text-muted">
         That transfer fails without failing the run — the run still finalizes as
@@ -211,11 +213,53 @@ function ChargeDefectNote() {
         log and the money disagree.
       </p>
       <p className="max-w-2xl text-xs leading-relaxed text-muted">
-        Every charge on record was paid by the platform's settler into an
+        Every charge v1 recorded was paid by the platform&apos;s settler into an
         account the platform itself owns, and the readable event window holds no
         charge from a customer for any agent. This is a defect in the escrow
-        contract, on the platform's side of the line. It is not a measure of
-        your agent, and not a signal about demand for it.
+        contract, on the platform&apos;s side of the line. It is not a measure
+        of your agent, and not a signal about demand for it.
+      </p>
+      <p className="max-w-2xl text-xs leading-relaxed text-muted">
+        Escrow v2 takes a buyer&apos;s funds into custody when they authorize
+        and pays each delivered step&apos;s operator from them when the run
+        settles. When the platform settles through v2, this scan reads v2&apos;s
+        charges, and v1&apos;s drop out of it.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * What a zero means when the scan reads escrow v2.
+ *
+ * v2 pays each delivered step's operator from the buyer's own escrowed
+ * funds, and each `charged` event names the agent it actually paid — so here
+ * a zero is a real finding about this window, not the platform's defect. It
+ * is still scoped to the window, and still never a promise.
+ */
+function EscrowV2Note({
+  agentName,
+  windowDays,
+}: {
+  agentName: string;
+  windowDays: number;
+}) {
+  return (
+    <div className="space-y-2 border-t border-border/60 pt-5">
+      <h3 className="font-mono text-[11px] uppercase tracking-widest text-cyan">
+        What this scan reads
+      </h3>
+      <p className="max-w-2xl text-xs leading-relaxed text-muted">
+        This scan reads escrow v2, where each charged event names the agent the
+        settlement actually paid, from the buyer&apos;s own escrowed funds. None
+        paid {agentName} in the last {windowDays} days. A step run by a seeded
+        platform agent is never paid, and a step that did not deliver is not
+        charged.
+      </p>
+      <p className="max-w-2xl text-xs leading-relaxed text-muted">
+        Charges made under escrow v1 are not in this scan: v1 is no longer the
+        contract the platform settles through, and it never moved a
+        customer&apos;s funds.
       </p>
     </div>
   );
@@ -269,9 +313,10 @@ function exclusionReason(exclusion: string | null | undefined): string {
     case "settler":
       return (
         "The payer on this charge resolves to the platform's own settler — " +
-        "the account that signs settlements — so it moved platform funds to " +
-        "the platform. It is listed because it happened on-chain, and left " +
-        "out of revenue because no customer paid it."
+        "the account that signs settlements, or another key the platform " +
+        "holds — so it moved platform funds to the platform. It is listed " +
+        "because it happened on-chain, and left out of revenue because no " +
+        "customer paid it."
       );
     case "payer_unreadable":
       return (
@@ -447,6 +492,14 @@ export function SettlementPanel({
     () => getSettlement(agentId),
     [agentId],
   );
+  // Which escrow the scan reads. The backend scans the escrow it is
+  // configured with, and only a match with this build's v2 pin establishes
+  // that it is v2; anything else — no pin yet, another escrow, a failed read
+  // — keeps the v1 explanation, which names v1 rather than claiming it.
+  const { data: network } = useFetch(getStellarNetwork, []);
+  const readsV2 =
+    escrowAgreement(network, pinnedEscrowId(defaultExplorerNetwork)).kind ===
+    "match";
   const headingId = useId();
 
   // Checked before `loading` so an automatic retry keeps the announced failure
@@ -554,7 +607,13 @@ export function SettlementPanel({
       {/* Tied to the zero it explains rather than shown always: an agent with
           real customer revenue is not living under this defect, and a standing
           contract-bug essay over a working figure would be noise. */}
-      {data.total_stroops === 0 ? <ChargeDefectNote /> : null}
+      {data.total_stroops === 0 ? (
+        readsV2 ? (
+          <EscrowV2Note agentName={agentName} windowDays={data.window_days} />
+        ) : (
+          <ChargeDefectNote />
+        )
+      ) : null}
       <ChargeList data={data} />
       <ScanFacts data={data} />
       {/* The one control that re-reads the chain. Without it `reload` is only
