@@ -27,7 +27,11 @@ export type GuideMeta = {
 
 /** A content problem that must stop the build. The message is for authors. */
 export class GuideContentError extends Error {
-  constructor(file: string, problems: string[]) {
+  constructor(
+    file: string,
+    /** Each problem on its own, so several checks can report together. */
+    readonly problems: string[],
+  ) {
     super(
       `${file}: the guide cannot be published.\n` +
         problems.map((p) => `  - ${p}`).join("\n"),
