@@ -18,7 +18,9 @@ export const DEFAULT_GUIDE_DIR = "content/guides";
 export type LoadedGuide = ParsedGuide & { slug: string };
 
 /** The directory guides are read from, absolute. */
-export function guideDir(env: NodeJS.ProcessEnv = process.env): string {
+export function guideDir(
+  env: { GUIDE_CONTENT_DIR?: string } = process.env,
+): string {
   return path.resolve(
     process.cwd(),
     env.GUIDE_CONTENT_DIR?.trim() || DEFAULT_GUIDE_DIR,
