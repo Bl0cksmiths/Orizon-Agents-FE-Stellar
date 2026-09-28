@@ -1072,6 +1072,9 @@ export function disputeView(input: {
       kind: "not_settled",
       running: !workflowDone,
       ...(settlementState === undefined ? {} : { settlementState }),
+      ...(settlementState === "unconfirmed" && waitOver
+        ? { settlementStoppedChecking: true }
+        : {}),
     };
 
   const viewer = viewerOf(settlement.payer, viewerAddress);

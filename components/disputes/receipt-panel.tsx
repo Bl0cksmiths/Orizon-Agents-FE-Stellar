@@ -81,6 +81,7 @@ export function ReceiptPanel({
         headingId={headingId}
         running={view.running}
         settlementState={view.settlementState ?? null}
+        stoppedChecking={view.settlementStoppedChecking ?? false}
       />
     );
   }
@@ -112,10 +113,13 @@ function NotSettled({
   headingId,
   running,
   settlementState,
+  stoppedChecking,
 }: {
   headingId: string;
   running: boolean;
   settlementState: SettlementState | null;
+  /** The panel stopped re-reading an unconfirmed settlement. */
+  stoppedChecking: boolean;
 }) {
   const said = running ? null : settlementState;
   const loud = said === "failed" || said === "unconfirmed";
@@ -145,6 +149,9 @@ function NotSettled({
         {said !== null && <SettlementBadge state={said} />}
         <p role="status" className="text-xs leading-relaxed text-muted">
           {notSettledSentence(running, said)}
+          {stoppedChecking && said === "unconfirmed"
+            ? " This page has stopped checking for it — reload to look again."
+            : null}
         </p>
       </div>
     </section>

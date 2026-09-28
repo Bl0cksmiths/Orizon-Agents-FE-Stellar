@@ -875,6 +875,8 @@ export type DisputePanelView =
       running: boolean;
       /** The backend's settlement state, when it reports one. */
       settlementState?: SettlementState | null;
+      /** The panel stopped re-reading an unconfirmed settlement. */
+      settlementStoppedChecking?: boolean;
     }
   | {
       kind: "settled";
