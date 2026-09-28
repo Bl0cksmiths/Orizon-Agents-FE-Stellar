@@ -277,7 +277,26 @@ describe("AdoptionView — external operators", () => {
     expect(text(row)).not.toContain("team-funded");
   });
 
-  it("labels a payer that is one of our wallets team-funded", () => {
+  it("labels a team payer with the role the backend sends", () => {
+    const a = withOperator([BUYER, BUYER]);
+    const [outside, team] = a.operators[0].agents[0].settled_workflows;
+    outside.payer_team_role = null;
+    team.payer_team_role = "developer";
+    render(<AdoptionView adoption={a} />);
+    const rows = within(
+      screen.getByRole("table", {
+        name: "Settled workflows for ext.translate",
+      }),
+    )
+      .getAllByRole("row")
+      .slice(1);
+    expect(text(rows[0])).not.toContain("team-funded");
+    expect(text(rows[1])).toContain(
+      "team-funded: developer — paid by a wallet we control",
+    );
+  });
+
+  it("falls back to the excluded list when the backend sends no role field", () => {
     render(<AdoptionView adoption={withOperator([BUYER, TEAM])} />);
     const rows = within(
       screen.getByRole("table", {
@@ -288,7 +307,7 @@ describe("AdoptionView — external operators", () => {
       .slice(1);
     expect(text(rows[0])).not.toContain("team-funded");
     expect(text(rows[1])).toContain(
-      "team-funded — paid by a wallet we control",
+      "team-funded: settler and scorer — paid by a wallet we control",
     );
   });
 });
