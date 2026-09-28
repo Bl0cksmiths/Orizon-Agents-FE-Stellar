@@ -32,9 +32,17 @@ export type SettledWorkflow = {
   job_id_hex: string;
   tx_hash: string;
   explorer?: string | null;
+  /** Named for mainnet. On testnet the settled asset is native XLM, so the
+   * unit is never read off this field's name — see `amountUnit`. */
   amount_usdc: number;
-  /** Who paid. May be one of the team's own wallets — see `isTeamFunded`. */
+  /** Who paid. May be one of the team's own wallets — see `teamFunding`. */
   payer: string;
+  /**
+   * The payer's role in the team wallet register when the payer is one of our
+   * wallets, null when it is not. Absent on a backend that predates it; the
+   * `excluded` list is the fallback then.
+   */
+  payer_team_role?: string | null;
   /** Unix seconds. */
   settled_at: number;
 };
@@ -110,6 +118,9 @@ function isSettledWorkflow(v: unknown): v is SettledWorkflow {
     isOptionalStr(v.explorer) &&
     isNum(v.amount_usdc) &&
     isStr(v.payer) &&
+    // A role is rendered as text beside the payer; an object there would take
+    // the page down, and a `true` would say nothing about who paid.
+    isOptionalStr(v.payer_team_role) &&
     isNum(v.settled_at)
   );
 }
