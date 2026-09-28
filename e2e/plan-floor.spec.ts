@@ -899,6 +899,7 @@ test.describe("plan card — what each claim rests on", () => {
         await expect(exclusions(page)).toHaveJSProperty("open", true);
       }
 
+      await motionSettled(page.locator("main"));
       const { violations } = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
         .analyze();
