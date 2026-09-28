@@ -106,7 +106,7 @@ describe("parseFenceInfo", () => {
     ['id="a" verify="live" title="  "', "title is empty"],
     [
       'id="a" verify="live" title="t" lang="x"',
-      'unknown attribute "lang" (expected id, verify, title)',
+      'unknown attribute "lang" (expected id, verify, title, schema, status)',
     ],
     ['id="a" id="b" verify="live" title="t"', 'attribute "id" is given twice'],
     [
