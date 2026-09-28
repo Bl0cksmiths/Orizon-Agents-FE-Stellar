@@ -635,6 +635,16 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
     expect(await signedCap()).toBe(0.123);
   });
 
+  // Finding S6: the backend stopped rounding the total, and a cap printed to
+  // three places showed 0.1234 as 0.123 — less than leaves the wallet.
+  it("shows a cap past three decimals exactly as it is signed, never rounded down", async () => {
+    const { container } = render(
+      <ExecutionPlan plan={plan({ total_usdc: 0.1234567 })} />,
+    );
+    expect(await shownCap(container)).toBe("0.1234567 XLM");
+    expect(await signedCap()).toBe(0.1234567);
+  });
+
   // The case the two used to disagree on: a plan priced at zero still signs a
   // positive cap, and the sentence has to name that cap, not the zero.
   it("shows the cap it signs on a zero-priced plan, never 0.000", async () => {
