@@ -11,6 +11,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { disputeScan } from "./dispute-axe";
 import { horizontalOverflow } from "./dispute-layout";
+import { mockNetwork } from "./plan-fixtures";
 import {
   mockAdoptionWithOperator,
   mockAgents,
@@ -81,6 +82,9 @@ test.describe("ecosystem page", () => {
 
   test("labels a team-funded payer and a partial read", async ({ page }) => {
     await mockApi(page, { adoption: mockAdoptionWithOperator });
+    // Registered after mockApi so it wins: the network reports the testnet
+    // SAC wrapping native XLM.
+    await mockNetwork(page);
     await page.goto("/app/ecosystem");
 
     await expect(
@@ -96,7 +100,12 @@ test.describe("ecosystem page", () => {
     const rows = table.getByRole("row");
     await expect(rows).toHaveCount(3);
     await expect(rows.nth(1)).not.toContainText("team-funded");
-    await expect(rows.nth(2)).toContainText("team-funded");
+    await expect(rows.nth(2)).toContainText(
+      "team-funded: Blocksmiths developer",
+    );
+    // Testnet settles in native XLM, whatever the wire field is called.
+    await expect(rows.nth(1)).toContainText("0.0125 XLM");
+    await expect(table).not.toContainText("USDC");
     await expect(
       rows.nth(1).getByRole("link", { name: /^tx 4f1d0c9a…/ }),
     ).toHaveAttribute(
