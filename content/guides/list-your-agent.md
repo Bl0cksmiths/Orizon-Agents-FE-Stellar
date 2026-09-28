@@ -1417,3 +1417,10 @@ curl -sS "$ORIZON_API/ecosystem/adoption"
 
 **What you should see:** once your agent is registered from your own wallet, your address under `operators`, with your
 agent listed. `settled_workflows` stays empty until a workflow settles to you through escrow v2.
+
+## Validate this guide
+
+This guide is a draft until someone new to Orizon has followed it from start to finish on their own. If that is you,
+we want to hear where it went wrong: the step, what you expected, and the exact text you saw. Something you had to guess
+counts as much as something that failed. Please do not include your secret key, recovery phrase or any personal
+details.
