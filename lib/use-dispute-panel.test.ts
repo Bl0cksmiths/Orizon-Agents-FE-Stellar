@@ -551,6 +551,51 @@ describe("disputePollMs", () => {
   });
 });
 
+describe("disputePollMs — an unconfirmed escrow v2 settlement", () => {
+  const pollFor = (
+    res: TaskDisputes,
+    over: Partial<{ awaitedMs: number; pendingAwaitedMs: number }> = {},
+  ) => disputePollMs({ res, doneAtRequest: true, awaitedMs: 0, ...over });
+
+  // It may still land, and nothing the buyer does would fetch again when it
+  // does. Fast, then slow, then not at all — with or without a record.
+  it.each([
+    ["with a record", answer(H, { settlement_state: "unconfirmed" })],
+    [
+      "with no record",
+      answer(H, { settlement: null, settlement_state: "unconfirmed" }),
+    ],
+  ])("re-reads it on the chain-wait cadence, bounded, %s", (_name, res) => {
+    expect(pollFor(res, { awaitedMs: SETTLEMENT_WAIT_MS })).toBe(
+      CREDIT_POLL_MS,
+    );
+    expect(
+      pollFor(res, {
+        awaitedMs: SETTLEMENT_WAIT_MS,
+        pendingAwaitedMs: PENDING_FAST_WAIT_MS,
+      }),
+    ).toBe(ADJUDICATION_POLL_MS);
+    expect(
+      pollFor(res, {
+        awaitedMs: SETTLEMENT_WAIT_MS,
+        pendingAwaitedMs: PENDING_WAIT_MS,
+      }),
+    ).toBeNull();
+  });
+
+  it("stops asking once a failed settlement's short wait is spent", () => {
+    const failed = answer(H, { settlement: null, settlement_state: "failed" });
+    expect(pollFor(failed, { awaitedMs: SETTLEMENT_WAIT_MS })).toBeNull();
+  });
+
+  it("counts an unconfirmed settlement as something still moving", () => {
+    expect(pendingKey(answer(H, { settlement_state: "unconfirmed" }))).toBe(
+      "settlement:unconfirmed",
+    );
+    expect(pendingKey(answer(H, { settlement_state: "settled" }))).toBe("");
+  });
+});
+
 describe("pendingKey", () => {
   it("is empty when nothing on the receipt can move", () => {
     expect(pendingKey(answer(H))).toBe("");
