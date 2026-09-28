@@ -286,15 +286,17 @@ const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=([\s\S]*)$/;
  *
  * @param {Command} command
  * @param {Record<string, string>} env
+ * @param {Set<string>} [pinned]  names an assignment may not change
  * @returns {boolean}  true when the command was assignments only
  */
-export function applyAssignments(command, env) {
+export function applyAssignments(command, env, pinned = new Set()) {
   const words =
     command.words[0] === "export" ? command.words.slice(1) : command.words;
   if (words.length === 0 || !words.every((w) => ASSIGNMENT.test(w)))
     return false;
   for (const w of words) {
     const [, name, raw] = /** @type {RegExpExecArray} */ (ASSIGNMENT.exec(w));
+    if (pinned.has(name)) continue;
     const value = resolveWord(raw, env);
     if (hasMarker(value)) delete env[name];
     else env[name] = value;
@@ -302,8 +304,16 @@ export function applyAssignments(command, env) {
   return true;
 }
 
-/** The variables a reader's shell would hold after running these fences. */
-export function sessionEnv(codes, base = {}) {
+/**
+ * The variables a reader's shell would hold after running these fences.
+ * `pinned` names keep their `base` value: the live run's `--api` wins over the
+ * guide's own `export ORIZON_API=...`.
+ *
+ * @param {string[]} codes
+ * @param {Record<string, string>} [base]
+ * @param {Set<string>} [pinned]
+ */
+export function sessionEnv(codes, base = {}, pinned = new Set()) {
   /** @type {Record<string, string>} */
   const env = { ...base };
   for (const code of codes) {
@@ -315,7 +325,7 @@ export function sessionEnv(codes, base = {}) {
     }
     for (const pipeline of parsed.pipelines) {
       if (pipeline.commands.length === 1)
-        applyAssignments(pipeline.commands[0], env);
+        applyAssignments(pipeline.commands[0], env, pinned);
     }
   }
   return env;
