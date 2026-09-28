@@ -16,7 +16,17 @@
  *   ```
  *
  * `status="<code>"` on a `-response` fence documents a non-200 answer; without
- * it the documented response is the operation's 200.
+ * it the documented response is the operation's 200. A `-response` or
+ * `-output` fence may repeat its sample's `verify=` (it must then agree).
+ *
+ * An HTTP sample is a curl against `$ORIZON_API`. A curl to any other host (a
+ * faucet, the reader's own agent) is an EXTERNAL curl: it is outside the API
+ * contract, needs no response fence, and can only be `verify="manual"`.
+ *
+ * A `json` sample may name a contract schema, `schema="AgentIdAvailability"`,
+ * to be validated against `#/components/schemas/AgentIdAvailability`. A json
+ * sample has nothing to execute, so `verify="offline"` on one means the same
+ * static check as `manual`.
  */
 
 export const GUIDE_PATH = "content/guides/list-your-agent.md";
@@ -27,7 +37,7 @@ export const MODES = new Set(["live", "offline", "manual"]);
 /** Which languages each verify mode can apply to. */
 const MODE_LANGS = {
   live: new Set(["bash"]),
-  offline: new Set(["bash", "python", "js"]),
+  offline: new Set(["bash", "python", "js", "json"]),
   manual: LANGS,
 };
 
@@ -51,7 +61,7 @@ const FRONTMATTER_RULES = {
   status: [/^[a-z][a-z-]*$/, "a lowercase word such as draft or published"],
 };
 
-const FENCE_ATTRS = new Set(["id", "verify", "title", "status"]);
+const FENCE_ATTRS = new Set(["id", "verify", "title", "status", "schema"]);
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const RESPONSE_SUFFIX = "-response";
 export const OUTPUT_SUFFIX = "-output";
@@ -61,7 +71,7 @@ export const OUTPUT_SUFFIX = "-output";
  * @typedef {{
  *   id: string, lang: string, verify: string | undefined, title: string | undefined,
  *   attrs: Record<string, string>, code: string, line: number, index: number,
- *   kind: "sample" | "response" | "output", http: boolean,
+ *   kind: "sample" | "response" | "output", curl: boolean, http: boolean, external: boolean,
  *   response?: Fence, output?: Fence, attachedTo?: string,
  * }} Fence
  */
@@ -316,8 +326,13 @@ export function parseGuide(text) {
       line: raw.line,
       index,
       kind,
-      http: lang === "bash" && isHttpCode(raw.code),
+      curl: lang === "bash" && isHttpCode(raw.code),
+      http: false,
+      external: false,
     };
+    // A curl against $ORIZON_API is an HTTP sample; any other curl is external.
+    fence.http = fence.curl && API_USE.test(raw.code);
+    fence.external = fence.curl && !fence.http;
     byId.set(id, fence);
     fences.push(fence);
   });
@@ -358,6 +373,19 @@ export function parseGuide(text) {
         message: 'verify="live" is only for curl samples',
       });
     }
+    if (fence.external && fence.verify !== "manual") {
+      errors.push({
+        ...where,
+        message:
+          'a curl that is not against $ORIZON_API is outside the contract and can only be verify="manual"',
+      });
+    }
+    if ("schema" in fence.attrs && fence.lang !== "json") {
+      errors.push({
+        ...where,
+        message: "schema= only applies to a json sample",
+      });
+    }
     if (fence.verify === "offline" && fence.http) {
       errors.push({
         ...where,
@@ -375,10 +403,10 @@ export function parseGuide(text) {
     const baseId = fence.id.slice(0, -suffix.length);
     const where = { line: fence.line, id: fence.id };
     const base = byId.get(baseId);
-    if ("verify" in fence.attrs) {
+    if ("schema" in fence.attrs) {
       errors.push({
         ...where,
-        message: `a ${suffix} fence is never executed; drop verify=`,
+        message: `schema= does not apply to a ${suffix} fence`,
       });
     }
     if (fence.kind === "output" && "status" in fence.attrs) {
@@ -401,13 +429,19 @@ export function parseGuide(text) {
       });
     }
     fence.attachedTo = baseId;
+    if ("verify" in fence.attrs && fence.attrs.verify !== base.verify) {
+      errors.push({
+        ...where,
+        message: `${fence.id} says verify="${fence.attrs.verify}" but its sample ${baseId} is verify="${base.verify}"`,
+      });
+    }
     if (fence.kind === "response") {
       if (fence.lang !== "json")
         errors.push({ ...where, message: "a -response fence must be json" });
-      if (!base.http) {
+      if (!base.curl) {
         errors.push({
           ...where,
-          message: `${baseId} is not an HTTP sample; it has no response`,
+          message: `${baseId} is not a curl sample; it has no response`,
         });
       }
       if ("status" in fence.attrs && !/^[1-5]\d\d$/.test(fence.attrs.status)) {
@@ -420,10 +454,10 @@ export function parseGuide(text) {
     } else {
       if (fence.lang !== "text")
         errors.push({ ...where, message: "an -output fence must be text" });
-      if (base.http) {
+      if (base.curl) {
         errors.push({
           ...where,
-          message: `${baseId} is an HTTP sample; document it with -response`,
+          message: `${baseId} is a curl sample; document it with -response`,
         });
       }
       base.output = fence;
