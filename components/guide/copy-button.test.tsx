@@ -51,7 +51,7 @@ afterEach(() => {
 describe("CopyButton", () => {
   it("is disabled in the server HTML, so it is inert without JavaScript", () => {
     const html = renderToString(<CopyButton targetId="x" title="Run it" />);
-    expect(html).toMatch(/<button[^>]*disabled/);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""/);
     expect(html).toContain('aria-label="Copy Run it"');
     expect(html).toMatch(/role="status" aria-live="polite"/);
   });
