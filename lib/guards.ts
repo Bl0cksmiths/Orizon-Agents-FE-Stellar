@@ -205,7 +205,11 @@ export function isTaskList(v: unknown): v is Task[] {
         isStr(t.id) &&
         isNum(t.spent) &&
         isStr(t.status) &&
-        TASK_STATUSES.has(t.status),
+        TASK_STATUSES.has(t.status) &&
+        // The settlement outcome: any string, null, or absent (see Task).
+        (t.settlement === undefined ||
+          t.settlement === null ||
+          isStr(t.settlement)),
     )
   );
 }

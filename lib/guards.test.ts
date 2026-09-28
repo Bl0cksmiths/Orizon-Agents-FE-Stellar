@@ -276,6 +276,20 @@ describe("isTaskList", () => {
     }
   });
 
+  // What happened to the run's money (escrow v2, ADR 0010).
+  it("accepts a settlement outcome as a string, null or absent, and nothing else", () => {
+    for (const settlement of [
+      "settled",
+      "released",
+      "failed",
+      null,
+      undefined,
+    ]) {
+      expect(isTaskList([{ ...task, settlement }])).toBe(true);
+    }
+    expect(isTaskList([{ ...task, settlement: false }])).toBe(false);
+  });
+
   it("rejects a status outside the backend literal (keys the tone map)", () => {
     expect(isTaskList([{ ...task, status: "cancelled" }])).toBe(false);
     const { status: _drop, ...missing } = task;

@@ -57,6 +57,15 @@ export type Task = {
   spent: number;
   status: TaskStatus;
   started: string;
+  /**
+   * What happened to a paid run's money (`TaskSummary.settlement`); null on
+   * a simulated run and absent on a backend that predates it. A run whose
+   * settlement failed still finalizes `complete` when it delivered, so
+   * `status` alone never says the money moved. Read through
+   * `readSettlementState`, which reads a word it does not know as
+   * `unconfirmed`.
+   */
+  settlement?: string | null;
 };
 
 export type PlanStep = {
