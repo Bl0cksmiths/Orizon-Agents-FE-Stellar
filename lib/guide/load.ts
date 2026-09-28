@@ -19,7 +19,7 @@ export type LoadedGuide = ParsedGuide & { slug: string };
 
 /** The directory guides are read from, absolute. */
 export function guideDir(
-  env: { GUIDE_CONTENT_DIR?: string } = process.env,
+  env: Record<string, string | undefined> = process.env,
 ): string {
   return path.resolve(
     process.cwd(),
