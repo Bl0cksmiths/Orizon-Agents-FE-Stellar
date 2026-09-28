@@ -41,6 +41,8 @@ export type ReclaimResult =
   | { kind: "already_reclaimed" }
   /** The backend has no reclaim route yet (404). */
   | { kind: "unavailable" }
+  /** The escrow holds no custody (v1): there is nothing to reclaim. */
+  | { kind: "nothing_held" }
   | { kind: "failed"; error: FriendlyError; hash?: string };
 
 /**
@@ -58,20 +60,22 @@ export function escrowErrorCode(text: string): number | null {
 }
 
 /**
- * The same refusals as the build route may name them. The route belongs to
- * another lane and its codes are not frozen, so the words are matched as
- * well as the contract number its message may carry.
+ * The build route's refusals (backend `authorization_guard.check_reclaimable`,
+ * a read-only simulate before anything is built, so the wallet is never asked
+ * to sign what the contract would refuse), by their exact codes.
  */
-function refusalOf(code: number | null, words: string): ReclaimResult | null {
-  if (code === ESCROW_ERROR.Locked || /\blocked\b|not_expired/i.test(words))
-    return { kind: "not_yet" };
-  if (code === ESCROW_ERROR.Replay || /\breplay\b|already_settled/i.test(words))
-    return { kind: "already_settled" };
-  if (
-    code === ESCROW_ERROR.Revoked ||
-    /\brevoked\b|already_reclaimed/i.test(words)
-  )
-    return { kind: "already_reclaimed" };
+const ROUTE_REFUSALS: Readonly<Record<string, ReclaimResult>> = {
+  authorization_locked: { kind: "not_yet" },
+  authorization_settled: { kind: "already_settled" },
+  authorization_revoked: { kind: "already_reclaimed" },
+  reclaim_unsupported: { kind: "nothing_held" },
+};
+
+/** The contract's own refusal, by code, from a failed transaction. */
+function contractRefusal(code: number | null): ReclaimResult | null {
+  if (code === ESCROW_ERROR.Locked) return { kind: "not_yet" };
+  if (code === ESCROW_ERROR.Replay) return { kind: "already_settled" };
+  if (code === ESCROW_ERROR.Revoked) return { kind: "already_reclaimed" };
   return null;
 }
 
@@ -110,15 +114,31 @@ export async function reclaimAuthorization(args: {
     ) {
       return { kind: "unavailable" };
     }
-    const words = `${e instanceof ApiError ? (e.code ?? "") : ""} ${
-      e instanceof Error ? e.message : String(e)
-    }`;
-    return (
-      refusalOf(escrowErrorCode(words), words) ?? {
-        kind: "failed",
-        error: classifyError(e),
+    if (e instanceof ApiError) {
+      const known = e.code !== undefined ? ROUTE_REFUSALS[e.code] : undefined;
+      if (known !== undefined) return known;
+      const byContract = contractRefusal(escrowErrorCode(e.message));
+      if (byContract !== null) return byContract;
+      // Any other refusal carries the backend's own sentence, which says
+      // what is wrong and what to do; that is what the buyer reads.
+      const body = e.body;
+      const said =
+        typeof body === "object" && body !== null && "error" in body
+          ? (body as { error?: { message?: unknown } }).error?.message
+          : undefined;
+      if (typeof said === "string") {
+        return {
+          kind: "failed",
+          error: {
+            kind: "unknown",
+            title: "The reclaim could not be prepared",
+            detail: `${said.charAt(0).toUpperCase()}${said.slice(1)}. Nothing was signed or sent.`,
+            raw: e.message,
+          },
+        };
       }
-    );
+    }
+    return { kind: "failed", error: classifyError(e) };
   }
 
   const outcome = await signAndSubmit(xdr, args.signXdr, {
@@ -137,7 +157,7 @@ export async function reclaimAuthorization(args: {
         return { kind: "reclaimed", hash: outcome.result.hash };
       const text = `${outcome.result.status} ${outcome.result.diagnostic ?? ""}`;
       return (
-        refusalOf(escrowErrorCode(text), "") ?? {
+        contractRefusal(escrowErrorCode(text)) ?? {
           kind: "failed",
           error: classifyError(new Error(outcome.outcome.message)),
           hash: outcome.result.hash,

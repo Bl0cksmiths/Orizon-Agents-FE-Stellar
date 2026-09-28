@@ -50,6 +50,8 @@ function outcomeSentence(result: ReclaimResult): string {
       return "Nothing to reclaim: this authorization was already reclaimed, and its funds are back in the wallet that paid.";
     case "unavailable":
       return "Reclaim is not available from the console yet: the backend has no route to build the transaction. The escrow still allows it — see how to reclaim it directly.";
+    case "nothing_held":
+      return "Nothing to reclaim: this escrow takes no custody at authorization, so no funds left the wallet that paid.";
     case "failed":
       return `The reclaim did not go through. ${result.error.title}: ${result.error.detail}`;
   }
@@ -92,6 +94,7 @@ export function ReclaimControl({
     (result.kind === "reclaimed" ||
       result.kind === "already_settled" ||
       result.kind === "already_reclaimed" ||
+      result.kind === "nothing_held" ||
       result.kind === "unavailable");
 
   const run = async () => {
