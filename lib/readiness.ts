@@ -19,6 +19,8 @@
  */
 
 import { GET_TIMEOUT_MS, ensure, fetchWithTimeout, httpError } from "./api";
+import { bindHref } from "./binding-status";
+import { explorerHref } from "./explorer-href";
 
 /** The steps, in the order the backend checks them and the checklist lists
  * them. Each one depends on the ones before it. */
@@ -204,4 +206,106 @@ export function checklistSteps(r: AgentReadiness): ChecklistStep[] {
  * step is. A failed or unchecked step is not done: it is where to look next. */
 export function nextStep(steps: ChecklistStep[]): ChecklistStep | null {
   return steps.find((s) => s.status !== "done") ?? null;
+}
+
+/** What each documented step is called on screen. */
+const STEP_LABELS: Record<ReadinessStepKey, string> = {
+  registered: "Registered on-chain",
+  active: "Active",
+  bound: "Endpoint bound",
+  reachable: "Endpoint reachable",
+  routable: "Routable",
+  first_run: "First workflow run",
+  first_settlement: "First settlement",
+};
+
+/** A step's name. An undocumented key is shown as sent, underscores opened
+ * up, rather than hidden. */
+export function stepLabel(key: string): string {
+  return isStepKey(key) ? STEP_LABELS[key] : key.replace(/_/g, " ");
+}
+
+/** What each status says in words. The icon beside it is decoration; this is
+ * the meaning, so colour and glyph are never the only signal. */
+export const STATUS_TEXT: Record<ReadinessStatus, string> = {
+  done: "Done",
+  todo: "To do",
+  failed: "Failed",
+  unknown: "Couldn't check",
+};
+
+/** A page in this app where a step is fixed. */
+export type StepLink = { href: string; label: string };
+
+/**
+ * Where the operator goes to finish a step, when that is a page in this app.
+ * Only for a step that is not done. Activation has no page of its own (it is
+ * a setting on the agent's card) and the last two steps are finished by a
+ * buyer, not by the operator, so none of those three links anywhere.
+ */
+export function stepLink(
+  step: ChecklistStep,
+  agentId: string,
+): StepLink | null {
+  if (step.status === "done") return null;
+  switch (step.key) {
+    case "registered":
+      return { href: "/app/register", label: "Open Register" };
+    case "bound":
+    case "reachable":
+      return { href: bindHref(agentId), label: "Open Bind" };
+    case "routable":
+      return { href: "/app/agents", label: "Open the marketplace" };
+    default:
+      return null;
+  }
+}
+
+/** The evidence link for a step, or null when it carries none. */
+export function evidenceLink(
+  step: ChecklistStep,
+): { href: string; label: string } | null {
+  const ev = step.evidence;
+  if (!ev) return null;
+  const href = explorerHref(ev.explorer, "tx", ev.tx_hash);
+  if (!href) return null;
+  return {
+    href,
+    label: ev.tx_hash ? `tx ${ev.tx_hash.slice(0, 8)}…` : "evidence",
+  };
+}
+
+/** `checked_at` as the operator's own wall-clock time, 24-hour HH:MM:SS. */
+export function formatCheckedAt(checkedAtSeconds: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(checkedAtSeconds * 1_000);
+}
+
+/**
+ * What the live region says after a re-check. It names the agent (several
+ * checklists share one page), the count, and the next step; and when the
+ * answer carries the same `checked_at` as the one it replaced, it says the
+ * backend served its cached check rather than implying nothing changed.
+ */
+export function recheckAnnouncement(
+  r: AgentReadiness,
+  previousCheckedAt: number | null,
+): string {
+  const steps = checklistSteps(r);
+  const done = steps.filter((s) => s.status === "done").length;
+  const next = nextStep(steps);
+  const parts = [
+    `Re-checked ${r.agent_id}: ${done} of ${steps.length} steps done.`,
+    next ? `Next: ${stepLabel(next.key)}.` : "Nothing left to do.",
+  ];
+  if (previousCheckedAt !== null && previousCheckedAt === r.checked_at) {
+    parts.push(
+      `Same check as before, from ${formatCheckedAt(r.checked_at)}: the backend caches it for about ${READINESS_CACHE_SECONDS} seconds.`,
+    );
+  }
+  return parts.join(" ");
 }
