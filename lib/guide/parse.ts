@@ -383,10 +383,18 @@ function transformTaskLists(tree: Root): void {
 /** Parse a guide file's text. `file` names it in every error message. */
 export function parseGuide(source: string, file: string): ParsedGuide {
   const { yaml, body } = splitFrontmatter(source, file);
-  const meta = parseFrontmatter(yaml, file);
+  const problems: string[] = [];
+  // The body is checked even when the frontmatter is wrong, so one build
+  // reports every problem in the file.
+  let meta: GuideMeta | null = null;
+  try {
+    meta = parseFrontmatter(yaml, file);
+  } catch (err) {
+    if (!(err instanceof GuideContentError)) throw err;
+    problems.push(...err.problems);
+  }
   const { tree, warnings } = markdownToSafeHast(body);
 
-  const problems: string[] = [];
   const ids = new Map<string, string>();
   const toc = transformHeadings(tree, problems, ids);
   transformCode(tree, problems, ids);
@@ -395,6 +403,6 @@ export function parseGuide(source: string, file: string): ParsedGuide {
   transformTables(tree);
   transformTaskLists(tree);
 
-  if (problems.length) throw new GuideContentError(file, problems);
+  if (problems.length || !meta) throw new GuideContentError(file, problems);
   return { meta, tree, toc, warnings };
 }

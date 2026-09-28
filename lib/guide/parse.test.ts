@@ -86,9 +86,15 @@ describe("parseGuide: frontmatter", () => {
     });
   });
 
-  it("fails on bad frontmatter before reading the body", () => {
-    expect(() => parseGuide(FRONT.replace('"1.0.0"', '"one"'), FILE)).toThrow(
-      `version: expected semver like "1.0.0", got "one"`,
+  it("reports bad frontmatter and a bad body together", () => {
+    expect(() =>
+      parseGuide(FRONT.replace('"1.0.0"', '"one"') + "# Title\n", FILE),
+    ).toThrow(
+      [
+        `${FILE}: the guide cannot be published.`,
+        `  - version: expected semver like "1.0.0", got "one"`,
+        `  - "# Title": the page title comes from the frontmatter; start sections at ##`,
+      ].join("\n"),
     );
   });
 });
