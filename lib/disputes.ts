@@ -38,11 +38,15 @@ import type {
   DisputeStatus,
   DisputeViewer,
   OpenDisputeReq,
+  SettlementRemainder,
+  SettlementState,
   SettlementStepView,
   SettlementView,
   StepDisputeState,
+  StepPayout,
   TaskDisputes,
 } from "./types";
+import { SETTLEMENT_STATES } from "./types";
 
 /**
  * The longest reason the dialog accepts, after trimming. The backend allows
@@ -194,8 +198,15 @@ function isCreditPolicy(v: unknown): v is CreditPolicy {
   );
 }
 
+/** An amount of money that moved: a finite number no smaller than zero, or
+ * an explicit null. A negative payout or refund is not a figure a receipt
+ * can print as paid, so the settlement carrying one is refused whole. */
+const isNullableAmount = (v: unknown): v is number | null =>
+  v === null || (isNum(v) && v >= 0);
+
 /** `delivered` strictly boolean: it decides whether a step can be disputed at
- * all, and the string "false" is truthy. */
+ * all, and the string "false" is truthy. Escrow v2's payout fields are
+ * optional — a v1 backend sends neither — and typed whenever they are sent. */
 function isSettlementStep(v: unknown): v is SettlementStepView {
   return (
     isRecord(v) &&
@@ -205,7 +216,9 @@ function isSettlementStep(v: unknown): v is SettlementStepView {
     isNum(v.price_usdc) &&
     typeof v.delivered === "boolean" &&
     isNum(v.creditable_usdc) &&
-    isNullableStr(v.output_summary)
+    isNullableStr(v.output_summary) &&
+    isAbsentOr(v.paid_usdc, isNullableAmount) &&
+    isAbsentOr(v.receipt_id_hex, isNullableStr)
   );
 }
 
@@ -221,7 +234,8 @@ function isSettlement(v: unknown): v is SettlementView {
     isNullableStr(v.proof_tx) &&
     Array.isArray(v.steps) &&
     v.steps.every(isSettlementStep) &&
-    isCreditPolicy(v.policy)
+    isCreditPolicy(v.policy) &&
+    isAbsentOr(v.returned_usdc, isNullableAmount)
   );
 }
 
@@ -290,7 +304,10 @@ function acceptedDispute(v: unknown): Dispute | null {
 }
 
 /** The answer as it arrives: every dispute row still unjudged. */
-type RawTaskDisputes = Omit<TaskDisputes, "disputes"> & { disputes: unknown[] };
+type RawTaskDisputes = Omit<TaskDisputes, "disputes" | "settlement_state"> & {
+  disputes: unknown[];
+  settlement_state?: string | null;
+};
 
 /**
  * `settlement` is checked only when the key is present. Absent is a backend
@@ -312,8 +329,31 @@ function isTaskDisputes(v: unknown): v is RawTaskDisputes {
     (v.settlement === undefined ||
       v.settlement === null ||
       isSettlement(v.settlement)) &&
-    Array.isArray(v.disputes)
+    Array.isArray(v.disputes) &&
+    // Any string: one this build cannot name is read by
+    // `acceptedSettlementState`, never a reason to lose the receipt.
+    isAbsentOr(v.settlement_state, isNullableStr)
   );
+}
+
+const KNOWN_SETTLEMENT_STATES: ReadonlySet<string> = new Set(SETTLEMENT_STATES);
+
+/**
+ * The settlement state as this build can use it.
+ *
+ * A state it cannot name — a newer backend's — is read as `unconfirmed`, the
+ * answer that claims least: nothing shown as paid, nothing as failed, nothing
+ * as returned. Dropping it instead would fall back to the pre-v2 reading, in
+ * which a settlement on record is a confirmed charge; turning it into an
+ * error would lose the receipt for a word this build merely does not know.
+ */
+function acceptedSettlementState(
+  v: string | null | undefined,
+): SettlementState | null | undefined {
+  if (v === undefined || v === null) return v;
+  return KNOWN_SETTLEMENT_STATES.has(v)
+    ? (v as SettlementState)
+    : "unconfirmed";
 }
 
 /** A non-empty nonce: the message is checked to END with it, and an empty one
@@ -371,7 +411,17 @@ export async function getTaskDisputes(
     const accepted = acceptedDispute(row);
     if (accepted !== null) disputes.push(accepted);
   }
-  return { ...raw, disputes };
+  const { settlement_state: state, ...rest } = raw;
+  const settlementState = acceptedSettlementState(state);
+  return {
+    ...rest,
+    disputes,
+    // Absent stays absent: it is how a backend that predates the field is
+    // told apart from one that answered null.
+    ...(settlementState === undefined
+      ? {}
+      : { settlement_state: settlementState }),
+  };
 }
 
 /**
@@ -841,9 +891,31 @@ function stepState(
   open: boolean,
   viewer: DisputeViewer,
   waitOver: boolean,
+  settlementState: SettlementState | null | undefined,
 ): StepDisputeState {
+  // A settlement that is not confirmed has paid nobody yet, as far as anyone
+  // can say; one that failed, released or skipped paid nobody at all.
+  if (settlementState === "unconfirmed") return { kind: "payout_unconfirmed" };
+  if (
+    settlementState === "failed" ||
+    settlementState === "released" ||
+    settlementState === "skipped"
+  ) {
+    return { kind: "not_charged" };
+  }
+  // Under v2 each step is paid its own amount, and 0 is a step nobody was
+  // paid for — a free one, or a seeded platform agent's, whose share went
+  // back to the buyer. Neither can be disputed. `null` is a v1 settlement,
+  // judged by its run total as before.
+  const unpaid =
+    step.paid_usdc !== undefined && step.paid_usdc !== null
+      ? step.paid_usdc <= 0
+      : false;
   const charged =
-    step.delivered && step.price_usdc > 0 && settlement.settled_usdc > 0;
+    step.delivered &&
+    step.price_usdc > 0 &&
+    settlement.settled_usdc > 0 &&
+    !unpaid;
   if (!charged) return { kind: "not_charged" };
   if (dispute !== undefined) {
     const receipt = disputeReceipt(
@@ -863,6 +935,93 @@ function stepState(
   }
   if (!open) return { kind: "window_closed" };
   return viewer === "payer" ? { kind: "disputable" } : { kind: "view_only" };
+}
+
+/**
+ * Whether an agent id belongs to the seeded platform catalogue. The backend
+ * reserves the `agt_` prefix for it (`_reserved_id_message`: an operator
+ * cannot register one), and those agents have no on-chain owner, so escrow v2
+ * cannot pay them: `settle` leaves their steps out and their share goes back
+ * to the buyer.
+ */
+export function isPlatformAgent(agentId: string): boolean {
+  return agentId.startsWith("agt_");
+}
+
+/**
+ * What the receipt may say one step's operator was paid, or undefined where
+ * it says nothing new (a backend that reports no settlement state, or a v1
+ * settlement, which paid one total for the run).
+ *
+ * `paid` needs BOTH a confirmed settlement and an amount the backend
+ * reported: a payout is never inferred from a price, a plan or a total. The
+ * transaction is the settlement's own — v2 pays every step inside the one
+ * `settle` — and is offered only when it was recorded.
+ */
+export function stepPayout(
+  step: SettlementStepView,
+  settlementState: SettlementState | null | undefined,
+  settleTx: string | null,
+): StepPayout | undefined {
+  if (settlementState === undefined || settlementState === null)
+    return undefined;
+  switch (settlementState) {
+    case "unconfirmed":
+      return { kind: "pending" };
+    case "failed":
+    case "released":
+    case "skipped":
+      return { kind: "not_paid" };
+    case "settled": {
+      const paid = step.paid_usdc;
+      if (paid === undefined || paid === null) return undefined;
+      if (paid > 0) {
+        return {
+          kind: "paid",
+          usdc: paid,
+          tx: settleTx,
+          receiptIdHex: step.receipt_id_hex ?? null,
+        };
+      }
+      return isPlatformAgent(step.agent_id)
+        ? { kind: "platform" }
+        : { kind: "not_paid" };
+    }
+  }
+}
+
+/**
+ * What the receipt may say came back to the payer, on `stepPayout`'s terms.
+ *
+ * `returned` only on a confirmed settlement that REPORTED the amount. The
+ * backend's record does not carry the `settled` event's `returned` figure
+ * today, so a settled receipt says the rest was returned in the settlement
+ * transaction and that the amount is not reported — it is never worked out
+ * here from the cap and the payouts, a figure the chain was not read for.
+ * Undefined where there is nothing new to say: no state reported, or v1's
+ * `skipped`, which held no custody.
+ */
+export function settlementRemainder(
+  settlement: SettlementView | null,
+  settlementState: SettlementState | null | undefined,
+): SettlementRemainder | undefined {
+  switch (settlementState) {
+    case undefined:
+    case null:
+    case "skipped":
+      return undefined;
+    case "unconfirmed":
+      return { kind: "pending" };
+    case "failed":
+      return { kind: "held" };
+    case "settled":
+    case "released": {
+      const returned = settlement?.returned_usdc;
+      return returned === undefined || returned === null
+        ? { kind: "unreported" }
+        : { kind: "returned", usdc: returned };
+    }
+  }
 }
 
 /**
@@ -896,9 +1055,14 @@ export function disputeView(input: {
   const waitOver = input.waitOver ?? false;
   if (demo || res === null) return HIDDEN;
   const settlement = res.settlement;
+  const settlementState = res.settlement_state;
   if (settlement === undefined) return HIDDEN;
   if (settlement === null)
-    return { kind: "not_settled", running: !workflowDone };
+    return {
+      kind: "not_settled",
+      running: !workflowDone,
+      ...(settlementState === undefined ? {} : { settlementState }),
+    };
 
   const viewer = viewerOf(settlement.payer, viewerAddress);
   const closesAtMs = settlement.window_closes_at * 1_000;
@@ -907,17 +1071,23 @@ export function disputeView(input: {
   const byStep = disputesByStep(res.disputes, settlement.job_id_hex);
   const steps = [...settlement.steps]
     .sort((a, b) => a.step_index - b.step_index)
-    .map((step) => ({
-      step,
-      state: stepState(
+    .map((step) => {
+      const payout = stepPayout(step, settlementState, settlement.charge_tx);
+      return {
         step,
-        byStep.get(step.step_index),
-        settlement,
-        open,
-        viewer,
-        waitOver,
-      ),
-    }));
+        state: stepState(
+          step,
+          byStep.get(step.step_index),
+          settlement,
+          open,
+          viewer,
+          waitOver,
+          settlementState,
+        ),
+        ...(payout === undefined ? {} : { payout }),
+      };
+    });
+  const remainder = settlementRemainder(settlement, settlementState);
 
   return {
     kind: "settled",
@@ -931,6 +1101,11 @@ export function disputeView(input: {
     proofTx: settlement.proof_tx,
     policy: settlement.policy,
     steps,
+    ...(settlementState === undefined ? {} : { settlementState }),
+    ...(remainder === undefined ? {} : { remainder }),
+    ...(settlementState === "unconfirmed" && waitOver
+      ? { settlementStoppedChecking: true }
+      : {}),
     // Only the payer is ever offered the signature, and only when the backend
     // said, in so many words, that it withheld something from them: an absent
     // flag is a backend with no grant to give.
