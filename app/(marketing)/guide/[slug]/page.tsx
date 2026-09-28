@@ -22,6 +22,15 @@ export function generateStaticParams(): { slug: string }[] {
 
 type Props = { params: { slug: string } };
 
+// A page that sets its own openGraph loses the root opengraph-image, so the
+// site card is named here explicitly.
+const SHARE_IMAGE = {
+  url: "/opengraph-image",
+  width: 1200,
+  height: 630,
+  alt: "Orizon Agents — Pay-per-workflow agent commerce on Stellar",
+};
+
 export function generateMetadata({ params }: Props): Metadata {
   const guide = loadGuide(params.slug);
   if (!guide) return {};
@@ -39,11 +48,13 @@ export function generateMetadata({ params }: Props): Metadata {
       siteName: "Orizon Agents",
       locale: "en_US",
       modifiedTime: updated,
+      images: [SHARE_IMAGE],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [SHARE_IMAGE],
     },
   };
 }
