@@ -1047,6 +1047,193 @@ export const mockPdaxBalances = {
   ],
 } satisfies { balances: import("../lib/pdax-types").PdaxBalance[] };
 
+// ── Ecosystem adoption and onboarding readiness (story 5.02) ───────
+
+/** The platform's own key, and a team member's wallet: the two wallets the
+ * adoption fixture lists as controlled by us. Well-formed, not real. */
+export const mockPlatformKey =
+  "GA7AI5TA6QKZ2V6SWKFOQDQBLNJ4HRFG2PYBQE2MPLATFORMKEYXXXXX";
+export const mockTeamWallet =
+  "GCTEAMWALLETQKZ2V6SWKFOQDQBLNJ4HRFG2PYBQE2MTEAMWALLETXXX";
+
+/**
+ * Today's honest answer from `GET /api/ecosystem/adoption`: every total is 0
+ * and every owner on the registry is one of ours. The default, because it is
+ * what the page shows a reviewer right now.
+ */
+export const mockAdoptionZero: import("../lib/ecosystem").EcosystemAdoption = {
+  network: "testnet",
+  generated_at: 1_759_046_400,
+  targets: {
+    external_agents: 2,
+    unique_operator_wallets: 2,
+    settled_external_workflows: 3,
+  },
+  totals: {
+    external_agents: 0,
+    unique_operator_wallets: 0,
+    settled_external_workflows: 0,
+  },
+  met: {
+    external_agents: false,
+    unique_operator_wallets: false,
+    settled_external_workflows: false,
+  },
+  operators: [],
+  excluded: [
+    {
+      owner: mockPlatformKey,
+      owner_explorer: `https://stellar.expert/explorer/testnet/account/${mockPlatformKey}`,
+      reason: "platform_key",
+      role: "admin, settler, scorer and sealer",
+      agent_ids: ["code.gen", "seo.brief", "design.figma"],
+    },
+    {
+      owner: mockTeamWallet,
+      owner_explorer: `https://stellar.expert/explorer/testnet/account/${mockTeamWallet}`,
+      reason: "team_wallet",
+      role: "Blocksmiths developer",
+      agent_ids: ["weather_bot"],
+    },
+  ],
+  degraded: false,
+  unreadable_agents: [],
+};
+
+/** A settlement tx on the external agent below. */
+export const mockExternalSettlementTx =
+  "4f1d0c9a8b7e6d5c4b3a29181716151413121110f0e0d0c0b0a0908070605040";
+
+/**
+ * A populated answer: one outside operator whose agent has settled two
+ * workflows — one paid by an outside buyer, one paid by our own team wallet,
+ * which the page must label team-funded — and a read that could not see one
+ * agent.
+ */
+export const mockAdoptionWithOperator: import("../lib/ecosystem").EcosystemAdoption =
+  {
+    ...mockAdoptionZero,
+    totals: {
+      external_agents: 2,
+      unique_operator_wallets: 1,
+      settled_external_workflows: 1,
+    },
+    met: {
+      external_agents: true,
+      unique_operator_wallets: false,
+      settled_external_workflows: false,
+    },
+    operators: [
+      {
+        owner: mockOtherOwnerAddress,
+        owner_explorer: `https://stellar.expert/explorer/testnet/account/${mockOtherOwnerAddress}`,
+        agents: [
+          {
+            agent_id: "ext.translate_long_identifier_v2",
+            name: "External Translator",
+            active: true,
+            bound: true,
+            settled_workflows: [
+              {
+                job_id_hex: "7c2e9b41d05a4f38a6e1b9c3d7f20a58",
+                tx_hash: mockExternalSettlementTx,
+                explorer: `https://stellar.expert/explorer/testnet/tx/${mockExternalSettlementTx}`,
+                amount_usdc: 0.0125,
+                payer: mockWalletAddress,
+                settled_at: 1_759_046_400,
+              },
+              {
+                job_id_hex: "8d3f0c52e16b5049b7f2c0d4e8031b69",
+                tx_hash: mockExternalSettlementTx.split("").reverse().join(""),
+                explorer: null,
+                amount_usdc: 0.01,
+                payer: mockTeamWallet,
+                settled_at: 1_759_050_000,
+              },
+            ],
+          },
+          {
+            agent_id: "ext.summarize",
+            name: "External Summarizer",
+            active: false,
+            bound: false,
+            settled_workflows: [],
+          },
+        ],
+      },
+    ],
+    degraded: true,
+    unreadable_agents: ["ext.unreadable"],
+  };
+
+/** One agent's readiness, partway through onboarding: registered and active,
+ * no endpoint bound yet, the reachability probe inconclusive, and nothing run
+ * or settled. `checkedAt` lets a spec make a re-check return a newer answer. */
+export function mockReadiness(
+  agentId: string,
+  checkedAt = 1_759_046_400,
+): import("../lib/readiness").AgentReadiness {
+  return {
+    agent_id: agentId,
+    checked_at: checkedAt,
+    ready: false,
+    steps: [
+      {
+        key: "registered",
+        status: "done",
+        detail: "Registered on-chain by the connected wallet.",
+        action: null,
+        evidence: { tx_hash: mockExternalSettlementTx },
+      },
+      {
+        key: "active",
+        status: "done",
+        detail: "The agent is listed as active.",
+        action: null,
+        evidence: null,
+      },
+      {
+        key: "bound",
+        status: "todo",
+        detail: "No endpoint is bound to this agent.",
+        action: "Bind an HTTPS endpoint you control.",
+        evidence: null,
+      },
+      {
+        key: "reachable",
+        status: "unknown",
+        detail: "Nothing to probe until an endpoint is bound.",
+        action: null,
+        evidence: null,
+      },
+      {
+        key: "routable",
+        status: "todo",
+        detail: "Not a candidate for routing while unbound.",
+        action: "Bind an endpoint; the floor is checked after.",
+        evidence: null,
+      },
+      {
+        key: "first_run",
+        status: "todo",
+        detail: "No workflow has been dispatched to this agent yet.",
+        action: null,
+        evidence: null,
+      },
+      {
+        key: "first_settlement",
+        status: "failed",
+        detail: "No settlement found for this agent.",
+        action: null,
+        evidence: null,
+      },
+    ],
+  };
+}
+
+/** `/api/agents/{id}/readiness`, id captured. */
+export const READINESS_RE = /^\/api\/agents\/([^/]+)\/readiness$/;
+
 export type MockApiOptions = {
   /**
    * What `POST /api/orchestrator/decompose` answers with. Defaults to
@@ -1085,6 +1272,9 @@ export type MockApiOptions = {
    * shipped code, which puts the trace page on its artifact tab.
    */
   artifact?: import("../lib/types").ArtifactResponse;
+  /** What `GET /api/ecosystem/adoption` answers. Defaults to
+   * `mockAdoptionZero`, today's honest all-zero answer. */
+  adoption?: import("../lib/ecosystem").EcosystemAdoption;
 };
 
 export async function mockApi(
@@ -1199,6 +1389,13 @@ export async function mockApi(
     }
     if (method === "GET" && pathname === "/api/stellar/reputation/params") {
       return json(route, mockReputationParams);
+    }
+    if (method === "GET" && pathname === "/api/ecosystem/adoption") {
+      return json(route, options.adoption ?? mockAdoptionZero);
+    }
+    const readinessFor = READINESS_RE.exec(pathname);
+    if (method === "GET" && readinessFor) {
+      return json(route, mockReadiness(decodeURIComponent(readinessFor[1])));
     }
     // The warmup ping `BackendWarmup` fires on every page. Fire-and-forget,
     // so any healthy answer will do.
