@@ -35,6 +35,7 @@ const ROUTES = [
   "/app/register",
   "/app/bind",
   "/app/operator",
+  "/app/ecosystem",
   "/app/reputation",
   "/app/orchestrator",
   "/app/trace",

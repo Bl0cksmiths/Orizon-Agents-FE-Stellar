@@ -25,6 +25,7 @@ const ROUTES = [
   "/app",
   "/app/agents",
   "/app/reputation",
+  "/app/ecosystem",
   "/app/flow",
   "/app/events",
   "/app/wallet",
