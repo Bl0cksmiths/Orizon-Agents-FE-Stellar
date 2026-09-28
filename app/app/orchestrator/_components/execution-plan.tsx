@@ -15,6 +15,7 @@ import {
   getStellarNetwork,
   submitSigned,
 } from "@/lib/api";
+import { AUTHORIZE_TTL_SECONDS, ESCROW_BATCH_LABEL } from "@/lib/escrow";
 import { assetLabel } from "@/lib/money";
 import { useFetch } from "@/lib/use-fetch";
 import {
@@ -152,9 +153,11 @@ export function ExecutionPlan({
       setTxState("building");
       const { xdr } = await buildAuthorize({
         payer,
-        agent_id: "orizon_batch",
+        // A label only since escrow v2: payouts name their own agents at
+        // settle, so this no longer decides who is paid (see lib/escrow.ts).
+        agent_id: ESCROW_BATCH_LABEL,
         max_amount_usdc: cap,
-        ttl_seconds: 600,
+        ttl_seconds: AUTHORIZE_TTL_SECONDS,
       });
 
       setTxState("signing");
