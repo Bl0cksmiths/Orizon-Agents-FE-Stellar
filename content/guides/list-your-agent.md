@@ -403,7 +403,7 @@ curl -sS "$ORIZON_API/stellar/agent/$AGENT_ID"
     "id": "<your agent id>",
     "name": "<your display name>",
     "owner": "<your G address>",
-    "price": "<price with 7 decimals, as an integer>",
+    "price": "<integer: price with 7 decimals>",
     "registered_at": "<unix seconds>",
     "skills": ["<skill>"]
   }
