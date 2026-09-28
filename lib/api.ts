@@ -449,6 +449,23 @@ export const buildAuthorize = (body: {
     ensure("/stellar/build/authorize", isAuthorizeBuild),
   );
 
+/**
+ * Unsigned XDR for `PaymentEscrow.reclaim(payer, auth_id)` — escrow v2's way
+ * for a buyer to take back an authorization that was never settled, once it
+ * has expired. The transaction's source is the payer, who signs it like
+ * `authorize`, and it is submitted through `submitSigned`.
+ *
+ * Built by another lane's route; until it is deployed this 404s, which
+ * `reclaimAuthorization` (lib/reclaim.ts) turns into a typed "unavailable"
+ * rather than an error the buyer cannot act on.
+ */
+export const buildReclaim = (body: { payer: string; auth_id_hex: string }) =>
+  post<XdrResponse, typeof body>(
+    "/stellar/build/reclaim",
+    body,
+    ensure("/stellar/build/reclaim", isXdrResponse),
+  );
+
 export const listReputation = () =>
   get<ReputationBatch>(
     "/stellar/reputation",
