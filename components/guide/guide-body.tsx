@@ -19,18 +19,25 @@ import { GuideCodeBlock } from "./code-block";
 type WithNode<T extends keyof JSX.IntrinsicElements> =
   ComponentPropsWithoutRef<T> & { node?: Element };
 
-/** A heading with its GitHub-slugger id and a visible anchor link. */
+/**
+ * A heading with its GitHub-slugger id and a visible anchor link. The link
+ * sits beside the heading, not inside it, so the heading's accessible name is
+ * just its text. Preflight makes headings inherit their size and weight, so
+ * the wrapper carries the type styles.
+ */
 function heading(Tag: "h2" | "h3" | "h4" | "h5" | "h6", className: string) {
   function Heading({ node, children, id }: WithNode<typeof Tag>) {
     const info = node?.data?.guideHeading;
     return (
-      <Tag id={id} className={cn("group scroll-mt-24", className)}>
-        {children}
+      <div className={cn("flex items-baseline gap-2", className)}>
+        <Tag id={id} className="scroll-mt-24">
+          {children}
+        </Tag>
         {info && (
           <a
             href={`#${info.id}`}
             className={cn(
-              "ml-2 inline-block font-mono text-[0.8em] font-normal text-muted no-underline transition-colors hover:text-cyan",
+              "shrink-0 font-mono text-[0.8em] font-normal text-muted no-underline transition-colors hover:text-cyan",
               focusRing,
             )}
           >
@@ -38,7 +45,7 @@ function heading(Tag: "h2" | "h3" | "h4" | "h5" | "h6", className: string) {
             <span className="sr-only">Link to the section {info.text}</span>
           </a>
         )}
-      </Tag>
+      </div>
     );
   }
   Heading.displayName = `Guide${Tag.toUpperCase()}`;
