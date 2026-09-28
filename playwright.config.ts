@@ -16,6 +16,15 @@ import { defineConfig, devices } from "@playwright/test";
  */
 const PORT = Number(process.env.E2E_PORT ?? 3000);
 
+/**
+ * The guide pages read their Markdown from content/guides/ at build. The suite
+ * serves the fixture guide instead, which exercises every construct of the
+ * dialect, so e2e/guide.spec.ts does not change when the prose does. Set
+ * GUIDE_CONTENT_DIR=content/guides to run the same spec against the real one.
+ */
+const GUIDE_CONTENT_DIR =
+  process.env.GUIDE_CONTENT_DIR ?? "test/fixtures/guides";
+
 export default defineConfig({
   testDir: "e2e",
   // First on-demand compile of a route under `next dev` can be slow.
@@ -38,5 +47,6 @@ export default defineConfig({
     port: PORT,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: { GUIDE_CONTENT_DIR },
   },
 });
