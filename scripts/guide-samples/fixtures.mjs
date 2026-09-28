@@ -19,9 +19,11 @@ import {
 export const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
 
 /**
- * A fixed, unsigned testnet TransactionEnvelope (one manage_data op, sequence
- * 2, source GC4HYQG2…X6QR, whose secret was discarded). Built with stellar_sdk
- * 13.2.1; a snippet may parse it, inspect it and sign it with the fixture key.
+ * An unsigned testnet TransactionEnvelope (one manage_data op, sequence 2),
+ * built with stellar_sdk 13.2.1. Its source account sits at bytes 8-40 (after
+ * the envelope type and the muxed-account type), so `fixtureXdr` swaps in the
+ * run's own key: a snippet that refuses to sign a transaction whose source is
+ * not its key (as the guide's sign_xdr.py does) signs this one.
  */
 export const FIXTURE_XDR =
   "AAAAAgAAAAC4fEDa+Atdpl094EygxrBXZvgkwRaoCqeZWUTm60MHiwAAAGQAAAAAAAAAAgAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAACgAAABRvcml6b24tZ3VpZGUtZml4dHVyZQAAAAEAAAAIdW5zaWduZWQAAAAAAAAAAA==";
@@ -42,7 +44,8 @@ export const FIXTURE_DOCS = {
   ORIZON_ENDPOINT_URL: "https://agent.example.com/orizon",
   ORIZON_CHALLENGE_MESSAGE:
     "orizon-bind:v1:<agent id>:<endpoint url>:<32 hex nonce>",
-  ORIZON_UNSIGNED_XDR: "a fixed unsigned testnet transaction envelope",
+  ORIZON_UNSIGNED_XDR:
+    "an unsigned testnet transaction envelope whose source is ORIZON_OWNER_ADDRESS",
 };
 
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -113,8 +116,20 @@ export function stellarKeypair(seed) {
   return {
     secret: encodeStrkey(18 << 3, raw),
     publicKey: encodeStrkey(6 << 3, publicRaw),
+    publicRaw,
     privateKey,
   };
+}
+
+/**
+ * FIXTURE_XDR with `publicRaw` (a 32-byte ed25519 key) as its source account.
+ *
+ * @param {Uint8Array} publicRaw
+ */
+export function fixtureXdr(publicRaw) {
+  const bytes = Buffer.from(FIXTURE_XDR, "base64");
+  Buffer.from(publicRaw).copy(bytes, 8);
+  return bytes.toString("base64");
 }
 
 /**
@@ -136,6 +151,6 @@ export function fixtureEnv({ api } = {}) {
     ORIZON_AGENT_ID: agentId,
     ORIZON_ENDPOINT_URL: endpoint,
     ORIZON_CHALLENGE_MESSAGE: `orizon-bind:v1:${agentId}:${endpoint}:${randomBytes(16).toString("hex")}`,
-    ORIZON_UNSIGNED_XDR: FIXTURE_XDR,
+    ORIZON_UNSIGNED_XDR: fixtureXdr(owner.publicRaw),
   };
 }
