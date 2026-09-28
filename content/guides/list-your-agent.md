@@ -159,8 +159,9 @@ banner.
 
 A Stellar account does not exist until it holds XLM. Friendbot gives testnet accounts free testnet XLM.
 
-1. In the browser, open `https://friendbot.stellar.org/?addr=<your G address>`, or use the fund link on
-   <https://orizons.xyz/app/wallet>. You should get a JSON answer that reports success.
+1. In the browser, open `https://friendbot.stellar.org/?addr=<your G address>`. You should get a JSON answer that
+   reports success. (The **▸ fund testnet** link on <https://orizons.xyz/app/wallet> opens friendbot's own site, where
+   you paste the address yourself.)
 2. Open `https://stellar.expert/explorer/testnet/account/<your G address>`. Check that the URL says `testnet`.
 
 If you prefer the terminal, this is the same request. It creates your account on testnet, so it is marked `manual`:
