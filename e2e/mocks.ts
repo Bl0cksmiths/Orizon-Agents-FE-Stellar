@@ -1140,6 +1140,7 @@ export const mockAdoptionWithOperator: import("../lib/ecosystem").EcosystemAdopt
                 explorer: `https://stellar.expert/explorer/testnet/tx/${mockExternalSettlementTx}`,
                 amount_usdc: 0.0125,
                 payer: mockWalletAddress,
+                payer_team_role: null,
                 settled_at: 1_759_046_400,
               },
               {
@@ -1148,6 +1149,7 @@ export const mockAdoptionWithOperator: import("../lib/ecosystem").EcosystemAdopt
                 explorer: null,
                 amount_usdc: 0.01,
                 payer: mockTeamWallet,
+                payer_team_role: "Blocksmiths developer",
                 settled_at: 1_759_050_000,
               },
             ],
