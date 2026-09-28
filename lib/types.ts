@@ -182,7 +182,17 @@ export type ExecuteResponse = {
 
 export type TraceLevel =
   "input" | "exec" | "proof" | "cost" | "out" | "error" | "artifact";
-export type TraceLine = { t: string; level: TraceLevel; msg: string };
+export type TraceLine = {
+  t: string;
+  level: TraceLevel;
+  msg: string;
+  /**
+   * Set on the one line that reports a paid run's settlement outcome, and on
+   * no other, so the trace can say what happened to the money without
+   * parsing `msg`. Absent on a backend that predates it.
+   */
+  settlement?: SettlementState | null;
+};
 
 export type ArtifactFile = {
   path: string;
@@ -536,20 +546,28 @@ export type BindErrorCode =
  * pay twice (story 4.03).
  */
 /**
- * Where a run's escrow v2 settlement stands, as the backend reports it.
+ * What happened to a paid run's money, as the backend reports it
+ * (`SettlementState` in its app/schemas.py, ADR 0010). Null — or absent, on
+ * a backend that predates it — is a run that asked for no on-chain
+ * settlement, or one the backend no longer holds: "not attempted" as far as
+ * anyone can say.
  *
- * - `settled`: the settle transaction confirmed — delivered steps paid, the
- *   remainder returned.
- * - `unconfirmed`: submitted, not confirmed. It may still land; nothing is
- *   shown as paid until it does.
- * - `failed`: the ledger rejected it. Nothing moved out of escrow.
- * - `not_attempted`: no settle was sent for this run.
+ * - `settled`: the settle CONFIRMED — each delivered step's operator paid
+ *   from escrow, the rest returned to the payer.
+ * - `released`: v2 only. Nothing was delivered, so an empty settle returned
+ *   the payer's whole custody and paid nobody.
+ * - `skipped`: v1 only. Nothing was delivered, so nothing was charged.
+ * - `unconfirmed`: submitted and then lost track of. It MAY still land and is
+ *   never retried; nothing is shown as paid until it is known.
+ * - `failed`: definitely moved no money — refused before it was sent, or
+ *   rejected by the ledger. Under v2 the funds stay in escrow.
  */
 export const SETTLEMENT_STATES = [
   "settled",
+  "released",
+  "skipped",
   "unconfirmed",
   "failed",
-  "not_attempted",
 ] as const;
 export type SettlementState = (typeof SETTLEMENT_STATES)[number];
 
@@ -559,7 +577,15 @@ export type SettlementState = (typeof SETTLEMENT_STATES)[number];
  * else says what is known and no more.
  */
 export type StepPayout =
-  | { kind: "paid"; usdc: number; tx: string | null }
+  | {
+      kind: "paid";
+      usdc: number;
+      /** The settle transaction the payout happened in, when recorded. */
+      tx: string | null;
+      receiptIdHex: string | null;
+    }
+  /** Delivered by a seeded platform agent: never billed, share returned. */
+  | { kind: "platform" }
   | { kind: "pending" }
   | { kind: "not_paid" }
   | { kind: "unreported" };
@@ -616,12 +642,18 @@ export type SettlementStepView = {
   // this client deploys ahead of the backend, and a backend on escrow v1 has
   // no per-step payout to report. Absent means "not reported", never zero.
   /**
-   * What `settle` paid this step's operator, from its `charged` event. Only
-   * read as money moved when the task's `settlement_state` is `settled`.
+   * What `settle` paid this step's operator, from its `charged` event. Null
+   * on a v1 settlement, which paid one total for the run. 0 on a v2 step no
+   * one was paid for: undelivered, free, or run by a seeded platform agent
+   * with no on-chain owner, whose share went back to the buyer. Only read as
+   * money moved when the settlement is `settled`.
    */
   paid_usdc?: number | null;
-  /** The transaction that paid it — the settle transaction under v2. */
-  payout_tx?: string | null;
+  /**
+   * The on-chain receipt that payout minted (16 bytes, hex). The payout
+   * itself happened inside the settlement's transaction, `charge_tx`.
+   */
+  receipt_id_hex?: string | null;
 };
 
 /** A workflow's settlement: what moved, who paid, and until when to dispute. */
