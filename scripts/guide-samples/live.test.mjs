@@ -52,6 +52,8 @@ async function fakeBackend({
   network = TESTNET,
   answers = {},
   failFirst = {},
+  statusFor = {},
+  down = false,
 } = {}) {
   /** @type {{ method: string, path: string, headers: Record<string, any>, body: string }[]} */
   const requests = [];
@@ -108,13 +110,18 @@ async function fakeBackend({
         const key = `${method} ${re}`;
         const n = (counts.get(key) ?? 0) + 1;
         counts.set(key, n);
-        if (n <= (failFirst[url.pathname] ?? 0)) {
+        if (
+          n <= (failFirst[url.pathname] ?? 0) ||
+          (down && url.pathname === "/api/health")
+        ) {
           res.writeHead(503).end("waking up");
           return;
         }
         const out = answers[url.pathname] ?? answer(m);
         res
-          .writeHead(200, { "content-type": "application/json" })
+          .writeHead(statusFor[url.pathname] ?? 200, {
+            "content-type": "application/json",
+          })
           .end(JSON.stringify(out));
         return;
       }
@@ -392,4 +399,35 @@ test("liveRefusal: GET, build, availability and challenge only; never a secret",
   ];
   for (const [req, vars, pattern] of refused)
     assert.match(liveRefusal(req, vars, path(req.url)) ?? "", pattern, req.url);
+});
+
+test("a backend that never wakes is reported, and no sample runs", async () => {
+  const backend = await fakeBackend({ down: true });
+  const report = await checkGuide({
+    guidePath: GUIDE,
+    snapshotPath: MINI,
+    repoRoot,
+    live: true,
+    api: backend.api,
+    liveOptions: { ...FAST, warmupBudgetMs: 300 },
+  });
+  assert.ok(
+    report.guideErrors.some((e) =>
+      /\/health never answered 2xx within 300 ms/.test(e),
+    ),
+    report.guideErrors.join("\n"),
+  );
+  assert.ok(
+    !backend.requests.some((r) => r.path !== "/api/health"),
+    "nothing but the warm-up was sent",
+  );
+});
+
+test("the documented status must match: the right body with the wrong status fails", async () => {
+  const backend = await fakeBackend({
+    statusFor: { "/api/agents/bind/endpoint-check": 201 },
+  });
+  const s = byId(await live(backend.api), "endpoint-check");
+  assert.equal(s.status, "failed");
+  assert.match(s.diff, /^! status: documented 200, got 201$/m);
 });
