@@ -15,6 +15,7 @@ import { useEffect, useId, useState, type RefObject } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SettlementBadge } from "@/components/ui/settlement-badge";
 import { KVRow } from "@/components/ui/kv-row";
 import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -189,32 +190,6 @@ function notSettledSentence(
     case "settled":
       return "This workflow settled on-chain, but its receipt is not on record here, so it cannot be disputed from this page.";
   }
-}
-
-/** Keyed by the state's own literal type, so a new state cannot reach the
- * buyer without someone writing down what it looks like. */
-const SETTLEMENT_BADGE: Record<
-  SettlementState,
-  {
-    tone: "success" | "violet" | "magenta" | "muted";
-    glyph: string;
-    label: string;
-  }
-> = {
-  settled: { tone: "success", glyph: "✓", label: "settled" },
-  released: { tone: "muted", glyph: "↩", label: "custody released" },
-  skipped: { tone: "muted", glyph: "–", label: "nothing charged" },
-  unconfirmed: { tone: "violet", glyph: "◷", label: "settlement unconfirmed" },
-  failed: { tone: "magenta", glyph: "✕", label: "settlement failed" },
-};
-
-function SettlementBadge({ state }: { state: SettlementState }) {
-  const { tone, glyph, label } = SETTLEMENT_BADGE[state];
-  return (
-    <Badge tone={tone}>
-      <span aria-hidden="true">{glyph}</span> {label}
-    </Badge>
-  );
 }
 
 /**
