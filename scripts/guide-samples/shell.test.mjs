@@ -156,3 +156,21 @@ test("a <placeholder> assignment is the reader's to fill in, so it leaves the na
   ]);
   assert.deepEqual(session, { NAME: "literal" });
 });
+
+test("--data-urlencode encodes a variable's value once it is filled in", () => {
+  const r = req(
+    `curl -sS --get "$ORIZON_API/agents/bind/endpoint-check" --data-urlencode "url=$ENDPOINT_URL"`,
+  );
+  assert.equal(
+    resolveWord(
+      r.url,
+      { ...env, ENDPOINT_URL: "https://a.example/x?y=1" },
+      { strict: true },
+    ),
+    "https://orizons.xyz/api/agents/bind/endpoint-check?url=https%3A%2F%2Fa.example%2Fx%3Fy%3D1",
+  );
+  assert.throws(
+    () => resolveWord(r.url, env, { strict: true }),
+    /\$ENDPOINT_URL is not set/,
+  );
+});

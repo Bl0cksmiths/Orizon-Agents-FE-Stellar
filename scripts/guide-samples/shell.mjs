@@ -29,13 +29,13 @@ export const isWholeMarker = (word) => /^\u0001[^\u0002]*\u0002$/.test(word);
 
 /** The names of the expansions left in a word. */
 export function markerNames(word) {
-  return [...word.matchAll(MARKER)].map((match) => match[1]);
+  return [...word.matchAll(MARKER)].map((match) => match[1].replace(/^%/, ""));
 }
 
 /** A readable form of a word, markers shown as `$NAME`. */
 export function showWord(word) {
   return word.replace(MARKER, (_, name) =>
-    name.startsWith("$(") ? name : `$${name}`,
+    name.startsWith("$(") ? name : `$${name.replace(/^%/, "")}`,
   );
 }
 
@@ -261,7 +261,10 @@ export function parseShell(src) {
  * @param {{ strict?: boolean }} [options]  strict: an unknown expansion throws
  */
 export function resolveWord(word, env, { strict = false } = {}) {
-  return word.replace(MARKER, (whole, name) => {
+  return word.replace(MARKER, (whole, marked) => {
+    // `%NAME`: an expansion inside --data-urlencode, encoded once filled.
+    const encode = marked.startsWith("%");
+    const name = encode ? marked.slice(1) : marked;
     if (name.startsWith("$(")) {
       if (strict)
         throw new ShellParseError(`command substitution ${name} cannot be run`);
@@ -272,7 +275,7 @@ export function resolveWord(word, env, { strict = false } = {}) {
       if (strict) throw new ShellParseError(`$${name} is not set`);
       return whole;
     }
-    return value;
+    return encode ? encodeURIComponent(value) : value;
   });
 }
 
@@ -552,9 +555,25 @@ export function parseCurl(words, line = 1) {
 /** curl's --data-urlencode forms: `content`, `=content`, `name=content`. */
 function urlencodeArg(arg) {
   const eq = arg.indexOf("=");
-  if (eq === -1) return encodeURIComponent(arg);
-  if (eq === 0) return encodeURIComponent(arg.slice(1));
-  return `${arg.slice(0, eq)}=${encodeURIComponent(arg.slice(eq + 1))}`;
+  if (eq === -1) return encodeKeepingMarkers(arg);
+  if (eq === 0) return encodeKeepingMarkers(arg.slice(1));
+  return `${arg.slice(0, eq)}=${encodeKeepingMarkers(arg.slice(eq + 1))}`;
+}
+
+/**
+ * encodeURIComponent for the literal text; an expansion is not encoded yet
+ * (its value is unknown) but marked `%NAME`, so resolveWord encodes the value
+ * it fills in — as curl would have encoded the expanded text.
+ */
+function encodeKeepingMarkers(text) {
+  return text
+    .split(/(\u0001[^\u0002]*\u0002)/)
+    .map((part) =>
+      part.startsWith(MARK_OPEN)
+        ? marker(`%${part.slice(1, -1)}`)
+        : encodeURIComponent(part),
+    )
+    .join("");
 }
 
 /**
