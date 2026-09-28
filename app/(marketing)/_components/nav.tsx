@@ -4,16 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/ui/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
+import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
 import { cn } from "@/lib/utils";
 
-// Section links are rooted at "/" so they also work from pages other than
-// the home page that share this nav; on the home page they still just scroll.
+// Section links are rooted at "/" so they also work from the guide pages,
+// which share this nav; on the home page they still just scroll.
 const links = [
   { href: "/#solution", label: "Product" },
   { href: "/#architecture", label: "Architecture" },
   { href: "/#reputation", label: "Reputation" },
   { href: "/#use-cases", label: "Use Cases" },
   { href: "/#roadmap", label: "Roadmap" },
+  { href: LIST_YOUR_AGENT_PATH, label: "Guide" },
 ];
 
 export function Nav() {
