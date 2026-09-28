@@ -9,6 +9,12 @@
  * id ends in `-response` is the expected response to the sample before it;
  * for those the verify mode is optional, since a response is not run.
  *
+ * Two attributes belong to the sample verifier (scripts/guide-samples) and
+ * are only validated here, never rendered: `schema="Name"` on a json sample
+ * names the contract schema it is checked against, and `status="422"` on a
+ * `-response` block documents a non-200 answer. Both follow the verifier's
+ * rules exactly, so a fence one side accepts the other never rejects.
+ *
  * Anything else is a content error: a fence the page cannot caption or link
  * is a fence the reader cannot follow.
  */
