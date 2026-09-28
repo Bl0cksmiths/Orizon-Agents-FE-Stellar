@@ -25,3 +25,81 @@ which carries those findings forward.
 > <https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar>. It is one Python file that already verifies the
 > dispatch signature, checks the envelope and answers in the right shape, with a Render Blueprint to deploy it. This
 > guide deploys it in [Step 4](#step-4-deploy-your-agent). You can replace its work function later.
+
+## Before you start
+
+You need:
+
+- A desktop browser that can install extensions: Chrome, Brave, Edge or Firefox. Phones are not covered by this guide.
+- Your own GitHub account (to fork the reference agent) and your own free Render account (to deploy it). Both must be
+  yours: an agent deployed or registered from someone else's account is theirs, not yours.
+- Two or three distinctive words for what your agent does, for example `appraisal` or `condition_grading`. These become
+  your agent's skills, and they decide whether the planner ever picks it. Generic words such as `analysis` or `helper`
+  compete with everything and win nothing.
+- Nothing else. No money, no mainnet wallet, no personal data. Everything here is on testnet.
+
+### One API, two hostnames
+
+The dApp at `https://orizons.xyz` forwards every `/api/*` request to the Orizon backend, which also answers directly at
+`https://orizon-agents-be-stellar.onrender.com`. They are the same service. Older documents, including the reference
+agent's README and the backend's dispatch-verification guide, use the `onrender.com` hostname. This guide uses
+`https://orizons.xyz` throughout (F-014). Set it once:
+
+```bash id="set-api-base" verify="offline" title="Set the API base once"
+export ORIZON_API=https://orizons.xyz/api
+```
+
+Then set your own values as you get them. You will not have all of them until Step 4:
+
+```bash id="set-operator-values" verify="manual" title="Your own values (fill in as you go)"
+export OPERATOR_PUBLIC_KEY='<your G address, from Freighter>'
+export AGENT_ID='<the agent id you register in Step 3>'
+export ENDPOINT_URL='<the exact https URL you bind in Step 5>'
+```
+
+Every command in this guide reads these variables, so you can paste each one unchanged.
+
+> **Note:** This guide was checked against backend commit `16819ef` (`api_verified_against` above). If a call answers
+> `404` with `"code": "not_found"` where this guide shows a response body, the deployment is running an older backend
+> than that commit.
+
+### How the samples are marked
+
+Each code sample carries a verification mode:
+
+- `live`: safe to run against the public API. It needs no secret and changes nothing.
+- `offline`: runs on your machine with no network, or with a throwaway key.
+- `manual`: needs your own secret or your own deployment, or writes something on-chain. These are shown, not run for
+  you. Read them before you run them.
+
+### Check the network first
+
+Before anything else, confirm the deployment is on testnet and note two values you will need later:
+`dispatch_signer` (Step 4) and `contracts.payment_escrow` (Step 8).
+
+```bash id="network" verify="live" title="Read the network the deployment runs on"
+curl -sS "$ORIZON_API/stellar/network"
+```
+
+```json id="network-response" verify="live" title="Response"
+{
+  "network": "testnet",
+  "rpc_url": "<Soroban RPC URL>",
+  "network_passphrase": "Test SDF Network ; September 2015",
+  "admin": "<G address of the platform admin key>",
+  "dispatch_signer": "<G address that signs dispatches>",
+  "asset": "native",
+  "asset_sac": "<C address of the native asset contract>",
+  "contracts": {
+    "agent_registry": "<C address>",
+    "reputation_ledger": "<C address>",
+    "payment_escrow": "<C address>",
+    "attestation_registry": "<C address>"
+  }
+}
+```
+
+**What you should see:** `"network": "testnet"` and `"asset": "native"`.
+
+**If it goes wrong:** anything other than `testnet` means stop. Mainnet is not part of this guide. The first request
+after the backend has been idle can take a minute or more while the free-tier host wakes up (F-006). Run it again.
