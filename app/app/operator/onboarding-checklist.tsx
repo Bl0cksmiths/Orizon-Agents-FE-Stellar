@@ -33,6 +33,7 @@ import {
   type ChecklistStep,
   type ReadinessStatus,
 } from "@/lib/readiness";
+import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
 import { inlineLink } from "@/lib/ui";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useFetch } from "@/lib/use-fetch";
@@ -91,6 +92,13 @@ export function OnboardingChecklist({ agentId }: { agentId: string }) {
             The seven steps between registering{" "}
             <span className="break-all text-text">{agentId}</span> and being
             paid through it.
+          </p>
+          <p className={`mt-1 ${body}`}>
+            Every step is walked through in the public guide,{" "}
+            <Link href={LIST_YOUR_AGENT_PATH} className={inlineLink}>
+              List your agent on Orizon
+            </Link>
+            .
           </p>
         </div>
         {shown && (

@@ -82,6 +82,17 @@ afterEach(() => {
   getAgentReadiness.mockReset();
 });
 
+describe("OnboardingChecklist — the guide", () => {
+  it("links the public guide before any answer arrives", () => {
+    getAgentReadiness.mockReturnValue(new Promise(() => {}));
+    renderChecklist();
+    const link = screen.getByRole("link", {
+      name: "List your agent on Orizon",
+    });
+    expect(link.getAttribute("href")).toBe("/guide/list-your-agent");
+  });
+});
+
 describe("OnboardingChecklist — before an answer", () => {
   it("announces the check and lists no step while it is in flight", () => {
     getAgentReadiness.mockReturnValue(new Promise(() => {}));
