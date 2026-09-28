@@ -61,9 +61,9 @@ export function GuideHeader({ meta }: { meta: GuideMeta }) {
             <a
               href={backendCommitUrl(meta.api_verified_against)}
               rel="noreferrer"
+              aria-label={`Backend commit ${shortSha(meta.api_verified_against)}`}
               className={inlineLink}
             >
-              <span className="sr-only">commit </span>
               {shortSha(meta.api_verified_against)}
             </a>
           </dd>
