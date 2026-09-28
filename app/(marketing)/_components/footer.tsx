@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
+import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -31,6 +32,7 @@ const cols = [
   {
     h: "Resources",
     l: [
+      ["List your agent", LIST_YOUR_AGENT_PATH],
       ["Docs", "https://github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar#readme"],
       ["API", "https://orizon-agents-be-stellar.onrender.com/docs"],
       ["Status", "https://orizon-agents-be-stellar.onrender.com/health"],
