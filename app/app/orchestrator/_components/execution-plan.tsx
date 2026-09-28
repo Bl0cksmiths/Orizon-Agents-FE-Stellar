@@ -21,7 +21,7 @@ import {
   classifyAuthorizeError,
   insufficientEscrowFunds,
 } from "@/lib/escrow";
-import { assetLabel } from "@/lib/money";
+import { STROOPS_PER_UNIT, formatSettled } from "@/lib/money";
 import { useFetch } from "@/lib/use-fetch";
 import {
   DegradedBanner,
@@ -127,16 +127,21 @@ export function ExecutionPlan({
   // What every amount on this card is actually denominated in. `total_usdc`
   // is a legacy field name, not a currency: the cap the buyer signs is that
   // figure in stroops of whatever the escrow's SAC wraps, and on testnet that
-  // is native XLM. Until the network read lands — or if it fails — `unit` is
-  // empty and amounts print bare, because a guessed "USDC" is the false claim
-  // this replaces.
+  // is native XLM. Until the network read lands — or if it fails — the unit
+  // is unknown and amounts print bare, because a guessed "USDC" is the false
+  // claim this replaces.
   const { data: network } = useFetch(getStellarNetwork, [], {
     revalidateOnFocus: true,
   });
-  const unit = assetLabel(network?.asset);
-  /** An amount with its real unit, or bare while the unit is unknown. */
+  /**
+   * An amount exactly as it is signed, with its real unit — or bare while the
+   * unit is unknown. Rounded to the stroop, as the backend converts it
+   * (`usdc_to_i128` rounds to 7 decimals), never to a display precision:
+   * `toFixed(3)` printed 0.1234 as "0.123", a cap on the page smaller than
+   * the one that leaves the wallet (finding S6).
+   */
   const priced = (value: number) =>
-    unit ? `${value.toFixed(3)} ${unit}` : value.toFixed(3);
+    formatSettled(Math.round(value * STROOPS_PER_UNIT), network?.asset);
 
   // The cap the buyer signs, computed ONCE and used for both the sentence
   // they read and the authorization they sign. They used to be computed
