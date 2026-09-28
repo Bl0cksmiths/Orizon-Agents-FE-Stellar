@@ -1448,7 +1448,7 @@ do not discover them on your own.
 
 ### Found while writing this guide
 
-These are not in the friction log yet:
+Both are now in the friction log, as F-031 and F-032:
 
 - **No unbind in the dApp.** Revoking a binding is only possible through the API, which means signing with your key
   outside Freighter ([Rebind or unbind](#rebind-or-unbind)). Delisting is the dApp alternative, but it keeps the
