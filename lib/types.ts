@@ -362,7 +362,13 @@ export type ReputationParams = {
  * authorization the wallet is asked to sign. */
 export type AuthorizeBuild = {
   xdr: string;
-  expires_at: number;
+  /**
+   * Epoch seconds stamped into the authorization: escrow v2 refuses to
+   * settle after it and refuses the buyer's reclaim before it. Optional on
+   * read — every backend sends it, but the card only needs it to tell a buyer
+   * when held funds can be reclaimed, and says "once it expires" without it.
+   */
+  expires_at?: number;
 };
 
 /** Response of POST /api/stellar/submit — the outcome of broadcasting a

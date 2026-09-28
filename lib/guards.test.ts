@@ -1045,9 +1045,15 @@ describe("isAuthorizeBuild", () => {
     expect(isAuthorizeBuild({ ...valid, extra: 1 })).toBe(true);
   });
 
-  it("accepts a build with no expires_at (never read by the UI)", () => {
+  it("accepts a build with no expires_at (the held-funds notice words around it)", () => {
     const { expires_at: _drop, ...rest } = valid;
     expect(isAuthorizeBuild(rest)).toBe(true);
+  });
+
+  // Read since escrow v2: it is when a buyer's held funds become reclaimable.
+  it("rejects an expires_at that is not a number", () => {
+    expect(isAuthorizeBuild({ ...valid, expires_at: "soon" })).toBe(false);
+    expect(isAuthorizeBuild({ ...valid, expires_at: null })).toBe(false);
   });
 
   it("rejects a missing or non-string xdr (handed to the wallet to sign)", () => {

@@ -535,10 +535,16 @@ export function isStellarNetworkInfo(v: unknown): v is StellarNetworkInfo {
 /** Authorize build: `xdr` is handed straight to the wallet
  * (`wallet.signXdr(xdr)`) as the transaction to sign, so a missing one
  * reaches Freighter as the literal "undefined" and comes back as an opaque
- * wallet error rather than the backend failure it is. `expires_at` is
- * returned but never read by the UI, so it stays unchecked. */
+ * wallet error rather than the backend failure it is. `expires_at` tells a
+ * buyer whose funds are held in escrow when they can reclaim them, so it is
+ * a number when present — a string would print as a time that never was —
+ * and absent is tolerated: the notice then says "once it expires". */
 export function isAuthorizeBuild(v: unknown): v is AuthorizeBuild {
-  return isRecord(v) && isStr(v.xdr);
+  return (
+    isRecord(v) &&
+    isStr(v.xdr) &&
+    (v.expires_at === undefined || isNum(v.expires_at))
+  );
 }
 
 /** Submit result: the plan card branches on `status !== "SUCCESS"` and links
