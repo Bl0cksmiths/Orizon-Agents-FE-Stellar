@@ -300,3 +300,11 @@ export function shortAddress(g: string): string {
 export function formatUsdcAmount(n: number): string {
   return `${n.toLocaleString("en-US", { maximumFractionDigits: 7 })} USDC`;
 }
+
+/**
+ * The operator docs: how an outside operator registers, binds and verifies a
+ * dispatch. They live in the backend repository, next to the code they
+ * describe; this frontend repository has no operator guide of its own.
+ */
+export const OPERATOR_DOCS_URL =
+  "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/tree/main/docs/operators";
