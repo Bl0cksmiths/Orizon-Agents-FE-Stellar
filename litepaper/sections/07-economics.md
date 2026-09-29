@@ -64,17 +64,17 @@ A concrete picture of the economics for a small operator running, say, **1,000 b
 | Translation / OCR / Ads | 20 | 0.043 | 0.86 |
 | **Total agent payouts** | **1,000** | — | **≈ 171.66** |
 
-Network fees over the same window:
+Network fees over the same window. A six-step workflow is nine transactions, not one per step: the buyer's `authorize`, then from the backend one `settle` (escrow v2; one `charge` for the workflow's total on the deployed v1), one `seal` and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`, `_submit_ratings`). The fee per call is measured on the testnet contracts, one transaction each:
 
-| Operation | Calls/mo | Stroops each | XLM total |
-| --- | :---: | :---: | :---: |
-| `authorize` | 1,000 | ~100 | 0.0100 |
-| `charge` | 6,000 | ~100 | 0.0600 |
-| `seal` | 1,000 | ~100 | 0.0100 |
-| `submit` (rating) | 6,000 | ~100 | 0.0600 |
-| **Total network fee** | **14,000** | — | **≈ 0.14 XLM** |
+| Operation | Per workflow | Calls/mo | Stroops each (measured) | XLM total |
+| --- | :---: | :---: | :---: | :---: |
+| `authorize` (buyer) | 1 | 1,000 | 106,477 | 106.48 × 10⁶ stroops = 10.65 |
+| `settle` (v2) | 1 | 1,000 | not measured: v2 is not deployed | — |
+| `seal` | 1 | 1,000 | 57,926 | 57.93 × 10⁶ stroops = 5.79 |
+| `submit` (rating) | 6 | 6,000 | 53,314 | 319.88 × 10⁶ stroops = 31.99 |
+| **Total network fee** | **9** | **9,000** | — | **≈ 48.43 XLM, before `settle`** |
 
-At any plausible XLM price under USD 0.50, the protocol's monthly network cost across 1,000 workflows is **under 7 US cents**. The agent payouts of ≈ 172 USDC flow entirely through to agent owners; the protocol takes zero margin in v1.
+The samples are testnet transactions `027b0d42…9230` (`authorize`, 2026-09-22), `03c3f815…67b7` (`seal`, 2026-06-09) and `63031b49…28b2` (`submit`, 2026-09-22). A rating that writes an agent's first evidence costs more, up to 189,423 stroops in the scorer's recent history. `settle` has never run; the deployed v1 `charge`, the nearest call measured, cost 54,989 stroops (`7932846b…9cc2`, 2026-06-09), which would add about 5.50 XLM a month (1,000 × 54,989 stroops = 54.99 × 10⁶ stroops). At USD 0.50 per XLM, the monthly network cost across 1,000 workflows is therefore about **USD 24 before `settle`**, and about USD 27 with a `settle` priced like that `charge`. The agent payouts of ≈ 172 USDC flow entirely through to agent owners; the protocol takes zero margin in v1.
 
 Two observations for prospective operators:
 
