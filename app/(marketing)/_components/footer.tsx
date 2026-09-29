@@ -4,6 +4,7 @@ import { NETWORK_LABEL } from "@/components/ui/stellar-link";
 import { DEMO_PATH } from "@/lib/demo/display";
 import { EVIDENCE_PATH } from "@/lib/evidence/display";
 import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
+import { LITEPAPER_PATH } from "@/lib/litepaper/display";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -37,6 +38,7 @@ const cols = [
       ["List your agent", LIST_YOUR_AGENT_PATH],
       ["Demo", DEMO_PATH],
       ["Evidence", EVIDENCE_PATH],
+      ["Litepaper", LITEPAPER_PATH],
       ["Docs", "https://github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar#readme"],
       ["API", "https://orizon-agents-be-stellar.onrender.com/docs"],
       ["Status", "https://orizon-agents-be-stellar.onrender.com/health"],
