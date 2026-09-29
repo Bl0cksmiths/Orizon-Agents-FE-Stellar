@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   FALLBACK_CONTRACT_IDS,
   fallbackReputationLedgerId,
+  v1EscrowId,
 } from "./contract-addresses";
 
 // A Soroban contract id is a 56-character strkey: "C" plus 55 base32 digits.
@@ -52,6 +53,17 @@ describe("fallbackReputationLedgerId", () => {
   it("resolves the testnet id for the testnet explorer segment", () => {
     expect(fallbackReputationLedgerId("testnet")).toBe(
       FALLBACK_CONTRACT_IDS.reputation_ledger.testnet,
+    );
+  });
+});
+
+describe("v1EscrowId", () => {
+  it("resolves escrow v1's id for each explorer segment", () => {
+    expect(v1EscrowId("testnet")).toBe(
+      "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+    );
+    expect(v1EscrowId("public")).toBe(
+      FALLBACK_CONTRACT_IDS.payment_escrow.public,
     );
   });
 });
