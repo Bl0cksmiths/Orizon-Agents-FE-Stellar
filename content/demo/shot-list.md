@@ -27,7 +27,7 @@ The pre-flight answers **GO** or **NO-GO**. **Record only on GO.** A NO-GO is no
 - [ ] The backend is `feat/5.02-integration` or later: `/api/ecosystem/adoption`, `/api/agents/{id}/readiness` and the dispute read-grant routes are all served.
 - [ ] Refunds are on: `uphold` without a key answers 401, not `503 dispute_refunds_disabled`.
 - [ ] `/readiness` reads `ratings.writer: scorer`, and `cold_start.routable: true` (`lower_bound_bps` 5677 against `floor_bps` 5500).
-- [ ] Every page the recording visits answers: `/app/register`, `/app/bind`, `/app/operator`, `/app/orchestrator`, `/app/agents`, `/app/ecosystem` and `/guide/list-your-agent`.
+- [ ] Every page the recording visits answers: `/`, `/app/register`, `/app/bind`, `/app/operator`, `/app/orchestrator`, `/app/agents`, `/app/ecosystem` and `/guide/list-your-agent`. So do the pages the S12 card names: `/evidence`, `/demo` and `/litepaper`.
 - [ ] The wallet balances cover the session with room for one full retake: the buyer covers the cap plus fees and reserve, the operator covers the registration fee, and the settler covers settle, seal, ratings, refund and dispute rating.
 - [ ] The faulty test agent reads `lower_bound_bps` ≤ 5489 (5443 expected), `source: onchain`, not stale, and is bound and listed.
 - [ ] At least 3 routable agents clear the floor, so the S05 agent is **excluded** and not "kept below floor".
