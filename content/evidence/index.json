@@ -1,0 +1,384 @@
+{
+  "schema": "orizon.evidence-index/1",
+  "title": "Orizon Agents: evidence index",
+  "sow": {
+    "version": "v4",
+    "date": "2026-08-01",
+    "note": "Orizon Agents Stellar Instaward SOW v4, the approved revision. Each deliverable’s evidence type and description, and each metric and target, is quoted from it word for word."
+  },
+  "snapshot": {
+    "as_of": "2026-09-29",
+    "network": "testnet",
+    "method": "Nothing has been measured or linked yet. Until each item is checked on the testnet ledger and filled in, it is marked missing and each metric is marked not met."
+  },
+  "deliverables": [
+    {
+      "id": "D1",
+      "name": "Permissionless Agent Registration",
+      "evidence_type": "Repo PR(s) · live URL · tx hash",
+      "sow_text": "Merged PRs for the registration flow, the live \"Register an Agent\" URL on the deployed dApp, and an externally owned agent's registration tx hash on Stellar Expert (testnet).",
+      "items": [
+        {
+          "id": "6.1-D1-a",
+          "claim": "The code for the registration flow was reviewed and merged.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D1-b",
+          "claim": "The live “Register an Agent” page is open to anyone on the deployed dApp, with no login.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D1-c",
+          "claim": "An agent owned by an outside wallet, not a team wallet, was registered on testnet.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "D2",
+      "name": "Reputation-Gated Routing",
+      "evidence_type": "Screen recording · screenshots · code link",
+      "sow_text": "A short recording/screenshots of the decompose plan card showing on-chain reputation per agent, plus a routing example where a sub-floor agent is excluded, and a link to the routing code.",
+      "items": [
+        {
+          "id": "6.1-D2-a",
+          "claim": "The plan card shows each agent’s on-chain reputation before the buyer pays.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D2-b",
+          "claim": "An agent below the reputation floor is left out of a plan.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D2-c",
+          "claim": "The routing code that reads reputation and applies the floor.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "D3",
+      "name": "Automated Dispute Window + Partial-Credit Refund",
+      "evidence_type": "tx hash · screen recording",
+      "sow_text": "A dispute tx hash and the corresponding partial-refund tx on Stellar Expert (testnet), plus a recording of the dispute UI on the trace/receipt view.",
+      "items": [
+        {
+          "id": "6.1-D3-a",
+          "claim": "A buyer’s dispute is recorded on testnet.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D3-b",
+          "claim": "The partial refund for that dispute is paid on testnet.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D3-c",
+          "claim": "A recording of a buyer disputing a step from the receipt view.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "D4",
+      "name": "Ecosystem Validation Package",
+      "evidence_type": "Demo video · integration guide · tx-hash list",
+      "sow_text": "A 3–5 minute demo video (operator + buyer perspectives), the public \"List your agent on Orizon\" integration guide, and a list of ≥ 2 external registration tx hashes plus ≥ 3 settlement tx hashes on Stellar Expert (testnet).",
+      "items": [
+        {
+          "id": "6.1-D4-a",
+          "claim": "A 3–5 minute demo video, from the operator’s side and the buyer’s.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D4-b",
+          "claim": "The public “List your agent on Orizon” integration guide.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D4-c",
+          "claim": "At least two agent registrations by outside operators on testnet.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-D4-d",
+          "claim": "At least three settled payments on testnet.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "RD",
+      "name": "Repositories & Deployments",
+      "evidence_type": "GitHub repos · live deployments · on-chain proofs",
+      "sow_text": "GitHub repositories (all MIT): frontend github.com/ALGOREX-PH/Orizon-Agents-FE-Stellar, backend github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar, contracts github.com/ALGOREX-PH/Orizon-Agents-Smart-Contract-Stellar. Deployments: dApp orizons.xyz, API orizon-agents-be-stellar.onrender.com. On-chain proofs: every registration, settlement, and attestation is viewable on Stellar Expert (testnet) under the four live contract IDs.",
+      "items": [
+        {
+          "id": "6.1-RD-a",
+          "claim": "The frontend source code on GitHub, under the MIT licence.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-b",
+          "claim": "The backend source code on GitHub, under the MIT licence.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-c",
+          "claim": "The smart-contract source code on GitHub, under the MIT licence.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-d",
+          "claim": "The live dApp at orizons.xyz, running on testnet.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-e",
+          "claim": "The live API, answering its status check.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-f1",
+          "claim": "The AgentRegistry contract on testnet, where agents are registered.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-f2",
+          "claim": "The PaymentEscrow contract on testnet, where payments are authorized and charged.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-f3",
+          "claim": "The ReputationLedger contract on testnet, where ratings are recorded.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-f4",
+          "claim": "The AttestationRegistry contract on testnet, where finished workflows are sealed.",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        },
+        {
+          "id": "6.1-RD-f5",
+          "claim": "The PaymentEscrow v2 contract on testnet, which replaces the first escrow for settlement (not named in the SOW).",
+          "status": "missing",
+          "note": "Not yet filled in.",
+          "links": []
+        }
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "id": "m01",
+      "category": "Adoption targets",
+      "metric": "Externally-operated agents registered on Testnet",
+      "target": "≥ 2",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Count the agents registered on the testnet AgentRegistry whose owner wallet is not a team wallet, each linked to its registration transaction.",
+      "links": []
+    },
+    {
+      "id": "m02",
+      "category": "Adoption targets",
+      "metric": "Unique external operator wallet addresses",
+      "target": "≥ 2",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Count the distinct owner wallets of those outside agents, each linked to its account page.",
+      "links": []
+    },
+    {
+      "id": "m03",
+      "category": "Transaction targets",
+      "metric": "Workflows routed to external agents & settled on Testnet",
+      "target": "≥ 3",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Count the workflows paid to an outside agent and settled on testnet, each linked to its settlement and its seal.",
+      "links": []
+    },
+    {
+      "id": "m04",
+      "category": "Transaction targets",
+      "metric": "On-chain USDC settlements (charges) recorded",
+      "target": "≥ 3",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Count the settlements recorded by the testnet escrow, each linked to its transaction, with the asset shown as it really is.",
+      "links": []
+    },
+    {
+      "id": "m05",
+      "category": "Transaction targets",
+      "metric": "Dispute → partial-refund settlements",
+      "target": "≥ 1",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Count the disputes that ended in a partial refund, each linked to its dispute record and its refund transaction.",
+      "links": []
+    },
+    {
+      "id": "m06",
+      "category": "Technical milestones",
+      "metric": "Permissionless AgentRegistry.register flow live on the dApp",
+      "target": "Yes",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Open the live Register an Agent page and see an outside registration (Deliverable 1).",
+      "links": []
+    },
+    {
+      "id": "m07",
+      "category": "Technical milestones",
+      "metric": "Reputation-gated routing (reads avg_bps, applies a floor) live",
+      "target": "Yes",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Watch the plan card and a below-floor exclusion, and read the routing code (Deliverable 2).",
+      "links": []
+    },
+    {
+      "id": "m08",
+      "category": "Technical milestones",
+      "metric": "Automated dispute window + partial-credit refund live",
+      "target": "Yes",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Watch the dispute recording and open the dispute and refund transactions (Deliverable 3).",
+      "links": []
+    },
+    {
+      "id": "m09",
+      "category": "Technical milestones",
+      "metric": "Public \"List your agent on Orizon\" integration guide published",
+      "target": "Yes",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Open the public guide without logging in (Deliverable 4).",
+      "links": []
+    },
+    {
+      "id": "m10",
+      "category": "Technical milestones",
+      "metric": "3–5 min demo video published",
+      "target": "Yes",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Open the public demo video and check that it runs 3 to 5 minutes (Deliverable 4).",
+      "links": []
+    },
+    {
+      "id": "m11",
+      "category": "Technical milestones",
+      "metric": "All source code released under MIT License",
+      "target": "Yes",
+      "achieved": "Not yet measured",
+      "status": "not_met",
+      "reason": "Not yet measured.",
+      "method": "Find an MIT LICENSE file at the root of each repository (Repositories & Deployments).",
+      "links": []
+    }
+  ],
+  "disclosures": [
+    {
+      "id": "testnet",
+      "title": "Testnet only",
+      "text": "All Instaward work is built and validated on the Stellar test network for this sprint, and every Stellar Expert link on this page opens a testnet page. No real money moves on testnet. Orizon’s contracts are also deployed on Stellar mainnet outside this award; none of that deployment is funded by, or in scope for, this Instaward.",
+      "sow_ref": "§3.6"
+    },
+    {
+      "id": "platform_credits",
+      "title": "Dispute credits are paid by the platform",
+      "text": "When a dispute is upheld, the partial-credit refund is paid to the buyer by the platform’s settler key, from the platform’s own account; it is not taken back from the agent’s operator. The platform, not an independent arbiter, decides whether a dispute is upheld: dispute resolution is a trusted, permissioned operation today, and the contracts have no on-chain refund function.",
+      "sow_ref": "§3.8",
+      "changed_since_sow": "SOW §3.8 says the refund is executed by the settler within the buyer’s authorization envelope. As built, the credit is paid from the platform’s own account instead of being drawn from the buyer’s authorization or from the agent."
+    },
+    {
+      "id": "offchain_binding",
+      "title": "Agent endpoints are recorded off-chain",
+      "text": "An agent’s on-chain registration holds its owner, id, name, skills and price, and no endpoint. Which HTTPS endpoint Orizon calls for an agent is recorded by the platform, after the operator proves ownership with a wallet signature, and cannot be checked on Stellar. The SOW does not describe endpoint binding; it is stated here so nothing is implied.",
+      "sow_ref": "§3.8"
+    },
+    {
+      "id": "single_settler_key",
+      "title": "One platform key settles, rates and seals",
+      "text": "The settler, the role that executes charges and dispute credits, is a single platform-held backend key fixed when the contracts were deployed. It cannot be rotated, and there is no multi-signature or threshold control over it. On today’s testnet deployment the same key also holds the admin, scorer (reputation ratings) and sealer (attestations) roles. Settlement, rating submission and dispute resolution are therefore trusted, permissioned operations. Deliverable 1 makes registration permissionless; it does not make settlement permissionless.",
+      "sow_ref": "§3.8"
+    }
+  ],
+  "notes": [
+    {
+      "id": "usdc_vs_xlm",
+      "title": "Testnet XLM, where the SOW says USDC",
+      "text": "The SOW words the settlement metric as USDC. On testnet, Orizon’s escrow settles in native testnet XLM. Where a settlement is counted here, it is labelled with the asset it really moved."
+    },
+    {
+      "id": "sow_v3_targets",
+      "title": "The targets are SOW v4’s, not v3’s",
+      "text": "SOW v3 set lower adoption targets: at least 1 externally operated agent, 1 operator wallet and 2 settled workflows. SOW v4 raised them to at least 2, 2 and 3. This page measures against v4 only."
+    },
+    {
+      "id": "pre_sprint_self_payments",
+      "title": "Earlier self-payments are not counted",
+      "text": "The testnet escrow records charges from May and June 2026, before the sprint, in which the platform’s own wallet paid itself. No money moved between two parties, so none of them is counted as a settlement here."
+    }
+  ]
+}
