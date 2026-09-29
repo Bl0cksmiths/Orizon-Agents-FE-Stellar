@@ -126,11 +126,6 @@ export async function main(argv, io = {}) {
     endpoints,
   });
 
-  if (report.validator.source === "stub") {
-    error(
-      "warning: lib/evidence/validate.mjs is not on this branch; the structural rules came from scripts/evidence-check/validate.stub.mjs",
-    );
-  }
   const markdown = toMarkdown(report);
   log(markdown);
   const dir = resolve(
