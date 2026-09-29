@@ -1107,8 +1107,8 @@ export const mockExternalSettlementTx =
 /**
  * A populated answer: one outside operator whose agent has settled two
  * workflows — one paid by an outside buyer, one paid by our own team wallet,
- * which the page must label team-funded — and a read that could not see one
- * agent.
+ * which the page must label team-funded — a read that could not see one
+ * agent, and the seven-day ledger window the settled counts cover.
  */
 export const mockAdoptionWithOperator: import("../lib/ecosystem").EcosystemAdoption =
   {
@@ -1166,6 +1166,9 @@ export const mockAdoptionWithOperator: import("../lib/ecosystem").EcosystemAdopt
     ],
     degraded: true,
     unreadable_agents: ["ext.unreadable"],
+    // The settlement service's ledger window. The zero fixture leaves it out,
+    // as a backend that predates the field does.
+    window_days: 7.0,
   };
 
 /** One agent's readiness, partway through onboarding: registered and active,
