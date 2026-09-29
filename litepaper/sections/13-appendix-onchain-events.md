@@ -45,7 +45,8 @@ data:   ("0x00000000000000000000000000000a04",   // receipt_id
 | Event | Topics | Data | Triggered by |
 | --- | --- | --- | --- |
 | **Sealed** | `(Symbol("sealed"), job_id: BytesN<16>)` | `(orchestrator: Address, total_spent: i128)` | `seal()` |
-| **Sealer rotated** | `(Symbol("rotated"),)` | `new_sealer: Address` | `set_sealer()` |
+
+`set_sealer()` emits no event (SC@dd2d642 · contract/attestation-registry/src/lib.rs · `AttestationRegistry::seal`, `AttestationRegistry::set_sealer`).
 
 ```text
 example:
