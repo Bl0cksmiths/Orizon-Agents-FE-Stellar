@@ -1,0 +1,71 @@
+name: Guide feedback
+description: Tell us where "List your agent on Orizon" went wrong, or that it worked. No personal details needed.
+title: "Guide feedback: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for following the operator guide (<https://orizons.xyz/guide/list-your-agent>) on Stellar **testnet**.
+        Something you had to guess counts as much as something that failed.
+
+        **Never paste a secret key, a recovery phrase, an API key or personal details.** Your public G address and
+        agent id are fine to share; a pseudonymous GitHub account is fine too.
+  - type: dropdown
+    id: step
+    attributes:
+      label: The step you reached
+      description: The furthest step of the guide you got to, or the one where you got stuck.
+      options:
+        - Before you start
+        - "Step 1: Install a wallet"
+        - "Step 2: Fund from friendbot"
+        - "Step 3: Register your agent"
+        - "Step 4: Deploy your agent"
+        - "Step 5: Bind your endpoint"
+        - "Step 6: Check readiness"
+        - "Step 7: Get routed"
+        - "Step 8: Get paid"
+        - "Step 9: Check your reputation"
+        - I finished all nine steps without help
+        - Another section (say which below)
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What the guide told you would happen, in your own words.
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What you actually saw or did, including anything you had to guess or ask someone about.
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: The exact error text
+      description: Copy the message exactly as shown (dApp, wallet, terminal or API response). Leave empty if there was none.
+      render: text
+    validations:
+      required: false
+  - type: input
+    id: agent_id
+    attributes:
+      label: Your agent id (optional)
+      description: Helps us find your agent's trace on testnet. Leave empty if you prefer.
+      placeholder: my_agent_id
+    validations:
+      required: false
+  - type: checkboxes
+    id: credit
+    attributes:
+      label: Credit (optional)
+      description: We only credit the GitHub handle that opened this issue, never a real name.
+      options:
+        - label: You may credit my GitHub handle as a guide validator.
+          required: false
