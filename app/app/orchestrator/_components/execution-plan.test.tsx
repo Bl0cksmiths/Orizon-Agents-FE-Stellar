@@ -121,6 +121,37 @@ function plan(over: Partial<DecomposeResponse> = {}): DecomposeResponse {
 const ESCROW_ID = "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI";
 const EXPIRES_AT = 1_790_000_000;
 
+/** An escrow v2 id, as a deploy would pin it. */
+const V2_ESCROW_ID = `C${"V".repeat(55)}`;
+
+/**
+ * The deployment settles through escrow v2: the build pins `id` and the
+ * backend reports that same escrow. The only case in which the card may say
+ * that signing moves funds into escrow.
+ */
+function onEscrowV2(id = V2_ESCROW_ID) {
+  escrowPin.value = id;
+  api.getStellarNetwork.mockResolvedValue({
+    ...TESTNET,
+    contracts: { payment_escrow: id },
+  });
+}
+
+/** The live deployment today: no v2 pin, the backend on escrow v1. */
+function onEscrowV1() {
+  escrowPin.value = null;
+  api.getStellarNetwork.mockResolvedValue({
+    ...TESTNET,
+    contracts: { payment_escrow: ESCROW_ID },
+  });
+}
+
+/** The network read never answers, so which escrow is live is unknown. */
+function onEscrowUnknown() {
+  escrowPin.value = V2_ESCROW_ID;
+  api.getStellarNetwork.mockReturnValue(new Promise(() => {}));
+}
+
 const authorizeButton = () =>
   screen.getByRole("button", { name: /authorize/i });
 
@@ -766,6 +797,7 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
   // buyer's last chance to learn that signing moves the money NOW, what it
   // pays for, and that the unspent part comes back.
   it("says the signature moves the cap into escrow now, and what happens to it", async () => {
+    onEscrowV2();
     const { container } = render(<ExecutionPlan plan={plan()} />);
     await shownCap(container);
     const text = container.textContent ?? "";
@@ -776,6 +808,37 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
       "Delivered steps are paid from it, and the rest comes back to you when the run settles.",
     );
     expect(text).not.toMatch(/authorizing up to|nothing is moved/i);
+  });
+
+  // Escrow v1 takes no custody and cannot complete a payment (D-039): the
+  // live deployment until v2 is pinned and reported.
+  it("says a v1 signature records an allowance, moves nothing, and cannot yet settle", async () => {
+    onEscrowV1();
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    expect(await shownCap(container)).toBe("0.123 XLM");
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "Freighter will prompt for one signature authorizing up to 0.123 XLM. It records a spending allowance on the escrow contract; no funds move when you sign.",
+    );
+    expect(text).toContain(
+      "On this deployment the escrow cannot yet complete a payment (a known defect; the fix is deployed separately), so a paid run reports its settlement as failed and nothing is charged.",
+    );
+    expect(text).not.toMatch(/into escrow|comes back|moves up to/);
+  });
+
+  it("claims neither custody nor its absence while the escrow is unknown", async () => {
+    onEscrowUnknown();
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await waitFor(() => expect(api.getStellarNetwork).toHaveBeenCalled());
+    const line = Array.from(container.querySelectorAll("div")).find((d) =>
+      d.textContent?.startsWith("Freighter will prompt"),
+    );
+    expect(line?.textContent).toBe(
+      "Freighter will prompt for one signature authorizing up to 0.123.",
+    );
+    expect(container.textContent).not.toMatch(
+      /into escrow|no funds move|allowance|cannot yet complete/,
+    );
   });
 
   it("signs exactly the cap it shows", async () => {

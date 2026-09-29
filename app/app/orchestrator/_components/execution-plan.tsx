@@ -45,6 +45,7 @@ import {
   type EscrowRelease,
 } from "@/lib/execute-refusal";
 import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
+import { V1_CANNOT_SETTLE, generationOf } from "@/lib/escrow-generation";
 import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
@@ -156,6 +157,20 @@ export function ExecutionPlan({
   const { data: network } = useFetch(getStellarNetwork, [], {
     revalidateOnFocus: true,
   });
+  // Which escrow a signature here goes to, and so what it does: v2 takes the
+  // cap into custody at signing, v1 only records an allowance and cannot
+  // complete a payment (D-039). Every custody sentence and control on this
+  // card reads this one decision; `unknown` claims neither story.
+  //
+  // When this build pins the v2 escrow and the backend reports a different
+  // one, a signature would go to a contract the copy does not describe — so
+  // the card will not ask for one. Simulate and fiat do not sign against it.
+  const escrow = escrowAgreement(
+    network,
+    pinnedEscrowId(defaultExplorerNetwork),
+  );
+  const escrowMismatch = escrow.kind === "mismatch";
+  const generation = generationOf(escrow);
   /**
    * An amount exactly as it is signed, with its real unit — or bare while the
    * unit is unknown. Rounded to the stroop, as the backend converts it
@@ -309,16 +324,6 @@ export function ExecutionPlan({
       // second time via useAsyncAction's captured error.
     }
   });
-
-  // Everything this card says about paying describes escrow v2. When this
-  // build pins the v2 escrow and the backend reports a different one, a
-  // signature would go to a contract the copy does not describe — so the
-  // card will not ask for one. Simulate and fiat do not sign against it.
-  const escrow = escrowAgreement(
-    network,
-    pinnedEscrowId(defaultExplorerNetwork),
-  );
-  const escrowMismatch = escrow.kind === "mismatch";
 
   // Every notice above the Authorize panel that is on the page, in reading
   // order. Composed, never chosen between: a fallback plan built during a
@@ -565,7 +570,7 @@ export function ExecutionPlan({
                 </div>
                 {empty ? (
                   <div className="text-sm">{EMPTY_PLAN}</div>
-                ) : (
+                ) : generation === "v2" ? (
                   // Escrow v2 takes custody at authorize: this signature moves
                   // the money now, not at settlement. A buyer who reads "up
                   // to" as a cap on a later charge has been told v1's story.
@@ -575,6 +580,16 @@ export function ExecutionPlan({
                     <b className="text-text">{priced(cap)}</b> from your wallet
                     into escrow now. Delivered steps are paid from it, and the
                     rest comes back to you when the run settles.
+                  </div>
+                ) : (
+                  // v1 moves nothing at signing, and says so; until the
+                  // escrow is known, the sentence claims neither.
+                  <div className="max-w-xl text-sm leading-relaxed">
+                    Freighter will prompt for{" "}
+                    <b className="text-text">one signature</b> authorizing up to{" "}
+                    <b className="text-text">{priced(cap)}</b>.
+                    {generation === "v1" &&
+                      ` It records a spending allowance on the escrow contract; no funds move when you sign. ${V1_CANNOT_SETTLE}`}
                   </div>
                 )}
               </div>
