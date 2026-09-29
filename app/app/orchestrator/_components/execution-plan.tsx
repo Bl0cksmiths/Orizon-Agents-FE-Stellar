@@ -693,6 +693,7 @@ export function ExecutionPlan({
             run={expired}
             onReplan={onReplan}
             busy={executing}
+            generation={generation}
             fundsReturned={release?.kind === "returned"}
           />
         )}
