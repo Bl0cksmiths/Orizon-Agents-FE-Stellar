@@ -896,9 +896,10 @@ calls cost far more than a classic payment’s 100 stroops: measured on
 testnet, about <strong>0.048 XLM</strong> for the eight of those nine
 whose cost has been observed, before <code>settle</code>, which has
 never run because v2 is not deployed (§7.4). That is about 2.4 US cents
-at USD 0.50 per XLM. The platform pays every one of those fees except
-the buyer’s <code>authorize</code> and takes no margin, so on a 0.012
-USDC step it runs at a loss today.</li>
+at an assumed USD 0.50 per XLM (an assumption made on 2026-09-29, not a
+quote). The platform pays every one of those fees except the buyer’s
+<code>authorize</code> and takes no margin, so on a 0.012 USDC step it
+runs at a loss today.</li>
 <li><strong>Stablecoin native.</strong> USDC issued on Stellar is held
 in the buyer’s wallet directly, transferable as a Stellar asset. The
 Stellar Asset Contract (SAC) gives Soroban code a
@@ -915,21 +916,25 @@ contract/payment-escrow/src/lib.rs · <code>PaymentEscrow::charge</code>;
 SC@dd2d642 · same file · <code>PaymentEscrow::authorize</code>,
 <code>PaymentEscrow::settle</code>).</li>
 <li><strong>Soroban gives us composability without rewriting the
-language.</strong> The four contracts compile to ~26 KB of WASM total.
-Storage is tiered (<code>Instance</code>, <code>Persistent</code>,
-<code>Temporary</code>) which lets us keep the attestation and the
-rating replay guard in <code>Persistent</code> for good. The first
-ledger kept the replay guard in <code>Temporary</code>, where it expired
-and re-opened the replay window; the deployed ledger keeps it in
-<code>Persistent</code> (SC@dd2d642 ·
-contract/reputation-ledger/src/lib.rs · <code>DataKey::Rated</code>). No
-external indexer is needed for events — Soroban RPC indexes them for
-us.</li>
+language.</strong> The four deployed contracts are 32.7 KB of WASM in
+total (33,532 bytes, fetched from testnet; §5.3). Storage is tiered
+(<code>Instance</code>, <code>Persistent</code>, <code>Temporary</code>)
+which lets us keep the attestation and the rating replay guard in
+<code>Persistent</code> for good. The first ledger kept the replay guard
+in <code>Temporary</code>, where it expired and re-opened the replay
+window; the deployed ledger keeps it in <code>Persistent</code>
+(SC@dd2d642 · contract/reputation-ledger/src/lib.rs ·
+<code>DataKey::Rated</code>). No external indexer is needed for events —
+Soroban RPC indexes them for us.</li>
 </ul>
 <p>We do not claim Stellar is the only substrate where this protocol
 could be built. We claim it is the only substrate where this protocol
-can be built with a v1 that <strong>charges 1.1 cents per step,
-finalises in 5 s, and ships with 26 KB of contract code</strong>. Every
+can be built with a v1 that <strong>prices a step at 2.8 cents on
+average, finalises in 5 s, and ships with 33 KB of contract
+code</strong>. The average is the six kit steps’ seeded prices, 0.024 +
+0.009 + 0.018 + 0.054 + 0.052 + 0.011 = 0.168 USDC, divided by six
+(BE@a3dc1f9 · app/seed.py · <code>_SEED</code>;
+app/services/orchestrator_svc.py · <code>_KIT_PIPELINE</code>). Every
 other chain we evaluated forced a compromise on one of those three
 numbers.</p>
 <p>The next chapter walks through what users actually do with the
@@ -1763,26 +1768,26 @@ modules.</p>
 <tr>
 <td><code>AgentRegistry</code></td>
 <td><code>CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ</code></td>
-<td style="text-align: center;">7.2 KB</td>
+<td style="text-align: center;">7.2 KB (7,335 B)</td>
 <td>Identity, skills, price catalog; resolves agent owner for
 payout</td>
 </tr>
 <tr>
 <td><code>PaymentEscrow</code></td>
 <td><code>CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI</code></td>
-<td style="text-align: center;">9.8 KB</td>
+<td style="text-align: center;">9.7 KB (9,953 B)</td>
 <td>x402 authorize → charge → receipt flow; calls registry + SAC</td>
 </tr>
 <tr>
 <td><code>AttestationRegistry</code></td>
 <td><code>CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK</code></td>
-<td style="text-align: center;">5.1 KB</td>
+<td style="text-align: center;">5.1 KB (5,192 B)</td>
 <td>Write-once workflow receipt under a job id</td>
 </tr>
 <tr>
 <td><code>ReputationLedger</code></td>
 <td><code>CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT</code></td>
-<td style="text-align: center;">5.1 KB</td>
+<td style="text-align: center;">10.8 KB (11,052 B)</td>
 <td>Decayed, value-weighted rating evidence per agent, 0–10,000 bps,
 with replay guard</td>
 </tr>
@@ -1794,6 +1799,13 @@ with replay guard</td>
 </tr>
 </tbody>
 </table>
+<p>The WASM sizes are the code deployed at each address, fetched
+read-only from testnet with <code>stellar contract fetch</code> on
+2026-09-29 (1 KB = 1,024 bytes); the four total 33,532 bytes, 32.7 KB.
+Their sha256 hashes, which are the on-chain WASM hashes, begin
+<code>a56d2db5</code>, <code>d732e8e6</code>, <code>7146c4dc</code> and
+<code>2fc4965a</code> in table order. Escrow v2 is not deployed, and its
+size is not measured.</p>
 <p>The contracts share a small types crate
 (<code>contract/shared</code>) exporting <code>Agent</code>,
 <code>Authorization</code>, <code>Receipt</code> and
@@ -2294,8 +2306,8 @@ mimics the real model-driven path’s <em>feel</em> without taking the
 model’s time. The shipped trace replay at <code>/app/trace</code> uses
 the same timing budget.</p>
 <p>Per-contract WASM sizes (release profile, <code>opt-level=&quot;z&quot;</code>,
-<code>lto=true</code>, panic=abort) are documented in §5.3. The largest,
-<code>PaymentEscrow</code>, is 9.8 KB; the simplest,
+<code>lto=true</code>, panic=abort) are documented in §5.3. The largest
+deployed, <code>ReputationLedger</code>, is 10.8 KB; the smallest,
 <code>AttestationRegistry</code>, is 5.1 KB. Storage growth per workflow
 is bounded: one <code>Receipt</code> per step, one
 <code>Attestation</code> per workflow, one <code>Rated</code> marker per
@@ -3700,24 +3712,30 @@ evidence costs more, up to 189,423 stroops in the scorer’s recent
 history. <code>settle</code> has never run; the deployed v1
 <code>charge</code>, the nearest call measured, cost 54,989 stroops
 (<code>7932846b…9cc2</code>, 2026-06-09), which would add about 5.50 XLM
-a month (1,000 × 54,989 stroops = 54.99 × 10⁶ stroops). At USD 0.50 per
-XLM, the monthly network cost across 1,000 workflows is therefore about
-<strong>USD 24 before <code>settle</code></strong>, and about USD 27
-with a <code>settle</code> priced like that <code>charge</code>. The
-agent payouts of ≈ 172 USDC flow entirely through to agent owners; the
-protocol takes zero margin in v1.</p>
+a month (1,000 × 54,989 stroops = 54.99 × 10⁶ stroops). At an assumed
+USD 0.50 per XLM (an assumption made on 2026-09-29, not a quote), the
+monthly network cost across 1,000 workflows is therefore about
+<strong>USD 24 before <code>settle</code></strong> (48.43 × 0.50 =
+24.21), and about USD 27 with a <code>settle</code> priced like that
+<code>charge</code> ((48.43 + 5.50) × 0.50 = 26.96). The agent payouts
+of ≈ 172 USDC flow entirely through to agent owners; the protocol takes
+zero margin in v1.</p>
 <p>Two observations for prospective operators:</p>
 <ul>
 <li><strong>The cost of being a buyer is the agents you hire</strong>,
 not infrastructure. A buyer running ten kit workflows a month pays 1.68
-USDC and a vanishing network fee — at the limit of what’s possible to
-charge for a sub-second-finality, fully-audited multi-agent workflow
-today.</li>
-<li><strong>The cost of operating the protocol is dominated by the
-inference bill</strong>, not the chain. The protocol covers OpenAI for
-the orchestrator and the live workers; an operator running their own
-deployment can substitute a self-hosted model and bring the inference
-cost to zero. The on-chain footprint stays small.</li>
+USDC in agent prices and ten <code>authorize</code> fees, about 1.06 XLM
+(10 × 106,477 stroops), or about USD 0.53 at the assumed USD 0.50 per
+XLM; the platform pays the rest of the network fees.</li>
+<li><strong>The cost of operating the protocol is the chain plus the
+inference bill.</strong> The chain part is measured above: about USD
+24–27 a month for 1,000 workflows at the assumed rate, nearly all of it
+paid by the platform. The inference part is not measured: the protocol
+covers OpenAI for the orchestrator and the live workers, and this
+document states no per-workflow inference cost, so we do not claim which
+of the two is larger. An operator running their own deployment can
+substitute a self-hosted model, which moves the inference cost to their
+own hardware.</li>
 </ul>
 <h2 id="open-questions">7.5 · Open questions</h2>
 <p>We name the unsolved economic questions plainly:</p>
@@ -4076,19 +4094,29 @@ average completion time, sparkline buckets.</p>
 list.</p>
 <h2 id="a.5-stellar">A.5 · Stellar</h2>
 <h3 id="get-apistellarnetwork"><code>GET /api/stellar/network</code></h3>
-<p>Canonical source of truth for contract IDs and network metadata.</p>
+<p>Canonical source of truth for contract IDs and network metadata. The
+response below is the live testnet deployment’s, read on 2026-09-29; its
+shape is the <code>NetworkInfo</code> model on BE main (BE@a3dc1f9 ·
+app/routers/stellar.py · <code>NetworkInfo</code>,
+<code>network</code>), with the contract ids nested under
+<code>contracts</code>. <code>dispatch_signer</code> is
+<code>null</code> when no dispatch key is configured.</p>
 <div class="sourceCode" id="cb23"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="dv">200</span> <span class="er">OK</span></span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;network&quot;</span><span class="fu">:</span>          <span class="st">&quot;testnet&quot;</span><span class="fu">,</span></span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;network_passphrase&quot;</span><span class="fu">:</span> <span class="st">&quot;Test SDF Network ; September 2015&quot;</span><span class="fu">,</span></span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;rpc_url&quot;</span><span class="fu">:</span>          <span class="st">&quot;https://soroban-testnet.stellar.org&quot;</span><span class="fu">,</span></span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;admin&quot;</span><span class="fu">:</span>            <span class="st">&quot;GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV&quot;</span><span class="fu">,</span></span>
-<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agent_registry&quot;</span><span class="fu">:</span>      <span class="st">&quot;CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ&quot;</span><span class="fu">,</span></span>
-<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;payment_escrow&quot;</span><span class="fu">:</span>      <span class="st">&quot;CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI&quot;</span><span class="fu">,</span></span>
-<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;attestation_registry&quot;</span><span class="fu">:</span><span class="st">&quot;CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK&quot;</span><span class="fu">,</span></span>
-<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;reputation_ledger&quot;</span><span class="fu">:</span>   <span class="st">&quot;CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT&quot;</span><span class="fu">,</span></span>
-<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;asset_sac&quot;</span><span class="fu">:</span>           <span class="st">&quot;CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC&quot;</span></span>
-<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;network&quot;</span><span class="fu">:</span> <span class="st">&quot;testnet&quot;</span><span class="fu">,</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;rpc_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://soroban-testnet.stellar.org&quot;</span><span class="fu">,</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;network_passphrase&quot;</span><span class="fu">:</span> <span class="st">&quot;Test SDF Network ; September 2015&quot;</span><span class="fu">,</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;admin&quot;</span><span class="fu">:</span> <span class="st">&quot;GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV&quot;</span><span class="fu">,</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dispatch_signer&quot;</span><span class="fu">:</span> <span class="st">&quot;GB5MKHDFLJZ6OFPAHM7R4HGBUPFV5PZYL3W27VTIUZZ25JMQSDZBKCMR&quot;</span><span class="fu">,</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;asset&quot;</span><span class="fu">:</span> <span class="st">&quot;native&quot;</span><span class="fu">,</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;asset_sac&quot;</span><span class="fu">:</span> <span class="st">&quot;CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC&quot;</span><span class="fu">,</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;contracts&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agent_registry&quot;</span><span class="fu">:</span> <span class="st">&quot;CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ&quot;</span><span class="fu">,</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;reputation_ledger&quot;</span><span class="fu">:</span> <span class="st">&quot;CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT&quot;</span><span class="fu">,</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;payment_escrow&quot;</span><span class="fu">:</span> <span class="st">&quot;CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI&quot;</span><span class="fu">,</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;attestation_registry&quot;</span><span class="fu">:</span> <span class="st">&quot;CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK&quot;</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <h3 id="post-apistellarbuildauthorize"><code>POST /api/stellar/build/authorize</code></h3>
 <p>Build an unsigned XDR for <code>PaymentEscrow.authorize</code>. The
 frontend signs this with the buyer’s wallet and submits via
