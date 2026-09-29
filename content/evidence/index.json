@@ -7,9 +7,9 @@
     "note": "This index follows the approved SOW v4, dated 2026-08-01. Section 6.1 says what evidence each deliverable owes, section 6.2 is the checklist the Ambassador Chapter Lead marks (Present, Partial or Missing), and section 6.3 lists the eleven success metrics. Each deliverable below repeats the SOW's Evidence Type and Description word for word. Every piece of evidence has a status and a link you can open, and anything missing or partly done says why in plain words."
   },
   "snapshot": {
-    "as_of": "2026-09-29",
+    "as_of": "2026-09-30",
     "network": "testnet",
-    "method": "Every on-chain link was re-read on 2026-09-29, after the Epic 5 frontend and backend deploys of that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json) or holds a platform role on the contracts. The metrics were re-measured the same day by the backend's read-only generator (scripts/sow_metrics). An outside operator's agent id, wallet and transaction hashes appear here only once that operator's consent to publish them is recorded. Nothing was signed, paid or submitted to make this snapshot."
+    "method": "Every on-chain link was re-read on 2026-09-30, after the Epic 5 frontend and backend deploys of 2026-09-29, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json) or holds a platform role on the contracts. The metrics were re-measured the same day by the backend's read-only generator (scripts/sow_metrics). An outside operator's agent ids, wallet and transaction hashes appear here only once that operator's consent to publish them is recorded. Nothing was signed, paid or submitted to make this snapshot."
   },
   "deliverables": [
     {
@@ -76,9 +76,14 @@
         {
           "id": "6.1-D1-c",
           "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
-          "status": "missing",
-          "note": "Missing. One outside operator's trial registration (2026-09-29) was made from a wallet the team does not control (see Deliverable 4). It is not counted here yet because it is a trial: its server address is a parked web page, not a working agent, and it has had no dispatches and no settlements. Its agent id, wallet and registration hash are held back from this index until the operator's consent to publish them is recorded. The other 12 agents on the registry were registered by wallets the team controls, so none of them counts. The five team registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside developer registers a working agent from their own wallet on orizons.xyz/app/register.",
+          "status": "partial",
+          "note": "Partial. Outside wallets have registered agents: one outside operator's trial registration of one agent, and a second outside operator who registered five agents, all on 2026-09-29 (see Deliverable 4). No outside agent has a working endpoint, a dispatch or a settlement yet: the trial agent is bound to a parked web page, and the five are not bound to any endpoint. Their agent ids, wallets and registration hashes are held back from this index until each operator's consent to publish them is recorded; the platform's public ecosystem page, linked here, lists outside operators by design. The other 13 agents on the registry were registered by wallets the team controls, so none of them counts. The five team registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside agent has a working endpoint and its registration can be linked with its operator's consent.",
           "links": [
+            {
+              "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
+              "url": "https://orizons.xyz/app/ecosystem",
+              "kind": "page"
+            },
             {
               "label": "Registration of sign_probe_bb5c12 by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
               "url": "https://stellar.expert/explorer/testnet/tx/416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
@@ -115,7 +120,7 @@
               "date": "2026-09-24"
             },
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (a trial)",
+              "label": "AgentRegistry contract on Stellar Expert: all 19 registrations, 13 by team wallets and 6 by 2 outside operators",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
@@ -138,7 +143,7 @@
           "id": "6.1-D2-a",
           "claim": "Screenshots or a recording of the plan card showing each agent's on-chain reputation before the buyer pays.",
           "status": "partial",
-          "note": "Partial. A screenshot of the live plan card exists, taken on 2026-09-19. It shows a reputation score on every step and the 2.75 routing floor. But every agent in it still had the starting estimate (about 3.50 out of 5), not a score earned on-chain, because the platform only began writing ratings later that day. No recording exists yet. Since then the platform has written 27 ratings on-chain, two of which are linked here, so the live plan card now shows earned scores for rated agents. Those ratings came from live test runs whose payments did not settle (see the disclosures). A new screenshot or recording would make this item present.",
+          "note": "Partial. A screenshot of the live plan card exists, taken on 2026-09-19. It shows a reputation score on every step and the 2.75 routing floor. But every agent in it still had the starting estimate (about 3.50 out of 5), not a score earned on-chain, because the platform only began writing ratings later that day. No recording exists yet. Since then the platform has written 33 ratings on-chain, two of which are linked here, so the live plan card now shows earned scores for rated agents. Those ratings came from live test runs whose payments did not settle (see the disclosures). A new screenshot or recording would make this item present.",
           "links": [
             {
               "label": "Screenshot of the live plan card: a reputation score on every step, all still at the starting estimate",
@@ -252,10 +257,10 @@
           "id": "6.1-D3-a",
           "claim": "A dispute transaction on Stellar Expert: the negative on-chain rating written when a buyer's dispute is upheld.",
           "status": "missing",
-          "note": "Missing. No dispute has been raised on the live deployment. A buyer can dispute a step only after its payment settles, and no payment has settled during the sprint (see the disclosure on how payment works). All 28 ratings on the live ReputationLedger are ordinary ratings; none is a dispute. The dispute path is merged (the pull requests here). A test run on a separate drill ledger proved the mechanism, but it is not offered as evidence (see the notes).",
+          "note": "Missing. No dispute has been raised on the live deployment. A buyer can dispute a step only after its payment settles, and no payment has settled during the sprint (see the disclosure on how payment works). All 34 ratings on the live ReputationLedger are ordinary ratings; none is a dispute. The dispute path is merged (the pull requests here). A test run on a separate drill ledger proved the mechanism, but it is not offered as evidence (see the notes).",
           "links": [
             {
-              "label": "ReputationLedger contract on Stellar Expert: 28 ratings so far, none of them a dispute",
+              "label": "ReputationLedger contract on Stellar Expert: 34 ratings so far, none of them a dispute",
               "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
               "kind": "contract"
             },
@@ -372,11 +377,11 @@
         {
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
-          "status": "missing",
-          "note": "Missing: 1 of 2. There is one outside operator's trial registration (2026-09-29): one agent, registered from a wallet that is not in the team register and holds no platform role, by an operator who was trying out the platform. The server address bound to it is a parked web page, not a working agent, and it has had no dispatches and no settlements. The platform's own readiness check reports it ready only because that check accepts any page that answers. Its agent id, wallet and registration hash are held back from this index until the operator's consent to publish them is recorded. The platform's public ecosystem page, linked here, lists outside operators by design. The live adoption counter counts it as 1 outside agent and 1 outside operator wallet, against targets of 2 and 2, so no target is met (see metrics 1 to 3).",
+          "status": "partial",
+          "note": "Partial. 2 outside operators have registered 6 agents, all on 2026-09-29, from wallets that are not in the team register and hold no platform role. That is more than the 2 registrations asked for, but the transactions are not listed here yet. The first operator's is a trial registration of a single agent, bound to a server address that is a parked web page, not a working agent. A second outside operator registered five agents, none bound to an endpoint yet. None of the six has had a dispatch or a settlement. The platform's own readiness check reports the trial agent ready only because that check accepts any page that answers. Their agent ids, wallets and registration hashes are held back from this index until each operator's consent to publish them is recorded, so the transactions are not linked. The platform's public ecosystem page, linked here, lists outside operators by design. The live adoption counter counts 6 outside agents and 2 outside operator wallets, which meets both targets, and 0 settled outside workflows against a target of 3 (see metrics 1 to 3).",
           "links": [
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (a trial)",
+              "label": "AgentRegistry contract on Stellar Expert: all 19 registrations, 13 by team wallets and 6 by 2 outside operators",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
@@ -407,7 +412,7 @@
           "id": "6.1-D4-d",
           "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
           "status": "missing",
-          "note": "Missing: 0 of 3. No payment has settled on the live escrow during the sprint, and no workflow has been sealed. The deployed PaymentEscrow cannot move a buyer's funds to a different wallet (defect D-039, found in QA), so all 37 payment authorizations made since 2026-09-07 were left uncharged. The escrow's Events tab does show 8 'charged' events, but all are from May and June 2026, before the sprint, and in each the team's admin wallet paid itself. They do not count (see the notes). A fixed escrow, v2, is merged in the contracts repository and the live backend can settle through it, but the v2 contract is not yet deployed to testnet.",
+          "note": "Missing: 0 of 3. No payment has settled on the live escrow during the sprint, and no workflow has been sealed. The deployed PaymentEscrow cannot move a buyer's funds to a different wallet (defect D-039, found in QA), so none of the payment authorizations made since 2026-09-07 has been charged (the escrow has issued 30 authorizations in all, as of 2026-09-30). The escrow's Events tab does show 8 'charged' events, but all are from May and June 2026, before the sprint, and in each the team's admin wallet paid itself. They do not count (see the notes). A fixed escrow, v2, is merged in the contracts repository and the live backend can settle through it, but the v2 contract is not yet deployed to testnet.",
           "links": [
             {
               "label": "PaymentEscrow (v1) contract on Stellar Expert: its Events tab shows 8 pre-sprint self-payments and none since",
@@ -641,15 +646,19 @@
       "category": "Adoption targets",
       "metric": "Externally-operated agents registered on Testnet",
       "target": "≥ 2",
-      "achieved": "1",
-      "status": "not_met",
-      "reason": "Only 1 agent is registered by outside operators; the other 12 belong to wallets the team controls. The target is 2.",
+      "achieved": "6",
+      "status": "met",
       "method": "Read every agent the AgentRegistry contract lists, with its owner, straight from testnet. An agent counts only if its owner is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
         {
           "label": "AgentRegistry contract (every registered agent)",
           "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
           "kind": "contract"
+        },
+        {
+          "label": "The 6 counted outside registrations (2026-09-29), as the ecosystem page lists them (their hashes are held back here until consent is recorded)",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
         },
         {
           "label": "Registration of orizon_batch by the team's contract admin and v1 escrow settler — 2026-04-20 (excluded: team wallet)",
@@ -736,24 +745,26 @@
           "date": "2026-09-24"
         },
         {
-          "label": "The counted outside registration, one operator's trial on 2026-09-29, as the ecosystem page lists it (its hash is held back here until consent is recorded)",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
+          "label": "Registration of 3D_Artbot by the team's contract admin and v1 escrow settler — 2026-09-29 (excluded: team wallet)",
+          "url": "https://stellar.expert/explorer/testnet/tx/fc30cd93c316f46f1692ca95df51b82a6d14f9a270a7743d3932787db0e84f3c",
+          "kind": "tx",
+          "tx_hash": "fc30cd93c316f46f1692ca95df51b82a6d14f9a270a7743d3932787db0e84f3c",
+          "date": "2026-09-29"
         }
-      ]
+      ],
+      "reason": "Met on registrations, which is what the SOW counts: 6 agents registered from 2 outside operators' wallets. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their ids and registration hashes are held back here until each operator's consent to publish them is recorded."
     },
     {
       "id": "m02",
       "category": "Adoption targets",
       "metric": "Unique external operator wallet addresses",
       "target": "≥ 2",
-      "achieved": "1",
-      "status": "not_met",
-      "reason": "Only 1 outside operator wallet owns an agent. The target is 2.",
+      "achieved": "2",
+      "status": "met",
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
         {
-          "label": "The counted outside operator wallet, one operator's trial, as the ecosystem page lists it (its address is held back here until consent is recorded)",
+          "label": "The 2 counted outside operator wallets, as the ecosystem page lists them (their addresses are held back here until consent is recorded)",
           "url": "https://orizons.xyz/app/ecosystem",
           "kind": "page"
         },
@@ -768,7 +779,7 @@
           "kind": "account"
         },
         {
-          "label": "The team's contract admin and v1 escrow settler — owns 7 agents (excluded: team wallet)",
+          "label": "The team's contract admin and v1 escrow settler — owns 8 agents (excluded: team wallet)",
           "url": "https://stellar.expert/explorer/testnet/account/GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
           "kind": "account"
         },
@@ -777,7 +788,8 @@
           "url": "https://stellar.expert/explorer/testnet/account/GA5LEGIRHKZGDKGQ4XHBEMU2Z7BGDX7AE2XUWDXB3V6TCOVTD2LZMQ2M",
           "kind": "account"
         }
-      ]
+      ],
+      "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their addresses are held back here until each operator's consent to publish them is recorded."
     },
     {
       "id": "m03",
@@ -786,7 +798,7 @@
       "target": "≥ 3",
       "achieved": "0",
       "status": "not_met",
-      "reason": "1 agent run by outside operators is registered, but no workflow paid to one has settled since the sprint began on 2026-09-07.",
+      "reason": "6 agents owned by outside operators are registered, but none is bound to a working endpoint, and no workflow paid to one has settled since the sprint began on 2026-09-07.",
       "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract. A workflow counts when at least one of its counted charges paid an agent run by an outside operator; several charges of one job are one workflow.",
       "links": [
         {
@@ -932,7 +944,7 @@
       "target": "≥ 1",
       "achieved": "0",
       "status": "not_met",
-      "reason": "No dispute has been refunded yet. The reputation ledger holds 28 ratings (28 of kind auto) and no dispute rating; its lifetime dispute count is 0 across all 13 agents. No charge has settled since the sprint began on 2026-09-07 that a dispute could refund. The only transfer out of a platform key on record, on 2026-09-12, went to a team key with no dispute behind it.",
+      "reason": "No dispute has been refunded yet. The reputation ledger holds 34 ratings (34 of kind auto) and no dispute rating; its lifetime dispute count is 0 across all 19 agents. No charge has settled since the sprint began on 2026-09-07 that a dispute could refund. The only transfer out of a platform key on record, on 2026-09-12, went to a team key with no dispute behind it.",
       "method": "Read the dispute ratings the platform wrote to the ReputationLedger (from its keys' full transaction history) and traced each back, through the derived job id the backend records a dispute under, to the charge it disputes. A refund counts only when that charge counts and the platform then paid its payer back over the asset contract, no more than the charge. A transfer with no dispute behind it (such as a refund drill) does not count. The ledger's lifetime dispute count for every agent is read as a cross-check.",
       "links": [
         {
@@ -954,7 +966,7 @@
       "category": "Technical milestones",
       "metric": "Permissionless AgentRegistry.register flow live on the dApp",
       "target": "Yes",
-      "achieved": "Yes: the Register page is live and open to any wallet. One outside wallet has registered an agent, as a trial (see metric 1).",
+      "achieved": "Yes: the Register page is live and open to any wallet. Two outside wallets have registered agents (see metric 1).",
       "status": "met",
       "method": "Opened the /app/register page on the live dApp with no login, and checked the live backend publishes the route that builds an unsigned registration transaction for the owner's own wallet to sign. The registry contract's register needs only the owner's signature, no admin.",
       "links": [
@@ -1170,7 +1182,7 @@
       "title": "Ratings and dispute decisions are made by the platform",
       "text": "SOW §3.8: \"reputation ratings can only be submitted by the platform's scorer key. Settlement, rating submission, and dispute resolution are therefore trusted, permissioned operations today.\" This is still true. Only the platform's production key writes ratings, and disputes are decided by the platform's operator.",
       "sow_ref": "§3.8",
-      "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). The 27 ratings written during the sprint all come from runs whose payment did not settle."
+      "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). The 33 ratings written during the sprint all come from runs whose payment did not settle."
     }
   ],
   "notes": [
@@ -1187,7 +1199,7 @@
     {
       "id": "team_wallets",
       "title": "How an outside operator is told apart from the team",
-      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. Every registration so far but one is by a team wallet, and each is labelled that way here. The one outside registration, on 2026-09-29, is an outside operator's trial with no working agent behind it (see Deliverable 4)."
+      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. 13 of the 19 registrations so far are by team wallets, and each is labelled that way here. The other 6, all on 2026-09-29, are by 2 outside operators: one operator's trial agent, bound to a parked web page, and a second operator's five agents, not yet bound to any endpoint (see Deliverable 4)."
     },
     {
       "id": "pre_sprint_activity",
@@ -1207,7 +1219,7 @@
     {
       "id": "sow_versions",
       "title": "Targets come from SOW v4",
-      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today they stand at 1, 1 and 0, which misses all three v4 targets. The 1 outside agent and 1 outside wallet are one outside operator's trial registration, whose server is a parked web page (see Deliverable 4)."
+      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today they stand at 6, 2 and 0, which meets the first two v4 targets and misses the third. The first two count registrations only: no outside agent is bound to a working endpoint yet (see Deliverable 4)."
     },
     {
       "id": "repository_addresses",
@@ -1222,7 +1234,7 @@
     {
       "id": "network_switch",
       "title": "orizons.xyz switches back to mainnet after the sprint",
-      "text": "For this sprint orizons.xyz was switched to Stellar testnet. After the sprint it is due to switch back to mainnet. This index is a snapshot of 2026-09-29; if the site shows mainnet when you open it, the testnet evidence here is still on the testnet explorer links."
+      "text": "For this sprint orizons.xyz was switched to Stellar testnet. After the sprint it is due to switch back to mainnet. This index is a snapshot of 2026-09-30; if the site shows mainnet when you open it, the testnet evidence here is still on the testnet explorer links."
     },
     {
       "id": "testnet_retention",
