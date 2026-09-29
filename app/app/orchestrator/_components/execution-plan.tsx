@@ -47,7 +47,7 @@ import {
 import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
 import {
   V1_CANNOT_SETTLE,
-  generationOf,
+  escrowGeneration,
   type EscrowGeneration,
 } from "@/lib/escrow-generation";
 import { rememberHeldAuthorization } from "@/lib/held-authorizations";
@@ -199,7 +199,7 @@ export function ExecutionPlan({
     pinnedEscrowId(defaultExplorerNetwork),
   );
   const escrowMismatch = escrow.kind === "mismatch";
-  const generation = generationOf(escrow);
+  const generation = escrowGeneration(network);
   /**
    * An amount exactly as it is signed, with its real unit — or bare while the
    * unit is unknown. Rounded to the stroop, as the backend converts it
