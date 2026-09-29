@@ -20,11 +20,16 @@ data:   "GBVRJQ7HJ5DBPV2K…"   // owner address of the new agent
 
 ## C.2 · `PaymentEscrow`
 
+The deployed escrow is v1 (SC@88aa554); escrow v2 (SC@dd2d642) is merged but not deployed, and changes the set (contract/payment-escrow/src/lib.rs at each commit).
+
 | Event | Topics | Data | Triggered by |
 | --- | --- | --- | --- |
-| **Authorised** | `(Symbol("authd"), agent_id: Symbol)` | `(auth_id: BytesN<16>, payer: Address, max_amount: i128)` | `authorize()` |
-| **Charged** | `(Symbol("charged"), agent_id: Symbol)` | `(receipt_id: BytesN<16>, auth_id: BytesN<16>, amount: i128, job_id: BytesN<16>)` | `charge()` |
-| **Revoked** | `(Symbol("revoked"), auth_id: BytesN<16>)` | `payer: Address` | `revoke()` |
+| **Authorised** | `(Symbol("authd"), agent_id: Symbol)` | `(auth_id: BytesN<16>, payer: Address, max_amount: i128)` | `authorize()`, v1 and v2 |
+| **Charged** | `(Symbol("charged"), agent_id: Symbol)` | `(receipt_id: BytesN<16>, auth_id: BytesN<16>, amount: i128, job_id: BytesN<16>)` | v1 `charge()`; v2 `settle()`, once per payout |
+| **Revoked** | `(Symbol("revoked"),)` | `auth_id: BytesN<16>` | v1 `revoke()` |
+| **Settled** | `(Symbol("settled"),)` | `(auth_id: BytesN<16>, job_id: BytesN<16>, sum: i128, returned: i128)` | v2 `settle()` |
+| **Reclaimed** | `(Symbol("reclaimd"),)` | `(auth_id: BytesN<16>, payer: Address, returned: i128)` | v2 `reclaim()` |
+| **Settler rotated** | `(Symbol("settler"),)` | `(old: Address, new_settler: Address)` | v2 `set_settler()` |
 
 ```text
 example:
