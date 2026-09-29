@@ -11,7 +11,124 @@
     "network": "testnet",
     "method": "Every on-chain link was re-read on 2026-09-29 from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json) or holds a platform role on the contracts. Nothing was signed, paid or submitted to make this snapshot."
   },
-  "deliverables": [],
+  "deliverables": [
+    {
+      "id": "D1",
+      "name": "Permissionless Agent Registration",
+      "evidence_type": "Repo PR(s) · live URL · tx hash",
+      "sow_text": "Merged PRs for the registration flow, the live \"Register an Agent\" URL on the deployed dApp, and an externally owned agent's registration tx hash on Stellar Expert (testnet).",
+      "items": [
+        {
+          "id": "6.1-D1-a",
+          "claim": "The registration flow is built and merged: the Register an Agent page, signing in the operator's own wallet, and the backend endpoints that build, check and list a registration.",
+          "status": "present",
+          "note": "The contract's register call was already open to any wallet. Story 1.01 audited it and needed no contract change, so there is no contracts pull request for this item.",
+          "links": [
+            {
+              "label": "Frontend pull request #39: the Register an Agent form, its input checks and wallet signing (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/39",
+              "kind": "pr",
+              "date": "2026-09-07"
+            },
+            {
+              "label": "Frontend pull request #40: the registration receipt, plus changing price, delisting and relisting (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/40",
+              "kind": "pr",
+              "date": "2026-09-08"
+            },
+            {
+              "label": "Backend pull request #31: stricter checks on the endpoint that builds a registration (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/31",
+              "kind": "pr",
+              "date": "2026-09-07"
+            },
+            {
+              "label": "Backend pull request #32: agents registered on-chain appear in the marketplace (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/32",
+              "kind": "pr",
+              "date": "2026-09-07"
+            },
+            {
+              "label": "Backend pull request #34: registration checker, name-availability cache and agent management (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/34",
+              "kind": "pr",
+              "date": "2026-09-08"
+            },
+            {
+              "label": "Week-1 evidence bundle on GitHub: what shipped for registration (see the corrections note)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/tree/main/Week-1-Tranche-Submission",
+              "kind": "doc"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D1-b",
+          "claim": "The Register an Agent page is live on the deployed app and opens without logging in.",
+          "status": "present",
+          "links": [
+            {
+              "label": "Open the live Register an Agent page on orizons.xyz (testnet)",
+              "url": "https://orizons.xyz/app/register",
+              "kind": "page"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D1-c",
+          "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
+          "status": "missing",
+          "note": "Missing. No outside operator has registered an agent yet. All 12 agents on the registry were registered by wallets the team controls, so none of them counts. The five registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside developer registers from their own wallet on orizons.xyz/app/register.",
+          "links": [
+            {
+              "label": "Registration of sign_probe_bb5c12 by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
+              "url": "https://stellar.expert/explorer/testnet/tx/416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
+              "kind": "tx",
+              "tx_hash": "416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
+              "date": "2026-09-07"
+            },
+            {
+              "label": "Registration of w1_audit_a7x by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
+              "url": "https://stellar.expert/explorer/testnet/tx/523f71b80dc8e4ecf8e8c5684d3c79b521009d8b010f24d407b0856a3111c6ef",
+              "kind": "tx",
+              "tx_hash": "523f71b80dc8e4ecf8e8c5684d3c79b521009d8b010f24d407b0856a3111c6ef",
+              "date": "2026-09-07"
+            },
+            {
+              "label": "Registration of spike_97437 by the team's payment-test key GA5LE…MQ2M — 2026-09-15 (team wallet: not external)",
+              "url": "https://stellar.expert/explorer/testnet/tx/3ca237c00bb1fd78fbf8b95fccdd7e46de61fe82bf4ce8558b8231b9c4a705c4",
+              "kind": "tx",
+              "tx_hash": "3ca237c00bb1fd78fbf8b95fccdd7e46de61fe82bf4ce8558b8231b9c4a705c4",
+              "date": "2026-09-15"
+            },
+            {
+              "label": "Registration of uat605_ext_op by the team's QA operator key GBWMD…7BQJ — 2026-09-17 (team wallet: not external)",
+              "url": "https://stellar.expert/explorer/testnet/tx/64ad14cd6516a93b8a2e9e2564bd5cc15c0d9ccfc74ede2694cd7fa47f11fa3e",
+              "kind": "tx",
+              "tx_hash": "64ad14cd6516a93b8a2e9e2564bd5cc15c0d9ccfc74ede2694cd7fa47f11fa3e",
+              "date": "2026-09-17"
+            },
+            {
+              "label": "Registration of uat624_ext_op by the team's QA operator key GBWMD…7BQJ — 2026-09-24 (team wallet: not external)",
+              "url": "https://stellar.expert/explorer/testnet/tx/e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
+              "kind": "tx",
+              "tx_hash": "e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
+              "date": "2026-09-24"
+            },
+            {
+              "label": "AgentRegistry contract on Stellar Expert: all 12 registrations, every one by a team wallet",
+              "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+              "kind": "contract"
+            },
+            {
+              "label": "The team wallet register: every wallet the team controls (backend repository)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/app/data/team_wallets.json",
+              "kind": "doc"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "metrics": [],
   "disclosures": [],
   "notes": []
