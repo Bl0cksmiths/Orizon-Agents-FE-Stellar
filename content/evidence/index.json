@@ -650,9 +650,9 @@
       "category": "Adoption targets",
       "metric": "Externally-operated agents registered on Testnet",
       "target": "≥ 2",
-      "achieved": "0",
+      "achieved": "1",
       "status": "not_met",
-      "reason": "No outside operator has registered an agent yet; all 12 registered agents belong to 4 wallets the team controls.",
+      "reason": "Only 1 agent is registered by outside operators; the other 12 belong to wallets the team controls. The target is 2.",
       "method": "Read every agent the AgentRegistry contract lists, with its owner, straight from testnet. An agent counts only if its owner is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
         {
@@ -743,6 +743,13 @@
           "kind": "tx",
           "tx_hash": "e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
           "date": "2026-09-24"
+        },
+        {
+          "label": "Registration of Powerbot by an outside operator's wallet — 2026-09-29 (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "kind": "tx",
+          "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "date": "2026-09-29"
         }
       ]
     },
