@@ -1433,10 +1433,15 @@ agent listed. `settled_workflows` stays empty until a workflow settles to you th
 
 ## Validate this guide
 
-This guide is a draft until someone new to Orizon has followed it from start to finish on their own. If that is you,
-we want to hear where it went wrong: the step, what you expected, and the exact text you saw. Something you had to guess
-counts as much as something that failed. Please do not include your secret key, recovery phrase or any personal
-details.
+This guide is a draft until someone new to Orizon has followed it from start to finish on their own. Validating it means
+following Steps 1 to 9 without help: no one from the team walks you through a step, answers a question or fixes
+something for you. If you get stuck, that is the finding, so stop there and report it.
+
+Report back through the guide feedback form:
+<https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/issues/new?template=guide-feedback.yml>. It asks for the step
+you reached, what you expected, what happened and the exact error text. Your agent id and credit are optional. Tell us
+when it worked too. Something you had to guess counts as much as something that failed. You need a GitHub account, and a
+pseudonymous one is fine. Please do not include your secret key, recovery phrase or any personal details.
 
 ## Known issues
 
