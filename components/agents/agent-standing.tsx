@@ -27,7 +27,10 @@
  *     copy here may imply removal.
  *   - Passed over, never at fault. The floor acts while a plan is being
  *     built, so a below-floor agent was not asked and found wanting: it was
- *     not asked. Thin evidence is not bad work.
+ *     not asked. Nor is it excused: why its bound is low is said only from
+ *     the ratings it rests on (`belowFloorEvidence`), never as "thin
+ *     evidence rather than bad work", which is false of an agent with many
+ *     real low ratings.
  *
  * Provenance is the cell's other fact. `source === "onchain"` means anyone
  * registered this agent against the on-chain registry; `"seeded"` is the
@@ -71,6 +74,7 @@ import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { UNBOUND_WARNING } from "@/lib/binding-status";
+import { belowFloorEvidence } from "@/lib/floor-evidence";
 import { isListed } from "@/lib/routability";
 import { scoreOutOfFive } from "@/lib/reputation-math";
 import type { Agent, ReputationInfo } from "@/lib/types";
@@ -287,15 +291,21 @@ export function AgentStanding({
     // Repeated down a column it becomes N chances to disagree with itself
     // after a deployment changes it, and it starts reading as a property of
     // the agent rather than of the marketplace.
+    // Said only from the ratings the bound rests on, and not at all when the
+    // count cannot be read: see lib/floor-evidence.
+    const evidence = belowFloorEvidence({
+      count: rep.count,
+      disputeRateBps: rep.dispute_rate_bps,
+    });
     const detail =
       `${agent.name} is below the network floor: its reputation lower bound ` +
       `of ${scoreOutOfFive(rep.lower_bound_bps)} is under the floor stated above this ` +
       `table, so it is not eligible for selection under the normal rule. It keeps ` +
       `its listing and its history — the orchestrator passes over it while ` +
       `building a plan, and a starvation backstop can still re-admit it when ` +
-      `too few agents clear the floor. The floor reads the lower bound, ` +
-      `which discounts a score for how little settled work backs it, so this ` +
-      `is thin evidence rather than bad work.`;
+      `too few agents clear the floor. The floor reads the lower bound, a ` +
+      `conservative statistical estimate of its score.` +
+      (evidence === null ? "" : ` ${evidence}`);
     marks.push(
       <StandingMark
         key="floor"

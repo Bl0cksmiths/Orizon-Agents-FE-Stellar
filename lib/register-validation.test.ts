@@ -10,6 +10,8 @@ import {
   AGENT_ID_RE,
   isRegisterFormValid,
   normalizeSkills,
+  priceEntryHint,
+  priceFieldLabel,
   usdcToStroops,
   validateAgentId,
   validateName,
@@ -159,7 +161,33 @@ describe("validatePriceUsdc", () => {
   });
 
   it("rejects a price above the ceiling", () => {
-    expect(validatePriceUsdc(10001)).toBe("10000 USDC maximum");
+    expect(validatePriceUsdc(10001)).toBe("10000 maximum");
+  });
+});
+
+// F-022: the price is entered in the network's asset, which on testnet is
+// native XLM, whatever the wire field `price_usdc` is called.
+describe("priceFieldLabel / priceEntryHint", () => {
+  it("names XLM on testnet", () => {
+    expect(priceFieldLabel("native")).toBe("price per step (XLM)");
+    expect(priceEntryHint("native")).toBe(
+      "entered in XLM, converted once at submit",
+    );
+  });
+
+  it("names no unit while the asset is unknown", () => {
+    for (const asset of [null, undefined]) {
+      expect(priceFieldLabel(asset)).toBe("price per step");
+      expect(priceEntryHint(asset)).toBe("converted to stroops once at submit");
+    }
+  });
+
+  it("never says USDC off a field name", () => {
+    for (const asset of ["native", null, undefined]) {
+      expect(priceFieldLabel(asset)).not.toMatch(/USDC/);
+      expect(priceEntryHint(asset)).not.toMatch(/USDC/);
+    }
+    expect(validatePriceUsdc(10001)).not.toMatch(/USDC/);
   });
 });
 

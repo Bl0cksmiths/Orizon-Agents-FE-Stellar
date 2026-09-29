@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
-import { getOverview, listTasks } from "@/lib/api";
+import { getOverview, getStellarNetwork, listTasks } from "@/lib/api";
+import { formatSpent } from "@/lib/trace-amounts";
 import type { Overview, Task } from "@/lib/types";
 import { focusRing } from "@/lib/ui";
-import { isTransientFetchError } from "@/lib/use-fetch";
+import { isTransientFetchError, useFetch } from "@/lib/use-fetch";
 import { usePolling } from "@/lib/use-polling";
 
 // Tile labels are static, so they render while the payload is loading and
@@ -82,6 +83,10 @@ export default function OverviewPage() {
   const [retrying, setRetrying] = useState(false);
   // When the manual retry below last succeeded; the poller tracks its own.
   const [manualSuccessAt, setManualSuccessAt] = useState<number | null>(null);
+  // What a task's spend is denominated in: the escrow SAC's asset, native XLM
+  // on testnet — never the "USDC" a field name suggests. Printed with no unit
+  // until the read lands, or if it fails.
+  const { data: network } = useFetch(getStellarNetwork, []);
 
   const load = useCallback(async () => {
     const [o, t] = await Promise.all([getOverview(), listTasks()]);
@@ -379,7 +384,7 @@ export default function OverviewPage() {
                   <td className="py-3 max-w-md truncate">{t.intent}</td>
                   <td className="py-3 font-mono text-xs">{t.agents}</td>
                   <td className="py-3 font-mono text-xs text-cyan">
-                    {t.spent.toFixed(3)} USDC
+                    {formatSpent(t.spent, network?.asset)}
                   </td>
                   <td className="py-3">
                     <Badge

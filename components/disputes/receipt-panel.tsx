@@ -20,7 +20,8 @@ import { KVRow } from "@/components/ui/kv-row";
 import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { agentLabel, formatCreditShare, formatUsdc } from "@/lib/disputes";
+import { agentLabel, formatCreditShare } from "@/lib/disputes";
+import { useFormatAmount } from "./amount-asset";
 import { cn } from "@/lib/utils";
 import type {
   CreditPolicy,
@@ -251,10 +252,11 @@ function settledSentence(state: SettlementState): string {
  * authorization is never worked out here from the cap and the payouts.
  */
 function RemainderRow({ remainder }: { remainder: SettlementRemainder }) {
+  const formatAmount = useFormatAmount();
   const value = (() => {
     switch (remainder.kind) {
       case "returned":
-        return `${formatUsdc(remainder.usdc)} to the payer`;
+        return `${formatAmount(remainder.usdc)} to the payer`;
       case "unreported":
         return "the rest, to the payer · amount not reported";
       case "pending":
@@ -318,6 +320,7 @@ function SettledReceipt({
   onConnect: () => void;
   reasonUnlock: ReasonUnlockControl | null;
 }) {
+  const formatAmount = useFormatAmount();
   // "Settled 3h ago" is measured on the server's clock where the view carries
   // it — an open window is closesAt minus what is left — so a skewed laptop
   // clock cannot print a settlement as happening in the future. Once the
@@ -387,7 +390,7 @@ function SettledReceipt({
               label="total charged"
               value={
                 confirmed ? (
-                  formatUsdc(view.settledUsdc)
+                  formatAmount(view.settledUsdc)
                 ) : (
                   <>
                     <span aria-hidden="true">—</span>
@@ -644,7 +647,8 @@ function StepPrice({
   /** `pending`: an unconfirmed settlement — neither paid nor struck off. */
   charged: "yes" | "no" | "pending";
 }) {
-  const price = formatUsdc(step.price_usdc);
+  const formatAmount = useFormatAmount();
+  const price = formatAmount(step.price_usdc);
   if (charged === "yes") {
     return <span className="font-mono text-sm text-text">{price}</span>;
   }
@@ -681,13 +685,14 @@ function StepPayoutLine({
   step: SettlementStepView;
   payout: StepPayout;
 }) {
+  const formatAmount = useFormatAmount();
   const label = "font-mono text-[10px] leading-relaxed";
   switch (payout.kind) {
     case "paid":
       return (
         <span className="flex flex-col items-start gap-1 sm:items-end">
           <span className={cn(label, "text-emerald-300")}>
-            paid {formatUsdc(payout.usdc)} to the operator
+            paid {formatAmount(payout.usdc)} to the operator
           </span>
           {payout.tx && (
             <StellarExpertLink
@@ -752,8 +757,9 @@ function StepAction({
   state: StepDisputeState;
   onDispute: (step: SettlementStepView) => void;
 }) {
-  // Before the switch: a hook, called whichever state the step is in.
+  // Before the switch: hooks, called whichever state the step is in.
   const creditId = useId();
+  const formatAmount = useFormatAmount();
   switch (state.kind) {
     case "disputable":
       return (
@@ -776,7 +782,7 @@ function StepAction({
               settlement moved (D-071), as the dispute receipt says it. */}
           {step.creditable_usdc > 0 && (
             <span id={creditId} className="font-mono text-[10px] text-muted">
-              credits up to {formatUsdc(step.creditable_usdc)} if upheld
+              credits up to {formatAmount(step.creditable_usdc)} if upheld
             </span>
           )}
         </div>

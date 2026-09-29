@@ -193,6 +193,52 @@ async function decomposeWith(
 }
 
 test.describe("plan card — reputation, source and exclusions", () => {
+  // What is on camera for the SOW's routing example: each exclusion says only
+  // what the notice's own evidence supports. An agent sunk by many real low
+  // ratings is not "thin evidence rather than bad work", and a count the
+  // backend did not send says nothing about cause (BLO-38).
+  test("each exclusion is worded from the ratings its bound rests on", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    const [ocr, scrape] = mockPlanExcluded.notices;
+    await decomposeWith(page, {
+      ...mockPlanExcluded,
+      notices: [
+        { ...ocr, count: 9, dispute_rate_bps: 1111 },
+        { ...scrape, count: 1, dispute_rate_bps: 0 },
+        {
+          ...scrape,
+          agent_id: "brief.old",
+          agent_name: "brief.old",
+          count: null,
+          dispute_rate_bps: null,
+        },
+      ],
+    });
+    await exclusions(page).locator("summary").click();
+
+    const row = (name: string) =>
+      exclusionRows(page).filter({ hasText: name }).locator("p").first();
+    const OPENING =
+      "Its reputation lower bound is below the floor this plan was built against.";
+    await expect(row("vision.ocr")).toHaveText(
+      `${OPENING} That bound rests on 9 ratings, and that record, read conservatively, falls short of the floor. 11.1% of those ratings were disputes.`,
+    );
+    await expect(row("scrape.fast")).toHaveText(
+      `${OPENING} That bound rests on a single rating, so the evidence behind it is thin.`,
+    );
+    await expect(row("brief.old")).toHaveText(OPENING);
+
+    // The intro calls the floor what it is, and no longer vouches for work.
+    await expect(exclusions(page)).toContainText(
+      "by comparing a statistical lower bound on each agent's reputation against the floor.",
+    );
+    await expect(exclusions(page)).not.toContainText(
+      /bad work|judgement on work|actually did/,
+    );
+  });
+
   test("AC-7 — one frame carries per-agent reputation and the excluded sub-floor agent", async ({
     page,
   }) => {

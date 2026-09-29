@@ -18,6 +18,7 @@
  * Assertions are plain DOM checks — this repo does not install jest-dom.
  */
 
+import type { ReactNode } from "react";
 import {
   afterAll,
   afterEach,
@@ -60,6 +61,7 @@ vi.mock("@/lib/disputes", async (importOriginal) => ({
 
 import { ApiError } from "@/lib/api";
 import { DisputeRefusal } from "@/lib/disputes";
+import { AmountAssetProvider } from "./amount-asset";
 import { DisputeDialog, type DisputeDialogProps } from "./dispute-dialog";
 
 // ── jsdom has no modal dialogs ──────────────────────────────────────────────
@@ -145,6 +147,11 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
+/** Testnet, where the escrow's SAC wraps the native asset: amounts are XLM. */
+function Testnet({ children }: { children: ReactNode }) {
+  return <AmountAssetProvider asset="native">{children}</AmountAssetProvider>;
+}
+
 function renderDialog(overrides: Partial<DisputeDialogProps> = {}) {
   const props: DisputeDialogProps = {
     open: true,
@@ -157,7 +164,7 @@ function renderDialog(overrides: Partial<DisputeDialogProps> = {}) {
     windowClosesAtMs: settlementWith().window_closes_at * 1_000,
     ...overrides,
   };
-  const view = render(<DisputeDialog {...props} />);
+  const view = render(<DisputeDialog {...props} />, { wrapper: Testnet });
   return {
     props,
     rerender: (next: Partial<DisputeDialogProps>) =>
@@ -257,8 +264,8 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
       screen.getByText("Step 2"),
       screen.getByText("Code Gen"),
       screen.getByText("calculator app, 3 files"),
-      screen.getByText("0.054 USDC"),
-      screen.getByText("Up to 0.027 USDC"),
+      screen.getByText("0.054 XLM"),
+      screen.getByText("Up to 0.027 XLM"),
       screen.getByText(/credits 50% of this step's charge/),
       reasonBox(),
       screen.getByText(/to sign a message/),
@@ -278,12 +285,8 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
 
     const row = (label: string) =>
       screen.getByText(label).closest("div")?.textContent ?? "";
-    expect(row("Charged for this step")).toBe(
-      "Charged for this step0.054 USDC",
-    );
-    expect(row("Credited if upheld")).toBe(
-      "Credited if upheldUp to 0.027 USDC",
-    );
+    expect(row("Charged for this step")).toBe("Charged for this step0.054 XLM");
+    expect(row("Credited if upheld")).toBe("Credited if upheldUp to 0.027 XLM");
   });
 
   it("says plainly when no summary of the step's output was recorded", () => {
@@ -332,7 +335,7 @@ describe("DisputeDialog — what the buyer reads before submitting", () => {
     expect(
       screen.getByText("Credited if upheld").closest("div")?.textContent,
     ).toBe("Credited if upheldNothing, under the current terms");
-    expect(dialog().textContent).not.toMatch(/Up to 0|0 USDC/);
+    expect(dialog().textContent).not.toMatch(/Up to 0|0 XLM/);
   });
 
   it("says a raised dispute under a zero-credit policy credits nothing", async () => {
@@ -748,7 +751,7 @@ describe("DisputeDialog — submitting", () => {
     // to your wallet" survived every check that read only the badge.
     const sentence = screen.getByText(/is now under review/);
     expect(sentence.textContent).toBe(
-      "Step 2 (Code Gen) is now under review. If the platform upholds your dispute, up to 0.027 USDC is credited to the wallet that paid. This receipt shows the outcome once it is decided.",
+      "Step 2 (Code Gen) is now under review. If the platform upholds your dispute, up to 0.027 XLM is credited to the wallet that paid. This receipt shows the outcome once it is decided.",
     );
     expect(dialog().textContent).not.toMatch(/has been credited|received/);
     // Same name, so a screen reader is not told it is somewhere new; the

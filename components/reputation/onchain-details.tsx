@@ -1,3 +1,4 @@
+import { assetLabel } from "@/lib/money";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
@@ -74,6 +75,7 @@ export function OnchainDetails({
   error = null,
   retrying = false,
   onRetry,
+  asset = null,
 }: {
   params: ReputationParams | null;
   loading?: boolean;
@@ -81,7 +83,11 @@ export function OnchainDetails({
   /** An automatic retry is scheduled or in flight (`useFetch.retrying`). */
   retrying?: boolean;
   onRetry?: () => void;
+  /** The network route's `asset`: what evidence weight is denominated in
+   *  ("native" → XLM on testnet). Unknown → no unit, never "USDC". */
+  asset?: string | null;
 }) {
+  const unit = assetLabel(asset);
   // A hardcoded id is a guess about the chain, not a reading of it: the
   // backend may be pointed at a redeployed ledger. Rendered as "unverified"
   // so a stale constant is never mistaken for on-chain truth.
@@ -103,7 +109,9 @@ export function OnchainDetails({
     },
     {
       label: "weight cap",
-      value: params ? `${params.max_rating_weight_usdc} USDC` : null,
+      value: params
+        ? `${params.max_rating_weight_usdc}${unit ? ` ${unit}` : ""}`
+        : null,
     },
     {
       label: "read cache TTL",
