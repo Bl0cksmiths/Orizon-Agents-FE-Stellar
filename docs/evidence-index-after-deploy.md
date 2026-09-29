@@ -41,7 +41,7 @@ Unlocked when `https://orizons.xyz/guide/list-your-agent` answers 200.
   sample checked.
 - `links`: add first
   `{ "label": "The 'List your agent on Orizon' guide on orizons.xyz", "url": "https://orizons.xyz/guide/list-your-agent", "kind": "page" }`.
-  Change the #91 label from `(open)` to `(merged)` and give it the merge `date`.
+  Change the #97 label from `(open)` to `(merged)` and give it the merge `date`.
 
 ### `m09`: guide published
 
