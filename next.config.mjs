@@ -12,6 +12,9 @@ const BASE_CSP =
   "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 
 const nextConfig = {
+  // The Playwright suite runs a second dev server (the published /demo
+  // fixture) beside the first; two servers cannot share one build directory.
+  ...(process.env.E2E_DIST_DIR ? { distDir: process.env.E2E_DIST_DIR } : {}),
   reactStrictMode: true,
   poweredByHeader: false,
   images: {
