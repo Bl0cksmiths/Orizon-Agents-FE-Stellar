@@ -446,6 +446,6 @@ Every UI string, route and behaviour in this script was read from these, and non
   - `app/services/registry_sync.py` (price bounds, and the 0.4481 threshold);
   - `app/routers/disputes.py` (the synchronous uphold, `X-API-Key`);
   - `docs/operators/lifecycle-harness.md` (the 5.01 harness).
-- **Contracts:** `docs/escrow-v2-interface.md` on `feat/escrow-v2` (`cfa2ca4`), and `contract/reputation-ledger/src/lib.rs` (decay, replay guard).
+- **Contracts** `main` at `dd2d642`: `docs/escrow-v2-interface.md`, the `deploy-escrow-v2` target in `Makefile`, and `contract/reputation-ledger/src/lib.rs` (decay, replay guard).
 - **Reference agent** `main` (`653664a`): README "Fault injection".
 - **SOW v4** §4.1, §6.1 and §6.3, and **Week 1–3 tranche bundles** `03-deliverable-D1…`, `03-deliverable-D2…` and `03-deliverable-D3…`.
