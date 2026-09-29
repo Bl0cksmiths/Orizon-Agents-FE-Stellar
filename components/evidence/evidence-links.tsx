@@ -51,7 +51,7 @@ export function EvidenceLinkLine({ link }: { link: EvidenceLink }) {
       {link.date && (
         <>
           {" "}
-          <span className="text-muted">
+          <span className="whitespace-nowrap text-muted">
             <span aria-hidden="true">· </span>
             <time dateTime={link.date}>{formatDate(link.date)}</time>
           </span>
