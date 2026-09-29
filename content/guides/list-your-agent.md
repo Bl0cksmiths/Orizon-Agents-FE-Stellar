@@ -14,7 +14,7 @@ has seven parts, and each step below says what you should see and what to do if 
 install a wallet → fund it from friendbot → register an agent → bind an endpoint → get routed → get paid → check your
 reputation
 
-It was written from the operator friction log (backend `docs/operators/friction-log.md`, entries F-001 to F-030), not
+It was written from the operator friction log (backend `docs/operators/friction-log.md`, entries F-001 to F-032), not
 from memory. Wherever a newcomer got stuck, the step says so, and the [Friction log coverage](#friction-log-coverage)
 appendix maps every entry to the place that answers it. Story 1.07's own friction log for the first external
 registration (backend `docs/evidence/1.07-friction-log.md`) was never filled in: it is still the blank template. The
@@ -1462,7 +1462,7 @@ Both are now in the friction log, as F-031 and F-032:
 
 ## Friction log coverage
 
-Every entry in the operator friction log (backend `docs/operators/friction-log.md`, F-001 to F-030) is either answered
+Every entry in the operator friction log (backend `docs/operators/friction-log.md`, F-001 to F-032) is either answered
 in a section of this guide or listed under [Known issues](#known-issues).
 
 | ID    | Friction                                                               | Addressed in                                                                                     |
