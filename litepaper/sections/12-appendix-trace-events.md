@@ -75,7 +75,7 @@ Emitted at most once per workflow, after the `AttestationRegistry.seal` call ret
 06.420  proof  workflow sealed — 6 agents · 0.168 USDC · 6.42s
 ```
 
-A workflow that never reaches `proof` either failed before the seal, or was run by a self-hosted operator who has not configured a settler key. The public deployment always emits a `proof` line on a successful workflow.
+A workflow that never reaches the sealed `proof` line either failed before the seal, or was run by a self-hosted operator who has not configured a signing key. On testnet a paid workflow does not reach the seal: the backend seals only after the charge confirms, and the deployed escrow cannot complete a charge (§6.9; BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`). A run without an escrow authorisation gets `proof` lines marked `(simulated)`.
 
 ## B.7 · `error` — unrecoverable failure
 
