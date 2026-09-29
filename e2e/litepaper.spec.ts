@@ -376,29 +376,34 @@ test.describe("litepaper page links", () => {
     await page.context().close();
   });
 
-  test("the evidence index's litepaper link is this page's public address", async ({
+  test("the evidence index's litepaper item names this page's public address", async ({
     browser,
   }) => {
-    // The real index, not the fixture the dev server shows: its link is
-    // absolute (https://orizons.xyz/litepaper), so check its path is served.
+    // The real index, not the fixture the dev server shows. Until the page is
+    // deployed the index names its address in the item's note rather than
+    // linking a page that answers 404; once deployed it links it. Either way
+    // the address it gives must be this page, and the page must be served there.
     const index = JSON.parse(
       readFileSync("content/evidence/index.json", "utf8"),
     ) as {
       deliverables: {
         id: string;
-        items: { links: { label: string; url: string }[] }[];
+        items: { id: string; note?: string; links: { url: string }[] }[];
       }[];
     };
     const d4 = index.deliverables.find((d) => d.id === "D4")!;
-    const links = d4.items
-      .flatMap((i) => i.links)
-      .filter((l) => new URL(l.url).hostname === "orizons.xyz")
-      .filter((l) => new URL(l.url).pathname === LITEPAPER);
-    expect(links.map((l) => l.label)).toEqual([
-      "Orizon Agents Protocol Litepaper, §6 updated for open registration (v0.5)",
-    ]);
+    const item = d4.items.find((i) => i.id === "6.1-D4-e")!;
+    const linked = item.links
+      .map((l) => new URL(l.url))
+      .filter((u) => u.hostname === "orizons.xyz")
+      .map((u) => u.pathname);
+    const named = [
+      ...(item.note ?? "").matchAll(/orizons\.xyz(\/[\w/-]+)/g),
+    ].map((m) => m[1]);
+    const addresses = [...new Set([...linked, ...named])];
+    expect(addresses).toEqual([LITEPAPER]);
     const { page } = await stranger(browser);
-    const res = await page.goto(new URL(links[0].url).pathname);
+    const res = await page.goto(addresses[0]);
     expect(res?.status()).toBe(200);
     await expect(
       page.getByRole("heading", { level: 1, name: TITLE }),
