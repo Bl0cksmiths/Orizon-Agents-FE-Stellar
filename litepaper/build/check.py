@@ -238,7 +238,7 @@ def check_formats(out: Path, pandoc_bin: str, num: str = "6", pdf: bool = True) 
     start, end = words(title), words(next_title)
     failures = []
     if not pdf:
-        print(f"SKIP  pdf: §{num} (NO_PDF: pypdf extracts its code blocks out of order)")
+        print(f"SKIP  pdf: §{num} (NO_PDF: pypdf does not read its text in order)")
     for fmt, (ref_text, got_text) in format_texts(out, pandoc_bin, chapter_md, docx_chapter_md, pdf).items():
         ref = section_slice(words(ref_text), start, [])
         got = section_slice(words(got_text), start, end)
