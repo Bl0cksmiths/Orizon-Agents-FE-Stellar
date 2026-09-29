@@ -257,10 +257,10 @@
           "id": "6.1-D3-a",
           "claim": "A dispute transaction on Stellar Expert: the negative on-chain rating written when a buyer's dispute is upheld.",
           "status": "missing",
-          "note": "Missing. No dispute has been raised on the live deployment. A buyer can dispute a step only after its payment settles, and no payment has settled during the sprint (see the disclosure on how payment works). All 28 ratings on the live ReputationLedger are ordinary ratings; none is a dispute. The dispute path is merged (the pull requests here). A test run on a separate drill ledger proved the mechanism, but it is not offered as evidence (see the notes).",
+          "note": "Missing. No dispute has been raised on the live deployment. A buyer can dispute a step only after its payment settles, and no payment has settled during the sprint (see the disclosure on how payment works). All 34 ratings on the live ReputationLedger are ordinary ratings; none is a dispute. The dispute path is merged (the pull requests here). A test run on a separate drill ledger proved the mechanism, but it is not offered as evidence (see the notes).",
           "links": [
             {
-              "label": "ReputationLedger contract on Stellar Expert: 28 ratings so far, none of them a dispute",
+              "label": "ReputationLedger contract on Stellar Expert: 34 ratings so far, none of them a dispute",
               "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
               "kind": "contract"
             },
