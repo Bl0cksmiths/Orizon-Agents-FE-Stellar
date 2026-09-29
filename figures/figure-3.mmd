@@ -1,30 +1,22 @@
-flowchart TB
-    subgraph FE["Frontend — Next.js 14"]
-        FERoute["/app/orchestrator · /app/trace<br/>/app/wallet · /app/events"]
-        FEKit["StellarWalletsKit adapter<br/>Freighter · xBull · Albedo<br/>LOBSTR · Hana · Hot Wallet"]
-        FEArt["Artifact viewer<br/>(sandboxed iframe)"]
-    end
+flowchart LR
+    Buyer["Buyer wallet"]
+    Settler["Protocol settler key"]
+    Owner["Agent owner wallet"]
+    Reader["Buyer · auditor<br/>· other orchestrator"]
 
-    subgraph BE["Backend — FastAPI + Agno + OpenAI"]
-        BEOrch["orchestrator_svc<br/>(decompose · kit detect)"]
-        BEExec["execution_svc<br/>(_run · trace_bus)"]
-        BEWork["12 workers<br/>(8 real · 4 mock)"]
-        BEStel["stellar router<br/>(build · submit · sign)"]
-    end
+    Buyer -- "authorize(payer, agent_id,<br/>max_amount, expires_at)" --> PE["PaymentEscrow"]
+    Settler -- "charge(auth_id, amount, job_id)" --> PE
+    PE -- "owner_of(agent_id)" --> AR["AgentRegistry"]
+    PE -- "Token::transfer" --> SAC["Native XLM SAC"]
+    SAC -- "USDC payout" --> Owner
 
-    subgraph SC["Soroban contracts — Stellar testnet"]
-        SCAR["AgentRegistry"]
-        SCPE["PaymentEscrow (x402)"]
-        SCAT["AttestationRegistry"]
-        SCRL["ReputationLedger"]
-        SCAS["Native XLM SAC"]
-    end
+    Settler -- "seal(job_id, agents,<br/>receipts, total_spent)" --> AT["AttestationRegistry"]
+    Settler -- "submit(agent_id, rating, job_id)" --> RL["ReputationLedger"]
 
-    FE -- "REST · SSE" --> BE
-    FE -- "user-signed XDR" --> SC
-    BE -- "JSON-RPC · server-signed XDR" --> SC
+    AT -. "get(job_id)" .-> Reader
+    RL -. "avg_bps(agent_id)" .-> Reader
 
-    classDef layer fill:#F4F2F8,stroke:#5A2EFF,stroke-width:1px,color:#14131A
-    classDef box fill:#FFFFFF,stroke:#7C7A8B,stroke-width:1px,color:#14131A
-    class FE,BE,SC layer
-    class FERoute,FEKit,FEArt,BEOrch,BEExec,BEWork,BEStel,SCAR,SCPE,SCAT,SCRL,SCAS box
+    classDef wallet fill:#FFFFFF,stroke:#5A2EFF,stroke-width:1.5px,color:#14131A
+    classDef contract fill:#F4F2F8,stroke:#14131A,stroke-width:1px,color:#14131A
+    class Buyer,Settler,Owner,Reader wallet
+    class PE,AR,AT,RL,SAC contract
