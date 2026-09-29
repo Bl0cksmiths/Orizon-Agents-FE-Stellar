@@ -88,7 +88,7 @@ Unlocked **in part** when `https://orizons.xyz/demo` answers 200. The item stays
   being live and still waiting for the video.
 - `links`: add
   `{ "label": "The demo page on orizons.xyz, where the video will be published", "url": "https://orizons.xyz/demo", "kind": "page" }`.
-  #92: `(open)` to `(merged)` plus `date`.
+  #97: `(open)` to `(merged)` plus `date`.
 - Only when the video is up: `status` to `"present"`, and add the video link
   (`kind: "video"`; the live checker verifies it through YouTube oEmbed).
 
