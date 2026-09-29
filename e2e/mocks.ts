@@ -1168,9 +1168,8 @@ export const mockAdoptionWithOperator: import("../lib/ecosystem").EcosystemAdopt
     ],
     degraded: true,
     unreadable_agents: ["ext.unreadable"],
-    // The settlement service's ledger window. The zero fixture leaves it out,
-    // as a backend that predates the field does.
-    window_days: 7.0,
+    // The settlement service's ledger window, as the backend measured it.
+    window_days: 6.96,
   };
 
 /** One agent's readiness, partway through onboarding: registered and active,
