@@ -47,12 +47,24 @@ describe("the published operator guide", () => {
     expect(toc).toContain("trust-boundaries");
     const trust = section("## Trust boundaries", /^## /m);
     expect(trust).toMatch(/\*\*off-chain\*\*/);
-    expect(trust).toMatch(/one platform key signs all three/);
     expect(trust).toMatch(/settler/);
     expect(trust).toMatch(/scorer/);
     expect(trust).toMatch(/sealer/);
     expect(trust).toMatch(/The platform decides disputes/);
     expect(trust).toMatch(/funds every credit/);
+  });
+
+  it("names which key holds which role, with the v1 settler as the admin", () => {
+    const trust = section("## Trust boundaries", /^## /m);
+    expect(trust).toContain(
+      "The platform's signing key (`GDB4N25…CDHP`) writes ratings (scorer), seals attestations (sealer) and pays " +
+        "dispute credits, and it becomes the escrow's settler once escrow v2 is deployed. The deployed v1 escrow's " +
+        "settler is the admin key (`GA7AI5…5OQV`).",
+    );
+    // The live v1 escrow's settler is the admin key, so no line anywhere may
+    // say one key signs settling, rating and sealing alike.
+    expect(SOURCE).not.toMatch(/one (platform )?key signs all three/i);
+    expect(SOURCE).not.toMatch(/same key is the escrow's settler/i);
   });
 
   it.each(["id_malformed", "id_reserved", "id_taken"])(
@@ -98,6 +110,42 @@ describe("the published operator guide", () => {
     const known = section("## Known issues", /^## /m);
     for (const [id] of unresolved)
       expect(known, `${id} not in Known issues`).toContain(id);
+  });
+
+  it("states the friction log's range as the entries the map covers", () => {
+    const count = Object.keys(FRICTION_MAP).length;
+    const last = `F-${String(count).padStart(3, "0")}`;
+    const ranges = [...SOURCE.matchAll(/F-001 to (F-\d{3})/g)].map(
+      (match) => match[1],
+    );
+    // The introduction and the coverage appendix both state the range.
+    expect(ranges).toHaveLength(2);
+    expect(ranges).toEqual([last, last]);
+  });
+
+  it("says a credit above the refund ceiling is refused, never capped", () => {
+    // refund_svc refuses a credit over MAX_REFUND_USDC (409
+    // `refund_above_cap`); it never clamps it to the ceiling.
+    const disputes = section("## Disputes\n", /^## /m);
+    expect(disputes).toMatch(
+      /above the deployment's `MAX_REFUND_USDC` \(1\.0 by default\) is refused/,
+    );
+    expect(disputes).toContain("`refund_above_cap`");
+    expect(SOURCE).not.toMatch(/capped by the deployment's `MAX_REFUND_USDC`/);
+  });
+
+  it("gives a validator the feedback form and what validating means", () => {
+    const validate = section("## Validate this guide", /^## /m);
+    expect(validate).toContain(
+      "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/issues/new?template=guide-feedback.yml",
+    );
+    expect(validate).toMatch(/following Steps 1 to 9 without help/);
+    // The link names a form that exists, beside the guide in this repository.
+    const form = readFileSync(
+      path.join(process.cwd(), ".github/ISSUE_TEMPLATE/guide-feedback.yml"),
+      "utf8",
+    );
+    expect(form).toMatch(/^name: /m);
   });
 
   it("reads as the full guide once rendered, with no wallet or session involved", () => {
