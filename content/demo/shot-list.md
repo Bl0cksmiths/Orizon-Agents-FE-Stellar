@@ -256,7 +256,7 @@ PaymentEscrow v2     <escrow v2 id> (v1 CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KM
 AttestationRegistry  CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK
 
 Limitations (as stated in the video)
-- This is testnet only, and it settles native test XLM even where the screen says USDC.
+- This is testnet only, and it settles native test XLM while the marketing copy names USDC.
 - The platform funds every dispute credit and decides every dispute.
 - Endpoint binding is off-chain: the platform stores the URL you signed.
 - One platform key is the settler, the scorer and the sealer.
