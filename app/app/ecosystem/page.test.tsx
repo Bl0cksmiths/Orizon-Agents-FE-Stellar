@@ -248,6 +248,29 @@ describe("AdoptionView — the settled window", () => {
     expect(text(settledTarget())).toContain(WINDOW);
   });
 
+  it("adds nothing when no scan ran and the window is 0", () => {
+    render(
+      <AdoptionView
+        adoption={{ ...withOperator([BUYER]), window_days: 0.0 }}
+      />,
+    );
+    expect(text(document.body)).not.toContain("ledger history");
+    expect(text(document.body)).not.toMatch(/last \d/);
+    expect(text(agentItem("ext.idle"))).toContain("No settled workflows yet.");
+  });
+
+  it("shows a fractional window rounded down, not as a whole week", () => {
+    render(
+      <AdoptionView
+        adoption={{ ...withOperator([BUYER]), window_days: 6.96 }}
+      />,
+    );
+    expect(text(settledTarget())).toContain(
+      "counted over the last 6.9 days of ledger history",
+    );
+    expect(text(document.body)).not.toContain("last 7 days");
+  });
+
   it("adds nothing when the backend sends no window", () => {
     render(<AdoptionView adoption={withOperator([BUYER])} />);
     expect(text(document.body)).not.toContain("ledger history");
