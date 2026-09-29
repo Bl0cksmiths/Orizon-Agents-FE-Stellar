@@ -1098,6 +1098,8 @@ export const mockAdoptionZero: import("../lib/ecosystem").EcosystemAdoption = {
   ],
   degraded: false,
   unreadable_agents: [],
+  // No external agent, so no settlement scan ran: the backend sends 0.
+  window_days: 0.0,
 };
 
 /** A settlement tx on the external agent below. */
