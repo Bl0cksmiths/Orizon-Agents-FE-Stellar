@@ -37,7 +37,7 @@ Content-Type: application/json
 
 ### `POST /api/orchestrator/execute`
 
-Spawn the background execution for a plan and return a task id. If `auth_id_hex` and `payer` are supplied, the backend will sign and submit `charge` and `seal` XDR on chain per step.
+Spawn the background execution for a plan and return a task id. If `auth_id_hex` and `payer` are supplied, the backend signs and submits the settlement once, at the end of the run: one `charge` for the workflow's total on the deployed v1 escrow, or one `settle` paying each delivered step on escrow v2 (merged, not deployed), then the `seal` once that confirms, and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`, `_settle_v2`, `_submit_ratings`). On testnet the v1 `charge` cannot complete, so the seal is not reached (§6.9).
 
 ```http
 POST /api/orchestrator/execute
