@@ -1046,15 +1046,20 @@
       "category": "Technical milestones",
       "metric": "Public \"List your agent on Orizon\" integration guide published",
       "target": "Yes",
-      "achieved": "No: the guide page is not live yet",
-      "status": "not_met",
-      "reason": "The /guide/list-your-agent page answers HTTP 404: it has not been deployed yet.",
+      "achieved": "Yes",
+      "status": "met",
       "method": "Opened the /guide/list-your-agent page on the live dApp with no login; published means it answers there.",
       "links": [
         {
-          "label": "Frontend pull request #97 (open): the 'List your agent on Orizon' guide",
+          "label": "\"List your agent on Orizon\" guide",
+          "url": "https://orizons.xyz/guide/list-your-agent",
+          "kind": "page"
+        },
+        {
+          "label": "Frontend pull request #97 (merged): the 'List your agent on Orizon' guide",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         }
       ]
     },
