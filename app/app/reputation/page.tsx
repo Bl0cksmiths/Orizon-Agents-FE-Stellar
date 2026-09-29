@@ -7,7 +7,12 @@ import { RatingRubric } from "@/components/reputation/rating-rubric";
 import { RepLeaderboard } from "@/components/reputation/rep-leaderboard";
 import { RepStats } from "@/components/reputation/rep-stats";
 import { ScoreCalculator } from "@/components/reputation/score-calculator";
-import { getReputationParams, listAgents, listReputation } from "@/lib/api";
+import {
+  getReputationParams,
+  getStellarNetwork,
+  listAgents,
+  listReputation,
+} from "@/lib/api";
 import { useFetch } from "@/lib/use-fetch";
 
 /**
@@ -52,6 +57,8 @@ export default function ReputationPage() {
   } = useFetch(getReputationParams, [], {
     revalidateOnFocus: true,
   });
+  // Which escrow a run settles through, for the pipeline's Settle stage.
+  const { data: network } = useFetch(getStellarNetwork, []);
 
   return (
     <div className="space-y-10">
