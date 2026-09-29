@@ -14,12 +14,15 @@
  *   - a missed target's reason is visible inline in the metrics table;
  *   - nothing scrolls sideways, and axe (WCAG 2.1 A/AA) is clean;
  * and also:
+ *   - the REAL index (content/evidence/index.json), from the second dev
+ *     server, at 360px: axe, no sideways scroll, and its print view;
  *   - with JavaScript off, the whole page is there;
  *   - printed, the nav and footer drop out, every link shows its URL, and
  *     badges and text are black words on white;
  *   - outside links open safely and say where they go;
  *   - the nav (one line at xl) and the footer both reach the page.
  */
+import { readFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import {
   test,
@@ -28,11 +31,14 @@ import {
   type BrowserContextOptions,
   type Page,
 } from "@playwright/test";
+import { DEMO_PUBLISHED_PORT } from "./demo-server";
 import { WCAG_TAGS } from "./dispute-axe";
 
 const EVIDENCE = "/evidence";
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 360, height: 780 };
+/** A4's printable width under print.css (210mm less two 14mm margins). */
+const A4_CONTENT = { width: 688, height: 1000 };
 const HASH = "1".repeat(64);
 const TX_URL = `https://stellar.expert/explorer/testnet/tx/${HASH}`;
 const M03_REASON = "Fixture reason for m03: not reached in the fixture.";
@@ -390,6 +396,102 @@ test.describe("evidence page links", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Fixture evidence index" }),
     ).toBeVisible();
+    await page.context().close();
+  });
+});
+
+/**
+ * The same checks on the REAL index, which the second dev server serves
+ * (EVIDENCE_CONTENT_DIR=content/evidence in playwright.config.ts). The fixture
+ * proves the page; this proves the words a reviewer will read, however long
+ * its labels and notes grow: at 360px nothing scrolls sideways and axe is
+ * clean, and printed, every link in the index shows its own URL and nothing
+ * runs past the paper's printable width.
+ */
+test.describe("the real evidence index at 360px", () => {
+  const REAL = `http://localhost:${DEMO_PUBLISHED_PORT}${EVIDENCE}`;
+  type Linked = { links?: { url: string }[] };
+  const index = JSON.parse(
+    readFileSync("content/evidence/index.json", "utf8"),
+  ) as {
+    title: string;
+    deliverables: { items: Linked[] }[];
+    metrics: Linked[];
+  };
+  const indexUrls = [
+    ...index.deliverables.flatMap((d) => d.items),
+    ...index.metrics,
+  ].flatMap((x) => (x.links ?? []).map((l) => l.url));
+
+  test("renders every link, never scrolls sideways and passes axe", async ({
+    browser,
+  }) => {
+    const { page, thirdParty, apiCalls } = await stranger(browser, {
+      viewport: PHONE,
+    });
+    const response = await page.goto(REAL);
+    expect(response?.status()).toBe(200);
+    await expect(
+      page.getByRole("heading", { level: 1, name: index.title }),
+    ).toBeVisible();
+    await expect(checklist(page)).toBeVisible();
+    const hrefs = new Set(
+      await page
+        .locator("[data-evidence-page] a[href^='http']")
+        .evaluateAll((links) => links.map((a) => a.getAttribute("href"))),
+    );
+    expect(indexUrls.length).toBeGreaterThan(100);
+    expect(indexUrls.filter((url) => !hrefs.has(url))).toEqual([]);
+    expect(await sidewaysOverflow(page)).toEqual([]);
+    expect(await axeProblems(page)).toEqual([]);
+    await page.waitForLoadState("networkidle");
+    expect(thirdParty).toEqual([]);
+    expect(apiCalls).toEqual([]);
+    await page.context().close();
+  });
+
+  test("printed from a phone, drops the nav and footer and shows every link's URL in black, within the paper's width", async ({
+    browser,
+  }) => {
+    const { page } = await stranger(browser, { viewport: PHONE });
+    await page.goto(REAL);
+    await expect(checklist(page)).toBeVisible();
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByRole("banner").first()).toBeHidden();
+    await expect(page.getByRole("contentinfo")).toBeHidden();
+
+    const pairs = await page
+      .locator("[data-evidence-page] a[href^='http']")
+      .evaluateAll((links) =>
+        links.map((a) => [
+          a.getAttribute("href"),
+          a.parentElement?.querySelector("[data-print-url]")?.textContent,
+        ]),
+      );
+    expect(pairs.length).toBeGreaterThanOrEqual(indexUrls.length);
+    for (const [href, printed] of pairs) expect(printed).toBe(href);
+    const urls = page.locator("[data-evidence-page] [data-print-url]");
+    const count = await urls.count();
+    for (let i = 0; i < count; i++) await expect(urls.nth(i)).toBeVisible();
+
+    // Paper, not the phone, sets the printed width: A4 less the 14mm side
+    // margins of print.css is 182mm, 688px at 96 per inch.
+    await page.setViewportSize(A4_CONTENT);
+    expect(await sidewaysOverflow(page)).toEqual([]);
+    const colours = await page.evaluate(() => ({
+      badges: Array.from(document.querySelectorAll("[data-status]")).map(
+        (el) => getComputedStyle(el).color,
+      ),
+      body: getComputedStyle(document.body).backgroundColor,
+      text: getComputedStyle(document.querySelector("h1")!).color,
+    }));
+    expect(colours.badges.length).toBeGreaterThan(10);
+    expect(new Set(colours.badges)).toEqual(new Set(["rgb(0, 0, 0)"]));
+    expect(colours.body).toBe("rgb(255, 255, 255)");
+    expect(colours.text).toBe("rgb(0, 0, 0)");
+
+    const pdf = await page.pdf({ format: "A4" });
+    expect(pdf.byteLength).toBeGreaterThan(10_000);
     await page.context().close();
   });
 });
