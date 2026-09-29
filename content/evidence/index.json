@@ -581,7 +581,366 @@
       ]
     }
   ],
-  "metrics": [],
+  "metrics": [
+    {
+      "id": "m01",
+      "category": "Adoption targets",
+      "metric": "Externally-operated agents registered on Testnet",
+      "target": "≥ 2",
+      "achieved": "0",
+      "status": "not_met",
+      "reason": "No outside operator has registered an agent yet. All 12 registered agents belong to 4 wallets the team controls.",
+      "method": "Read every agent on the live AgentRegistry and its owner wallet. An agent counts as outside only if its owner is not in the team wallet register and holds no platform role (admin, settler, scorer, sealer or dispatch signer). Measured on testnet on 2026-09-29, and cross-checked by running the backend's adoption counter against testnet.",
+      "links": [
+        {
+          "label": "AgentRegistry contract on Stellar Expert: all 12 registrations, every one by a team wallet",
+          "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+          "kind": "contract"
+        },
+        {
+          "label": "The team wallet register: every wallet the team controls (backend repository)",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/app/data/team_wallets.json",
+          "kind": "doc"
+        }
+      ]
+    },
+    {
+      "id": "m02",
+      "category": "Adoption targets",
+      "metric": "Unique external operator wallet addresses",
+      "target": "≥ 2",
+      "achieved": "0",
+      "status": "not_met",
+      "reason": "Follows from metric 1: with no outside agents there are no outside owner wallets.",
+      "method": "Counted the distinct owner wallets of the outside agents in metric 1. The four wallets that own agents today are all the team's; they are linked here.",
+      "links": [
+        {
+          "label": "Owner wallet GA7AI…5OQV: the team's contract admin (owns 7 agents)",
+          "url": "https://stellar.expert/explorer/testnet/account/GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
+          "kind": "account"
+        },
+        {
+          "label": "Owner wallet GBI2I…ADBH: the team's registration probe key (owns 2 agents)",
+          "url": "https://stellar.expert/explorer/testnet/account/GBI2I3WLMP2Q6L26G7CBKRPP5WJ6G3GGYJHWALOJ7D6EBRGL5OZAADBH",
+          "kind": "account"
+        },
+        {
+          "label": "Owner wallet GBWMD…7BQJ: the team's QA operator key (owns 2 agents)",
+          "url": "https://stellar.expert/explorer/testnet/account/GBWMD26IB6CMG3JO3HU7SD7ZJSTF4BIJ5JS77ANMLJ52M6FV6K3J7BQJ",
+          "kind": "account"
+        },
+        {
+          "label": "Owner wallet GA5LE…MQ2M: the team's payment-test key (owns 1 agent)",
+          "url": "https://stellar.expert/explorer/testnet/account/GA5LEGIRHKZGDKGQ4XHBEMU2Z7BGDX7AE2XUWDXB3V6TCOVTD2LZMQ2M",
+          "kind": "account"
+        }
+      ]
+    },
+    {
+      "id": "m03",
+      "category": "Transaction targets",
+      "metric": "Workflows routed to external agents & settled on Testnet",
+      "target": "≥ 3",
+      "achieved": "0",
+      "status": "not_met",
+      "reason": "There is no outside agent to route work to. Separately, no payment has settled on the live escrow during the sprint: it cannot move a buyer's funds to another wallet (defect D-039), so 22 workflows the team's QA buyer key authorized for test agents were never charged. The fix, escrow v2, is merged but not deployed.",
+      "method": "Listed every receipt the live PaymentEscrow has issued (38 ids) and every 'charged' event in its full history. A workflow counts when it was charged to an outside agent and the payer is not that agent's owner.",
+      "links": [
+        {
+          "label": "PaymentEscrow (v1) contract on Stellar Expert: its Events tab shows 8 pre-sprint self-payments and none since",
+          "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+          "kind": "contract"
+        },
+        {
+          "label": "Payment authorization by the team's QA buyer key GDJHP…PKXJ for uat624_ext_op, never charged — 2026-09-24 (team wallets)",
+          "url": "https://stellar.expert/explorer/testnet/tx/b122647fac7fe0ad40be3168736b5344a15229381d90f8be5582df15575b099c",
+          "kind": "tx",
+          "tx_hash": "b122647fac7fe0ad40be3168736b5344a15229381d90f8be5582df15575b099c",
+          "date": "2026-09-24"
+        },
+        {
+          "label": "Contracts issue #3: why the live escrow cannot move a buyer's funds (defect D-039)",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/issues/3",
+          "kind": "doc"
+        }
+      ]
+    },
+    {
+      "id": "m04",
+      "category": "Transaction targets",
+      "metric": "On-chain USDC settlements (charges) recorded",
+      "target": "≥ 3",
+      "achieved": "0 (the escrow's 8 older 'charged' events do not count)",
+      "status": "not_met",
+      "reason": "The live escrow has 8 'charged' events, but all are from 2026-05-13 to 2026-06-09, before the sprint, and in each the team's admin wallet paid itself, so no money changed hands. No charge has succeeded since 2026-06-09.",
+      "method": "Same receipt listing as metric 3, without the outside-agent condition. A charge counts when the payer and the payee are different wallets and neither is the team's. The SOW says USDC; on testnet the escrow's payment asset is native XLM (asset contract CDLZF…GCYSC), so a qualifying charge would be in XLM.",
+      "links": [
+        {
+          "label": "PaymentEscrow (v1) contract on Stellar Expert: its Events tab shows 8 pre-sprint self-payments and none since",
+          "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+          "kind": "contract"
+        },
+        {
+          "label": "Pre-sprint self-payment: the team's admin wallet paid itself 0.114 XLM — 2026-05-13 (does not count)",
+          "url": "https://stellar.expert/explorer/testnet/tx/3765fb1558afa23f4c9145614c4e2b053adafd2f0bc1ba81c358ee12303be56d",
+          "kind": "tx",
+          "tx_hash": "3765fb1558afa23f4c9145614c4e2b053adafd2f0bc1ba81c358ee12303be56d",
+          "date": "2026-05-13"
+        },
+        {
+          "label": "Pre-sprint self-payment: the team's admin wallet paid itself 0.168 XLM — 2026-05-13 (does not count)",
+          "url": "https://stellar.expert/explorer/testnet/tx/2eec8282585c17ee1d6dd00136f67a3bcd2380adf40277ac82b5053c2e507e7a",
+          "kind": "tx",
+          "tx_hash": "2eec8282585c17ee1d6dd00136f67a3bcd2380adf40277ac82b5053c2e507e7a",
+          "date": "2026-05-13"
+        },
+        {
+          "label": "Pre-sprint self-payment: the team's admin wallet paid itself 0.168 XLM — 2026-05-14 (does not count)",
+          "url": "https://stellar.expert/explorer/testnet/tx/33b575dd1ad9706a6be6e287016e4b84a2c205c166eb5c782faf0d4d0095f496",
+          "kind": "tx",
+          "tx_hash": "33b575dd1ad9706a6be6e287016e4b84a2c205c166eb5c782faf0d4d0095f496",
+          "date": "2026-05-14"
+        },
+        {
+          "label": "Pre-sprint self-payment: the team's admin wallet paid itself 0.168 XLM — 2026-05-14 (does not count)",
+          "url": "https://stellar.expert/explorer/testnet/tx/33655a7f9fe16cb09d335d086fbeb06084f6a437e30b0420058f49464aef343e",
+          "kind": "tx",
+          "tx_hash": "33655a7f9fe16cb09d335d086fbeb06084f6a437e30b0420058f49464aef343e",
+          "date": "2026-05-14"
+        },
+        {
+          "label": "Pre-sprint self-payment: the team's admin wallet paid itself 0.168 XLM — 2026-05-18 (does not count)",
+          "url": "https://stellar.expert/explorer/testnet/tx/5c00b766b79eb6eb7d583ebe5cebb6cfe6aaf9a4f9148b09bc5116d8c591fef3",
+          "kind": "tx",
+          "tx_hash": "5c00b766b79eb6eb7d583ebe5cebb6cfe6aaf9a4f9148b09bc5116d8c591fef3",
+          "date": "2026-05-18"
+        },
+        {
+          "label": "Pre-sprint self-payment: the team's admin wallet paid itself 0.168 XLM — 2026-06-09 (does not count)",
+          "url": "https://stellar.expert/explorer/testnet/tx/008b9279ae24e5f6934c971f5d4203c914042556852a6dd993edaf9ad678b511",
+          "kind": "tx",
+          "tx_hash": "008b9279ae24e5f6934c971f5d4203c914042556852a6dd993edaf9ad678b511",
+          "date": "2026-06-09"
+        },
+        {
+          "label": "Pre-sprint self-payment: the team's admin wallet paid itself 0.168 XLM — 2026-06-09 (does not count)",
+          "url": "https://stellar.expert/explorer/testnet/tx/1e38fd4a742acfc760fcbb64d40734b47b3721e68443b8026494d42757ce1180",
+          "kind": "tx",
+          "tx_hash": "1e38fd4a742acfc760fcbb64d40734b47b3721e68443b8026494d42757ce1180",
+          "date": "2026-06-09"
+        },
+        {
+          "label": "Pre-sprint self-payment: the team's admin wallet paid itself 0.168 XLM — 2026-06-09 (does not count)",
+          "url": "https://stellar.expert/explorer/testnet/tx/7932846bfa9d8e1b5c4b448f9a70e8d391f5dead7413764e253a886b90f99cc2",
+          "kind": "tx",
+          "tx_hash": "7932846bfa9d8e1b5c4b448f9a70e8d391f5dead7413764e253a886b90f99cc2",
+          "date": "2026-06-09"
+        }
+      ]
+    },
+    {
+      "id": "m05",
+      "category": "Transaction targets",
+      "metric": "Dispute → partial-refund settlements",
+      "target": "≥ 1",
+      "achieved": "0",
+      "status": "not_met",
+      "reason": "No dispute has been raised or refunded on the live deployment. There is nothing to dispute until a payment settles (metric 4), and refunds ship switched off until then. All 28 ratings on the ReputationLedger are ordinary ratings.",
+      "method": "Split every rating on the ReputationLedger by kind (an upheld dispute writes kind 'dispute'), and looked for every transfer the settler, admin or production key has sent, paired with a dispute rating on the same job.",
+      "links": [
+        {
+          "label": "ReputationLedger contract on Stellar Expert: 28 ratings so far, none of them a dispute",
+          "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
+          "kind": "contract"
+        },
+        {
+          "label": "Backend pull request #62: the partial-credit refund (merged)",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62",
+          "kind": "pr",
+          "date": "2026-09-21"
+        },
+        {
+          "label": "Backend pull request #63: the negative rating for an upheld dispute (merged)",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/63",
+          "kind": "pr",
+          "date": "2026-09-21"
+        }
+      ]
+    },
+    {
+      "id": "m06",
+      "category": "Technical milestones",
+      "metric": "Permissionless AgentRegistry.register flow live on the dApp",
+      "target": "Yes",
+      "achieved": "Yes: the Register page is live and open to any wallet. No outside wallet has used it yet (see metric 1).",
+      "status": "met",
+      "method": "Opened orizons.xyz/app/register without logging in. Confirmed that the contract's register call needs only the owner's own signature, with no admin approval. 5 of the 12 registrations were signed by keys other than the contract admin; all of them are team keys.",
+      "links": [
+        {
+          "label": "Open the live Register an Agent page on orizons.xyz (testnet)",
+          "url": "https://orizons.xyz/app/register",
+          "kind": "page"
+        },
+        {
+          "label": "Registration of sign_probe_bb5c12 by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
+          "url": "https://stellar.expert/explorer/testnet/tx/416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
+          "kind": "tx",
+          "tx_hash": "416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
+          "date": "2026-09-07"
+        },
+        {
+          "label": "Registration of w1_audit_a7x by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
+          "url": "https://stellar.expert/explorer/testnet/tx/523f71b80dc8e4ecf8e8c5684d3c79b521009d8b010f24d407b0856a3111c6ef",
+          "kind": "tx",
+          "tx_hash": "523f71b80dc8e4ecf8e8c5684d3c79b521009d8b010f24d407b0856a3111c6ef",
+          "date": "2026-09-07"
+        },
+        {
+          "label": "Registration of spike_97437 by the team's payment-test key GA5LE…MQ2M — 2026-09-15 (team wallet: not external)",
+          "url": "https://stellar.expert/explorer/testnet/tx/3ca237c00bb1fd78fbf8b95fccdd7e46de61fe82bf4ce8558b8231b9c4a705c4",
+          "kind": "tx",
+          "tx_hash": "3ca237c00bb1fd78fbf8b95fccdd7e46de61fe82bf4ce8558b8231b9c4a705c4",
+          "date": "2026-09-15"
+        },
+        {
+          "label": "Registration of uat605_ext_op by the team's QA operator key GBWMD…7BQJ — 2026-09-17 (team wallet: not external)",
+          "url": "https://stellar.expert/explorer/testnet/tx/64ad14cd6516a93b8a2e9e2564bd5cc15c0d9ccfc74ede2694cd7fa47f11fa3e",
+          "kind": "tx",
+          "tx_hash": "64ad14cd6516a93b8a2e9e2564bd5cc15c0d9ccfc74ede2694cd7fa47f11fa3e",
+          "date": "2026-09-17"
+        },
+        {
+          "label": "Registration of uat624_ext_op by the team's QA operator key GBWMD…7BQJ — 2026-09-24 (team wallet: not external)",
+          "url": "https://stellar.expert/explorer/testnet/tx/e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
+          "kind": "tx",
+          "tx_hash": "e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
+          "date": "2026-09-24"
+        }
+      ]
+    },
+    {
+      "id": "m07",
+      "category": "Technical milestones",
+      "metric": "Reputation-gated routing (reads avg_bps, applies a floor) live",
+      "target": "Yes",
+      "achieved": "Yes: the planner reads each agent's on-chain reputation and applies a floor of 2.75 out of 5. No agent is below the floor today, so no live exclusion can be shown (see Deliverable 2).",
+      "status": "met",
+      "method": "Read the live routing settings and each agent's reputation from the API, and each agent's rating record directly from the ReputationLedger. Eight agents have on-chain ratings; the rest use the starting estimate.",
+      "links": [
+        {
+          "label": "Live routing settings from the API: the floor is 2.75 out of 5",
+          "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params",
+          "kind": "page"
+        },
+        {
+          "label": "ReputationLedger contract on Stellar Expert: every rating written so far",
+          "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
+          "kind": "contract"
+        },
+        {
+          "label": "Routing code: the floor check on each agent's reputation (backend, pinned to the Week-2 merge)",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/f45aa2e8ee2755a6dfa016a02a6a8c9a977163e1/app/services/reputation_svc.py#L213-L224",
+          "kind": "repo",
+          "date": "2026-09-18"
+        }
+      ]
+    },
+    {
+      "id": "m08",
+      "category": "Technical milestones",
+      "metric": "Automated dispute window + partial-credit refund live",
+      "target": "Yes",
+      "achieved": "Partly: the 24-hour dispute window is live; the refund has never run",
+      "status": "not_met",
+      "reason": "The dispute window and its routes are deployed. The refund half ships switched off, has never run on the live deployment, and cannot until a payment settles (metric 4).",
+      "method": "Read the live API's endpoint list for the dispute routes, and checked the ReputationLedger and the settler's transfers for a dispute and a refund (as in metric 5).",
+      "links": [
+        {
+          "label": "Live API endpoint list, including the dispute routes",
+          "url": "https://orizon-agents-be-stellar.onrender.com/openapi.json",
+          "kind": "doc"
+        },
+        {
+          "label": "Backend pull request #60: the 24-hour dispute window (merged)",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60",
+          "kind": "pr",
+          "date": "2026-09-21"
+        },
+        {
+          "label": "Backend pull request #62: the partial-credit refund (merged)",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62",
+          "kind": "pr",
+          "date": "2026-09-21"
+        }
+      ]
+    },
+    {
+      "id": "m09",
+      "category": "Technical milestones",
+      "metric": "Public \"List your agent on Orizon\" integration guide published",
+      "target": "Yes",
+      "achieved": "No: the guide page is not live yet",
+      "status": "not_met",
+      "reason": "The guide is written in frontend pull request #91, which is open. The public page shows 'not found' until #91 merges and the site redeploys.",
+      "method": "Opened orizons.xyz/guide/list-your-agent without logging in. It returns 'not found'.",
+      "links": [
+        {
+          "label": "Frontend pull request #91 (open): the 'List your agent on Orizon' guide",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/91",
+          "kind": "pr"
+        }
+      ]
+    },
+    {
+      "id": "m10",
+      "category": "Technical milestones",
+      "metric": "3–5 min demo video published",
+      "target": "Yes",
+      "achieved": "No",
+      "status": "not_met",
+      "reason": "The video is not recorded yet. It needs outside registrations and settled payments to show. Its script and the /demo page are in frontend pull request #92, which is open.",
+      "method": "Looked for a published 3–5 minute video with operator and buyer views. orizons.xyz/demo returns 'not found'. The only videos found are a one-minute pre-sprint README video and a 40-second Week-2 build clip; neither counts.",
+      "links": [
+        {
+          "label": "Frontend pull request #92 (open): the demo script and the /demo page",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/92",
+          "kind": "pr"
+        }
+      ]
+    },
+    {
+      "id": "m11",
+      "category": "Technical milestones",
+      "metric": "All source code released under MIT License",
+      "target": "Yes",
+      "achieved": "No: 1 of 4 public code repositories has an MIT licence file",
+      "status": "not_met",
+      "reason": "The frontend, backend and contracts repositories have no licence file yet. The contracts' Cargo.toml says MIT, but only as package metadata. Three open pull requests add the MIT licence and meet this metric once merged: frontend #93, backend #92 and contracts #5.",
+      "method": "Asked GitHub which licence it detects in each public code repository in the Bl0cksmiths organisation (the SOW's ALGOREX-PH addresses redirect there).",
+      "links": [
+        {
+          "label": "Frontend pull request #93 (open): adds the MIT licence",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/93",
+          "kind": "pr"
+        },
+        {
+          "label": "Backend pull request #92 (open): adds the MIT licence",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/92",
+          "kind": "pr"
+        },
+        {
+          "label": "Contracts pull request #5 (open): adds the MIT licence",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/5",
+          "kind": "pr"
+        },
+        {
+          "label": "Reference agent repository on GitHub: already MIT licensed",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar",
+          "kind": "repo"
+        }
+      ]
+    }
+  ],
   "disclosures": [],
   "notes": []
 }
