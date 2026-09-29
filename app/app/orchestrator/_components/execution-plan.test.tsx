@@ -265,14 +265,41 @@ describe("ExecutionPlan · with no wallet connected", () => {
     expect(container.textContent).not.toContain("authorizing up to");
   });
 
-  it("says what paying on-chain does with the buyer's funds before they connect", () => {
+  it("says what paying on-chain does with the buyer's funds before they connect", async () => {
+    onEscrowV2();
     disconnect();
     const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findByText(/authorizing moves/);
     const text = container.textContent ?? "";
     expect(text).toContain(
       "authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles.",
     );
     expect(text).toContain("Or run a simulated pass, which moves no funds.");
+  });
+
+  it("says a v1 authorization moves nothing and cannot yet settle, before they connect", async () => {
+    onEscrowV1();
+    disconnect();
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findByText(/spending allowance/);
+    const text = container.textContent ?? "";
+    expect(text).toContain(
+      "Connect Freighter (testnet) to pay on-chain: authorizing records a spending allowance on the escrow contract, and no funds move when you sign. On this deployment the escrow cannot yet complete a payment (a known defect; the fix is deployed separately), so a paid run reports its settlement as failed and nothing is charged. Or run a simulated pass, which moves no funds.",
+    );
+    expect(text).not.toMatch(/into escrow|comes back/);
+  });
+
+  it("claims neither story before they connect while the escrow is unknown", async () => {
+    onEscrowUnknown();
+    disconnect();
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await waitFor(() => expect(api.getStellarNetwork).toHaveBeenCalled());
+    expect(container.textContent).toContain(
+      "Connect Freighter (testnet) to pay on-chain. Or run a simulated pass, which moves no funds.",
+    );
+    expect(container.textContent).not.toMatch(
+      /into escrow|allowance|cannot yet complete/,
+    );
   });
 
   it("runs a simulated pass without a wallet", async () => {
