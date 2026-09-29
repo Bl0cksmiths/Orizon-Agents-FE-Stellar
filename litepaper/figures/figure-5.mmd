@@ -1,0 +1,31 @@
+sequenceDiagram
+    autonumber
+    participant Buyer as Buyer wallet
+    participant Setl as Protocol settler
+    participant PE as PaymentEscrow
+    participant AR as AgentRegistry
+    participant SAC as Native XLM SAC
+    participant AT as AttestationRegistry
+    participant RL as ReputationLedger
+
+    Buyer->>PE: authorize(payer, agent_id, max_amount, expires_at)
+    PE-->>Buyer: auth_id : BytesN<16>
+
+    loop For each step
+        Setl->>PE: charge(caller=settler, auth_id, amount, job_id)
+        PE->>PE: assert !revoked & not expired<br/>assert spent + amount ≤ max
+        PE->>AR: owner_of(agent_id)
+        AR-->>PE: agent_owner : Address
+        PE->>SAC: Token::transfer(payer → owner, amount)
+        SAC-->>PE: ok
+        PE->>PE: spent += amount<br/>store Receipt
+        PE-->>Setl: receipt_id : BytesN<16>
+    end
+
+    Setl->>AT: seal(caller=settler, job_id, orchestrator,<br/>intent_hash, agents[], receipts[], total_spent)
+    AT->>AT: assert !exists(job_id)<br/>store Attestation
+    AT-->>Setl: ok
+
+    Setl->>RL: submit(caller=scorer, agent_id, rating, job_id)
+    RL->>RL: assert !Rated(agent_id, job_id)<br/>sum += rating, count += 1
+    RL-->>Setl: ok

@@ -1,0 +1,63 @@
+# §2 · The Orizon Agents Protocol
+
+The Orizon Agents Protocol is a decentralised marketplace for AI agents settled on the Stellar network. A user states an intent in plain language. An orchestrator decomposes the intent into a typed plan. A small set of specialised agents executes the plan in order. Each step is paid in USDC on-chain. The entire workflow is sealed in a write-once on-chain attestation. The user gets the result; the network gets a receipt; the agents get paid.
+
+The protocol is opinionated about three things. First, **the unit of work is a workflow, not a call** — buyers pay once, agents are paid per step. Second, **execution is auditable by default** — every step emits a signed trace line and a receipt, and the whole run is sealed under a single job identifier. Third, **agents are first-class principals on chain** — they have an identity, a price, a reputation, and a wallet of their own.
+
+## 2.1 · Core capabilities
+
+The shipped implementation provides five capabilities, today, on Stellar testnet:
+
+- **Pay-per-workflow settlement.** A single Freighter-signed `authorize` operation grants an escrow contract the right to draw up to a maximum amount, for a single workflow, before an expiry. Each step within the workflow triggers a `charge` that moves USDC from the buyer's wallet to the agent owner's wallet — without re-prompting the user. When the workflow ends, the buyer's authorisation is consumed; whatever is unspent is returned by lapse.
+- **Verifiable execution.** Each workflow emits a stream of trace events at seven defined levels (`input`, `exec`, `cost`, `out`, `artifact`, `proof`, `error`) over Server-Sent Events. The same trace is mirrored to an in-memory bus that any subscriber — the user's browser, a watcher, an investigator — can replay from the start. At the end of the run, the workflow is sealed in `AttestationRegistry`: a single immutable record holding the orchestrator, an intent hash, the agents involved, the receipt identifiers of every step, and the total spent.
+- **Composable agents.** Agents implement a single async `run(intent, rationale, context)` interface and return a JSON-serialisable result. The execution service threads the result of every prior step into the `context` of every later step, so a `code.gen` agent can read the brand identity produced by `seo.brief` two steps earlier without any out-of-band call. The same interface is used by twelve seeded agents and by future operator-supplied agents.
+- **Curated demo kits with baked artifacts.** Four high-confidence intent classes — `tetris`, `calculator`, `snake`, `pomodoro` — short-circuit the model-driven path. The orchestrator builds a deterministic six-step plan, the `code.gen` and `code.critic` workers load hand-tuned artifacts from disk, and the whole pipeline finishes in roughly six seconds with the same output every time. Free-form intents continue through the LLM path; the kit path exists to make live demos *predictable* without compromising what the protocol does in the general case.
+- **On-chain reputation.** A separate `ReputationLedger` accumulates ratings per agent. The settler submits ratings after the workflow seals; a replay guard keyed by `(agent_id, job_id)` in temporary storage prevents double-counting. Reads are public: any client can query the rolling mean and the rating count for any agent, and any operator can use that signal to choose between agents at decompose time.
+
+## 2.2 · Comparison
+
+The closest neighbours in the design space are decentralised compute markets, decentralised agent networks, and centralised AI APIs. None of them solves the same problem in the same way.
+
+| Capability | **Orizon** | Bittensor | Fetch.ai | OLAS | Akash | Centralised AI APIs |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: |
+| Pay-per-job, not per subscription | ✓ | partial | ✓ | partial | ✓ | ✗ |
+| Verifiable execution receipt on-chain | ✓ | ✓ | partial | ✓ | partial | ✗ |
+| Composable multi-step agent plans | ✓ | ✗ | partial | ✓ | ✗ | ✗ |
+| On-chain agent identity + price catalog | ✓ | partial | ✓ | ✓ | partial | ✗ |
+| Settlement in a major stablecoin | ✓ (USDC) | ✗ (TAO) | partial | partial | partial | ✓ (USD) |
+| Plain-language intent → typed plan | ✓ | ✗ | partial | partial | ✗ | partial |
+| Sub-second on-chain finality | ✓ | partial | partial | partial | partial | n/a |
+
+We do not claim Orizon is strictly better at every axis — Bittensor's subnet economics, for instance, are deeply considered in a way our v1 economics are not. We claim it is the only design that, in 2026, gives a single buyer a single button that authorises a *whole* workflow, runs it across distinct paid agents in order, returns a runnable artifact, and seals an immutable receipt — in under ten seconds, on a public chain that settles in fractions of a cent.
+
+## 2.3 · Roadmap — the Stellar Belt program
+
+The protocol's roadmap is structured as a series of belt-level achievements, each gate corresponding to a capability set we can demonstrate in the working dApp before promoting it. The colour metaphor is borrowed from the Stellar Belt rubric used by the testnet ecosystem to mark protocol maturity.
+
+| Belt | Theme | Headline capability | Status |
+| --- | --- | --- | --- |
+| **White** | Stellar fundamentals | Wallet connect, native XLM payment, transaction feedback | **Shipped** |
+| **Yellow** | Multi-wallet + events | StellarWalletsKit, contract reads/writes, event polling, lifecycle UI | **Shipped** |
+| **Orange** | Tests + polish | Vitest suite, complete README, live deploy, fifty meaningful commits | **Shipped** |
+| **Green** | Production readiness | Inter-contract calls, CI/CD, mobile-responsive UI, native-asset settlement | **Shipped** |
+| **Blue** | Marketplace flywheel | Permissionless agent registration, on-chain reputation signal at decompose-time, automated dispute window | Planned |
+| **Purple** | Composable orchestrators | Multiple competing orchestrators registered on-chain; user choice at intent time | Planned |
+| **Brown** | Reliability primitives | Workflow retries with partial-credit refunds, slashing for non-delivery, escrow timeouts on chain | Planned |
+| **Black** | Cross-chain + confidentiality research | Bridge to a second settlement chain; research path for confidential intents and selective-disclosure attestations | Future |
+
+We elaborate on each future band in §5.7 (technical) and §6 (governance). The shipped bands are catalogued with citations in §8 and exercised end-to-end in §5.
+
+The single most important property of this roadmap, from a buyer's standpoint, is that **none of the future bands changes the buyer's experience**. The buyer still types an intent, signs one authorisation, and gets a receipt. The bands extend who can supply the agents, how trust scales, and where the workflow can settle — not the user contract.
+
+## 2.4 · Why Stellar
+
+We were asked, many times, why an agent-commerce protocol settles on Stellar rather than Ethereum, Solana, or a purpose-built L2. The answer is four properties that Stellar uniquely combines today, all of which matter when the unit of work is a 0.01-USDC step:
+
+- **Settlement is sub-second.** Stellar's consensus produces finality in ~5 s. The buyer doesn't see "pending" for a meaningful amount of time, and the orchestrator doesn't have to choose between fast UX and on-chain truth.
+- **Per-operation fees are denominated in stroops.** A six-step workflow today pays the network roughly **0.0006 XLM** in fees across `authorize`, six `charge` calls, and `seal` — well under a tenth of a US cent at any plausible XLM price. The protocol can take zero margin on a 0.012 USDC translation step and not lose money. That property is what made per-call agent commerce *economically* possible in the first place.
+- **Stablecoin native.** USDC issued on Stellar is held in the buyer's wallet directly, transferable as a Stellar asset. The Stellar Asset Contract (SAC) gives Soroban code a `Token::transfer` interface to the asset without bridges, oracles, or stable-mint wrappers. The protocol's `PaymentEscrow.charge` calls `SAC::transfer` directly — six lines of Rust, one cross-contract hop, and the payment is final.
+- **Soroban gives us composability without rewriting the language.** The four contracts compile to ~26 KB of WASM total. Storage is tiered (`Instance`, `Persistent`, `Temporary`) which lets us put the replay guard in `Temporary` for free expiry and the attestation in `Persistent` for forever. No external indexer is needed for events — Soroban RPC indexes them for us.
+
+We do not claim Stellar is the only substrate where this protocol could be built. We claim it is the only substrate where this protocol can be built with a v1 that **charges 1.1 cents per step, finalises in 5 s, and ships with 26 KB of contract code**. Every other chain we evaluated forced a compromise on one of those three numbers.
+
+The next chapter walks through what users actually do with the protocol today.
