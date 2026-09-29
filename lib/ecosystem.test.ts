@@ -124,6 +124,8 @@ describe("isEcosystemAdoption", () => {
     expect(isEcosystemAdoption(zero({ window_days: 7.0 }))).toBe(true);
     expect(isEcosystemAdoption(zero({ window_days: 6.5 }))).toBe(true);
     expect(isEcosystemAdoption(zero({ window_days: null }))).toBe(true);
+    // 0.0 is what the backend sends when no scan ran: a real answer.
+    expect(isEcosystemAdoption(zero({ window_days: 0.0 }))).toBe(true);
     const a: Record<string, unknown> = { ...zero() };
     delete a.window_days;
     expect(isEcosystemAdoption(a)).toBe(true);
@@ -216,8 +218,7 @@ describe("isEcosystemAdoption", () => {
     ],
     ["a settled window that is the string 7", (a) => (a.window_days = "7")],
     ["a settled window that is not finite", (a) => (a.window_days = NaN)],
-    ["a settled window of zero days", (a) => (a.window_days = 0)],
-    ["a negative settled window", (a) => (a.window_days = -7)],
+    ["an infinite settled window", (a) => (a.window_days = Infinity)],
   ];
   it.each(broken)("rejects %s", (_name, breakIt) => {
     const a: Record<string, unknown> = { ...zero() };
