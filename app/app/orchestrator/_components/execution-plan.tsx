@@ -705,6 +705,12 @@ export function ExecutionPlan({
           >
             <p>The authorization confirmed, but the run was not started.</p>
             <p className="mt-1 text-text/90">{runError}</p>
+            {generation === "v1" && (
+              <p className="mt-1 text-text/90">
+                The authorization only recorded a spending allowance, so no
+                funds moved.
+              </p>
+            )}
             {onReplan && (
               <Button
                 type="button"
@@ -720,7 +726,11 @@ export function ExecutionPlan({
           </div>
         )}
 
+        {/* Only escrow v2 holds anything to hand back or reclaim. A v1
+            authorization moved nothing, and while the escrow is unknown the
+            card claims neither. */}
         {held &&
+          generation === "v2" &&
           (expired === "authorize" || runError) &&
           (release?.kind === "returned" ? (
             <FundsReturnedNotice amount={priced(cap)} txHash={release.txHash} />
