@@ -21,6 +21,10 @@ import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { agentLabel, formatCreditShare, formatUsdc } from "@/lib/disputes";
+import {
+  V1_CANNOT_SETTLE,
+  type EscrowGeneration,
+} from "@/lib/escrow-generation";
 import { cn } from "@/lib/utils";
 import type {
   CreditPolicy,
@@ -53,8 +57,14 @@ export function ReceiptPanel({
   onDispute,
   onConnect,
   reasonUnlock = null,
+  escrowGeneration,
 }: {
   view: DisputePanelView;
+  /**
+   * The escrow the deployment settles through (`escrowGeneration`), which
+   * decides what a failed settlement did with the buyer's money.
+   */
+  escrowGeneration: EscrowGeneration;
   /**
    * The settled receipt's own heading, for a page that needs somewhere to put
    * focus. The Dispute button a dialog was opened from is gone by the time it
@@ -83,6 +93,7 @@ export function ReceiptPanel({
         running={view.running}
         settlementState={view.settlementState ?? null}
         stoppedChecking={view.settlementStoppedChecking ?? false}
+        generation={escrowGeneration}
       />
     );
   }
@@ -94,6 +105,7 @@ export function ReceiptPanel({
       onDispute={onDispute}
       onConnect={onConnect}
       reasonUnlock={reasonUnlock}
+      generation={escrowGeneration}
     />
   );
 }
@@ -115,9 +127,11 @@ function NotSettled({
   running,
   settlementState,
   stoppedChecking,
+  generation,
 }: {
   headingId: string;
   running: boolean;
+  generation: EscrowGeneration;
   settlementState: SettlementState | null;
   /** The panel stopped re-reading an unconfirmed settlement. */
   stoppedChecking: boolean;
@@ -149,7 +163,7 @@ function NotSettled({
         </h2>
         {said !== null && <SettlementBadge state={said} />}
         <p role="status" className="text-xs leading-relaxed text-muted">
-          {notSettledSentence(running, said)}
+          {notSettledSentence(running, said, generation)}
           {stoppedChecking && said === "unconfirmed"
             ? " This page has stopped checking for it — reload to look again."
             : null}
@@ -167,6 +181,7 @@ function NotSettled({
 function notSettledSentence(
   running: boolean,
   state: SettlementState | null,
+  generation: EscrowGeneration,
 ): string {
   if (running)
     return "The receipt appears here once this workflow settles, and disputes open then.";
@@ -183,12 +198,31 @@ function notSettledSentence(
     case "unconfirmed":
       return "The settlement was sent but is not confirmed on-chain, and it may still land. Until it is confirmed nothing here is shown as paid, and there is nothing to dispute.";
     case "failed":
-      // Not "your funds": anyone with the link may be reading. And not "held
-      // in escrow" outright: a v1 run took no custody, so only what escrow
-      // took is said to stay there.
-      return "The settlement did not go through, so no agent was paid. Anything the authorization moved into escrow stays there: the platform returns it automatically when it can, and otherwise the wallet that paid can reclaim it once the authorization expires.";
+      return failedSentence(generation);
     case "settled":
       return "This workflow settled on-chain, but its receipt is not on record here, so it cannot be disputed from this page.";
+  }
+}
+
+/**
+ * What a failed settlement did with the buyer's money, by the escrow it went
+ * through. Not "your funds": anyone with the link may be reading.
+ *
+ * - v2 took custody at authorize, so the buyer is told how it comes back —
+ *   hedged ("anything … moved"), since a run may have held nothing.
+ * - v1 took none and cannot complete a payment at all (D-039): nothing was
+ *   charged, and there is nothing to reclaim.
+ * - unknown says only what failed.
+ */
+function failedSentence(generation: EscrowGeneration): string {
+  const failed = "The settlement did not go through, so no agent was paid.";
+  switch (generation) {
+    case "v2":
+      return `${failed} Anything the authorization moved into escrow stays there: the platform returns it automatically when it can, and otherwise the wallet that paid can reclaim it once the authorization expires.`;
+    case "v1":
+      return `${failed} ${V1_CANNOT_SETTLE}`;
+    case "unknown":
+      return failed;
   }
 }
 
@@ -231,17 +265,20 @@ function TxRow({ label, hash }: { label: string; hash: string | null }) {
 }
 
 /** What a settled receipt says about its settlement, by the reported state. */
-function settledSentence(state: SettlementState): string {
+function settledSentence(
+  state: SettlementState,
+  generation: EscrowGeneration,
+): string {
   switch (state) {
     case "settled":
       return "Settled on-chain: each delivered step with an on-chain operator was paid from escrow in one transaction, and the rest of the authorization went back to the wallet that paid.";
     case "unconfirmed":
       return "The settlement was sent but is not confirmed on-chain yet, and it may still land. Nothing on this receipt is shown as paid until it is.";
     case "failed":
-      return notSettledSentence(false, "failed");
+      return failedSentence(generation);
     case "released":
     case "skipped":
-      return notSettledSentence(false, state);
+      return notSettledSentence(false, state, generation);
   }
 }
 
@@ -310,9 +347,11 @@ function SettledReceipt({
   onDispute,
   onConnect,
   reasonUnlock,
+  generation,
 }: {
   view: SettledView;
   headingId: string;
+  generation: EscrowGeneration;
   headingRef?: RefObject<HTMLHeadingElement>;
   onDispute: (step: SettlementStepView) => void;
   onConnect: () => void;
@@ -410,7 +449,7 @@ function SettledReceipt({
                 role="status"
                 className="max-w-2xl text-xs leading-relaxed text-muted"
               >
-                {settledSentence(view.settlementState)}
+                {settledSentence(view.settlementState, generation)}
                 {view.settlementStoppedChecking
                   ? " This page has stopped checking for it — reload to look again."
                   : null}
@@ -435,7 +474,12 @@ function SettledReceipt({
               k={confirmed ? "settled" : "recorded"}
               value={formatLocalTime(view.settledAtMs)}
             />
-            {view.remainder && <RemainderRow remainder={view.remainder} />}
+            {/* "Still held in escrow" is v2's: v1 held nothing, and while
+                the escrow is unknown it is not claimed. */}
+            {view.remainder &&
+              (view.remainder.kind !== "held" || generation === "v2") && (
+                <RemainderRow remainder={view.remainder} />
+              )}
             <TxRow label="charge" hash={view.chargeTx} />
             <TxRow label="seal" hash={view.proofTx} />
           </dl>

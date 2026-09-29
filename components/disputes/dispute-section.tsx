@@ -519,6 +519,7 @@ export const DisputeSection = memo(function DisputeSection({
         reasonUnlock={
           unlock.unavailable ? null : { status: unlock.status, onUnlock }
         }
+        escrowGeneration={escrowGeneration}
       />
       {/* v1 took no custody, so there is nothing to reclaim; while the
           escrow is unknown nothing is offered either. */}
