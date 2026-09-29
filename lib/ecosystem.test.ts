@@ -20,6 +20,8 @@ import {
   teamFundedLabel,
   teamFunding,
   missSentence,
+  noSettledSentence,
+  settledWindowSentence,
   shortAddress,
   targetRows,
   targetsVerdict,
@@ -380,6 +382,39 @@ describe("unverifiedSentence", () => {
   it("still speaks when degraded without naming anyone", () => {
     expect(unverifiedSentence(zero({ degraded: true }))).toMatch(
       /^Couldn't verify every agent right now\./,
+    );
+  });
+});
+
+describe("the settled window", () => {
+  it("states the window the backend sends beside what it leaves out", () => {
+    expect(settledWindowSentence(zero({ window_days: 7.0 }))).toBe(
+      "Settled workflows counted over the last 7 days of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.",
+    );
+    expect(noSettledSentence(zero({ window_days: 7.0 }))).toBe(
+      "No settled workflows in the last 7 days.",
+    );
+  });
+
+  it("keeps a fractional window and a single day as sent", () => {
+    expect(settledWindowSentence(zero({ window_days: 6.5 }))).toContain(
+      "over the last 6.5 days of ledger history",
+    );
+    expect(settledWindowSentence(zero({ window_days: 1 }))).toContain(
+      "over the last 1 day of ledger history",
+    );
+    expect(noSettledSentence(zero({ window_days: 1 }))).toBe(
+      "No settled workflows in the last 1 day.",
+    );
+  });
+
+  it("says nothing about a window the backend does not send", () => {
+    const a: Record<string, unknown> = { ...zero() };
+    delete a.window_days;
+    expect(settledWindowSentence(a as EcosystemAdoption)).toBeNull();
+    expect(settledWindowSentence(zero({ window_days: null }))).toBeNull();
+    expect(noSettledSentence(zero({ window_days: null }))).toBe(
+      "No settled workflows yet.",
     );
   });
 });
