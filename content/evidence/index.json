@@ -941,6 +941,53 @@
       ]
     }
   ],
-  "disclosures": [],
+  "disclosures": [
+    {
+      "id": "testnet",
+      "title": "Testnet only",
+      "text": "SOW §3.6: \"Testnet: all Instaward work is built and validated on Stellar testnet for this sprint — no mainnet funds are at risk. Orizon's contracts are also deployed on Stellar mainnet outside this award; none of that deployment is funded by, or in scope for, this Instaward.\" Every Stellar Expert link in this index points at the testnet explorer. Testnet money has no real value.",
+      "sow_ref": "§3.6"
+    },
+    {
+      "id": "permissionless_scope",
+      "title": "Anyone can register; payment is still run by the platform",
+      "text": "SOW §3.8: \"Deliverable 1 makes registration permissionless; it does not make settlement permissionless.\" Any wallet can register an agent without asking Orizon. Paying agents, writing ratings and deciding disputes are still done by keys the platform holds.",
+      "sow_ref": "§3.8"
+    },
+    {
+      "id": "single_settler_key",
+      "title": "Payments are released by a single platform key",
+      "text": "SOW §3.8: \"the settler is not permissionless. The settler (the role that executes charge and will operate this sprint's dispute/partial-credit path) is a single platform-held backend key, fixed at contract deployment; the contract exposes no settler-rotation function.\" This is still true of the live escrow: one team-held key releases payments, with no multi-signature or threshold control.",
+      "sow_ref": "§3.8",
+      "changed_since_sow": "Two changes. First, the SOW says one keypair also holds the admin, scorer and sealer roles. On 2026-09-19 the rating (scorer) and sealing (sealer) roles moved from the admin wallet GA7AI…5OQV to a separate production key, GDB4N…CDHP; the two transactions are linked under Repositories & Deployments. The admin wallet still holds the admin role and settles on the live escrow. Both keys are held by the team. Second, escrow v2 adds a set_settler function, so the settler can be replaced. v2 is merged (contracts pull request #4, 2026-09-28) but not deployed to testnet, so the live escrow still cannot rotate its settler."
+    },
+    {
+      "id": "escrow_custody",
+      "title": "How payment works, and why no payment has settled",
+      "text": "SOW §3.8: \"the settler executes charge, which moves USDC directly from the buyer to the agent owner's wallet through the Stellar Asset Contract, the platform never takes custody of funds.\" On the live escrow (v1) this does not work: charge cannot move funds from a buyer who is not also the settler (defect D-039, contracts issue #3). No payment between two different wallets has ever settled on it.",
+      "sow_ref": "§3.8",
+      "changed_since_sow": "Escrow v2 fixes this by holding the buyer's authorized amount from the moment the buyer authorizes, then paying each operator at settlement. That means the platform's contract does hold funds for a while, which changes the SOW's \"never takes custody\" statement. v2 is merged in the contracts (pull request #4) and backend (pull request #88) repositories but not deployed to testnet."
+    },
+    {
+      "id": "platform_credits",
+      "title": "Refunds are credits paid from the platform's own funds",
+      "text": "When a dispute is upheld, the platform's settler key sends the buyer a credit from the platform's own balance. It is not taken back from the agent's owner, and it is not drawn from the buyer's authorization. The credit is the price of the disputed step, capped by what the payment actually moved and by a per-refund ceiling. Refunds ship switched off, and none has been paid on the live deployment.",
+      "sow_ref": "§3.8, §4.1 (Deliverable 3)",
+      "changed_since_sow": "The SOW says the refund is executed by the settler \"within the buyer's envelope\" (§3.8) and \"against the buyer's authorization envelope\" (§4.1). The live escrow has no refund function and never holds funds, so there was nothing inside the envelope to return. The refund became a separate transfer funded by the platform (backend decision records ADR 0002 and ADR 0008)."
+    },
+    {
+      "id": "offchain_binding",
+      "title": "An agent's server address is stored off-chain",
+      "text": "The on-chain agent record holds its owner, id, name, skills and price. It has no field for the address of the operator's server. The operator links that address to their agent in Orizon's database, proving they own the agent by signing a message with the owner wallet (backend decision record ADR 0001). So where Orizon sends an agent's work is decided by Orizon's database, not by the chain.",
+      "changed_since_sow": "Not in the SOW. It was chosen in Week 1 (decision spike 1.06) instead of redeploying the registry, which would have changed the published contract addresses."
+    },
+    {
+      "id": "permissioned_operations",
+      "title": "Ratings and dispute decisions are made by the platform",
+      "text": "SOW §3.8: \"reputation ratings can only be submitted by the platform's scorer key. Settlement, rating submission, and dispute resolution are therefore trusted, permissioned operations today.\" This is still true. Only the platform's production key writes ratings, and disputes are decided by the platform's operator.",
+      "sow_ref": "§3.8",
+      "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). The 27 ratings written during the sprint all come from runs whose payment did not settle."
+    }
+  ],
   "notes": []
 }
