@@ -373,15 +373,27 @@
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
           "status": "missing",
-          "note": "Missing: 0 of 2. No outside operator has registered an agent yet (see metric 1). The adoption counter that lists outside registrations is merged in backend pull request #89 but not deployed, so its public address (/api/ecosystem/adoption) does not work yet. It goes live with the next manual backend deploy on Render.",
+          "note": "Missing: 1 of 2. One outside operator has registered one agent, Powerbot, on 2026-09-29, from a wallet that is not in the team register and holds no platform role (linked here). It is a trial registration by an operator who was trying out the platform. The server address bound to Powerbot, powerbot.com, is a parked web page, not a working agent, and Powerbot has had no dispatches and no settlements. The platform's own readiness check reports it ready only because that check accepts any page that answers. The live adoption counter counts it as 1 outside agent and 1 outside operator wallet, against targets of 2 and 2, so no target is met (see metrics 1 to 3).",
           "links": [
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 12 registrations, every one by a team wallet",
+              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (Powerbot, a trial)",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
             {
-              "label": "Backend pull request #89 (merged, not yet deployed): the adoption counter that lists outside registrations",
+              "label": "Registration of Powerbot by an outside operator's wallet (a trial) — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+              "kind": "tx",
+              "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Live adoption counter: outside registrations, as the API counts them",
+              "url": "https://orizon-agents-be-stellar.onrender.com/api/ecosystem/adoption",
+              "kind": "page"
+            },
+            {
+              "label": "Backend pull request #89 (merged): the adoption counter that lists outside registrations",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/89",
               "kind": "pr",
               "date": "2026-09-28"
