@@ -392,8 +392,8 @@ export function ExclusionsPanel({
           <p className="text-sm leading-relaxed text-muted">
             The reputation floor acted on {unbound > 0 ? "some of " : ""}these
             agents while this plan was built. It decides who is eligible to be
-            picked, before any step is dispatched, so nothing below is a
-            judgement on work an agent actually did.
+            picked, before any step is dispatched, by comparing a statistical
+            lower bound on each agent&apos;s reputation against the floor.
           </p>
         )}
         {unbound > 0 && (

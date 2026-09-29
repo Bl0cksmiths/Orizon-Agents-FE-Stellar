@@ -285,7 +285,12 @@ describe("ExclusionsPanel · the disclosure", () => {
     expect(floorOnly.text()).toContain(
       "The reputation floor acted on these agents",
     );
-
+    // The intro names the floor for what it is, a statistical lower bound,
+    // and no longer claims that nothing below reflects work an agent did.
+    expect(floorOnly.text()).toContain(
+      "by comparing a statistical lower bound on each agent's reputation against the floor.",
+    );
+    expect(floorOnly.text()).not.toMatch(/judgement on work|actually did/);
     expect(floorOnly.text()).not.toContain("never candidates");
   });
 
