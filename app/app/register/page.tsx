@@ -9,6 +9,8 @@ import {
 } from "@/lib/api";
 import {
   normalizeSkills,
+  priceEntryHint,
+  priceFieldLabel,
   usdcToStroops,
   validateAgentId,
   validateName,
@@ -402,7 +404,7 @@ export default function RegisterPage() {
 
           <div>
             <label htmlFor="reg-price" className={labelCls}>
-              price per step (USDC)
+              {priceFieldLabel(networkInfo?.asset)}
             </label>
             <input
               id="reg-price"
@@ -431,7 +433,7 @@ export default function RegisterPage() {
               <div className="mt-1 font-mono text-[11px] text-muted">
                 {stroops !== null
                   ? `= ${stroops.toLocaleString()} stroops on-chain`
-                  : "entered in USDC, converted once at submit"}
+                  : priceEntryHint(networkInfo?.asset)}
               </div>
             )}
           </div>

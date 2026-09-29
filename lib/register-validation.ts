@@ -5,12 +5,35 @@
  * input before the network round-trip, with the same limits the server
  * enforces: `agent_id` and each `skill` match `^[A-Za-z0-9_]{1,32}$`, `name`
  * is 1–100 chars, `skills` is capped at 16, and `price_usdc` is `(0, 10000]`.
- * Price is quoted in USDC and settled on-chain in stroops (×1e7).
+ * Price is entered in whole units of the network's settlement asset and
+ * settled on-chain in stroops (×1e7). `price_usdc` is the wire field's name,
+ * not the asset: on testnet the escrow's SAC wraps native XLM (F-022).
  *
  * Every validator returns `null` when the field is valid, or a short inline
- * error string otherwise — ready to render beside the field. Zero
- * dependencies; each function is pure.
+ * error string otherwise — ready to render beside the field. Each function is
+ * pure.
  */
+
+import { assetLabel } from "./money";
+
+/**
+ * The price field's label, in the network's asset: "price per step (XLM)" on
+ * testnet, and no unit while the asset is unknown — never the "USDC" in the
+ * wire field's name. The Register page labels it the way the plan card and
+ * the receipt label their amounts.
+ */
+export function priceFieldLabel(asset: string | null | undefined): string {
+  const unit = assetLabel(asset);
+  return unit ? `price per step (${unit})` : "price per step";
+}
+
+/** The hint under an empty price field, in the same unit as its label. */
+export function priceEntryHint(asset: string | null | undefined): string {
+  const unit = assetLabel(asset);
+  return unit
+    ? `entered in ${unit}, converted once at submit`
+    : "converted to stroops once at submit";
+}
 
 /** Backend charset for `agent_id` and every skill token: letters, digits and
  * underscore, 1–32 characters (`RegisterAgentReq`). */
@@ -82,18 +105,20 @@ export function validateSkills(skills: string[]): string | null {
 }
 
 /**
- * Validate the price in USDC. Accepts the raw string an `<input>` yields as
+ * Validate the price, in whole units of the settlement asset. Accepts the raw string an `<input>` yields as
  * well as a number. Must parse to a finite value in `(0, 10000]`.
  */
 export function validatePriceUsdc(v: number | string): string | null {
   const n = typeof v === "string" ? Number(v) : v;
   if (!Number.isFinite(n)) return "Enter a valid price";
   if (n <= 0) return "Price must be greater than 0";
-  if (n > 10000) return "10000 USDC maximum";
+  // No unit: this validator cannot see the network, and the one in the wire
+  // field's name ("usdc") is not the asset testnet settles in.
+  if (n > 10000) return "10000 maximum";
   return null;
 }
 
-/** USDC → stroops, the on-chain unit: `usdc * 1e7`, rounded (`0.054 → 540000`). */
+/** Whole units → stroops, the on-chain unit: `usdc * 1e7`, rounded (`0.054 → 540000`). */
 export function usdcToStroops(usdc: number): number {
   return Math.round(usdc * 1e7);
 }
