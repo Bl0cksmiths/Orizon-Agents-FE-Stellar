@@ -10,6 +10,10 @@ playwright-report/
 package-lock.json
 docs/
 whitepaper/
+# The litepaper: its source, figures and rendered files, imported from its
+# own repository and formatted by its own build (litepaper/build/). A
+# formatter reflowing its Markdown would change the book it renders.
+litepaper/
 # Weekly submission bundles. Same reasoning as docs/: these are written for a
 # grant reviewer, laid out by hand, and a formatter reflowing their tables and
 # evidence blocks makes them worse. They are also frozen once submitted — a
