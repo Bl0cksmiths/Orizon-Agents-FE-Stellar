@@ -1338,9 +1338,11 @@ This is how disputes work from your side, stated plainly.
 - **Who decides.** The platform. A person on the platform side upholds or rejects each dispute through an authenticated
   route. There is no automatic rule, no on-chain arbitration and no appeal. A rejection must give the buyer a reason.
 - **Who pays the buyer.** The platform. An upheld dispute credits the buyer the disputed step's settled charge (the
-  shipped policy credits all of it, capped by the deployment's `MAX_REFUND_USDC`, 1.0 by default). The credit is a
-  transfer from the platform's signing key. It is not a reversal of your payment. Nothing is taken back from your
-  wallet, and nothing in the system can: your settled earnings are final.
+  shipped policy credits all of it). A credit above the deployment's `MAX_REFUND_USDC` (1.0 by default) is refused, not
+  cut down to the ceiling: the uphold answers `409` with `refund_above_cap`, nothing is paid, and the dispute stays
+  upheld and unpaid, so the platform can still credit it later. The credit is a transfer from the platform's signing
+  key. It is not a reversal of your payment. Nothing is taken back from your wallet, and nothing in the system can: your
+  settled earnings are final.
 - **What it costs you.** Reputation. An upheld, credited dispute adds a 10/100 rating and a permanent mark in your
   dispute count (see [Disputes cost you routing](#disputes-cost-you-routing)).
 
