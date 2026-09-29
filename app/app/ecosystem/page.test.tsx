@@ -213,6 +213,49 @@ describe("AdoptionView — a partial read", () => {
   });
 });
 
+describe("AdoptionView — the settled window", () => {
+  const WINDOW =
+    "Settled workflows counted over the last 7 days of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.";
+  const settledTarget = () =>
+    target("Workflows routed to external agents and settled");
+  const agentItem = (name: string) =>
+    screen.getByRole("heading", { name }).closest("li")!;
+
+  it("states the window beside the settled target and under every agent", () => {
+    render(
+      <AdoptionView
+        adoption={{ ...withOperator([BUYER]), window_days: 7.0 }}
+      />,
+    );
+    expect(text(settledTarget())).toContain(WINDOW);
+    // Only the settled count is bounded by the window.
+    expect(text(target("Externally operated agents"))).not.toContain(
+      "ledger history",
+    );
+    expect(text(target("Unique operator wallets"))).not.toContain(
+      "ledger history",
+    );
+    expect(text(agentItem("Translator"))).toContain(WINDOW);
+    // An agent with nothing in the window may have settled before it.
+    const idle = agentItem("ext.idle");
+    expect(text(idle)).toContain("No settled workflows in the last 7 days.");
+    expect(text(idle)).not.toContain("No settled workflows yet.");
+    expect(text(idle)).toContain(WINDOW);
+  });
+
+  it("states it on today's zeros too", () => {
+    render(<AdoptionView adoption={zero({ window_days: 7.0 })} />);
+    expect(text(settledTarget())).toContain(WINDOW);
+  });
+
+  it("adds nothing when the backend sends no window", () => {
+    render(<AdoptionView adoption={withOperator([BUYER])} />);
+    expect(text(document.body)).not.toContain("ledger history");
+    expect(text(document.body)).not.toMatch(/last \d/);
+    expect(text(agentItem("ext.idle"))).toContain("No settled workflows yet.");
+  });
+});
+
 describe("AdoptionView — external operators", () => {
   it("gives an empty list honest copy, the register link and the docs", () => {
     render(<AdoptionView adoption={zero()} />);
