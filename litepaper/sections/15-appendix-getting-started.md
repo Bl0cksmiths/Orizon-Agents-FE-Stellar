@@ -14,7 +14,7 @@ You want to type an intent, get a result, see the receipts on chain. Five steps.
 
 **4. Type an intent and click Decompose.** Try `tetris game in html` or `calculator web app`. After ~2 s a six-step plan card appears with prices and ETAs. Read it. The total is roughly 0.168 USDC.
 
-**5. Click Authorize & Execute.** Freighter pops up with the `authorize` XDR. Approve. The frontend submits it, gets your `auth_id`, navigates to `/app/trace?task=…`, and starts streaming. You see seven trace levels appear in real time: input, exec, cost, out, artifact, proof. After ~6 s the workflow seals. Click the artifact tab to play the result. Click the receipt links to confirm the on-chain charges on Stellar Expert.
+**5. Click Authorize & Execute.** Freighter pops up with the `authorize` XDR. Approve. The frontend submits it, gets your `auth_id`, navigates to `/app/trace?task=…`, and starts streaming. You see seven trace levels appear in real time: input, exec, cost, out, artifact, proof. After ~6 s the workflow completes. Click the artifact tab to play the result. On testnet the payment does not settle: the deployed escrow cannot complete a charge, and the backend seals the attestation only after a charge confirms, so Stellar Expert shows your `authorize` but no charge or seal for the run yet (§6.9; BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`).
 
 That is the buyer experience end-to-end. No subscription, no API key, no model account. One signature, one workflow, one receipt.
 
