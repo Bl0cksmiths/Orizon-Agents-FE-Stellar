@@ -71,10 +71,21 @@ type ExecStep = "" | "sign" | "broadcast" | "execute";
 
 const STEP_LABEL: Record<Exclude<ExecStep, "">, string> = {
   sign: "◉ Freighter…",
-  // The broadcast is the moment the cap leaves the wallet for the escrow.
-  broadcast: "◉ Moving funds to escrow…",
+  broadcast: "◉ Broadcasting…",
   execute: "◉ Launching…",
 };
+
+/** The button's label for a stage. Under escrow v2 the broadcast is the
+ *  moment the cap leaves the wallet for the escrow, and it says so; under
+ *  any other escrow nothing moves then, and it says only what happens. */
+function stepLabel(
+  step: Exclude<ExecStep, "">,
+  generation: EscrowGeneration,
+): string {
+  return step === "broadcast" && generation === "v2"
+    ? "◉ Moving funds to escrow…"
+    : STEP_LABEL[step];
+}
 
 /** The smallest cap an authorization is signed for. A plan priced at zero
  *  still needs a positive cap to authorize against. */
@@ -637,7 +648,7 @@ export function ExecutionPlan({
                 >
                   {executing
                     ? step
-                      ? STEP_LABEL[step]
+                      ? stepLabel(step, generation)
                       : "◉ Launching…"
                     : "Authorize & Execute ▸"}
                 </Button>
