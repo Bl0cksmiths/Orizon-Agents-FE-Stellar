@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import escrowPins from "../lib/escrow-address.json";
 import type { DecomposeResponse, StellarNetworkInfo } from "../lib/types";
 import { mockPlanExcluded } from "./mocks";
 
@@ -35,6 +36,26 @@ export const mockTestnetNetwork = {
   asset: "native",
   asset_sac: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
 } satisfies StellarNetworkInfo;
+
+/**
+ * The escrow v2 id this build pins for testnet, or null while v2 is not
+ * deployed. The pin is compiled into the page, so a spec cannot set it: the
+ * console speaks v1 (no custody, nothing to reclaim) while it is null, and
+ * v2 once it is set AND the backend reports that escrow. Specs of either
+ * story skip on the other, so the switch in docs/escrow-v2-switch.md flips
+ * them without an edit.
+ */
+export const escrowV2Pin: string | null =
+  (escrowPins as Record<string, string | null>).testnet ?? null;
+
+/** The testnet network as a v2 deployment reports it: the pinned escrow. */
+export const mockEscrowV2Network: StellarNetworkInfo = {
+  ...mockTestnetNetwork,
+  contracts: {
+    ...mockTestnetNetwork.contracts,
+    payment_escrow: escrowV2Pin ?? "",
+  },
+};
 
 /**
  * Serves a network payload over the shared mock. Call it AFTER `mockApi`:
