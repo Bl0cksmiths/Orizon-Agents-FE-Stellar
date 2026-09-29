@@ -72,7 +72,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Sealer.** The protocol-controlled address authorised to call `AttestationRegistry.seal`. Rotatable by the admin via `set_sealer`. On testnet it is the backend's signing key, a different key from the deployed escrow's settler since 2026-09-19. See §6.1.
 
-**Settler.** The protocol-controlled address authorised to call `PaymentEscrow.charge`. Holds the protocol's signing key. Rotatable by the admin via `set_settler`. See §6.1.
+**Settler.** The protocol-controlled address authorised to move escrowed payments: `charge` on the deployed escrow, `settle` on escrow v2. On the deployed escrow it is written once at construction and has no setter, so rotating it requires a redeploy; escrow v2 (merged, not yet deployed) adds an admin-only `set_settler`. See §6.1.
 
 **SSE.** Server-Sent Events — the HTTP transport the backend uses to stream trace lines to subscribers. One-way, simple, reconnect-friendly. See §A.2, §B.8.
 
