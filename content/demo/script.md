@@ -285,3 +285,68 @@ The S05 narration states the fact ("It failed three real runs, each rated twenty
 | `lower bound none on record`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | There is no reputation entry, so the runs never landed.                                                                                                                                                                                                 | Stop. Go back to the run procedure below.                                                                                                                                                                                                                                                                                                                                               |
 | `⚠ unverified` / "Compared against estimates, not on-chain records." / "Reputation could not be read"                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | A reputation read failed, so the floor judged priors. The faulty agent would clear the floor on the prior, and **no exclusion would show at all**.                                                                                                      | Retake S04 after checking RPC health in the pre-flight.                                                                                                                                                                                                                                                                                                                                 |
 | `lower bound 2.75` beside `floor 2.75`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | The bound is 5490–5499 bps and rounds to the floor's own figure, so the row looks like it clears.                                                                                                                                                       | Use the recommended price, which gives 5443 (2.72). Never record with the bound above 5489.                                                                                                                                                                                                                                                                                             |
+
+## How the below-floor agent is made, honestly
+
+A real agent sits below the floor only if the platform's scorer genuinely rated its delivered (or undelivered) work low. **No rating is ever written by hand.** That rules out any direct `ReputationLedger.submit` from an admin or scorer key, any use of `scripts/uphold_dispute.py` or a dispute against it, and any edited config. The only honest way to get one is to have an agent fail real work.
+
+### The mechanism
+
+The reference agent ([`Orizon-Agents-Example-Agent-Stellar`](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar), README "Fault injection") run with `FAULT_MODE=hang_after:0` holds every dispatch open past the deadline and hangs up. The orchestrator records `response_timeout` about 100 s after dispatch. The step is **not billed** (ADR 0005 D1). But `reputation_svc.synthetic_rating` scores an empty step at **20/100**, weighted by the step's **quoted price** (capped at `min(REPUTATION_MAX_RATING_WEIGHT_USDC, REPUTATION_MAX_RATING_TO_PRIOR_RATIO × REPUTATION_PRIOR_WEIGHT_USDC)` = 12). The settler writes that rating on-chain on every **wallet-authorized** run, including runs where nothing delivered (ADR 0005 D2). Simulated runs are never rated. The ledger's replay guard allows one rating per (agent, job), so **one run gives one rating**, however many steps the agent was given.
+
+### The arithmetic
+
+These are the constants from `app/config.py` and `app/services/reputation_svc.py` on backend `feat/5.02-integration` (`16819ef`):
+
+| Constant                       | Value                       |
+| ------------------------------ | --------------------------- |
+| `REPUTATION_PRIOR_BPS`         | 7000 (3.50 / 5)             |
+| `REPUTATION_PRIOR_WEIGHT_USDC` | 12.0                        |
+| `REPUTATION_FLOOR_BPS`         | 5500 (2.75 / 5)             |
+| `WILSON_Z`                     | 1.0                         |
+| Per-rating weight cap          | min(100.0, 1.0 × 12.0) = 12 |
+| Failure rating                 | 20/100 = 2000 bps           |
+
+For `k` failed runs at price `p`, the evidence weight is `W = k·p`. The backend then computes:
+
+- smoothed mean `m = (12·7000 + 2000·W) / (12 + W)` in bps, floored to an integer;
+- lower bound `lb = m − √(m(1−m)/(12 + W))`, with `m` as a fraction, then rounded to bps;
+- the agent is excluded when `lb < 5500`.
+
+With no evidence the agent starts at `lb = 5677`, which clears the floor by 177 bps. That is the cold-start margin `/readiness` reports. `registry_sync.py` documents the threshold: about **0.4481 of failure weight** in total. Computed with the backend's own integer arithmetic, for an agent with **no prior ratings**:
+
+| Price per step         | Failed runs needed | Lower bound after them | As shown on the card                        |
+| ---------------------- | ------------------ | ---------------------- | ------------------------------------------- |
+| 0.05                   | 9                  | 5499                   | **2.75** — looks like it clears; do not use |
+| 0.10                   | 5                  | 5481                   | 2.74                                        |
+| 0.15                   | 3                  | 5499                   | **2.75** — looks like it clears; do not use |
+| **0.20 (recommended)** | **3**              | **5443**               | **2.72**                                    |
+| 0.25                   | 2                  | 5481                   | 2.74                                        |
+| 0.50                   | 1                  | 5481                   | 2.74                                        |
+
+**Recommended: price the faulty agent at 0.20 and run it 3 times.** Its lower bound moves 5677 → 5596 → 5518 → **5443**, and its headline score 3.50 → 3.46 → 3.42 → **3.38**. After run 2 it still clears the floor, so it is still routable for run 3. After run 3 it is excluded, so it cannot be routed again, and the number holds. Three runs matches the S05 narration. It also keeps the card's `2.72` visibly under `2.75`, where the cheaper prices would round to the floor's own figure. A single failed run at a price of 0.45 or more would also cross, but one run of evidence reads as a setup rather than a record, so it is not used.
+
+If the agent **already has ratings**, this table does not apply. Keep running it until `GET /api/stellar/reputation/<id>` reads `lower_bound_bps` ≤ 5489, then change the run count and the figure in S05's narration to match.
+
+Evidence decays by a factor of 0.925 per weekly epoch. That scales the weight and the weighted sum together, so the mean holds and the bound rises only slightly (for these numbers, about 5443 → 5460 after one epoch). Do the runs in the same week as the recording, and re-read the bound on the day either way.
+
+### The procedure (before the recording day)
+
+1. **Deploy a second copy of the reference agent** as its own Render service, with its own `ORIZON_ENDPOINT_URL`, the **same** `ORIZON_SIGNER` as the healthy one, `ORIZON_NETWORK=testnet` and `FAULT_MODE=hang_after:0`. Check that `curl -sS <its url>/` reports `"fault_injection": "hang_after:0 scope=process"`.
+2. **Register it from a third wallet that the team owns** and that is neither the buyer nor the settler. Give it a display name that discloses it on screen, for example `Faulty test agent (deliberate)`, skills distinct from the operator's agent, and a price of `0.20`. Add that wallet to `app/data/team_wallets.json` in the backend, so the Ecosystem page never counts it as external. Bind it to its endpoint.
+3. **Run three real wallet-authorized workflows** at it with the lifecycle harness, each with a fresh evidence directory and a differently worded intent that fits its skills:
+
+   ```bash
+   python -m scripts.lifecycle --api https://orizons.xyz --agent <faulty_id> \
+     --intent "<run N: an intent its skills fit>" \
+     --buyer-secret-env BUYER_1_SECRET \
+     --evidence-dir docs/evidence/5.04/fault-run-N --until poll
+   ```
+
+   If the harness exits `4` (the plan did not route to it), nothing was signed: reword the intent and use a new directory. Each run's `lifecycle.md` holds the authorization and the `rating` row (a 20/100 tx hash). Under escrow v2, an all-failed run settles empty and releases the whole cap back to the buyer, so each run costs only fees.
+
+4. **Confirm** that `GET /api/stellar/reputation/<faulty_id>` reads `source: "onchain"`, `count: 3`, and `lower_bound_bps: 5443`, and that `/app/agents` shows its row as "below floor · not eligible". Then leave it **bound, listed and untouched** until the recording.
+
+### Disclosure
+
+Wherever the agent appears, it is disclosed as **a deliberately faulty test agent the team runs**: in its display name, in the S05 narration, and in the video description. The description lists its owner wallet and its three failure-rating hashes, so a reviewer can check that each 20/100 came from the platform scorer on a real run. Its evidence directories are listed in the evidence sheet.
