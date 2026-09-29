@@ -8,12 +8,17 @@ This is the operational checklist for recording the 5.04 demo ([BLO-38](https://
 
 ### GO / NO-GO
 
-Run the backend's demo pre-flight from the backend repo root. It is being built by another 5.04 lane in `scripts/demo_preflight`; read its `--help` for the current flags.
+Run the backend's demo pre-flight from the backend repo root (`scripts/demo_preflight`; every flag is in the backend's `docs/operators/demo-recording.md`). Run it the morning of the session and again right before the camera rolls: the second run is also the warm-up.
 
 ```bash
 source .venv/bin/activate
-python -m scripts.demo_preflight
+python -m scripts.demo_preflight \
+    --buyer "$BUYER_PUBLIC_KEY" --operator "$OPERATOR_PUBLIC_KEY" --cap 0.5 \
+    --with-decompose "the intent the video types" \
+    --out-dir docs/evidence/5.04/preflight
 ```
+
+It exits 0 only on GO. Exit 4 is a failed check and exit 5 a check it could not run; neither is a GO.
 
 The pre-flight answers **GO** or **NO-GO**. **Record only on GO.** A NO-GO is not something to work around on camera: fix the item it names, or move the session. It must cover every row of [What must be deployed before recording](./script.md#what-must-be-deployed-before-recording), at minimum:
 
