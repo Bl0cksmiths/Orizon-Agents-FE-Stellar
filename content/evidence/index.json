@@ -513,8 +513,8 @@
         {
           "id": "6.1-RD-c",
           "claim": "Smart-contract source code is public on GitHub and released under the MIT licence.",
-          "status": "partial",
-          "note": "Partial. The repository is public, but it has no licence file yet, so GitHub shows no licence. Its Cargo.toml says MIT, but only as package metadata, which GitHub does not count. The MIT licence is added by the open pull request linked here. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
+          "status": "present",
+          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Smart-contract source code on GitHub (Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar)",
@@ -522,9 +522,10 @@
               "kind": "repo"
             },
             {
-              "label": "Contracts pull request #5 (open): adds the MIT licence",
+              "label": "Contracts pull request #5 (merged): adds the MIT licence",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/5",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-29"
             }
           ]
         },
