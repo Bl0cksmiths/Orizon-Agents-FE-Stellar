@@ -40,6 +40,7 @@ import {
   mockWalletAddress,
   type MockDisputeApiOptions,
 } from "./mocks";
+import { mockNetwork } from "./plan-fixtures";
 
 const HOUR_S = 60 * 60;
 
@@ -79,6 +80,9 @@ async function openTrace(
   if (token) await mockTaskReadToken(page);
   if (wallet) await mockWallet(page);
   await mockApi(page);
+  // Testnet's network answer: every amount on the receipt and the form is
+  // in its asset, XLM — never the "usdc" of a field name (F-022).
+  await mockNetwork(page);
   await mockTraceStream(page, mockDisputeTaskId);
   await mockDisputeApi(page, api);
   await routes?.(page);
@@ -182,7 +186,7 @@ test.describe("dispute action on the trace / receipt view", () => {
       stepRow(page, codeStep.agent_id).getByRole("button", {
         name: /dispute/i,
       }),
-    ).toHaveAccessibleDescription("credits up to 0.027 USDC if upheld");
+    ).toHaveAccessibleDescription("credits up to 0.027 XLM if upheld");
 
     const form = await openDialog(page, codeStep.agent_id);
     await expect(
@@ -224,9 +228,9 @@ test.describe("dispute action on the trace / receipt view", () => {
   // share the backend will actually pay. The half-credit case, which is the
   // policy in force, passes either way.
   for (const { fraction, percent, credit } of [
-    { fraction: 0.5, percent: "50%", credit: "0.027 USDC" },
-    { fraction: 1 / 3, percent: "33.33%", credit: "0.018 USDC" },
-    { fraction: 0.0625, percent: "6.25%", credit: "0.003375 USDC" },
+    { fraction: 0.5, percent: "50%", credit: "0.027 XLM" },
+    { fraction: 1 / 3, percent: "33.33%", credit: "0.018 XLM" },
+    { fraction: 0.0625, percent: "6.25%", credit: "0.003375 XLM" },
   ]) {
     test(`the credit terms (${percent}) are stated in the form before anything is submitted`, async ({
       page,
@@ -275,7 +279,7 @@ test.describe("dispute action on the trace / receipt view", () => {
   }
 
   // A policy may credit nothing; every fixture above credits something, so
-  // "credits 0 USDC if upheld" beside the action went unseen.
+  // "credits 0 XLM if upheld" beside the action went unseen.
   test("a policy that credits nothing says so, on the row and in the form", async ({
     page,
   }) => {
@@ -466,7 +470,7 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(form).toContainText("dispute raised");
     await expect(form).toContainText(/under review/i);
     await expect(form.getByText(/is now under review/)).toHaveText(
-      `Step ${codeStep.step_index + 1} (${codeStep.agent_id}) is now under review. If the platform upholds your dispute, up to 0.027 USDC is credited to the wallet that paid. This receipt shows the outcome once it is decided.`,
+      `Step ${codeStep.step_index + 1} (${codeStep.agent_id}) is now under review. If the platform upholds your dispute, up to 0.027 XLM is credited to the wallet that paid. This receipt shows the outcome once it is decided.`,
     );
     await expect(form).not.toContainText(/has been credited|received/);
     await form.getByRole("button", { name: "Done" }).click();
