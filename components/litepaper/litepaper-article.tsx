@@ -139,8 +139,8 @@ export function LitepaperArticle({ paper }: { paper: Litepaper }) {
             <li key={c.title} data-change={c.kind}>
               <h3 className="font-semibold text-text">
                 {c.title}{" "}
-                <span className="whitespace-nowrap font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-cyan">
-                  {KIND[c.kind]} · {c.where}
+                <span className="font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-cyan">
+                  {KIND[c.kind]}&nbsp;· {c.where}
                 </span>
               </h3>
               <p className="mt-1 leading-relaxed text-text/90">{c.text}</p>
