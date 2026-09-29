@@ -9,7 +9,7 @@
   "snapshot": {
     "as_of": "2026-09-29",
     "network": "testnet",
-    "method": "Every on-chain link was re-read on 2026-09-29 from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json) or holds a platform role on the contracts. Nothing was signed, paid or submitted to make this snapshot."
+    "method": "Every on-chain link was re-read on 2026-09-29, after the Epic 5 frontend and backend deploys of that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json) or holds a platform role on the contracts. The metrics were re-measured the same day by the backend's read-only generator (scripts/sow_metrics). An outside operator's agent id, wallet and transaction hashes appear here only once that operator's consent to publish them is recorded. Nothing was signed, paid or submitted to make this snapshot."
   },
   "deliverables": [
     {
@@ -77,7 +77,7 @@
           "id": "6.1-D1-c",
           "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
           "status": "missing",
-          "note": "Missing. No outside operator has registered an agent yet. All 12 agents on the registry were registered by wallets the team controls, so none of them counts. The five registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside developer registers from their own wallet on orizons.xyz/app/register.",
+          "note": "Missing. One outside operator's trial registration (2026-09-29) was made from a wallet the team does not control (see Deliverable 4). It is not counted here yet because it is a trial: its server address is a parked web page, not a working agent, and it has had no dispatches and no settlements. Its agent id, wallet and registration hash are held back from this index until the operator's consent to publish them is recorded. The other 12 agents on the registry were registered by wallets the team controls, so none of them counts. The five team registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside developer registers a working agent from their own wallet on orizons.xyz/app/register.",
           "links": [
             {
               "label": "Registration of sign_probe_bb5c12 by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
@@ -115,7 +115,7 @@
               "date": "2026-09-24"
             },
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 12 registrations, every one by a team wallet",
+              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (a trial)",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
@@ -330,25 +330,37 @@
           "id": "6.1-D4-a",
           "claim": "A 3–5 minute demo video showing both an operator and a buyer.",
           "status": "missing",
-          "note": "Missing. The video has not been recorded. Its script and the public /demo page that will host it are in frontend pull request #97, which is open and not deployed, so orizons.xyz/demo shows 'not found' until it merges. The video needs a real outside registration and settled payments to show, so it waits for those. The one-minute video in the frontend README predates the sprint and is not this video.",
+          "note": "Missing. The video has not been recorded. Its script is merged, and the public page that will host it, orizons.xyz/demo, is live but says the video has not been published yet. The video needs a working outside agent and settled payments to show, so it waits for those. The one-minute video in the frontend README predates the sprint and is not this video.",
           "links": [
             {
-              "label": "Frontend pull request #97 (open): the demo script and the /demo page that will host the video",
+              "label": "The demo page on orizons.xyz, where the video will be published",
+              "url": "https://orizons.xyz/demo",
+              "kind": "page"
+            },
+            {
+              "label": "Frontend pull request #97 (merged): the demo script and the /demo page that will host the video",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-29"
             }
           ]
         },
         {
           "id": "6.1-D4-b",
           "claim": "The public \"List your agent on Orizon\" integration guide.",
-          "status": "partial",
-          "note": "Partial. The guide is written, and every sample in it was checked, in frontend pull request #97. That pull request is open, so the public page (orizons.xyz/guide/list-your-agent) shows 'not found' today. It goes live when #97 merges to main and Vercel redeploys the site.",
+          "status": "present",
+          "note": "The guide is public at orizons.xyz/guide/list-your-agent, with every sample in it checked.",
           "links": [
             {
-              "label": "Frontend pull request #97 (open): the 'List your agent on Orizon' guide, with every sample checked",
+              "label": "The 'List your agent on Orizon' guide on orizons.xyz",
+              "url": "https://orizons.xyz/guide/list-your-agent",
+              "kind": "page"
+            },
+            {
+              "label": "Frontend pull request #97 (merged): the 'List your agent on Orizon' guide, with every sample checked",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-29"
             },
             {
               "label": "Reference outside agent on GitHub: a copyable example an operator can run (MIT licence)",
@@ -361,15 +373,25 @@
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
           "status": "missing",
-          "note": "Missing: 0 of 2. No outside operator has registered an agent yet (see metric 1). The adoption counter that lists outside registrations is merged in backend pull request #89 but not deployed, so its public address (/api/ecosystem/adoption) does not work yet. It goes live with the next manual backend deploy on Render.",
+          "note": "Missing: 1 of 2. There is one outside operator's trial registration (2026-09-29): one agent, registered from a wallet that is not in the team register and holds no platform role, by an operator who was trying out the platform. The server address bound to it is a parked web page, not a working agent, and it has had no dispatches and no settlements. The platform's own readiness check reports it ready only because that check accepts any page that answers. Its agent id, wallet and registration hash are held back from this index until the operator's consent to publish them is recorded. The platform's public ecosystem page, linked here, lists outside operators by design. The live adoption counter counts it as 1 outside agent and 1 outside operator wallet, against targets of 2 and 2, so no target is met (see metrics 1 to 3).",
           "links": [
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 12 registrations, every one by a team wallet",
+              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (a trial)",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
             {
-              "label": "Backend pull request #89 (merged, not yet deployed): the adoption counter that lists outside registrations",
+              "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
+              "url": "https://orizons.xyz/app/ecosystem",
+              "kind": "page"
+            },
+            {
+              "label": "Live adoption counter: outside registrations, as the API counts them",
+              "url": "https://orizon-agents-be-stellar.onrender.com/api/ecosystem/adoption",
+              "kind": "page"
+            },
+            {
+              "label": "Backend pull request #89 (merged): the adoption counter that lists outside registrations",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/89",
               "kind": "pr",
               "date": "2026-09-28"
@@ -385,7 +407,7 @@
           "id": "6.1-D4-d",
           "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
           "status": "missing",
-          "note": "Missing: 0 of 3. No payment has settled on the live escrow during the sprint, and no workflow has been sealed. The deployed PaymentEscrow cannot move a buyer's funds to a different wallet (defect D-039, found in QA), so all 37 payment authorizations made since 2026-09-07 were left uncharged. The escrow's Events tab does show 8 'charged' events, but all are from May and June 2026, before the sprint, and in each the team's admin wallet paid itself. They do not count (see the notes). A fixed escrow, v2, is merged in the contracts and backend repositories but not yet deployed to testnet.",
+          "note": "Missing: 0 of 3. No payment has settled on the live escrow during the sprint, and no workflow has been sealed. The deployed PaymentEscrow cannot move a buyer's funds to a different wallet (defect D-039, found in QA), so all 37 payment authorizations made since 2026-09-07 were left uncharged. The escrow's Events tab does show 8 'charged' events, but all are from May and June 2026, before the sprint, and in each the team's admin wallet paid itself. They do not count (see the notes). A fixed escrow, v2, is merged in the contracts repository and the live backend can settle through it, but the v2 contract is not yet deployed to testnet.",
           "links": [
             {
               "label": "PaymentEscrow (v1) contract on Stellar Expert: its Events tab shows 8 pre-sprint self-payments and none since",
@@ -416,7 +438,7 @@
               "date": "2026-09-28"
             },
             {
-              "label": "Backend pull request #88 (merged, not deployed): settle payments through escrow v2",
+              "label": "Backend pull request #88 (merged and deployed; waits for the escrow v2 contract): settle payments through escrow v2",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/88",
               "kind": "pr",
               "date": "2026-09-28"
@@ -426,22 +448,28 @@
         {
           "id": "6.1-D4-e",
           "claim": "The protocol litepaper, with its §6 updated for open registration, public on orizons.xyz (SOW §5.1, Week 4 output).",
-          "status": "partial",
-          "note": "Partial. Version 0.5 of the litepaper is written, with §6 updated for open registration, reputation-gated routing and the dispute window, and every format is regenerated from its source. Its public page, orizons.xyz/litepaper, is in frontend pull request #97, which is open, so the page shows 'not found' today. It goes live when that pull request merges to main and Vercel redeploys the site. Until then, the PDF and the updated §6 are linked here on GitHub. The page offers the litepaper as a PDF, a web page, a Word document and Markdown, with no account needed.",
+          "status": "present",
+          "note": "Version 0.5 of the litepaper is written, with §6 updated for open registration, reputation-gated routing and the dispute window, and every format is regenerated from its source. The page offers the litepaper as a PDF, a web page, a Word document and Markdown, with no account needed.",
           "links": [
             {
-              "label": "Frontend pull request #97 (open): the litepaper, its §6 update and its public page",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-              "kind": "pr"
+              "label": "The Orizon Agents litepaper (v0.5) on orizons.xyz",
+              "url": "https://orizons.xyz/litepaper",
+              "kind": "page"
             },
             {
-              "label": "The litepaper (v0.5) as a PDF on GitHub, fixed at commit fc9fa43",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/fc9fa43a38fd39bc970a59b58f84032120a21ba6/litepaper/Orizon-Agents-Litepaper.pdf",
+              "label": "Frontend pull request #97 (merged): the litepaper, its §6 update and its public page",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
+              "kind": "pr",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "The litepaper (v0.5) as a PDF on GitHub, fixed at commit d90b37e",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/d90b37e5af8f078d0b8e0208569a4c14e8b52097/litepaper/Orizon-Agents-Litepaper.pdf",
               "kind": "doc"
             },
             {
-              "label": "The litepaper's updated §6 (operations and governance) source on GitHub, fixed at commit fc9fa43",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/fc9fa43a38fd39bc970a59b58f84032120a21ba6/litepaper/sections/06-operations-governance.md",
+              "label": "The litepaper's updated §6 (operations and governance) source on GitHub, fixed at commit d90b37e",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/d90b37e5af8f078d0b8e0208569a4c14e8b52097/litepaper/sections/06-operations-governance.md",
               "kind": "doc"
             }
           ]
@@ -457,8 +485,8 @@
         {
           "id": "6.1-RD-a",
           "claim": "Frontend source code is public on GitHub and released under the MIT licence.",
-          "status": "partial",
-          "note": "Partial. The repository is public, but it has no licence file yet, so GitHub shows no licence. The MIT licence is added by the open pull request linked here. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
+          "status": "present",
+          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Frontend source code on GitHub (Bl0cksmiths/Orizon-Agents-FE-Stellar)",
@@ -466,17 +494,18 @@
               "kind": "repo"
             },
             {
-              "label": "Frontend pull request #97 (open): adds the MIT licence",
+              "label": "Frontend pull request #97 (merged): adds the MIT licence",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-29"
             }
           ]
         },
         {
           "id": "6.1-RD-b",
           "claim": "Backend source code is public on GitHub and released under the MIT licence.",
-          "status": "partial",
-          "note": "Partial. The repository is public, but it has no licence file yet, so GitHub shows no licence. The MIT licence is added by the open pull request linked here. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
+          "status": "present",
+          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Backend source code on GitHub (Bl0cksmiths/Orizon-Agents-BE-Stellar)",
@@ -484,17 +513,18 @@
               "kind": "repo"
             },
             {
-              "label": "Backend pull request #94 (open): adds the MIT licence",
+              "label": "Backend pull request #94 (merged): adds the MIT licence",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/94",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-29"
             }
           ]
         },
         {
           "id": "6.1-RD-c",
           "claim": "Smart-contract source code is public on GitHub and released under the MIT licence.",
-          "status": "partial",
-          "note": "Partial. The repository is public, but it has no licence file yet, so GitHub shows no licence. Its Cargo.toml says MIT, but only as package metadata, which GitHub does not count. The MIT licence is added by the open pull request linked here. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
+          "status": "present",
+          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Smart-contract source code on GitHub (Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar)",
@@ -502,9 +532,10 @@
               "kind": "repo"
             },
             {
-              "label": "Contracts pull request #5 (open): adds the MIT licence",
+              "label": "Contracts pull request #5 (merged): adds the MIT licence",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/5",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-29"
             }
           ]
         },
@@ -530,7 +561,7 @@
           "id": "6.1-RD-e",
           "claim": "The API is live at orizon-agents-be-stellar.onrender.com and reports testnet.",
           "status": "present",
-          "note": "The API runs on a free plan, so the first request can take up to a minute while it wakes. It is updated by a manual deploy and currently runs a build from before 2026-09-25 (see the notes).",
+          "note": "The API runs on a free plan, so the first request can take up to a minute while it wakes. It is updated by a manual deploy and was last deployed on 2026-09-29 (see the notes).",
           "links": [
             {
               "label": "Live API: the network (testnet) and the four contract addresses it uses",
@@ -610,9 +641,9 @@
       "category": "Adoption targets",
       "metric": "Externally-operated agents registered on Testnet",
       "target": "≥ 2",
-      "achieved": "0",
+      "achieved": "1",
       "status": "not_met",
-      "reason": "No outside operator has registered an agent yet; all 12 registered agents belong to 4 wallets the team controls.",
+      "reason": "Only 1 agent is registered by outside operators; the other 12 belong to wallets the team controls. The target is 2.",
       "method": "Read every agent the AgentRegistry contract lists, with its owner, straight from testnet. An agent counts only if its owner is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
         {
@@ -703,6 +734,11 @@
           "kind": "tx",
           "tx_hash": "e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
           "date": "2026-09-24"
+        },
+        {
+          "label": "The counted outside registration, one operator's trial on 2026-09-29, as the ecosystem page lists it (its hash is held back here until consent is recorded)",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
         }
       ]
     },
@@ -711,11 +747,16 @@
       "category": "Adoption targets",
       "metric": "Unique external operator wallet addresses",
       "target": "≥ 2",
-      "achieved": "0",
+      "achieved": "1",
       "status": "not_met",
-      "reason": "No outside operator wallet owns an agent yet; the 12 registered agents belong to 4 wallets the team controls.",
+      "reason": "Only 1 outside operator wallet owns an agent. The target is 2.",
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
+        {
+          "label": "The counted outside operator wallet, one operator's trial, as the ecosystem page lists it (its address is held back here until consent is recorded)",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
+        },
         {
           "label": "The team's QA throwaway operator key — owns uat605_ext_op and uat624_ext_op (excluded: team wallet)",
           "url": "https://stellar.expert/explorer/testnet/account/GBWMD26IB6CMG3JO3HU7SD7ZJSTF4BIJ5JS77ANMLJ52M6FV6K3J7BQJ",
@@ -745,7 +786,7 @@
       "target": "≥ 3",
       "achieved": "0",
       "status": "not_met",
-      "reason": "No agent run by an outside operator exists yet, so no workflow could be routed to one and settled. None of the 8 charges on record paid one.",
+      "reason": "1 agent run by outside operators is registered, but no workflow paid to one has settled since the sprint began on 2026-09-07.",
       "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract. A workflow counts when at least one of its counted charges paid an agent run by an outside operator; several charges of one job are one workflow.",
       "links": [
         {
@@ -891,7 +932,7 @@
       "target": "≥ 1",
       "achieved": "0",
       "status": "not_met",
-      "reason": "No dispute has been refunded yet. The reputation ledger holds 28 ratings (28 of kind auto) and no dispute rating; its lifetime dispute count is 0 across all 12 agents. No charge has settled since the sprint began on 2026-09-07 that a dispute could refund. The only transfer out of a platform key on record, on 2026-09-12, went to a team key with no dispute behind it.",
+      "reason": "No dispute has been refunded yet. The reputation ledger holds 28 ratings (28 of kind auto) and no dispute rating; its lifetime dispute count is 0 across all 13 agents. No charge has settled since the sprint began on 2026-09-07 that a dispute could refund. The only transfer out of a platform key on record, on 2026-09-12, went to a team key with no dispute behind it.",
       "method": "Read the dispute ratings the platform wrote to the ReputationLedger (from its keys' full transaction history) and traced each back, through the derived job id the backend records a dispute under, to the charge it disputes. A refund counts only when that charge counts and the platform then paid its payer back over the asset contract, no more than the charge. A transfer with no dispute behind it (such as a refund drill) does not count. The ledger's lifetime dispute count for every agent is read as a cross-check.",
       "links": [
         {
@@ -913,7 +954,7 @@
       "category": "Technical milestones",
       "metric": "Permissionless AgentRegistry.register flow live on the dApp",
       "target": "Yes",
-      "achieved": "Yes: the Register page is live and open to any wallet. No outside wallet has used it yet (see metric 1).",
+      "achieved": "Yes: the Register page is live and open to any wallet. One outside wallet has registered an agent, as a trial (see metric 1).",
       "status": "met",
       "method": "Opened the /app/register page on the live dApp with no login, and checked the live backend publishes the route that builds an unsigned registration transaction for the owner's own wallet to sign. The registry contract's register needs only the owner's signature, no admin.",
       "links": [
@@ -969,8 +1010,8 @@
       "target": "Yes",
       "achieved": "Partly: the dispute routes are deployed, but no dispute window can open until a payment settles, which needs escrow v2, and refunds are switched off.",
       "status": "not_met",
-      "reason": "The dispute routes are deployed, but a buyer's 24-hour dispute window opens only when a payment settles, and none has: settling a payment needs escrow v2, which is merged but not deployed. The live backend does not report refunds as switched on (its readiness report predates the refund switch), and no dispute has been refunded on-chain (see the dispute refund row).",
-      "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject), that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on), and that at least one dispute has been refunded on-chain (the dispute refund row above).",
+      "reason": "No dispute window can open until a payment settles, which needs escrow v2, and refunds are switched off.",
+      "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject); that a dispute window can open at all, which needs a settled payment, and so the escrow v2 contract live; that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on); and that at least one dispute has been refunded on-chain (the dispute refund row above). Yes when all hold, Partly when the routes are deployed but the rest does not, and No when the routes are not.",
       "links": [
         {
           "label": "Live backend route list",
@@ -994,15 +1035,20 @@
       "category": "Technical milestones",
       "metric": "Public \"List your agent on Orizon\" integration guide published",
       "target": "Yes",
-      "achieved": "No: the guide page is not live yet",
-      "status": "not_met",
-      "reason": "The /guide/list-your-agent page answers HTTP 404: it has not been deployed yet.",
+      "achieved": "Yes",
+      "status": "met",
       "method": "Opened the /guide/list-your-agent page on the live dApp with no login; published means it answers there.",
       "links": [
         {
-          "label": "Frontend pull request #97 (open): the 'List your agent on Orizon' guide",
+          "label": "\"List your agent on Orizon\" guide",
+          "url": "https://orizons.xyz/guide/list-your-agent",
+          "kind": "page"
+        },
+        {
+          "label": "Frontend pull request #97 (merged): the 'List your agent on Orizon' guide",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         }
       ]
     },
@@ -1013,13 +1059,19 @@
       "target": "Yes",
       "achieved": "No",
       "status": "not_met",
-      "reason": "The /demo page answers HTTP 404: it has not been deployed yet.",
+      "reason": "The /demo page is live but says the video has not been published yet.",
       "method": "Opened the /demo page on the live dApp with no login and read the published marker the page renders (data-demo=\"published\") and the video's running time, which must be 3 to 5 minutes.",
       "links": [
         {
-          "label": "Frontend pull request #97 (open): the demo script and the /demo page",
+          "label": "Demo page",
+          "url": "https://orizons.xyz/demo",
+          "kind": "page"
+        },
+        {
+          "label": "Frontend pull request #97 (merged): the demo script and the /demo page",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         }
       ]
     },
@@ -1028,23 +1080,22 @@
       "category": "Technical milestones",
       "metric": "All source code released under MIT License",
       "target": "Yes",
-      "achieved": "No: 1 of 4 public code repositories has an MIT licence file",
-      "status": "not_met",
-      "reason": "3 of the 4 repositories have no MIT licence that GitHub recognises: the frontend (no licence detected), the backend (no licence detected) and the smart contracts (no licence detected).",
+      "achieved": "Yes",
+      "status": "met",
       "method": "Asked GitHub which licence it detects on each repository: the frontend, backend and smart contracts the SOW names, and the example agent. Each must be MIT.",
       "links": [
         {
-          "label": "Frontend repository — GitHub detects no licence",
+          "label": "Frontend repository — MIT licence detected",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar",
           "kind": "repo"
         },
         {
-          "label": "Backend repository — GitHub detects no licence",
+          "label": "Backend repository — MIT licence detected",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar",
           "kind": "repo"
         },
         {
-          "label": "Smart contracts repository — GitHub detects no licence",
+          "label": "Smart contracts repository — MIT licence detected",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar",
           "kind": "repo"
         },
@@ -1054,19 +1105,22 @@
           "kind": "repo"
         },
         {
-          "label": "Frontend pull request #97 (open): adds the MIT licence",
+          "label": "Frontend pull request #97 (merged): adds the MIT licence",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         },
         {
-          "label": "Backend pull request #94 (open): adds the MIT licence",
+          "label": "Backend pull request #94 (merged): adds the MIT licence",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/94",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         },
         {
-          "label": "Contracts pull request #5 (open): adds the MIT licence",
+          "label": "Contracts pull request #5 (merged): adds the MIT licence",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/5",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         }
       ]
     }
@@ -1096,7 +1150,7 @@
       "title": "How payment works, and why no payment has settled",
       "text": "SOW §3.8: \"the settler executes charge, which moves USDC directly from the buyer to the agent owner's wallet through the Stellar Asset Contract, the platform never takes custody of funds.\" On the live escrow (v1) this does not work: charge cannot move funds from a buyer who is not also the settler (defect D-039, contracts issue #3). No payment between two different wallets has ever settled on it.",
       "sow_ref": "§3.8",
-      "changed_since_sow": "Escrow v2 fixes this by holding the buyer's authorized amount from the moment the buyer authorizes, then paying each operator at settlement. That means the platform's contract does hold funds for a while, which changes the SOW's \"never takes custody\" statement. v2 is merged in the contracts (pull request #4) and backend (pull request #88) repositories but not deployed to testnet."
+      "changed_since_sow": "Escrow v2 fixes this by holding the buyer's authorized amount from the moment the buyer authorizes, then paying each operator at settlement. That means the platform's contract does hold funds for a while, which changes the SOW's \"never takes custody\" statement. v2 is merged in the contracts repository (pull request #4), and the backend deployed on 2026-09-29 can settle through it (pull request #88), but the v2 contract is not deployed to testnet."
     },
     {
       "id": "platform_credits",
@@ -1133,7 +1187,7 @@
     {
       "id": "team_wallets",
       "title": "How an outside operator is told apart from the team",
-      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. Every registration so far is by a team wallet, and each is labelled that way here."
+      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. Every registration so far but one is by a team wallet, and each is labelled that way here. The one outside registration, on 2026-09-29, is an outside operator's trial with no working agent behind it (see Deliverable 4)."
     },
     {
       "id": "pre_sprint_activity",
@@ -1153,7 +1207,7 @@
     {
       "id": "sow_versions",
       "title": "Targets come from SOW v4",
-      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today all three stand at 0, which misses either version."
+      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today they stand at 1, 1 and 0, which misses all three v4 targets. The 1 outside agent and 1 outside wallet are one outside operator's trial registration, whose server is a parked web page (see Deliverable 4)."
     },
     {
       "id": "repository_addresses",
@@ -1163,7 +1217,7 @@
     {
       "id": "live_backend",
       "title": "The live API is updated by hand",
-      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It currently runs a build from before 2026-09-25. Merged work waiting for the next deploy includes settlement through escrow v2 (backend pull request #88) and the adoption counter (backend pull request #89)."
+      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It was last deployed on 2026-09-29, with everything merged to the backend's main branch up to pull request #94, including the adoption counter (backend pull request #89). Settlement through escrow v2 (backend pull request #88) is in that build but cannot run yet: the escrow v2 contract is not deployed to testnet, so the live escrow is still v1. No merged backend work is waiting for a deploy."
     },
     {
       "id": "network_switch",
