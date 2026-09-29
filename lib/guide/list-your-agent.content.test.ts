@@ -134,6 +134,20 @@ describe("the published operator guide", () => {
     expect(SOURCE).not.toMatch(/capped by the deployment's `MAX_REFUND_USDC`/);
   });
 
+  it("gives a validator the feedback form and what validating means", () => {
+    const validate = section("## Validate this guide", /^## /m);
+    expect(validate).toContain(
+      "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/issues/new?template=guide-feedback.yml",
+    );
+    expect(validate).toMatch(/following Steps 1 to 9 without help/);
+    // The link names a form that exists, beside the guide in this repository.
+    const form = readFileSync(
+      path.join(process.cwd(), ".github/ISSUE_TEMPLATE/guide-feedback.yml"),
+      "utf8",
+    );
+    expect(form).toMatch(/^name: /m);
+  });
+
   it("reads as the full guide once rendered, with no wallet or session involved", () => {
     const text = textOf(guide().tree);
     expect(text).toContain("Trust boundaries");
