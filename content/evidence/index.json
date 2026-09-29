@@ -961,7 +961,7 @@
       "category": "Technical milestones",
       "metric": "Permissionless AgentRegistry.register flow live on the dApp",
       "target": "Yes",
-      "achieved": "Yes: the Register page is live and open to any wallet. One outside wallet has registered an agent, as a trial (see metric 1).",
+      "achieved": "Yes: the Register page is live and open to any wallet. Two outside wallets have registered agents (see metric 1).",
       "status": "met",
       "method": "Opened the /app/register page on the live dApp with no login, and checked the live backend publishes the route that builds an unsigned registration transaction for the owner's own wallet to sign. The registry contract's register needs only the owner's signature, no admin.",
       "links": [
