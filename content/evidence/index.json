@@ -432,13 +432,19 @@
         {
           "id": "6.1-D4-e",
           "claim": "The protocol litepaper, with its §6 updated for open registration, public on orizons.xyz (SOW §5.1, Week 4 output).",
-          "status": "partial",
-          "note": "Partial. Version 0.5 of the litepaper is written, with §6 updated for open registration, reputation-gated routing and the dispute window, and every format is regenerated from its source. Its public page, orizons.xyz/litepaper, is in frontend pull request #97, which is open, so the page shows 'not found' today. It goes live when that pull request merges to main and Vercel redeploys the site. Until then, the PDF and the updated §6 are linked here on GitHub. The page offers the litepaper as a PDF, a web page, a Word document and Markdown, with no account needed.",
+          "status": "present",
+          "note": "Version 0.5 of the litepaper is written, with §6 updated for open registration, reputation-gated routing and the dispute window, and every format is regenerated from its source. The page offers the litepaper as a PDF, a web page, a Word document and Markdown, with no account needed.",
           "links": [
             {
-              "label": "Frontend pull request #97 (open): the litepaper, its §6 update and its public page",
+              "label": "The Orizon Agents litepaper (v0.5) on orizons.xyz",
+              "url": "https://orizons.xyz/litepaper",
+              "kind": "page"
+            },
+            {
+              "label": "Frontend pull request #97 (merged): the litepaper, its §6 update and its public page",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-29"
             },
             {
               "label": "The litepaper (v0.5) as a PDF on GitHub, fixed at commit fc9fa43",
