@@ -409,6 +409,38 @@ describe("the settled window", () => {
     );
   });
 
+  it("rounds a measured window down to one decimal, never up to a whole one", () => {
+    const over = (d: number) => settledWindowSentence(zero({ window_days: d }));
+    expect(over(6.96)).toContain("over the last 6.9 days of ledger history");
+    expect(over(6.9)).toContain("over the last 6.9 days of ledger history");
+    expect(over(6.94)).toContain("over the last 6.9 days of ledger history");
+    expect(over(0.3)).toContain("over the last 0.3 days of ledger history");
+    expect(over(1.05)).toContain("over the last 1 day of ledger history");
+    // Float noise on exactly seven days is still seven, not 6.9.
+    expect(over(7 - 1e-12)).toContain("over the last 7 days of ledger history");
+    expect(noSettledSentence(zero({ window_days: 6.96 }))).toBe(
+      "No settled workflows in the last 6.9 days.",
+    );
+  });
+
+  it("does not call a window under a tenth of a day zero", () => {
+    expect(settledWindowSentence(zero({ window_days: 0.04 }))).toContain(
+      "over the last 0.1 days or less of ledger history",
+    );
+    expect(noSettledSentence(zero({ window_days: 0.04 }))).toBe(
+      "No settled workflows in the last 0.1 days or less.",
+    );
+  });
+
+  it("says nothing about a window when no scan ran", () => {
+    for (const d of [0, 0.0, -1]) {
+      expect(settledWindowSentence(zero({ window_days: d }))).toBeNull();
+      expect(noSettledSentence(zero({ window_days: d }))).toBe(
+        "No settled workflows yet.",
+      );
+    }
+  });
+
   it("says nothing about a window the backend does not send", () => {
     const a: Record<string, unknown> = { ...zero() };
     delete a.window_days;
