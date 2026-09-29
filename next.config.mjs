@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 import { resolveApiBase } from "./lib/api-base.mjs";
+import { ARTIFACTS, publishedHref } from "./lib/litepaper/source.mjs";
 
 // Normalized so a trailing slash or a trailing `/api` in the configured value
 // cannot corrupt the rewrite target below. On Vercel a missing value falls back
@@ -10,6 +11,18 @@ const API_BASE = resolveApiBase(process.env);
 // header below for why there is no default-src or script-src).
 const BASE_CSP =
   "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+
+// The litepaper's HTML book (/litepaper/orizon-agents-litepaper.html) is one
+// self-contained file: its CSS, the Mermaid runtime that draws its diagrams,
+// and its images are all inline. Its own policy says exactly that: inline
+// script and style, images from itself or data: URLs, and nothing else, so
+// the book can fetch, frame or submit nothing. It repeats every directive of
+// BASE_CSP, since on this path it replaces the site-wide policy.
+const LITEPAPER_HTML_CSP = `${BASE_CSP}; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:`;
+
+/** The published path of a litepaper file, by format. */
+const litepaperHref = (format) =>
+  publishedHref(ARTIFACTS.find((a) => a.format === format).file);
 
 const nextConfig = {
   // The Playwright suite runs a second dev server (the published /demo
@@ -72,6 +85,24 @@ const nextConfig = {
           {
             key: "Content-Security-Policy",
             value: `${BASE_CSP}; frame-src https://www.youtube-nocookie.com`,
+          },
+        ],
+      },
+      {
+        // Scoped to the one file: every other route keeps BASE_CSP. Next
+        // applies the last matching header of a key, as for /demo above.
+        source: litepaperHref("html"),
+        headers: [
+          { key: "Content-Security-Policy", value: LITEPAPER_HTML_CSP },
+        ],
+      },
+      {
+        // Opens in the browser's PDF viewer, and saves under its clean name.
+        source: litepaperHref("pdf"),
+        headers: [
+          {
+            key: "Content-Disposition",
+            value: 'inline; filename="orizon-agents-litepaper.pdf"',
           },
         ],
       },
