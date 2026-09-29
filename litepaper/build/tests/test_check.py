@@ -152,6 +152,20 @@ def test_pdf_printed_from_a_stale_html_fails(copy, capsys):
     assert "FAIL  pdf: §6 differs from the book" in capsys.readouterr().out
 
 
+def test_no_pdf_chapter_skips_only_the_pdf(copy, capsys):
+    html = copy / "out" / HTML
+    good = html.read_text()
+    html.write_text(good.replace("can’t move funds", "can move funds"))
+    run(BUILD / "pdf.py", copy / "out", copy / "tmp" / "pdf2")
+    html.write_text(good)  # a stale pdf, as above, but §6 is compared without it
+    assert check.main(["--out", str(copy / "out"), "--sections", str(copy / "sections"),
+                       "--pandoc", PANDOC, "--seed-file", str(copy / "seed.py"),
+                       "--no-pdf", "6"]) == 0
+    out = capsys.readouterr().out
+    assert "SKIP  pdf: §6" in out
+    assert "ok    html: §6 matches the book" in out and "ok    docx: §6 matches the book" in out
+
+
 def test_hand_edited_book_fails(copy, capsys):
     book = copy / "out" / BOOK
     book.write_text(book.read_text().replace("The agent is now addressable", "The agent is addressable"))
