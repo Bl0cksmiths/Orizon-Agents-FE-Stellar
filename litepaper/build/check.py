@@ -29,6 +29,7 @@ from common import BOOK, DOCX, DOCX_MD, HTML, PDF, ROOT, docx_markdown, figure_b
 
 PAGEBREAK = "\n<!-- pagebreak -->"
 MD_FROM = "markdown+raw_html+definition_lists+pipe_tables+fenced_code_attributes"
+PRIVATE_USE = re.compile("[\ue000-\uf8ff]")
 
 
 # ---------------------------------------------------------------- markdown --
@@ -201,8 +202,11 @@ def pdf_text(path: Path) -> str:
     # Content-stream order. Known limit: Chrome paints the odd code block out
     # of order (§A.1's "202 Accepted" is extracted after §A.2's first
     # paragraphs, in v0.4 too). Layout mode fixes that but interleaves
-    # multi-line table cells, which §6 has plenty of.
-    return "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
+    # multi-line table cells, which §6 has plenty of. Chrome also leaves
+    # private-use code points (U+E000–U+F8FF) at the top of some pages; they
+    # stand for no text, so they are dropped.
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
+    return PRIVATE_USE.sub("", text)
 
 
 def format_texts(out: Path, pandoc_bin: str, chapter_md: str) -> dict[str, tuple[str, str]]:
