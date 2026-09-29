@@ -138,6 +138,51 @@ test.describe("ecosystem page", () => {
     );
   });
 
+  test("names every explorer link as a new tab and reads each job id in full", async ({
+    page,
+  }) => {
+    await mockApi(page, { adoption: mockAdoptionWithOperator });
+    await page.goto("/app/ecosystem");
+    const table = page.getByRole("table", {
+      name: "Settled workflows for ext.translate_long_identifier_v2",
+    });
+    const rows = table.getByRole("row");
+    await expect(rows).toHaveCount(3);
+
+    await expect(
+      rows.nth(1).getByRole("link", {
+        name: "tx 4f1d0c9a… on Stellar Expert (opens in a new tab)",
+        exact: true,
+      }),
+    ).toHaveAttribute("target", "_blank");
+    await expect(
+      rows.nth(2).getByRole("link", {
+        name: `${mockTeamWallet.slice(0, 4)}…${mockTeamWallet.slice(-4)} — ${mockTeamWallet}, on Stellar Expert (opens in a new tab)`,
+        exact: true,
+      }),
+    ).toHaveAttribute("target", "_blank");
+    // Every link on the page that opens a new tab says so in its name.
+    const away = page.locator('main a[target="_blank"]');
+    const count = await away.count();
+    expect(count).toBeGreaterThanOrEqual(6);
+    for (let i = 0; i < count; i++) {
+      await expect(away.nth(i)).toHaveAccessibleName(/\(opens in a new tab\)$/);
+    }
+
+    // The job cell is heard as the whole id; the short form is only seen.
+    for (const [n, id] of [
+      [1, "7c2e9b41d05a4f38a6e1b9c3d7f20a58"],
+      [2, "8d3f0c52e16b5049b7f2c0d4e8031b69"],
+    ] as const) {
+      await expect(
+        rows.nth(n).getByRole("cell", { name: id, exact: true }),
+      ).toHaveCount(1);
+      await expect(rows.nth(n)).toContainText(`${id.slice(0, 8)}…`);
+      // In the text itself, not only in a `title` a phone never shows.
+      await expect(rows.nth(n).getByRole("cell").first()).toContainText(id);
+    }
+  });
+
   test("announces a failed read instead of reporting no operators", async ({
     page,
   }) => {
