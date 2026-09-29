@@ -70,7 +70,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **`seal`.** `AttestationRegistry.seal(...)`. Step 3 of x402. Sealer-only. Write-once. Errs `AlreadyExists` on a second seal of the same `job_id`. See §5.3.1.
 
-**Sealer.** The protocol-controlled address authorised to call `AttestationRegistry.seal`. Rotatable by the admin via `set_sealer`. Today the same key as the settler. See §6.1.
+**Sealer.** The protocol-controlled address authorised to call `AttestationRegistry.seal`. Rotatable by the admin via `set_sealer`. On testnet it is the backend's signing key, a different key from the deployed escrow's settler since 2026-09-19. See §6.1.
 
 **Settler.** The protocol-controlled address authorised to call `PaymentEscrow.charge`. Holds the protocol's signing key. Rotatable by the admin via `set_settler`. See §6.1.
 
