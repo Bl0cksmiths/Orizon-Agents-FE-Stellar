@@ -431,7 +431,7 @@ What is live was checked on **2026-09-29** against `https://orizon-agents-be-ste
 
 Every UI string, route and behaviour in this script was read from these, and none was written from memory:
 
-- **Frontend** `feat/5.06-integration` (pull request #95, the top of the #92 to #95 stack) at `f2afa51`:
+- **Frontend** `feat/5.06-integration` at `f2afa51`, now part of pull request #97:
   - `app/app/register/page.tsx`, `lib/register-validation.ts`, `app/app/bind/page.tsx` and `lib/binding-status.ts` (register, bind);
   - `app/app/agents/*` and `components/agents/*` (the marketplace);
   - `app/app/operator/*` and `lib/readiness.ts` (My Agents: checklist, routing standing, settlement panel);
