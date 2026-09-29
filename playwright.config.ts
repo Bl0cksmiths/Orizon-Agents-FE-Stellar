@@ -84,6 +84,9 @@ export default defineConfig({
         E2E_DIST_DIR: DEMO_PUBLISHED_DIST_DIR,
         DEMO_CONTENT_DIR: "test/fixtures/demo/published",
         DEMO_PUBLIC_DIR: "test/fixtures/demo/public",
+        // /evidence here is the REAL index, so e2e/evidence.spec.ts can run
+        // axe, print and 360px checks on what reviewers will actually read.
+        EVIDENCE_CONTENT_DIR: "content/evidence",
       },
     },
   ],
