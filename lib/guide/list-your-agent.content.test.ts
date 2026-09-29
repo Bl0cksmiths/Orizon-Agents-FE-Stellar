@@ -112,6 +112,17 @@ describe("the published operator guide", () => {
       expect(known, `${id} not in Known issues`).toContain(id);
   });
 
+  it("says a credit above the refund ceiling is refused, never capped", () => {
+    // refund_svc refuses a credit over MAX_REFUND_USDC (409
+    // `refund_above_cap`); it never clamps it to the ceiling.
+    const disputes = section("## Disputes\n", /^## /m);
+    expect(disputes).toMatch(
+      /above the deployment's `MAX_REFUND_USDC` \(1\.0 by default\) is refused/,
+    );
+    expect(disputes).toContain("`refund_above_cap`");
+    expect(SOURCE).not.toMatch(/capped by the deployment's `MAX_REFUND_USDC`/);
+  });
+
   it("reads as the full guide once rendered, with no wallet or session involved", () => {
     const text = textOf(guide().tree);
     expect(text).toContain("Trust boundaries");
