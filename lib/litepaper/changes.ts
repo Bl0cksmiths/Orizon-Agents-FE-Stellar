@@ -57,10 +57,10 @@ export const LITEPAPER_CHANGES: readonly LitepaperChange[] = [
     text: "v0.4 promised a floor of 35,000 basis points, which no score can reach: the ledger's scale ends at 10,000. The floor that shipped is 5,500 on that scale.",
   },
   {
-    where: "§6.4–§6.6, §2, §4, §5, §7, §10, §B–§E",
+    where: "§6.4–§6.6, §2, §4, §5, §7, §9, §10, §A–§E",
     title: "Other claims, corrected",
     kind: "corrected",
-    text: "v0.4 said a buyer could submit a rating directly, described a published blocklist, estimated the contracts at about 7,000 lines of Rust and listed the backend's keys wrongly. Only the platform's scorer key writes ratings, and a buyer's recourse is a dispute; the blocklist is roadmap and was never built; the contracts are 1,567 lines as deployed; and the host holds a signing key and a separate dispatch key, neither of them the admin. The glossary, the disclaimer, §2, §4, §5, §7 and appendices B, C and E now say the same, and they no longer say that a charge settles on testnet, rate on a 0–5 scale or start a new agent at zero.",
+    text: "v0.4 said a buyer could submit a rating directly, described a published blocklist, estimated the contracts at about 7,000 lines of Rust and listed the backend's keys wrongly. Only the platform's scorer key writes ratings, and a buyer's recourse is a dispute; the blocklist is roadmap and was never built; the contracts are 1,567 lines as deployed; and the host holds a signing key and a separate dispatch key, neither of them the admin. The glossary, the disclaimer, §2, §4, §5, §7, §9 and appendices A to E now say the same, and they no longer say that a charge settles on testnet, that a workflow pays a charge per step, rate on a 0–5 scale or start a new agent at zero. Network fees are now the ones measured on testnet.",
   },
   {
     where: "§6.9",
