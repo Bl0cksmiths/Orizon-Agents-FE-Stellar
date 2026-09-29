@@ -77,8 +77,15 @@
           "id": "6.1-D1-c",
           "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
           "status": "missing",
-          "note": "Missing. No outside operator has registered an agent yet. All 12 agents on the registry were registered by wallets the team controls, so none of them counts. The five registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside developer registers from their own wallet on orizons.xyz/app/register.",
+          "note": "Missing. One agent, Powerbot, was registered on 2026-09-29 by a wallet the team does not control (linked here and under Deliverable 4). It is not counted here yet because it is one outside operator's trial: its server address is a parked web page, not a working agent, and it has had no dispatches and no settlements. The other 12 agents on the registry were registered by wallets the team controls, so none of them counts. The five team registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside developer registers a working agent from their own wallet on orizons.xyz/app/register.",
           "links": [
+            {
+              "label": "Registration of Powerbot by an outside operator's wallet (a trial) — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+              "kind": "tx",
+              "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+              "date": "2026-09-29"
+            },
             {
               "label": "Registration of sign_probe_bb5c12 by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
               "url": "https://stellar.expert/explorer/testnet/tx/416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
@@ -115,7 +122,7 @@
               "date": "2026-09-24"
             },
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 12 registrations, every one by a team wallet",
+              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (Powerbot, a trial)",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
