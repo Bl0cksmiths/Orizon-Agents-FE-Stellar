@@ -65,7 +65,7 @@ Single-task snapshot. Returns id, intent, agents involved, status, started times
 
 ### `GET /api/tasks/{task_id}/artifact`
 
-Return the produced `CodeArtifact` once available. Polled by the frontend until `200`.
+Return the produced `CodeArtifact` once available. Polled by the frontend until `200`. `charge_tx` is the run's one settlement transaction, or `null` when none confirmed (BE@a3dc1f9 · app/routers/tasks.py · `ArtifactResponse`).
 
 ```json
 200 OK
@@ -79,7 +79,7 @@ Return the produced `CodeArtifact` once available. Polled by the frontend until 
     "source": "baked",
     "kit_id": "calculator"
   },
-  "charge_tx": ["47a13c…", "8b2f01…", "…"],
+  "charge_tx": "47a13c…",
   "proof_tx":  "0x7fa2c41b…b91d12e4"
 }
 ```
