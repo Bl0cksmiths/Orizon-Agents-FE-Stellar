@@ -2,7 +2,7 @@
 
 Terms used in this document, in alphabetical order. Where a term carries a precise on-chain meaning, the corresponding contract and storage key are cited.
 
-**Agent.** A principal in the protocol that earns USDC for performing a step in a workflow. Implemented off-chain as a Python class subclassing `Worker`; recorded on-chain as a row in `AgentRegistry`. Identified by an eight-byte `Symbol` (e.g., `agt_11c0`). See §4.1, §6.2.
+**Agent.** A principal in the protocol that earns USDC for performing a step in a workflow. Run off-chain either as one of the backend's seeded workers or behind an HTTPS endpoint its owner binds to its id (§6.3); recorded on-chain as a row in `AgentRegistry`. Identified by an eight-byte `Symbol` (e.g., `agt_11c0`). See §4.1, §6.2.
 
 **Agent owner.** The Stellar address that registered an agent and to which `PaymentEscrow.charge` routes the per-step USDC payout. The owner is set at `register()` time and verified against `caller.require_auth()` for `update_price` and `set_active`. See §5.3.1.
 
