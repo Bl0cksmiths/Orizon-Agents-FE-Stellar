@@ -85,7 +85,7 @@ The protocol-operated services follow a small set of hard rules:
 
 - The backend's keys live in environment variables on the backend host, never in the repository: `STELLAR_SIGNING_KEY` (scorer, sealer and the refund wallet) and, separately, `ORIZON_DISPATCH_SIGNING_KEY` (dispatch signing only) (BE@a3dc1f9 · app/config.py · `stellar_signing_key`, `orizon_dispatch_signing_key`). The backend has no admin-key setting, and on testnet its signing key is neither the admin nor the deployed escrow's settler (§6.1).
 - The OpenAI key (`OPENAI_API_KEY`) is held by the protocol, not by buyers. Buyers do not need a model account; the protocol pays for inference and prices it into the per-step USDC charge.
-- Contract identifiers are public and live in `.env` files committed to the repository (the secrets are not). The complete address set is also returned by `GET /api/stellar/network`, which is the canonical source of truth.
+- Contract identifiers are public and are committed in the contracts repository's address books, `addresses.json` for testnet and `addresses.mainnet.json` (SC@dd2d642); the secrets are not. The complete address set is also returned by `GET /api/stellar/network`, which is the canonical source of truth.
 - Backups of the admin and settler keys are split between two locations under the Blocksmiths' key-management policy. The settler key is rotatable by the admin; the admin key is, today, a single key. Multi-sig migration is on the roadmap (§6.1).
 
 The next chapter is the money.
