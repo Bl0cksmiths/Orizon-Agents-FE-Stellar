@@ -23,7 +23,7 @@ import {
   disputeView,
   formatCreditShare,
   formatRemaining,
-  formatUsdc,
+  formatAmount,
   getTaskDisputes,
   isPlatformAgent,
   MAX_DISPUTE_REASON_CHARS,
@@ -2287,31 +2287,50 @@ describe("formatRemaining", () => {
   });
 });
 
-describe("formatUsdc", () => {
+describe("formatAmount", () => {
+  // Testnet's escrow SAC wraps the native asset: every figure is XLM there.
+  const xlm = (n: number) => formatAmount(n, "native");
+
   it.each([
-    [0.05, "0.05 USDC"],
-    [0.0025, "0.0025 USDC"],
-    [1, "1.0 USDC"],
-    [0, "0.0 USDC"],
+    [0.05, "0.05 XLM"],
+    [0.0025, "0.0025 XLM"],
+    [1, "1.0 XLM"],
+    [0, "0.0 XLM"],
     // Floored at the stroop: a figure the chain cannot move is not one the
     // receipt may print.
-    [1.23456789, "1.2345678 USDC"],
-  ])("prints %d as %s", (n, label) => {
-    expect(formatUsdc(n)).toBe(label);
+    [1.23456789, "1.2345678 XLM"],
+  ])("prints %d as %s on testnet", (n, label) => {
+    expect(xlm(n)).toBe(label);
+  });
+
+  // F-022: the unit is the network's asset, never the "usdc" in a field name.
+  it("labels the native asset XLM, and never USDC", () => {
+    expect(formatAmount(0.027, "native")).toBe("0.027 XLM");
+    expect(formatAmount(0.027, "native")).not.toMatch(/USDC/);
+  });
+
+  it("prints no unit while the asset is unknown", () => {
+    expect(formatAmount(0.027, null)).toBe("0.027");
+    expect(formatAmount(0.027, undefined)).toBe("0.027");
+    expect(formatAmount(0.027, "")).toBe("0.027");
+  });
+
+  it("names the asset the network reports, whatever it is", () => {
+    expect(formatAmount(0.027, "usdc")).toBe("0.027 USDC");
   });
 
   it("never prints a stroop more than the chain can move", () => {
-    // Half a stroop rounded UP promised a tenth of a millionth of a dollar
+    // Half a stroop rounded UP promised a tenth of a millionth of a unit
     // that no transfer can carry.
-    expect(formatUsdc(0.00000005)).toBe("0.0 USDC");
-    expect(formatUsdc(0.00000015)).toBe("0.0000001 USDC");
-    expect(formatUsdc(0.0000001)).toBe("0.0000001 USDC");
+    expect(xlm(0.00000005)).toBe("0.0 XLM");
+    expect(xlm(0.00000015)).toBe("0.0000001 XLM");
+    expect(xlm(0.0000001)).toBe("0.0000001 XLM");
   });
 
   it.each([
-    [0.57, "0.57 USDC"],
-    [1.13, "1.13 USDC"],
-    [2.01, "2.01 USDC"],
+    [0.57, "0.57 XLM"],
+    [1.13, "1.13 XLM"],
+    [2.01, "2.01 XLM"],
   ])(
     "floors %d without letting binary noise eat a whole stroop",
     (n, label) => {
@@ -2321,7 +2340,7 @@ describe("formatUsdc", () => {
       expect(Math.floor(n * 10_000_000)).toBeLessThan(
         Math.round(n * 10_000_000),
       );
-      expect(formatUsdc(n)).toBe(label);
+      expect(xlm(n)).toBe(label);
     },
   );
 
@@ -2330,31 +2349,32 @@ describe("formatUsdc", () => {
     (n) => {
       // Nothing rejects a negative credited amount upstream, and a minus sign
       // beside "Refunded" says the buyer paid the platform back.
-      expect(formatUsdc(n)).toBe("—");
+      expect(xlm(n)).toBe("—");
+      expect(formatAmount(n, null)).toBe("—");
     },
   );
 
   it("prints a negative zero as nothing, not as a minus", () => {
-    expect(formatUsdc(-0)).toBe("0.0 USDC");
+    expect(xlm(-0)).toBe("0.0 XLM");
   });
 
   it("does not round a fractional credit up to three places", () => {
     // Half of a 0.005 step: a fixed toFixed(3) would promise 0.003.
-    expect(formatUsdc(0.005 * 0.5)).toBe("0.0025 USDC");
+    expect(xlm(0.005 * 0.5)).toBe("0.0025 XLM");
   });
 
   it("absorbs float noise at the stroop, the chain's own precision", () => {
-    expect(formatUsdc(0.1 + 0.2)).toBe("0.3 USDC");
+    expect(xlm(0.1 + 0.2)).toBe("0.3 XLM");
   });
 
   it("is lib/money's settled-value formatter, not a second definition", () => {
-    expect(formatUsdc(0.0123)).toBe(formatSettled(123_000, "USDC"));
+    expect(xlm(0.0123)).toBe(formatSettled(123_000, "native"));
   });
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY])(
     "prints %d as a dash rather than a broken figure",
     (n) => {
-      expect(formatUsdc(n)).toBe("—");
+      expect(xlm(n)).toBe("—");
     },
   );
 });
@@ -2499,7 +2519,7 @@ describe("formatCreditShare", () => {
   ])(
     "floors %d without letting binary noise eat a hundredth",
     (fraction, label) => {
-      // As for `formatUsdc`: the premise is checked, not assumed.
+      // As for `formatAmount`: the premise is checked, not assumed.
       expect(Math.floor(fraction * 10_000)).toBeLessThan(
         Math.round(fraction * 10_000),
       );

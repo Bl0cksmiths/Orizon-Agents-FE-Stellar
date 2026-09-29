@@ -15,16 +15,18 @@
  * Assertions are plain DOM checks — this repo does not install jest-dom.
  */
 
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
-import { disputeReceipt, formatUsdc } from "@/lib/disputes";
+import { disputeReceipt, formatAmount } from "@/lib/disputes";
 import type {
   DisputeArtifact,
   DisputeReceiptView,
   DisputeStatus,
 } from "@/lib/types";
 import { formatAge } from "@/components/ui/stale-badge";
+import { AmountAssetProvider } from "./amount-asset";
 import { DisputeReceipt } from "./dispute-receipt";
 import { formatLocalTime } from "./window-state";
 
@@ -93,12 +95,21 @@ const UNRECONCILED: Partial<DisputeReceiptView> = {
   refund: { txHash: null, state: "pending" },
 };
 
+/** Testnet, where the escrow's SAC wraps the native asset: amounts are XLM. */
+function Testnet({ children }: { children: ReactNode }) {
+  return <AmountAssetProvider asset="native">{children}</AmountAssetProvider>;
+}
+
+/** An amount as the receipt prints it on testnet. */
+const xlm = (n: number) => formatAmount(n, "native");
+
 function renderReceipt(
   view: DisputeReceiptView,
   props: { viewer?: "payer" | "other" | "anonymous" } = {},
 ) {
   return render(
     <DisputeReceipt view={view} agentName={AGENT} nowMs={NOW} {...props} />,
+    { wrapper: Testnet },
   );
 }
 
@@ -243,7 +254,7 @@ describe("DisputeReceipt — what happens next", () => {
   it("credited: says what was received and what it cost the agent", () => {
     renderReceipt(receipt("credited"));
     expect(text()).toContain(
-      `Done: you received ${formatUsdc(0.027)}, and it cost ${AGENT} a dispute rating on its reputation.`,
+      `Done: you received ${xlm(0.027)}, and it cost ${AGENT} a dispute rating on its reputation.`,
     );
   });
 
@@ -252,7 +263,7 @@ describe("DisputeReceipt — what happens next", () => {
       receipt("credited", { rating: { txHash: RATING_TX, state: "pending" } }),
     );
     expect(text()).toContain(
-      `Done: you received ${formatUsdc(0.027)}; the dispute rating it costs ${AGENT} is not confirmed yet.`,
+      `Done: you received ${xlm(0.027)}; the dispute rating it costs ${AGENT} is not confirmed yet.`,
     );
     expect(text()).not.toContain(`it cost ${AGENT}`);
   });
@@ -262,7 +273,7 @@ describe("DisputeReceipt — what happens next", () => {
       receipt("credited", { amount: { usdc: 0.027, final: false } }),
     );
     expect(text()).toContain("Done: you received the credit,");
-    expect(text()).not.toContain(`received ${formatUsdc(0.027)}`);
+    expect(text()).not.toContain(`received ${xlm(0.027)}`);
   });
 
   it("credited without a confirmed refund: never says the money arrived", () => {
@@ -271,7 +282,7 @@ describe("DisputeReceipt — what happens next", () => {
       "The platform recorded this credit as paid, but the refund transfer is not confirmed on Stellar yet; the platform reconciles it by hand — you will not be paid twice, and will not be skipped.",
     );
     expect(text()).not.toContain("Done");
-    expect(text()).not.toContain(`received ${formatUsdc(0.027)}`);
+    expect(text()).not.toContain(`received ${xlm(0.027)}`);
     expect(text()).not.toContain("received the credit");
   });
 
@@ -345,14 +356,14 @@ describe("DisputeReceipt — the credit line", () => {
 
   /** The one paragraph carrying the figure. */
   function creditLine(): HTMLElement {
-    const figure = screen.getByText(formatUsdc(0.027), { selector: "span" });
+    const figure = screen.getByText(xlm(0.027), { selector: "span" });
     return figure.closest("p") as HTMLElement;
   }
 
   it("states a final amount as credited, funder on the same line", () => {
     renderReceipt(receipt("credited"));
     expect(creditLine().textContent).toBe(
-      `credit · ${formatUsdc(0.027)} credited to your wallet — ${FUNDED}.`,
+      `credit · ${xlm(0.027)} credited to your wallet — ${FUNDED}.`,
     );
   });
 
@@ -360,7 +371,7 @@ describe("DisputeReceipt — the credit line", () => {
     renderReceipt(receipt("open"));
     const line = creditLine().textContent ?? "";
     expect(line).toBe(
-      `credit · Up to ${formatUsdc(0.027)} would be credited to your wallet if upheld — ${FUNDED}.`,
+      `credit · Up to ${xlm(0.027)} would be credited to your wallet if upheld — ${FUNDED}.`,
     );
   });
 
@@ -369,7 +380,7 @@ describe("DisputeReceipt — the credit line", () => {
     (status) => {
       renderReceipt(receipt(status));
       const line = creditLine().textContent ?? "";
-      expect(line).toContain(`Up to ${formatUsdc(0.027)} to be credited`);
+      expect(line).toContain(`Up to ${xlm(0.027)} to be credited`);
       expect(line).toContain(FUNDED);
       expect(line).not.toMatch(/\d credited/);
     },
@@ -380,20 +391,20 @@ describe("DisputeReceipt — the credit line", () => {
       receipt("credited", { amount: { usdc: 0.027, final: false } }),
     );
     expect(creditLine().textContent).toContain(
-      `Up to ${formatUsdc(0.027)} credited to your wallet — ${FUNDED}`,
+      `Up to ${xlm(0.027)} credited to your wallet — ${FUNDED}`,
     );
   });
 
   it("keeps a credited dispute's amount on its way until the refund is confirmed", () => {
     renderReceipt(receipt("credited", UNRECONCILED));
     expect(creditLine().textContent).toBe(
-      `credit · Up to ${formatUsdc(0.027)} to be credited to your wallet — ${FUNDED}.`,
+      `credit · Up to ${xlm(0.027)} to be credited to your wallet — ${FUNDED}.`,
     );
   });
 
   it("shows no credit line on a rejection", () => {
     renderReceipt(receipt("rejected"));
-    expect(screen.queryByText(formatUsdc(0.027))).toBeNull();
+    expect(screen.queryByText(xlm(0.027))).toBeNull();
     expect(text()).not.toContain("funded by");
   });
 });
@@ -536,7 +547,7 @@ describe("DisputeReceipt — the on-chain artifacts", () => {
   it("says it stopped checking for a rating that never landed", () => {
     renderReceipt(receipt("credited", { rating: NONE, ratingStalled: true }));
     expect(text()).toContain(
-      `Done: you received ${formatUsdc(0.027)}; the dispute rating it costs ${AGENT} is still not recorded, and this page has stopped checking for it — reload to check again.`,
+      `Done: you received ${xlm(0.027)}; the dispute rating it costs ${AGENT} is still not recorded, and this page has stopped checking for it — reload to check again.`,
     );
     expect(text()).not.toContain("is not confirmed yet");
     expect(artifactRow(/^Dispute rating/).textContent).toBe(

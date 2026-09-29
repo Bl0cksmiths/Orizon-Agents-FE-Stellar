@@ -1331,7 +1331,15 @@ export function formatRemaining(ms: number): string {
 }
 
 /**
- * A USDC amount as the receipt prints it: "0.05 USDC", "0.0025 USDC".
+ * An amount as the receipt prints it, in the network's settlement asset:
+ * "0.05 XLM" on testnet, "0.0025" while the asset is unknown.
+ *
+ * The unit is the network route's `asset`, through lib/money's `assetLabel` —
+ * the same label the plan card and My Agents print — and never the "usdc" in
+ * a wire field's name. Testnet's escrow SAC wraps the NATIVE asset, so every
+ * `*_usdc` figure on a settlement is XLM there, and a receipt that said
+ * "USDC" was stating a currency no transfer moved (friction F-022). With no
+ * asset known the figure prints bare: a guessed unit is the false claim.
  *
  * lib/money's `formatSettled` is the codebase's one definition of settled
  * value, so this only converts to it. It prints to the stroop — the chain's
@@ -1341,22 +1349,25 @@ export function formatRemaining(ms: number): string {
  *
  * FLOORED to the stroop, not rounded. Every figure here is money that has
  * moved or that the platform is about to move, and the chain moves whole
- * stroops: rounding half up printed a tenth of a millionth of a dollar that
- * no transfer could carry, which on a receipt is a promise. The nudge before
+ * stroops: rounding half up printed a tenth of a millionth of a unit that no
+ * transfer could carry, which on a receipt is a promise. The nudge before
  * the floor is for binary floating point alone — 0.57 * 10_000_000 is
  * 5699999.999999999 — and is a thousandth of a stroop, far below anything
  * the chain can express, so it restores the figure without inventing one.
  *
- * A value that is not a number prints as a dash, never "NaN USDC", and so
+ * A value that is not a number prints as a dash, never "NaN XLM", and so
  * does a NEGATIVE one: nothing upstream rejects a backend sign error, and a
  * minus sign beside "Refunded" tells the buyer they owe the platform money.
  * A dash says what is true — the figure cannot be stated — where a clamp to
  * zero would state one the record does not support.
  */
-export function formatUsdc(n: number): string {
+export function formatAmount(
+  n: number,
+  asset: string | null | undefined,
+): string {
   if (!Number.isFinite(n) || n < 0) return "—";
   const stroops = Math.floor(Number((n * STROOPS_PER_UNIT).toFixed(3)));
-  return formatSettled(stroops, "USDC");
+  return formatSettled(stroops, asset);
 }
 
 /**
@@ -1373,7 +1384,7 @@ export function formatUsdc(n: number): string {
  * The nudge before flooring is for binary floating point alone — 0.57 *
  * 10_000 is 5699.999999999999 — and is far smaller than any share a policy can
  * express, so it restores the figure without inventing a hundredth.
- * A value that is not a number prints as a dash, as `formatUsdc` does.
+ * A value that is not a number prints as a dash, as `formatAmount` does.
  */
 export function formatCreditShare(fraction: number): string {
   if (!Number.isFinite(fraction)) return "—";
