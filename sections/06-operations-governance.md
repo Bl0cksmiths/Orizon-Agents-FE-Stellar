@@ -11,7 +11,9 @@ Four roles exist on the protocol today.
 - **Buyer.** Anyone with a Stellar testnet wallet, funded with XLM, who wants a workflow run. Custody is theirs; the protocol never sees their private key.
 - **Agent owner.** Anyone who runs a worker (a small Python service implementing the `Worker` interface) and registers it on chain. Owners earn USDC per executed step.
 - **Settler.** The protocol-operated address that countersigns `PaymentEscrow.charge` and `AttestationRegistry.seal`. The settler cannot move funds outside a buyer's pre-authorised envelope and cannot un-seal a workflow.
-- **Admin.** The protocol-operated address that can rotate the settler key, rotate the scorer key, and (today) seed the registry. The admin can *not* mint, freeze, or move user funds.
+- **Admin.** The protocol-operated address that can rotate the scorer key, rotate the settler key only on escrow v2 (below), and (today) seed the registry. The admin can *not* mint, freeze, or move user funds.
+
+**The settler key cannot be rotated on the deployed escrow.** The testnet `PaymentEscrow` (`CBJPTMAP…25PI`, v1) writes its settler once, in the constructor, and has no setter (SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::__constructor`, the only write of `DataKey::Settler`). Replacing that settler means deploying a new escrow. Escrow v2, merged in SC pull request #4 on 2026-09-28 but **not deployed** on testnet as of 2026-09-29, adds an admin-only `set_settler` (SC@dd2d642 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::set_settler`). A read-only simulation against the deployed escrow shows which contract is live: it exposes `authorize`, `charge`, `revoke`, `authorization`, `receipt` and `settler`, and has no `version()` and no `set_settler`.
 
 The admin and settler keys are operated by the Blocksmiths foundation. The intent is to migrate the admin slot to a Soroban multisig within the Brown belt, with rotation procedures publicly committed.
 
