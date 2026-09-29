@@ -30,6 +30,7 @@ import {
   teamFunding,
   teamFundedLabel,
   missSentence,
+  noSettledSentence,
   settledWindowSentence,
   shortAddress,
   targetRows,
@@ -128,6 +129,7 @@ export function AdoptionView({
                   ours={ours}
                   network={network}
                   asset={asset}
+                  windowDays={adoption.window_days}
                 />
               </li>
             ))}
@@ -271,11 +273,13 @@ function OperatorCard({
   ours,
   network,
   asset,
+  windowDays,
 }: {
   operator: ExternalOperator;
   ours: Map<string, ExcludedWallet>;
   network: string;
   asset: string | null;
+  windowDays: EcosystemAdoption["window_days"];
 }) {
   return (
     <Card className="space-y-4">
@@ -301,6 +305,7 @@ function OperatorCard({
                 ours={ours}
                 network={network}
                 asset={asset}
+                windowDays={windowDays}
               />
             </li>
           ))}
@@ -349,13 +354,16 @@ function AgentBlock({
   ours,
   network,
   asset,
+  windowDays,
 }: {
   agent: ExternalAgent;
   ours: Map<string, ExcludedWallet>;
   network: string;
   asset: string | null;
+  windowDays: EcosystemAdoption["window_days"];
 }) {
   const settled = agent.settled_workflows;
+  const windowNote = settledWindowSentence({ window_days: windowDays });
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -383,7 +391,7 @@ function AgentBlock({
         </div>
       </div>
       {settled.length === 0 ? (
-        <p className={body}>No settled workflows yet.</p>
+        <p className={body}>{noSettledSentence({ window_days: windowDays })}</p>
       ) : (
         <StackedTable
           caption={`Settled workflows for ${agent.agent_id}`}
@@ -410,6 +418,7 @@ function AgentBlock({
           }))}
         />
       )}
+      {windowNote && <p className={body}>{windowNote}</p>}
     </>
   );
 }
