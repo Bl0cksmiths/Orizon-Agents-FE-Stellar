@@ -989,5 +989,61 @@
       "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). The 27 ratings written during the sprint all come from runs whose payment did not settle."
     }
   ],
-  "notes": []
+  "notes": [
+    {
+      "id": "reading_links",
+      "title": "How to read the links",
+      "text": "Stellar Expert (stellar.expert) is a free public website that shows everything recorded on the Stellar network. A transaction link opens one recorded action, with its date and a 'Successful' mark. A contract link opens a program on the network; its Events tab lists everything it has recorded. An account link opens a wallet and its history. Every such link here uses the testnet explorer. GitHub pull request links show 'Merged' or 'Open' at the top of the page. Nothing needs a login."
+    },
+    {
+      "id": "usdc_vs_xlm",
+      "title": "USDC in the SOW, XLM on testnet",
+      "text": "The SOW describes payments in USDC. On testnet, Orizon's escrow is set up with Stellar's native asset, XLM, through its standard asset contract (CDLZF…GCYSC). So every payment and refund amount in this index is in testnet XLM. The code does not depend on the asset; metric 4 is measured on that basis."
+    },
+    {
+      "id": "team_wallets",
+      "title": "How an outside operator is told apart from the team",
+      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. Every registration so far is by a team wallet, and each is labelled that way here."
+    },
+    {
+      "id": "pre_sprint_activity",
+      "title": "The 8 'charged' events on the escrow do not count",
+      "text": "The live PaymentEscrow's Events tab shows 8 'charged' events and the AttestationRegistry shows 8 seals. All 16 are from 2026-05-13 to 2026-06-09, months before the sprint began on 2026-09-07. In each, the team's admin wallet was the buyer, the settler and the agent's owner, so it paid itself and no money changed hands. They are linked under metric 4 so you can check them, and they are not counted toward any target."
+    },
+    {
+      "id": "corrections",
+      "title": "Corrections to evidence submitted earlier",
+      "text": "1. The Week-1 bundle presented transaction 9b8ffaa4…9a68 (2026-09-12, 0.054 XLM) as \"a real refund landed on testnet\", and a backend record called it the SOW §6.1 Deliverable 3 artifact. It was a test transfer from the admin wallet to a team key (GBI2I…ADBH), tied to no dispute and no payment. It shows only that the platform key can send a transfer. It is not Deliverable 3 evidence. 2. The Week-1 bundle marked Deliverable 1 as met using two registrations: dan_w1_probe, signed by the team's admin wallet, and sign_probe_bb5c12, signed by a team probe key. Both are team wallets, so neither is the externally owned registration Deliverable 1 asks for. 3. The Week-1 bundle said the refund record was on the backend's main branch. It was removed on 2026-09-22 (backend pull request #42), so that link no longer works. 4. The Week-2 technical document called the 40-second Week-2 build clip on X a demo video. It is a build update, not the 3–5 minute demo the SOW asks for."
+    },
+    {
+      "id": "mechanism_tests",
+      "title": "Test runs are not deliverable evidence",
+      "text": "QA proved the dispute path by running the real backend against a separate drill ReputationLedger (CAFZB…5CRP) and a test asset (CCW66…GUENL), signed by a QA drill key (GA45I…EGZ2), on 2026-09-25 and 2026-09-26. Those transactions are real, but they are a mechanism test on a separate drill ledger, not deliverable evidence, so none is linked here. Likewise, the only frame that shows the reputation floor excluding an agent (QA frame RF-17) used a plan written by the test."
+    },
+    {
+      "id": "sow_versions",
+      "title": "Targets come from SOW v4",
+      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today all three stand at 0, which misses either version."
+    },
+    {
+      "id": "repository_addresses",
+      "title": "Repository addresses",
+      "text": "The SOW names the repositories under github.com/ALGOREX-PH. They moved to the Bl0cksmiths organisation, and the old addresses redirect to the new ones, so this index links the new addresses directly."
+    },
+    {
+      "id": "live_backend",
+      "title": "The live API is updated by hand",
+      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It currently runs a build from before 2026-09-25. Merged work waiting for the next deploy includes settlement through escrow v2 (backend pull request #88) and the adoption counter (backend pull request #89)."
+    },
+    {
+      "id": "network_switch",
+      "title": "orizons.xyz switches back to mainnet after the sprint",
+      "text": "For this sprint orizons.xyz was switched to Stellar testnet. After the sprint it is due to switch back to mainnet. This index is a snapshot of 2026-09-29; if the site shows mainnet when you open it, the testnet evidence here is still on the testnet explorer links."
+    },
+    {
+      "id": "testnet_retention",
+      "title": "How long testnet keeps this evidence",
+      "text": "Stellar's testnet was last reset on 2025-12-17, and its public record keeps full history since then, so every link here still opens. The Stellar Development Foundation resets testnet from time to time. A reset would erase this history, and the links would stop working."
+    }
+  ]
 }
