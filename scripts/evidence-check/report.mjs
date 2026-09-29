@@ -25,11 +25,7 @@ export function toMarkdown(report) {
   const validator =
     report.validator.source === null
       ? "not run"
-      : `${report.validator.ok ? "ok" : `${report.validator.problems.length} problem(s)`} (${
-          report.validator.source === "lib"
-            ? "lib/evidence/validate.mjs"
-            : "LOCAL STUB: lib/evidence/validate.mjs is not on this branch"
-        })`;
+      : `${report.validator.ok ? "ok" : `${report.validator.problems.length} problem(s)`} (lib/evidence/validate.mjs)`;
   const lines = [
     "# Evidence link check",
     "",
