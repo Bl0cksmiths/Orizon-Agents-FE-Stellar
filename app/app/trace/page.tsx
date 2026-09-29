@@ -478,6 +478,7 @@ function TracePageInner() {
               state={settlementState}
               chargeTx={artifactData?.charge_tx ?? null}
               proofTx={artifactData?.proof_tx ?? null}
+              generation={generation}
             />
           )}
         </div>
