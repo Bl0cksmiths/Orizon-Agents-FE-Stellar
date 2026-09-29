@@ -757,12 +757,19 @@ export function ExecutionPlan({
         {/* A confirmed authorize under escrow v2 is a transfer: the cap left
             the wallet for the escrow contract. The card says so with the
             figure signed and the contract it went to — only once both are
-            known, since a guessed destination would be a false receipt. */}
+            known, since a guessed destination would be a false receipt. Under
+            any other escrow nothing was sent, so no "sent" row is drawn. */}
         <TxStatus
           state={txState}
           hash={authorizeHash ?? undefined}
-          amount={authorizeHash ? priced(cap) : undefined}
-          destination={network?.contracts.payment_escrow || undefined}
+          amount={
+            authorizeHash && generation === "v2" ? priced(cap) : undefined
+          }
+          destination={
+            generation === "v2"
+              ? network?.contracts.payment_escrow || undefined
+              : undefined
+          }
           error={friendlyError}
         />
       </Card>

@@ -343,10 +343,7 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
   /** Drives the on-chain path to a confirmed authorization whose run is then
    *  refused as expired. */
   async function authorizeExpired(onReplan = vi.fn()) {
-    api.getStellarNetwork.mockResolvedValue({
-      ...TESTNET,
-      contracts: { payment_escrow: ESCROW_ID },
-    });
+    onEscrowV2();
     api.buildAuthorize.mockResolvedValue({
       xdr: "AAAA",
       expires_at: EXPIRES_AT,
@@ -391,14 +388,14 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
     expect(text).toContain("No run was started");
     expect(text).toContain("0123456789abcdef0123456789abcdef");
     expect(text).toContain(PAYER);
-    expect(text).toContain(ESCROW_ID);
+    expect(text).toContain(V2_ESCROW_ID);
     expect(text).toContain(
       `-- reclaim --payer ${PAYER} --auth_id 0123456789abcdef0123456789abcdef`,
     );
     // When: the expiry the build stamped, never a guess.
     expect(text).toContain(formatLocalTime(EXPIRES_AT * 1_000));
     // And the confirmed card names where the cap went.
-    expect(container.textContent).toContain("0.123 XLM → CBJPTM…5525PI");
+    expect(container.textContent).toContain("0.123 XLM → CVVVVV…VVVVVV");
   });
 
   it("offers a fresh plan from the same request, and hands it to the page", async () => {
@@ -628,6 +625,40 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
     fireEvent.click(screen.getByRole("button", { name: /simulate/i }));
     await screen.findByText(/capacity exhausted/);
     expect(container.textContent).not.toContain("too old to run");
+  });
+});
+
+describe("ExecutionPlan · a confirmed authorization under escrow v1", () => {
+  /** Confirms an authorization on v1, then has execute answer with `run`. */
+  async function confirmOnV1(run: () => Promise<unknown>) {
+    onEscrowV1();
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "SUCCESS",
+      hash: "a1b2c3",
+      return_value: "0123456789abcdef0123456789abcdef",
+    });
+    api.execute.mockImplementation(run);
+    const view = render(<ExecutionPlan plan={plan()} onReplan={vi.fn()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText("✓ transaction confirmed");
+    return view;
+  }
+
+  // v1's authorize is an allowance, not a transfer: nothing was sent.
+  it("draws no sent-to-escrow row on the confirmed card", async () => {
+    const { container } = await confirmOnV1(() =>
+      Promise.resolve({ task_id: "task_v1" }),
+    );
+    const text = container.textContent ?? "";
+    expect(text).toContain("a1b2c3");
+    expect(text).not.toContain("→ CBJPTM");
+    expect(text).not.toMatch(/\bsent\b/);
   });
 });
 
