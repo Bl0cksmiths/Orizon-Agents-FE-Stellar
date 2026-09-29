@@ -127,6 +127,120 @@
           ]
         }
       ]
+    },
+    {
+      "id": "D2",
+      "name": "Reputation-Gated Routing",
+      "evidence_type": "Screen recording · screenshots · code link",
+      "sow_text": "A short recording/screenshots of the decompose plan card showing on-chain reputation per agent, plus a routing example where a sub-floor agent is excluded, and a link to the routing code.",
+      "items": [
+        {
+          "id": "6.1-D2-a",
+          "claim": "Screenshots or a recording of the plan card showing each agent's on-chain reputation before the buyer pays.",
+          "status": "partial",
+          "note": "Partial. A screenshot of the live plan card exists, taken on 2026-09-19. It shows a reputation score on every step and the 2.75 routing floor. But every agent in it still had the starting estimate (about 3.50 out of 5), not a score earned on-chain, because the platform only began writing ratings later that day. No recording exists yet. Since then the platform has written 27 ratings on-chain, two of which are linked here, so the live plan card now shows earned scores for rated agents. Those ratings came from live test runs whose payments did not settle (see the disclosures). A new screenshot or recording would make this item present.",
+          "links": [
+            {
+              "label": "Screenshot of the live plan card: a reputation score on every step, all still at the starting estimate",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/Week-2-Tranche-Submission/screenshots/01-orizons-plan-card.png",
+              "kind": "doc",
+              "date": "2026-09-19"
+            },
+            {
+              "label": "Open the live Orchestrator, pick a preset intent and press Decompose to see the plan card",
+              "url": "https://orizons.xyz/app/orchestrator",
+              "kind": "page"
+            },
+            {
+              "label": "ReputationLedger contract on Stellar Expert: every rating written so far",
+              "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
+              "kind": "contract"
+            },
+            {
+              "label": "Rating of research.pro (agt_09l5): 70 out of 100, written on-chain by the platform's scoring key — 2026-09-19",
+              "url": "https://stellar.expert/explorer/testnet/tx/cfc0b964906c3695f94cd2d3a1d4e8a8511fe5784a2c5d8b6c26e794a32fb201",
+              "kind": "tx",
+              "tx_hash": "cfc0b964906c3695f94cd2d3a1d4e8a8511fe5784a2c5d8b6c26e794a32fb201",
+              "date": "2026-09-19"
+            },
+            {
+              "label": "Rating of the team's QA test agent uat624_ext_op: 20 out of 100, written on-chain by the platform's scoring key — 2026-09-24",
+              "url": "https://stellar.expert/explorer/testnet/tx/149805cfd72bef2dcbbdd30f6a3014a2af3d2839fcce61774bf0e95772a51ed8",
+              "kind": "tx",
+              "tx_hash": "149805cfd72bef2dcbbdd30f6a3014a2af3d2839fcce61774bf0e95772a51ed8",
+              "date": "2026-09-24"
+            },
+            {
+              "label": "Frontend pull request #56: the plan card shows each agent's reputation and any agent the floor acted on (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/56",
+              "kind": "pr",
+              "date": "2026-09-16"
+            },
+            {
+              "label": "Week-2 evidence bundle on GitHub: what shipped for reputation-gated routing",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/tree/main/Week-2-Tranche-Submission",
+              "kind": "doc"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D2-b",
+          "claim": "A routing example where an agent below the reputation floor is left out of the plan.",
+          "status": "missing",
+          "note": "Missing. No agent on the live registry is below the floor today, so there is no live exclusion to show. The lowest is the team's test agent uat624_ext_op, with an on-chain average of about 2.07 out of 5. But every agent starts from an estimate of 3.50, and a few small test ratings are not yet enough evidence to pull it under the 2.75 floor. The exclusion logic is merged and tested (the pull requests here, and the code in the next item). The only frame showing an exclusion so far used a plan written by a test, so it is not offered as evidence. This item becomes present with a recording of a live plan that leaves out a below-floor agent.",
+          "links": [
+            {
+              "label": "Backend pull request #51: the plan lists any agent the floor left out, and the floor itself (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/51",
+              "kind": "pr",
+              "date": "2026-09-16"
+            },
+            {
+              "label": "Backend pull request #58: the floor still holds after planning, and each plan step carries its reputation (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/58",
+              "kind": "pr",
+              "date": "2026-09-18"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D2-c",
+          "claim": "A link to the routing code that applies the reputation floor.",
+          "status": "present",
+          "note": "The code links are pinned to the backend merge of 2026-09-18 (pull request #58), when this routing shipped. The floor check itself is unchanged in the later build the live API runs. The floor is judged on a cautious lower estimate of each agent's on-chain average, so a new agent with few ratings is not over-trusted or over-punished.",
+          "links": [
+            {
+              "label": "Routing code: the floor check on each agent's reputation (backend, pinned to the Week-2 merge)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/f45aa2e8ee2755a6dfa016a02a6a8c9a977163e1/app/services/reputation_svc.py#L213-L224",
+              "kind": "repo",
+              "date": "2026-09-18"
+            },
+            {
+              "label": "Routing code: agents below the floor are kept off the planner's list (backend, pinned to the Week-2 merge)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/f45aa2e8ee2755a6dfa016a02a6a8c9a977163e1/app/services/orchestrator_svc.py#L334-L460",
+              "kind": "repo",
+              "date": "2026-09-18"
+            },
+            {
+              "label": "Routing code: how a below-floor agent is replaced in a plan (backend, pinned to the Week-2 merge)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/f45aa2e8ee2755a6dfa016a02a6a8c9a977163e1/app/services/orchestrator_svc.py#L209-L249",
+              "kind": "repo",
+              "date": "2026-09-18"
+            },
+            {
+              "label": "Routing code: the notice a buyer sees when an agent is left out (backend, pinned to the Week-2 merge)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/f45aa2e8ee2755a6dfa016a02a6a8c9a977163e1/app/services/plan_notices.py#L96-L106",
+              "kind": "repo",
+              "date": "2026-09-18"
+            },
+            {
+              "label": "Live routing settings from the API: the floor is 5500 of 10000, which is 2.75 out of 5",
+              "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/reputation/params",
+              "kind": "page"
+            }
+          ]
+        }
+      ]
     }
   ],
   "metrics": [],
