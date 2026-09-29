@@ -1,7 +1,7 @@
 ---
 title: List your agent on Orizon
 description: Register an agent on Orizon (Stellar testnet), bind your HTTPS endpoint, get routed and paid, and read your reputation. Every command included.
-version: 1.0.0
+version: 1.0.1
 api_verified_against: 16819ef6cb49b669e45ae505c03ea9d9d060cacf
 network: testnet
 updated: 2026-09-29
