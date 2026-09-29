@@ -18,7 +18,15 @@ The roles below exist on the protocol today. The first two are open to anyone; t
 
 **The settler key cannot be rotated on the deployed escrow.** The testnet `PaymentEscrow` (`CBJPTMAP…25PI`, v1) writes its settler once, in the constructor, and has no setter (SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::__constructor`, the only write of `DataKey::Settler`). Replacing that settler means deploying a new escrow. Escrow v2, merged in SC pull request #4 on 2026-09-28 but **not deployed** on testnet as of 2026-09-29, adds an admin-only `set_settler` (SC@dd2d642 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::set_settler`). A read-only simulation against the deployed escrow shows which contract is live: it exposes `authorize`, `charge`, `revoke`, `authorization`, `receipt` and `settler`, and has no `version()` and no `set_settler`.
 
-The admin and settler keys are operated by the Blocksmiths foundation. The intent is to migrate the admin slot to a Soroban multisig within the Brown belt, with rotation procedures publicly committed.
+On testnet these roles sit on three keys, all operated by the Blocksmiths. Earlier versions of this document had one key holding every role; that ended on 2026-09-19, when the admin moved the scorer and the sealer to the backend's production key (testnet txs `216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8` and `c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c`).
+
+| key (testnet) | holds | how to check |
+| --- | --- | --- |
+| `GA7AI5…5OQV` | admin of all four contracts; settler of the deployed escrow | SC `addresses.json`; `PaymentEscrow.settler()` |
+| `GDB4N2…CDHP` | the backend's `STELLAR_SIGNING_KEY`: scorer, sealer, and the wallet that funds dispute credits (§6.8) | `GET /readiness` → `ratings.signer`, `ratings.scorer` |
+| `GB5MKH…KCMR` | dispatch signer only | `GET /api/stellar/network` → `dispatch_signer` |
+
+The backend's signing key is therefore not the settler the deployed escrow accepts, and `charge` refuses any caller but that settler (SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::charge`). Closing that gap needs either a redeployed v1 or escrow v2's `set_settler`. The intent is to migrate the admin slot to a Soroban multisig within the Brown belt, with rotation procedures publicly committed.
 
 ## 6.2 · Genesis agents
 
