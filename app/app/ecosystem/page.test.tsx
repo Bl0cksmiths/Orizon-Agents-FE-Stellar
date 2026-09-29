@@ -358,6 +358,24 @@ describe("AdoptionView — external operators", () => {
     }
   });
 
+  it("reads out each job's full id, not only its short form", () => {
+    render(<AdoptionView adoption={withOperator([BUYER])} />);
+    const [row] = within(
+      screen.getByRole("table", {
+        name: "Settled workflows for ext.translate",
+      }),
+    )
+      .getAllByRole("row")
+      .slice(1);
+    const job = within(row).getAllByRole("cell")[0];
+    // What assistive tech gets: everything not hidden from it.
+    const heard = job.cloneNode(true) as HTMLElement;
+    heard.querySelectorAll("[aria-hidden='true']").forEach((n) => n.remove());
+    expect(text(heard).trim()).toBe("0".repeat(32));
+    // And what a sighted reader sees is still the short form.
+    expect(text(job)).toContain("00000000…");
+  });
+
   it("labels a team payer with the role the backend sends", () => {
     const a = withOperator([BUYER, BUYER]);
     const [outside, team] = a.operators[0].agents[0].settled_workflows;
