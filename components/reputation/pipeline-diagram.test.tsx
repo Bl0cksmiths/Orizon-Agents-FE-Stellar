@@ -25,6 +25,22 @@ describe("PipelineDiagram · the Weigh stage", () => {
   });
 });
 
+describe("PipelineDiagram · the prior's weight", () => {
+  // Weight is in the escrow's asset (native XLM on testnet), never the USDC
+  // of the backend's field names.
+  it("gives the prior's weight from the shared params, in the escrow's asset", () => {
+    render(<PipelineDiagram generation="v2" />);
+    const smooth =
+      Array.from(document.querySelectorAll("li")).find((li) =>
+        li.textContent?.includes("Smooth"),
+      )?.textContent ?? "";
+    expect(smooth).toContain(
+      "a Bayesian prior of 3.50★ (7000 bps) carrying 12 of weight in the escrow's asset",
+    );
+    expect(smooth).not.toMatch(/\bUSDC\b/);
+  });
+});
+
 describe("PipelineDiagram · the Settle stage", () => {
   const settle = () => document.querySelector("li")?.textContent ?? "";
 
