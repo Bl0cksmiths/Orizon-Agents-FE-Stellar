@@ -377,7 +377,7 @@ The shipped surface area is small enough to reason about. We list the threats, t
 
 **Buyer-side custody.** The buyer's private key never leaves their wallet. The frontend builds unsigned XDR; the wallet signs it; the backend only ever sees signed XDR for buyer-initiated calls. The classification of wallet errors (`wallet_not_found`, `user_rejected`, `insufficient_balance`, `unknown`) lives in `lib/wallet-errors.ts`.
 
-**Settler-role separation.** The backend holds a separate signing key with one job — countersigning `charge` and `seal` XDR for workflows the buyer has already authorised. The `Settler` storage slot in `PaymentEscrow` is the only address allowed to call `charge`. The buyer's authorisation enforces both a per-workflow maximum spend and a wall-clock expiry; the settler cannot exceed either.
+**Settler-role separation.** The `Settler` storage slot in `PaymentEscrow` is the only address allowed to call `charge` (SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::charge`). On the deployed escrow that settler is the admin key, `GA7AI5…5OQV`. The backend's own signing key, `GDB4N2…CDHP`, is a different key: it writes ratings (scorer), seals attestations (sealer) and pays dispute credits, and it becomes the escrow's settler only once escrow v2 is deployed (§6.1; BE@a3dc1f9 · app/config.py · `stellar_signing_key`). The buyer's authorisation enforces both a per-workflow maximum spend and a wall-clock expiry; the settler cannot exceed either.
 
 **Authorisation lapse.** Every `Authorization` carries `expires_at`. `PaymentEscrow.charge` rejects charges past the expiry with `Error::Expired`. A workflow that crashes leaves the unspent authorisation to lapse naturally; the buyer never has to "cancel" anything.
 
