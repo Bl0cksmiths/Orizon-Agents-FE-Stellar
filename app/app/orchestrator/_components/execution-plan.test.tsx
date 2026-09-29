@@ -940,6 +940,27 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
     expect(text).not.toMatch(/into escrow|comes back|moves up to/);
   });
 
+  // The backend switched to v2 before this build pinned it: the escrow is
+  // not v1's, so "no funds move" would be false, and nothing is claimed.
+  it("claims neither story when nothing is pinned and the backend reports another escrow", async () => {
+    escrowPin.value = null;
+    api.getStellarNetwork.mockResolvedValue({
+      ...TESTNET,
+      contracts: { payment_escrow: V2_ESCROW_ID },
+    });
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    expect(await shownCap(container)).toBe("0.123 XLM");
+    const line = Array.from(container.querySelectorAll("div")).find((d) =>
+      d.textContent?.startsWith("Freighter will prompt"),
+    );
+    expect(line?.textContent).toBe(
+      "Freighter will prompt for one signature authorizing up to 0.123 XLM.",
+    );
+    expect(container.textContent).not.toMatch(
+      /into escrow|no funds move|allowance|cannot yet complete/,
+    );
+  });
+
   it("claims neither custody nor its absence while the escrow is unknown", async () => {
     onEscrowUnknown();
     const { container } = render(<ExecutionPlan plan={plan()} />);
