@@ -118,6 +118,15 @@ describe("isEcosystemAdoption", () => {
     expect(isEcosystemAdoption(a)).toBe(true);
   });
 
+  it("accepts a settled window, a null one, and none at all", () => {
+    expect(isEcosystemAdoption(zero({ window_days: 7.0 }))).toBe(true);
+    expect(isEcosystemAdoption(zero({ window_days: 6.5 }))).toBe(true);
+    expect(isEcosystemAdoption(zero({ window_days: null }))).toBe(true);
+    const a: Record<string, unknown> = { ...zero() };
+    delete a.window_days;
+    expect(isEcosystemAdoption(a)).toBe(true);
+  });
+
   it("accepts an exclusion reason it does not know — it must still be listed", () => {
     const a = zero();
     a.excluded[0].reason = "audit_key";
@@ -203,6 +212,10 @@ describe("isEcosystemAdoption", () => {
       "unreadable agents that are not strings",
       (a) => (a.unreadable_agents = [1]),
     ],
+    ["a settled window that is the string 7", (a) => (a.window_days = "7")],
+    ["a settled window that is not finite", (a) => (a.window_days = NaN)],
+    ["a settled window of zero days", (a) => (a.window_days = 0)],
+    ["a negative settled window", (a) => (a.window_days = -7)],
   ];
   it.each(broken)("rejects %s", (_name, breakIt) => {
     const a: Record<string, unknown> = { ...zero() };
