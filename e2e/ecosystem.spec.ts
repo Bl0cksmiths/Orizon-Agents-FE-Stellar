@@ -27,7 +27,7 @@ import {
 
 const PHONE = { width: 360, height: 780 };
 const WINDOW =
-  "Settled workflows counted over the last 7 days of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.";
+  "Settled workflows counted over the last 6.9 days of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.";
 const OWNED = mockAgents.filter((a) => a.owner === mockWalletAddress);
 
 async function pageOverflow(page: Page): Promise<number> {
@@ -62,7 +62,7 @@ test.describe("ecosystem page", () => {
       target(page, "Workflows routed to external agents and settled"),
     ).toContainText("Not met: 0 of 3, short by 3.");
     await expect(page.locator("progress, [role=progressbar]")).toHaveCount(0);
-    // This fixture is a backend that sends no window: nothing is guessed.
+    // No scan ran, so the window is 0: no sentence, never "the last 0 days".
     await expect(page.locator("main")).not.toContainText("ledger history");
 
     await expect(
@@ -106,8 +106,10 @@ test.describe("ecosystem page", () => {
       "ledger history",
     );
     await expect(page.getByText(WINDOW, { exact: true })).toHaveCount(3);
+    // Measured at 6.96 days: shown as 6.9, never rounded up to a week.
+    await expect(page.locator("main")).not.toContainText("last 7 days");
     await expect(
-      page.getByText("No settled workflows in the last 7 days.", {
+      page.getByText("No settled workflows in the last 6.9 days.", {
         exact: true,
       }),
     ).toBeVisible();
