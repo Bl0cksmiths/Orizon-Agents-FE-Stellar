@@ -9,6 +9,14 @@ const API_BASE = resolveApiBase(process.env);
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  images: {
+    // The /demo poster is YouTube's thumbnail. Our image optimiser fetches it
+    // and serves it from our own origin, so the page makes no third-party
+    // request until the viewer presses Play.
+    remotePatterns: [
+      { protocol: "https", hostname: "i.ytimg.com", pathname: "/vi/**" },
+    ],
+  },
   async rewrites() {
     return [
       {
