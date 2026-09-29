@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run litepaper:assets",
     "build": "next build",
     "start": "next start",
     "lint": "next lint --max-warnings=0",
@@ -13,6 +14,7 @@
     "test:coverage": "vitest run --coverage && node --test scripts/evidence-check/*.test.mjs",
     "e2e": "playwright test",
     "bundle": "node scripts/check-bundle-size.mjs",
+    "litepaper:assets": "node scripts/litepaper-assets.mjs",
     "check:addresses": "node scripts/check-contract-addresses.mjs",
     "lighthouse": "npx --yes @lhci/cli autorun",
     "smoke": "node scripts/smoke-deploy.mjs",
