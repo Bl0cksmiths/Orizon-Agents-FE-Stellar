@@ -143,7 +143,7 @@
           "id": "6.1-D2-a",
           "claim": "Screenshots or a recording of the plan card showing each agent's on-chain reputation before the buyer pays.",
           "status": "partial",
-          "note": "Partial. A screenshot of the live plan card exists, taken on 2026-09-19. It shows a reputation score on every step and the 2.75 routing floor. But every agent in it still had the starting estimate (about 3.50 out of 5), not a score earned on-chain, because the platform only began writing ratings later that day. No recording exists yet. Since then the platform has written 27 ratings on-chain, two of which are linked here, so the live plan card now shows earned scores for rated agents. Those ratings came from live test runs whose payments did not settle (see the disclosures). A new screenshot or recording would make this item present.",
+          "note": "Partial. A screenshot of the live plan card exists, taken on 2026-09-19. It shows a reputation score on every step and the 2.75 routing floor. But every agent in it still had the starting estimate (about 3.50 out of 5), not a score earned on-chain, because the platform only began writing ratings later that day. No recording exists yet. Since then the platform has written 33 ratings on-chain, two of which are linked here, so the live plan card now shows earned scores for rated agents. Those ratings came from live test runs whose payments did not settle (see the disclosures). A new screenshot or recording would make this item present.",
           "links": [
             {
               "label": "Screenshot of the live plan card: a reputation score on every step, all still at the starting estimate",
