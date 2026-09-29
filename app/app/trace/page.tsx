@@ -20,6 +20,7 @@ import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { getArtifact, getStellarNetwork, openTraceStream } from "@/lib/api";
+import { escrowGeneration } from "@/lib/escrow-generation";
 import { traceSettlementState } from "@/lib/settlement-state";
 import { formatSpent, relabelAmounts, traceSpend } from "@/lib/trace-amounts";
 import { useFetch } from "@/lib/use-fetch";
@@ -112,6 +113,8 @@ function TracePageInner() {
     revalidateOnFocus: true,
   });
   const asset = network?.asset ?? null;
+  // Which escrow the run's money went through: only v2 held any of it.
+  const generation = escrowGeneration(network);
 
   const [demoCursor, setDemoCursor] = useState(0);
   const [demoPlaying, setDemoPlaying] = useState(true);
@@ -407,6 +410,7 @@ function TracePageInner() {
         workflowDone={done}
         demo={!taskId}
         asset={asset}
+        escrowGeneration={generation}
       />
 
       {artifact && (

@@ -63,7 +63,14 @@ describe("DisputeSection — reclaim after a failed settlement", () => {
       running: false,
       settlementState: "failed",
     };
-    render(<DisputeSection taskId="task_1" workflowDone demo={false} />);
+    render(
+      <DisputeSection
+        taskId="task_1"
+        workflowDone
+        demo={false}
+        escrowGeneration="v2"
+      />,
+    );
     expect(
       await screen.findByRole("heading", { name: "Reclaim your funds" }),
     ).toBeTruthy();
@@ -76,9 +83,42 @@ describe("DisputeSection — reclaim after a failed settlement", () => {
       running: false,
       settlementState: "failed",
     };
-    render(<DisputeSection taskId="task_1" workflowDone demo={false} />);
+    render(
+      <DisputeSection
+        taskId="task_1"
+        workflowDone
+        demo={false}
+        escrowGeneration="v2"
+      />,
+    );
     expect(reclaimHeading()).toBeNull();
   });
+
+  // v1 took no custody: a failed settlement left nothing in escrow. And
+  // while the escrow is unknown, nothing is offered either.
+  it.each(["v1", "unknown"] as const)(
+    "offers nothing when the escrow is %s, even to the session that signed",
+    async (generation) => {
+      rememberHeldAuthorization("task_1", HELD);
+      panel.view = {
+        kind: "not_settled",
+        running: false,
+        settlementState: "failed",
+      };
+      render(
+        <DisputeSection
+          taskId="task_1"
+          workflowDone
+          demo={false}
+          escrowGeneration={generation}
+        />,
+      );
+      // Past the effect that reads the session's authorization.
+      await screen.findByRole("status");
+      expect(reclaimHeading()).toBeNull();
+      expect(screen.queryByRole("button", { name: /reclaim/i })).toBeNull();
+    },
+  );
 
   it.each(["released", "unconfirmed", "skipped", null] as const)(
     "offers nothing when the settlement state is %s",
@@ -89,7 +129,14 @@ describe("DisputeSection — reclaim after a failed settlement", () => {
         running: false,
         settlementState: state,
       };
-      render(<DisputeSection taskId="task_1" workflowDone demo={false} />);
+      render(
+        <DisputeSection
+          taskId="task_1"
+          workflowDone
+          demo={false}
+          escrowGeneration="v2"
+        />,
+      );
       expect(reclaimHeading()).toBeNull();
     },
   );
