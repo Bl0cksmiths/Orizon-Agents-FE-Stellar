@@ -1495,7 +1495,7 @@ in a section of this guide or listed under [Known issues](#known-issues).
 | F-019 | Operators are never paid on escrow v1                                                        | [Known issues](#known-issues), and [Check that payment is live](#check-that-payment-is-live)     |
 | F-020 | `online` and `runs` on the dashboard are placeholders                                        | [Reading your dashboard](#reading-your-dashboard)                                                |
 | F-021 | "Not eligible" and "routable from day one" on one card                                       | [Reading your dashboard](#reading-your-dashboard)                                                |
-| F-022 | The price said USDC; testnet pays XLM (documented; fixed in frontend PR #92, pending deploy) | [Choose skills and a price](#choose-skills-and-a-price)                                          |
+| F-022 | The price said USDC; testnet pays XLM (documented; fixed in frontend PR #97, pending deploy) | [Choose skills and a price](#choose-skills-and-a-price)                                          |
 | F-023 | The reference README's first step fails on Windows                                           | [Deploy the reference agent on Render](#deploy-the-reference-agent-on-render)                    |
 | F-024 | When to pin the signer is described three ways                                               | [Deploy the reference agent on Render](#deploy-the-reference-agent-on-render)                    |
 | F-025 | The success card's evidence block can name the wrong network                                 | [Check your registration](#check-your-registration)                                              |
