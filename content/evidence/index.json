@@ -319,6 +319,111 @@
           ]
         }
       ]
+    },
+    {
+      "id": "D4",
+      "name": "Ecosystem Validation Package",
+      "evidence_type": "Demo video · integration guide · tx-hash list",
+      "sow_text": "A 3–5 minute demo video (operator + buyer perspectives), the public \"List your agent on Orizon\" integration guide, and a list of ≥ 2 external registration tx hashes plus ≥ 3 settlement tx hashes on Stellar Expert (testnet).",
+      "items": [
+        {
+          "id": "6.1-D4-a",
+          "claim": "A 3–5 minute demo video showing both an operator and a buyer.",
+          "status": "missing",
+          "note": "Missing. The video has not been recorded. Its script and the public /demo page that will host it are in frontend pull request #92, which is open and not deployed, so orizons.xyz/demo shows 'not found' until it merges. The video needs a real outside registration and settled payments to show, so it waits for those. The one-minute video in the frontend README predates the sprint and is not this video.",
+          "links": [
+            {
+              "label": "Frontend pull request #92 (open): the demo script and the /demo page that will host the video",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/92",
+              "kind": "pr"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D4-b",
+          "claim": "The public \"List your agent on Orizon\" integration guide.",
+          "status": "partial",
+          "note": "Partial. The guide is written, and every sample in it was checked, in frontend pull request #91. That pull request is open, so the public page (orizons.xyz/guide/list-your-agent) shows 'not found' today. It goes live when #91 merges to main and Vercel redeploys the site.",
+          "links": [
+            {
+              "label": "Frontend pull request #91 (open): the 'List your agent on Orizon' guide, with every sample checked",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/91",
+              "kind": "pr"
+            },
+            {
+              "label": "Reference outside agent on GitHub: a copyable example an operator can run (MIT licence)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar",
+              "kind": "repo"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D4-c",
+          "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
+          "status": "missing",
+          "note": "Missing: 0 of 2. No outside operator has registered an agent yet (see metric 1). The adoption counter that lists outside registrations is merged in backend pull request #89 but not deployed, so its public address (/api/ecosystem/adoption) does not work yet. It goes live with the next manual backend deploy on Render.",
+          "links": [
+            {
+              "label": "AgentRegistry contract on Stellar Expert: all 12 registrations, every one by a team wallet",
+              "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+              "kind": "contract"
+            },
+            {
+              "label": "Backend pull request #89 (merged, not yet deployed): the adoption counter that lists outside registrations",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/89",
+              "kind": "pr",
+              "date": "2026-09-28"
+            },
+            {
+              "label": "The team wallet register: every wallet the team controls (backend repository)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/app/data/team_wallets.json",
+              "kind": "doc"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D4-d",
+          "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
+          "status": "missing",
+          "note": "Missing: 0 of 3. No payment has settled on the live escrow during the sprint, and no workflow has been sealed. The deployed PaymentEscrow cannot move a buyer's funds to a different wallet (defect D-039, found in QA), so all 37 payment authorizations made since 2026-09-07 were left uncharged. The escrow's Events tab does show 8 'charged' events, but all are from May and June 2026, before the sprint, and in each the team's admin wallet paid itself. They do not count (see the notes). A fixed escrow, v2, is merged in the contracts and backend repositories but not yet deployed to testnet.",
+          "links": [
+            {
+              "label": "PaymentEscrow (v1) contract on Stellar Expert: its Events tab shows 8 pre-sprint self-payments and none since",
+              "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+              "kind": "contract"
+            },
+            {
+              "label": "AttestationRegistry contract on Stellar Expert: 8 pre-sprint seals and none since",
+              "url": "https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
+              "kind": "contract"
+            },
+            {
+              "label": "Payment authorization by the team's QA buyer key GDJHP…PKXJ for uat624_ext_op, never charged — 2026-09-24 (team wallets)",
+              "url": "https://stellar.expert/explorer/testnet/tx/b122647fac7fe0ad40be3168736b5344a15229381d90f8be5582df15575b099c",
+              "kind": "tx",
+              "tx_hash": "b122647fac7fe0ad40be3168736b5344a15229381d90f8be5582df15575b099c",
+              "date": "2026-09-24"
+            },
+            {
+              "label": "Contracts issue #3: why the live escrow cannot move a buyer's funds (defect D-039)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/issues/3",
+              "kind": "doc"
+            },
+            {
+              "label": "Contracts pull request #4 (merged, not deployed): escrow v2, which fixes the payment defect",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/4",
+              "kind": "pr",
+              "date": "2026-09-28"
+            },
+            {
+              "label": "Backend pull request #88 (merged, not deployed): settle payments through escrow v2",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/88",
+              "kind": "pr",
+              "date": "2026-09-28"
+            }
+          ]
+        }
+      ]
     }
   ],
   "metrics": [],
