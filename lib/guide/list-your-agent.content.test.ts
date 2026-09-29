@@ -112,6 +112,17 @@ describe("the published operator guide", () => {
       expect(known, `${id} not in Known issues`).toContain(id);
   });
 
+  it("states the friction log's range as the entries the map covers", () => {
+    const count = Object.keys(FRICTION_MAP).length;
+    const last = `F-${String(count).padStart(3, "0")}`;
+    const ranges = [...SOURCE.matchAll(/F-001 to (F-\d{3})/g)].map(
+      (match) => match[1],
+    );
+    // The introduction and the coverage appendix both state the range.
+    expect(ranges).toHaveLength(2);
+    expect(ranges).toEqual([last, last]);
+  });
+
   it("says a credit above the refund ceiling is refused, never capped", () => {
     // refund_svc refuses a credit over MAX_REFUND_USDC (409
     // `refund_above_cap`); it never clamps it to the ceiling.
