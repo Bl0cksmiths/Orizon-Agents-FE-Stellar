@@ -17,6 +17,7 @@ import {
   getHeldAuthorization,
   type HeldAuthorization,
 } from "@/lib/held-authorizations";
+import type { EscrowGeneration } from "@/lib/escrow-generation";
 import { useDisputePanel } from "@/lib/use-dispute-panel";
 import { useReasonUnlock } from "@/lib/use-reason-unlock";
 import { cn } from "@/lib/utils";
@@ -278,6 +279,11 @@ type Props = {
   workflowDone: boolean;
   /** The trace page's demo replay: a run nobody paid for. */
   demo: boolean;
+  /**
+   * The escrow the deployment settles through (`escrowGeneration`). Only v2
+   * holds a failed settlement's funds, so only v2 is offered a reclaim.
+   */
+  escrowGeneration: EscrowGeneration;
 };
 
 /**
@@ -320,6 +326,7 @@ export const DisputeSection = memo(function DisputeSection({
   taskId,
   workflowDone,
   demo,
+  escrowGeneration,
 }: Props) {
   const { view, loading, error, refresh, offsetMs, adopt } = useDisputePanel(
     taskId,
@@ -513,7 +520,11 @@ export const DisputeSection = memo(function DisputeSection({
           unlock.unavailable ? null : { status: unlock.status, onUnlock }
         }
       />
-      {reclaimable && <ReceiptReclaim held={reclaimable} />}
+      {/* v1 took no custody, so there is nothing to reclaim; while the
+          escrow is unknown nothing is offered either. */}
+      {reclaimable && escrowGeneration === "v2" && (
+        <ReceiptReclaim held={reclaimable} />
+      )}
       {/* Mounted while a step can be disputed — which keeps a half-typed
           reason across an accidental close — or while its dialog is still
           open after the last step stopped being disputable. */}

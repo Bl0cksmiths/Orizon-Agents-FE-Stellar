@@ -19,7 +19,9 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { getArtifact, openTraceStream } from "@/lib/api";
+import { getArtifact, getStellarNetwork, openTraceStream } from "@/lib/api";
+import { escrowGeneration } from "@/lib/escrow-generation";
+import { useFetch } from "@/lib/use-fetch";
 import { traceSettlementState } from "@/lib/settlement-state";
 import type { ArtifactResponse, TraceLine } from "@/lib/types";
 import { OnChainReceipts } from "./on-chain-receipts";
@@ -94,6 +96,12 @@ function TracePageInner() {
   // down and opens a fresh one — the manual counterpart to the automatic
   // reconnects and the polling fallback openTraceStream spends first.
   const [streamAttempt, setStreamAttempt] = useState(0);
+  // Which escrow the run's money went through: only v2 held any of it.
+  // Unknown until the network read lands, or if it fails.
+  const { data: network } = useFetch(getStellarNetwork, [], {
+    revalidateOnFocus: true,
+  });
+  const generation = escrowGeneration(network);
 
   const [demoCursor, setDemoCursor] = useState(0);
   const [demoPlaying, setDemoPlaying] = useState(true);
@@ -391,7 +399,12 @@ function TracePageInner() {
 
       {/* Its own component so the dispute window's countdown re-renders the
           receipt alone, never this page and its trace log. */}
-      <DisputeSection taskId={taskId} workflowDone={done} demo={!taskId} />
+      <DisputeSection
+        taskId={taskId}
+        workflowDone={done}
+        demo={!taskId}
+        escrowGeneration={generation}
+      />
 
       {artifact && (
         <div className="flex gap-2" role="tablist" aria-label="Trace views">
