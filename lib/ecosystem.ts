@@ -348,7 +348,8 @@ export function unverifiedSentence(a: EcosystemAdoption): string | null {
  * reading as zero.
  */
 function windowSpan(days: number): string {
-  // The epsilon keeps 0.3 × 10 = 2.9999… from flooring to 0.2.
+  // The epsilon absorbs float noise from the backend's seconds-to-days
+  // division: exactly seven days arriving as 6.999999999999 is still 7.
   const tenths = Math.floor(days * 10 + 1e-9) / 10;
   if (tenths === 0) return "the last 0.1 days or less";
   const n = tenths.toLocaleString("en-US", { maximumFractionDigits: 1 });
