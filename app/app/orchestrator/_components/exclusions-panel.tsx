@@ -33,6 +33,7 @@
  */
 
 import { Badge } from "@/components/ui/badge";
+import { belowFloorEvidence } from "@/lib/floor-evidence";
 import { scoreOutOfFive } from "@/lib/reputation-math";
 import { focusRing } from "@/lib/ui";
 import type {
@@ -130,6 +131,13 @@ const KIND_COUNT_LABEL: Record<PlanFloorNoticeKind, string> = {
  * planner still selects per request. And nothing here says an excluded agent
  * fails work — an agent that was passed over was never given any.
  *
+ * `below_floor` is only the opening of its sentence: what follows is built
+ * from the notice's own evidence by `belowFloorEvidence`, because the cause of
+ * a low bound is in the numbers, not in the reason code. It used to end "so
+ * this is thin evidence rather than bad work", which is false for an agent
+ * whose bound rests on many real low ratings. Nothing here says bad work, and
+ * nothing here says not bad work, beyond what the count and dispute rate show.
+ *
  * `unbound_endpoint` had no copy anywhere in the product before this one. The
  * obvious phrasing, "it would fail any work sent to it", is false in exactly
  * the way lib/binding-status.ts already corrects once: an unbound agent is
@@ -138,7 +146,7 @@ const KIND_COUNT_LABEL: Record<PlanFloorNoticeKind, string> = {
  */
 const REASON_COPY: Record<ExclusionReason, string> = {
   below_floor:
-    "Its reputation lower bound is below the floor this plan was built against — the bound discounts a score for how little settled work backs it, so this is thin evidence rather than bad work.",
+    "Its reputation lower bound is below the floor this plan was built against.",
   unbound_endpoint:
     "It is registered on-chain but has no endpoint bound, so there is nothing to dispatch a step to and the orchestrator passed it over — it has not failed anything, an unbound agent is never a candidate in the first place.",
   floor_relaxed:
@@ -164,9 +172,18 @@ const AWAITING_COPY =
  * that is not there. The row falls back to the backend prose, which is
  * required on every notice and so always available.
  */
-function reasonCopy(code: ExclusionReason | undefined): string | undefined {
+function reasonCopy(notice: PlanFloorNotice): string | undefined {
+  const code = notice.reason_code;
   if (code === undefined) return undefined;
-  return (REASON_COPY as Record<string, string | undefined>)[code];
+  const opening = (REASON_COPY as Record<string, string | undefined>)[code];
+  if (code !== "below_floor" || opening === undefined) return opening;
+  // The evidence sentence, or none when the count is unknown: an unread or
+  // null count says nothing about why the bound sits where it does.
+  const evidence = belowFloorEvidence({
+    count: notice.count,
+    disputeRateBps: notice.dispute_rate_bps,
+  });
+  return evidence === null ? opening : `${opening} ${evidence}`;
 }
 
 /** What to call the agent. The id is the fallback, not the decoration: a
@@ -191,7 +208,7 @@ function NoticeRow({
   planFloorBps: number | undefined;
 }): JSX.Element {
   const awaiting = isAwaitingFreshRead(notice);
-  const copy = awaiting ? AWAITING_COPY : reasonCopy(notice.reason_code);
+  const copy = awaiting ? AWAITING_COPY : reasonCopy(notice);
   const replacement =
     notice.kind === "substituted" ? replacementOf(notice) : null;
 

@@ -285,6 +285,7 @@ describe("ExclusionsPanel · the disclosure", () => {
     expect(floorOnly.text()).toContain(
       "The reputation floor acted on these agents",
     );
+
     expect(floorOnly.text()).not.toContain("never candidates");
   });
 
@@ -343,14 +344,16 @@ describe("ExclusionsPanel · the disclosure", () => {
 });
 
 describe("ExclusionsPanel · one sentence per reason_code", () => {
-  it("explains below_floor as thin evidence rather than bad work", () => {
+  // With no count on the notice, the sentence stops at the fact: nothing
+  // about why the bound sits there, in either direction.
+  it("explains below_floor as a bound under the floor, and nothing more", () => {
     const { text } = opened(
       plan({ notices: [notice({ reason_code: "below_floor" })] }),
     );
     expect(text()).toContain(
-      "Its reputation lower bound is below the floor this plan was built against",
+      "Its reputation lower bound is below the floor this plan was built against.",
     );
-    expect(text()).toContain("thin evidence rather than bad work");
+    expect(text()).not.toMatch(/thin evidence|bad work|rests on/);
   });
 
   // An unbound agent is filtered out of the candidate list before the plan
@@ -412,9 +415,81 @@ describe("ExclusionsPanel · one sentence per reason_code", () => {
   // Demoted, never dropped: the prose carries the raw basis points an operator
   // matches against a backend log.
   it("keeps the backend prose alongside the buyer-facing sentence", () => {
-    const { text } = opened(plan({ notices: [notice()] }));
-    expect(text()).toContain("thin evidence rather than bad work");
+    const { text } = opened(plan({ notices: [notice({ count: 7 })] }));
+    expect(text()).toContain("That bound rests on 7 ratings");
     expect(text()).toContain("below routing floor (4200 < 5500 bps)");
+  });
+});
+
+describe("ExclusionsPanel · a below-floor row says only what its evidence shows", () => {
+  /** The row's buyer-facing sentence: the first paragraph inside the row. */
+  const sentence = (n: PlanFloorNotice) => {
+    const { container } = opened(plan({ notices: [n] }));
+    return container.querySelector("li p")?.textContent ?? "";
+  };
+  const OPENING =
+    "Its reputation lower bound is below the floor this plan was built against.";
+
+  it("calls a bound on a single rating thin evidence", () => {
+    expect(sentence(notice({ count: 1, dispute_rate_bps: 0 }))).toBe(
+      `${OPENING} That bound rests on a single rating, so the evidence behind it is thin.`,
+    );
+  });
+
+  // The reference agent the old copy got wrong: dispatches that timed out,
+  // rated 20/100 on-chain, many times. Not thin, and not excused.
+  it("describes a bound on many ratings as that record, not as thin evidence", () => {
+    const s = sentence(notice({ count: 9, dispute_rate_bps: 0 }));
+    expect(s).toBe(
+      `${OPENING} That bound rests on 9 ratings, and that record, read conservatively, falls short of the floor.`,
+    );
+    expect(s).not.toMatch(/thin|rather than/);
+  });
+
+  it("states a non-zero dispute rate as such", () => {
+    expect(sentence(notice({ count: 7, dispute_rate_bps: 1428 }))).toContain(
+      "falls short of the floor. 14.3% of those ratings were disputes.",
+    );
+  });
+
+  it("says a bound on no ratings is the starting estimate", () => {
+    expect(sentence(notice({ count: 0, dispute_rate_bps: 0 }))).toContain(
+      "That bound rests on no ratings: it is the starting estimate an unrated agent is credited with",
+    );
+  });
+
+  it("says nothing about cause when the count is null or unread", () => {
+    for (const count of [null, undefined]) {
+      expect(sentence(notice({ count, dispute_rate_bps: 2500 }))).toBe(OPENING);
+      cleanup();
+    }
+  });
+
+  it("never claims bad work, or its absence, at any count", () => {
+    for (const count of [null, 0, 1, 2, 40]) {
+      for (const rate of [0, 5000]) {
+        const s = sentence(notice({ count, dispute_rate_bps: rate }));
+        expect(s).not.toMatch(/bad work|not a judgement|rather than|poor/i);
+        cleanup();
+      }
+    }
+  });
+
+  // The fresh-read case is not a verdict under the floor, so its evidence
+  // is not worded as one: the sentence is exactly what it was.
+  it("leaves an awaiting-fresh-read row's sentence unchanged by its evidence", () => {
+    expect(
+      sentence(
+        notice({
+          lower_bound_bps: 6100,
+          awaiting_fresh_read: true,
+          count: 9,
+          dispute_rate_bps: 1111,
+        }),
+      ),
+    ).toBe(
+      "It was rated since its last reputation read, so it is held off routing until a fresh read answers. The bound below is from before that rating, so it is not a verdict that the agent sits under the floor.",
+    );
   });
 });
 
