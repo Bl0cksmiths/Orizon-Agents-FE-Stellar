@@ -380,19 +380,17 @@
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
           "status": "missing",
-          "note": "Missing: 1 of 2. One outside operator has registered one agent, Powerbot, on 2026-09-29, from a wallet that is not in the team register and holds no platform role (linked here). It is a trial registration by an operator who was trying out the platform. The server address bound to Powerbot, powerbot.com, is a parked web page, not a working agent, and Powerbot has had no dispatches and no settlements. The platform's own readiness check reports it ready only because that check accepts any page that answers. The live adoption counter counts it as 1 outside agent and 1 outside operator wallet, against targets of 2 and 2, so no target is met (see metrics 1 to 3).",
+          "note": "Missing: 1 of 2. There is one outside operator's trial registration (2026-09-29): one agent, registered from a wallet that is not in the team register and holds no platform role, by an operator who was trying out the platform. The server address bound to it is a parked web page, not a working agent, and it has had no dispatches and no settlements. The platform's own readiness check reports it ready only because that check accepts any page that answers. Its agent id, wallet and registration hash are held back from this index until the operator's consent to publish them is recorded. The platform's public ecosystem page, linked here, lists outside operators by design. The live adoption counter counts it as 1 outside agent and 1 outside operator wallet, against targets of 2 and 2, so no target is met (see metrics 1 to 3).",
           "links": [
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (Powerbot, a trial)",
+              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (a trial)",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
             {
-              "label": "Registration of Powerbot by an outside operator's wallet (a trial) — 2026-09-29",
-              "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
-              "kind": "tx",
-              "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
-              "date": "2026-09-29"
+              "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
+              "url": "https://orizons.xyz/app/ecosystem",
+              "kind": "page"
             },
             {
               "label": "Live adoption counter: outside registrations, as the API counts them",
