@@ -431,10 +431,11 @@ Every UI string, route and behaviour in this script was read from these, and non
 - **Frontend** `feat/5.06-integration` (pull request #95, the top of the #92 to #95 stack) at `f2afa51`:
   - `app/app/register/page.tsx`, `lib/register-validation.ts`, `app/app/bind/page.tsx` and `lib/binding-status.ts` (register, bind);
   - `app/app/agents/*` and `components/agents/*` (the marketplace);
-  - `app/app/operator/*` (My Agents: checklist, routing standing, settlement panel);
-  - `app/app/orchestrator/page.tsx` and `_components/{execution-plan,floor-summary,exclusions-panel,floor-notices,degraded-banner,planner-fallback-notice}.tsx` (the plan card);
+  - `app/app/operator/*` and `lib/readiness.ts` (My Agents: checklist, routing standing, settlement panel);
+  - `app/app/orchestrator/page.tsx` and `_components/{execution-plan,floor-summary,exclusions-panel,degraded-banner,planner-fallback-notice}.tsx`, `_components/floor-notices.ts` and `lib/floor-evidence.ts` (the plan card);
   - `components/ui/reputation-badge.tsx`, `lib/reputation-math.ts` and `lib/money.ts`;
-  - `app/app/trace/*`, `components/disputes/*` and `lib/disputes.ts` (the trace, receipt and dispute dialog);
+  - `app/app/trace/*`, `lib/trace-amounts.ts`, `components/disputes/*` and `lib/disputes.ts` (the trace, receipt and dispute dialog);
+  - `app/(marketing)/_components/hero.tsx` (the USDC copy in S11's cutaway);
   - `app/app/ecosystem/*` and `lib/ecosystem.ts`;
   - `app/app/_components/sidebar.tsx`;
   - `content/guides/list-your-agent.md` (Trust boundaries, and the **Limitation:** notes).
