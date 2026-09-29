@@ -164,7 +164,7 @@ Broadcast a signed XDR to Soroban RPC. Returns the transaction hash and any deco
 
 ### `POST /api/stellar/server/charge`
 
-Backend-signed `PaymentEscrow.charge`. Called once per step by the execution service when on-chain settlement is enabled. The request carries `auth_id_hex`, `payer`, `agent_id`, `amount_usdc`, and `job_id_hex`; the response carries `receipt_id` and the broadcast `tx_hash`.
+Backend-signed `PaymentEscrow.charge`, v1 only: against a v2 escrow it answers 409 `charge_unsupported_on_v2`. It sits behind the operator API key when one is configured, and the execution service does not call it; a run settles once, at its end (§A.1). The request carries `auth_id_hex`, `amount_usdc` and `job_id_hex`; the response carries the transaction's `hash`, `status`, `ledger` and decoded `result`, the `receipt_id` (BE@a3dc1f9 · app/routers/stellar.py · `ChargeReq`, `server_charge`; app/stellar/client.py · `_finalize_invoke`). On testnet the charge is signed by the backend's key, which is not the deployed escrow's settler, so the contract refuses it (§6.1).
 
 ### `POST /api/stellar/server/seal`
 
