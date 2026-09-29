@@ -1,6 +1,7 @@
 "use client";
 import { m } from "framer-motion";
 import { fallbackReputationLedgerId } from "@/lib/contract-addresses";
+import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -31,7 +32,11 @@ const stats = [
   },
   { value: "~9 wk", label: "evidence half-life", note: "recency wins" },
   {
-    value: "100 USDC",
+    // One rating weighs at most what the prior does: the backend's
+    // `max_rating_weight_usdc()` is min(100, 1.0 × the prior's 12) = 12. The
+    // number is read off the prior's weight; the unit is the marketing copy's
+    // own, left as it is (the demo's S11 discloses that it names USDC).
+    value: `${DEFAULT_REP_PARAMS.prior_weight_usdc} USDC`,
     label: "whale cap per rating",
     note: "one voice, bounded",
   },

@@ -1,10 +1,20 @@
 "use client";
 import { m } from "framer-motion";
 
+import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
+
+/**
+ * One rating's weight cap, read off the prior's weight: the backend's
+ * `max_rating_weight_usdc()` is min(100, 1.0 × the prior's 12) = 12. No unit,
+ * because weight is in the escrow's asset (native XLM on testnet), never the
+ * "USDC" in the backend's field names (friction F-022).
+ */
+const MAX_RATING_WEIGHT = DEFAULT_REP_PARAMS.prior_weight_usdc;
+
 const PRINCIPLES = [
   {
     eyebrow: "verified purchase",
-    body: "Ratings exist only for settled x402 payments, so wash-trading costs real USDC per fake rating — an insight borrowed from the ERC-8004 empirical record: unvalidated feedback inflates.",
+    body: "Ratings exist only for settled x402 payments, so wash-trading costs a settled payment per fake rating — an insight borrowed from the ERC-8004 empirical record: unvalidated feedback inflates.",
   },
   {
     eyebrow: "cheap pseudonyms priced in",
@@ -12,7 +22,7 @@ const PRINCIPLES = [
   },
   {
     eyebrow: "whales capped",
-    body: "A single job's evidence weight caps at 100 USDC, so one big spender can't own an agent's score.",
+    body: `A single job's evidence weight caps at ${MAX_RATING_WEIGHT}, the prior's own weight, so one rating counts for at most as much as the prior and one big spender can't own an agent's score.`,
   },
   {
     eyebrow: "recency wins",

@@ -18,6 +18,6 @@
 
 [S10] Deliverable four is ecosystem validation. The Ecosystem page counts only wallets we don't control against the SOW targets, and lists our own wallets separately. Every step you've seen is written up in the public guide.
 
-[S11] Now the limits, plainly. This is testnet only, and it settles native test XLM while the marketing copy names USDC. The platform funds every dispute credit and decides every dispute. Endpoint binding is off-chain: the platform stores the URL you signed. And one platform key is the settler, the scorer and the sealer.
+[S11] Now the limits, plainly. This is testnet only, and it settles native test XLM while the marketing copy names USDC. The platform funds every dispute credit and decides every dispute. Endpoint binding is off-chain: the platform stores the URL you signed. One platform signing key is the settler, scorer and sealer, and it pays dispute credits.
 
 [S12] Verify all of it yourself: the guide, the Ecosystem page, the code, and every transaction hash are linked in the description. Thanks for watching.
