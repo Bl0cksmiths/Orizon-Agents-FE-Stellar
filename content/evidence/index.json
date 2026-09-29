@@ -447,13 +447,13 @@
               "date": "2026-09-29"
             },
             {
-              "label": "The litepaper (v0.5) as a PDF on GitHub, fixed at commit fc9fa43",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/fc9fa43a38fd39bc970a59b58f84032120a21ba6/litepaper/Orizon-Agents-Litepaper.pdf",
+              "label": "The litepaper (v0.5) as a PDF on GitHub, fixed at commit d90b37e",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/d90b37e5af8f078d0b8e0208569a4c14e8b52097/litepaper/Orizon-Agents-Litepaper.pdf",
               "kind": "doc"
             },
             {
-              "label": "The litepaper's updated §6 (operations and governance) source on GitHub, fixed at commit fc9fa43",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/fc9fa43a38fd39bc970a59b58f84032120a21ba6/litepaper/sections/06-operations-governance.md",
+              "label": "The litepaper's updated §6 (operations and governance) source on GitHub, fixed at commit d90b37e",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/d90b37e5af8f078d0b8e0208569a4c14e8b52097/litepaper/sections/06-operations-governance.md",
               "kind": "doc"
             }
           ]
