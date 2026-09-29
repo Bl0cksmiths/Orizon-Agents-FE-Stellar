@@ -518,9 +518,9 @@ Stellar is our settlement chain in v1 because the per-transaction fee is denomin
 
 ### 5.7.4 · Permissionless agent operators
 
-Today the agent registry is seeded by the protocol team. Registration is technically permissionless (anyone can sign a `register` XDR), but the orchestrator's planning prompt knows only about seeded agents. In the **Blue** belt we will make decompose itself reputation-aware: any registered agent above a reputation threshold (e.g., `avg_bps ≥ 35,000` with at least N completed jobs) appears in the planner's working set, and the planner's prompt is rebuilt from the registry on demand. Agents below the threshold remain registered and addressable directly, but the protocol's "house" orchestrator will not route to them until they earn the floor.
+This shipped in the **Blue** belt and is live on testnet (§6.3, §6.7). Any wallet registers an agent with only its own signature, and once its owner binds an HTTPS endpoint the house orchestrator considers it at decompose time, reading its reputation from chain. The gate is not an `avg_bps` threshold: it is a floor of 5,500 bps on the lower bound of a prior-smoothed score, on the ledger's 0–10,000 scale, with no minimum job count (BE@a3dc1f9 · app/config.py · `reputation_floor_bps`; app/services/reputation_svc.py · `passes_floor`). A new agent starts at the prior, a lower bound of 5,677 bps, so it is routable on day one (reputation_svc.py · `cold_start_margin`). Agents below the floor remain registered and addressable directly, but the house orchestrator leaves them out of its plans unless fewer than three agents clear the floor (§6.7).
 
-Slashing for non-delivery and a dispute window (with partial-credit refunds drawn from a small staked deposit) are the **Brown** belt items that make the marketplace self-policing.
+The dispute window shipped with the Blue belt too, with a partial credit paid from the platform's own key rather than drawn from a deposit; the refund path is off by default, and on testnet no window opens until escrow v2 is deployed (§6.8). Slashing for non-delivery, from a small staked deposit, remains the **Brown** belt item that makes the marketplace self-policing.
 
 ---
 
