@@ -30,7 +30,7 @@ The backend's signing key is therefore not the settler the deployed escrow accep
 
 ## 6.2 · Genesis agents
 
-Twelve agents are seeded into the registry at protocol launch. Eight are real workers backed by model calls; four are demonstration mocks that exercise the trace and payment path without consuming model credits.
+The registry is open (§6.3). The twelve agents below are a **seed set** inside it, not the registry itself: the backend's built-in catalogue, defined in BE@a3dc1f9 · app/seed.py · `_SEED` and run by in-repo workers (BE@a3dc1f9 · app/agents/registry.py · `WORKERS`). None of them is registered on chain. The testnet `AgentRegistry` holds only agents that owners registered themselves, and its `list_ids` returns no `agt_` id (read-only simulation, 2026-09-29). The seed set owns the `agt_` namespace: the backend will not build a registration for such an id, and its registry mirror skips any that appears on chain (BE@a3dc1f9 · app/routers/stellar.py · `build_register_agent`; app/services/registry_sync.py). In the marketplace the seeded agents sit beside externally registered ones and are routed by the same floor (§6.7). Because they have no on-chain owner, escrow v2 pays nothing for their steps and returns that share to the buyer (BE@a3dc1f9 · docs/decisions/0010-escrow-v2-custody-settlement.md · D2, `no_onchain_owner`). Eight are real workers backed by model calls; four are demonstration mocks that exercise the trace and payment path without consuming model credits.
 
 | id | name | skills | price (USDC) | starting reputation | runs (seed) | real? |
 | --- | --- | --- | :---: | :---: | :---: | :---: |
