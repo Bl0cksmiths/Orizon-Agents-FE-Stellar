@@ -46,7 +46,7 @@ export const TESTNET_ENDPOINTS = Object.freeze({
  * @typedef {typeof TESTNET_ENDPOINTS} Endpoints
  * @typedef {ReturnType<typeof import("./http.mjs").createClient>} Client
  * @typedef {{ horizon: boolean, rpc: boolean }} Reachable
- * @typedef {{ ledger: number | null, created_at: string | null, source_account: string | null, successful: boolean, via: "horizon" | "rpc" }} ChainTx
+ * @typedef {{ hash: string, ledger: number | null, created_at: string | null, source_account: string | null, successful: boolean, via: "horizon" | "rpc" }} ChainTx
  */
 
 export class RefusedError extends Error {}
@@ -263,6 +263,7 @@ async function findOnTestnet(client, hash, endpoints, reachable) {
     if (answer.status === 200) {
       const tx = parseJson(answer.text) ?? {};
       return {
+        hash,
         ledger: typeof tx.ledger === "number" ? tx.ledger : null,
         created_at: typeof tx.created_at === "string" ? tx.created_at : null,
         source_account:
@@ -296,6 +297,7 @@ async function findOnTestnet(client, hash, endpoints, reachable) {
   if (result.status === "NOT_FOUND") return null;
   const createdAt = Number(result.createdAt);
   return {
+    hash,
     ledger: typeof result.ledger === "number" ? result.ledger : null,
     created_at:
       Number.isFinite(createdAt) && createdAt > 0
