@@ -37,6 +37,7 @@ import type {
   SettlementStepView,
   StepDisputeState,
 } from "@/lib/types";
+import type { EscrowGeneration } from "@/lib/escrow-generation";
 import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
 import { AmountAssetProvider } from "./amount-asset";
 import { ReceiptPanel } from "./receipt-panel";
@@ -166,11 +167,20 @@ function Testnet({ children }: { children: ReactNode }) {
 /** An amount as the panel prints it on testnet. */
 const xlm = (n: number) => formatAmount(n, "native");
 
-function renderPanel(view: DisputePanelView) {
+/** Rendered on escrow v2 unless a test names the escrow it is about. */
+function renderPanel(
+  view: DisputePanelView,
+  escrowGeneration: EscrowGeneration = "v2",
+) {
   const onDispute = vi.fn();
   const onConnect = vi.fn();
   const utils = render(
-    <ReceiptPanel view={view} onDispute={onDispute} onConnect={onConnect} />,
+    <ReceiptPanel
+      view={view}
+      onDispute={onDispute}
+      onConnect={onConnect}
+      escrowGeneration={escrowGeneration}
+    />,
     { wrapper: Testnet },
   );
   return { ...utils, onDispute, onConnect };
@@ -229,6 +239,7 @@ describe("ReceiptPanel — the unit its amounts are printed in", () => {
         view={settled([{ step: step(0), state: { kind: "disputable" } }])}
         onDispute={vi.fn()}
         onConnect={vi.fn()}
+        escrowGeneration="v2"
       />,
     );
     expect(text()).toContain(formatAmount(0.162, null));
@@ -844,6 +855,7 @@ describe("ReceiptPanel — reasons the backend withheld", () => {
         onDispute={vi.fn()}
         onConnect={vi.fn()}
         reasonUnlock={offered ? { status, onUnlock } : null}
+        escrowGeneration="v2"
       />,
     );
     return onUnlock;
@@ -939,6 +951,29 @@ describe("ReceiptPanel — a workflow with no settlement on record", () => {
     });
     expect(status().textContent).toContain(
       "the platform returns it automatically when it can, and otherwise the wallet that paid can reclaim it once the authorization expires.",
+    );
+  });
+
+  // v1 took no custody and cannot complete a payment (D-039): a failed
+  // settlement charged nothing and left nothing to reclaim.
+  it("says a failed v1 settlement charged nothing, and offers no way back", () => {
+    renderPanel(
+      { kind: "not_settled", running: false, settlementState: "failed" },
+      "v1",
+    );
+    expect(status().textContent).toBe(
+      "The settlement did not go through, so no agent was paid. On this deployment the escrow cannot yet complete a payment (a known defect; the fix is deployed separately), so a paid run reports its settlement as failed and nothing is charged.",
+    );
+    expect(text()).not.toMatch(/into escrow|reclaim|returns it/);
+  });
+
+  it("says only what failed while the escrow is unknown", () => {
+    renderPanel(
+      { kind: "not_settled", running: false, settlementState: "failed" },
+      "unknown",
+    );
+    expect(status().textContent).toBe(
+      "The settlement did not go through, so no agent was paid.",
     );
   });
 
@@ -1108,6 +1143,33 @@ describe("ReceiptPanel — an escrow v2 settlement", () => {
           ? "settlement unconfirmed"
           : "settlement failed",
       );
+    },
+  );
+
+  // Only v2 holds anything: a v1 or unknown escrow never reads as holding
+  // the buyer's money, even on a recorded receipt whose settlement failed.
+  it.each(["v1", "unknown"] as const)(
+    "never says a failed settlement's funds are held when the escrow is %s",
+    (generation) => {
+      renderPanel(
+        settled(
+          [
+            {
+              step: PAID,
+              state: { kind: "not_charged" },
+              payout: { kind: "not_paid" },
+            },
+          ],
+          { settlementState: "failed", remainder: { kind: "held" } },
+        ),
+        generation,
+      );
+      expect(text()).toContain("settlement failed");
+      expect(text()).toContain(
+        "The settlement did not go through, so no agent was paid.",
+      );
+      expect(text()).not.toMatch(/held in escrow|into escrow|reclaim/);
+      expect(text()).not.toContain("none yet");
     },
   );
 
