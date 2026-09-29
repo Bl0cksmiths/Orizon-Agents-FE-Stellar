@@ -2,6 +2,7 @@
 import { DesignPrinciples } from "@/components/reputation/design-principles";
 import { OnchainDetails } from "@/components/reputation/onchain-details";
 import { PipelineDiagram } from "@/components/reputation/pipeline-diagram";
+import { escrowGeneration } from "@/lib/escrow-generation";
 import { RatingRubric } from "@/components/reputation/rating-rubric";
 import { RepLeaderboard } from "@/components/reputation/rep-leaderboard";
 import { RepStats } from "@/components/reputation/rep-stats";
@@ -113,7 +114,7 @@ export default function ReputationPage() {
         />
       </section>
 
-      <PipelineDiagram />
+      <PipelineDiagram generation={escrowGeneration(network)} />
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <RatingRubric />

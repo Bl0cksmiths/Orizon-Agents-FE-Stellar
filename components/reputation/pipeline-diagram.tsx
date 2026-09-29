@@ -1,5 +1,6 @@
 "use client";
 import { m } from "framer-motion";
+import type { EscrowGeneration } from "@/lib/escrow-generation";
 import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
 
 /**
@@ -17,13 +18,34 @@ type Stage = {
   note?: string;
 };
 
-const STAGES: Stage[] = [
-  {
+/**
+ * The first stage, by the escrow the deployment settles through: v2 pays the
+ * operator from the buyer's custody at `settle`; v1 charges against an
+ * allowance and cannot yet complete that charge (D-039); unknown names
+ * neither contract call.
+ */
+const SETTLE: Record<EscrowGeneration, Stage> = {
+  v2: {
     title: "Settle",
     body: "A workflow step completes and its operator is paid from the buyer's escrowed funds when the run settles; only settled work may rate.",
     call: "PaymentEscrow.settle",
     note: "verified-purchase provenance — no payment, no opinion.",
   },
+  v1: {
+    title: "Settle",
+    body: "A workflow step completes and is charged against the buyer's spending allowance on the escrow; only settled work may rate. On this deployment the escrow cannot yet complete that charge (a known defect; the fix is deployed separately).",
+    call: "PaymentEscrow.charge",
+    note: "verified-purchase provenance — no payment, no opinion.",
+  },
+  unknown: {
+    title: "Settle",
+    body: "A workflow step completes and its payment settles through the escrow; only settled work may rate.",
+    note: "verified-purchase provenance — no payment, no opinion.",
+  },
+};
+
+/** Every stage after Settle, the same whichever escrow is live. */
+const LATER_STAGES: Stage[] = [
   {
     title: "Rate",
     body: "The settler derives a synthetic 0–100 rating from verifiable workflow signals — artifact shipped? critic violations? — and submits it on-chain, replay-guarded per (agent, job).",
@@ -52,7 +74,13 @@ const STAGES: Stage[] = [
  * pipeline from x402 settlement to the routing gate. Static explainer; the
  * numbers mirror the deployed backend + contract constants.
  */
-export function PipelineDiagram() {
+export function PipelineDiagram({
+  generation,
+}: {
+  /** The escrow the deployment settles through (`escrowGeneration`). */
+  generation: EscrowGeneration;
+}) {
+  const stages = [SETTLE[generation], ...LATER_STAGES];
   return (
     <section className="space-y-4" aria-labelledby="rep-pipeline-heading">
       <div>
@@ -72,7 +100,7 @@ export function PipelineDiagram() {
         </p>
       </div>
       <ol className="grid gap-4 md:grid-cols-3">
-        {STAGES.map((s, i) => (
+        {stages.map((s, i) => (
           <m.li
             key={s.title}
             initial={{ opacity: 0, y: 12 }}
