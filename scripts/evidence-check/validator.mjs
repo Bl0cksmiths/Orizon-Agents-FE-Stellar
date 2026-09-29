@@ -4,11 +4,9 @@
  * the evidence page use — so this checker never keeps a second copy of the
  * rules.
  *
- * Until that file exists, the local stand-in (validate.stub.mjs) is used
- * instead. The report records which one ran (`validator: "lib" | "stub"`) and
- * the CLI warns on the stub. Once the file exists, any import error (a syntax
- * error, a missing export) is thrown: a broken validator never quietly falls
- * back to the stub.
+ * If the file is missing, or fails to import, or lacks the export, this
+ * throws: the checker keeps no rules of its own, so it never validates the
+ * index against anything but the page's rules.
  */
 import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -19,7 +17,7 @@ export const REAL_VALIDATOR = fileURLToPath(
 
 /**
  * @typedef {(obj: unknown) => { ok: boolean, problems: string[] }} Validate
- * @typedef {{ validateEvidenceIndex: Validate, source: "lib" | "stub", path: string }} LoadedValidator
+ * @typedef {{ validateEvidenceIndex: Validate, source: "lib", path: string }} LoadedValidator
  */
 
 /**
