@@ -49,7 +49,8 @@ function integer(value, flag, min) {
 
 /**
  * @param {string[]} argv
- * @param {{ log?: (s: string) => void, error?: (s: string) => void }} [io]
+ * @param {{ log?: (s: string) => void, error?: (s: string) => void, loadValidator?: import("./run.mjs").RunOptions["loadValidator"] }} [io]
+ *   output sinks, and a validator loader for tests
  */
 export async function main(argv, io = {}) {
   const log = io.log ?? console.log;
@@ -121,6 +122,7 @@ export async function main(argv, io = {}) {
     indexPath: resolve(args.index ?? join(repoRoot, INDEX_PATH)),
     mode: args.live ? "live" : "static",
     clientOptions,
+    loadValidator: io.loadValidator,
     endpoints,
   });
 
