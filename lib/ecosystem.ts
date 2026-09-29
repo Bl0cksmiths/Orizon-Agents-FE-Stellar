@@ -340,15 +340,24 @@ export function unverifiedSentence(a: EcosystemAdoption): string | null {
   return `${who}. Whatever they would add is missing from the figures below until they can be read again — a gap, not a zero.`;
 }
 
-/** The window in days, as sent: "7 days", "1 day", "6.5 days". Up to two
- * decimals, so a fractional window is not rounded into a whole one. */
+/**
+ * "the last 7 days", "the last 6.9 days", "the last 1 day". One decimal at
+ * most, rounded DOWN: a measured 6.96 is "6.9", never a precise-sounding 7,
+ * because overstating the window would imply settlements are counted that
+ * are not. A window too short to show at one decimal says so rather than
+ * reading as zero.
+ */
 function windowSpan(days: number): string {
-  const n = days.toLocaleString("en-US", { maximumFractionDigits: 2 });
-  return `${n} ${n === "1" ? "day" : "days"}`;
+  // The epsilon keeps 0.3 × 10 = 2.9999… from flooring to 0.2.
+  const tenths = Math.floor(days * 10 + 1e-9) / 10;
+  if (tenths === 0) return "the last 0.1 days or less";
+  const n = tenths.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  return `the last ${n} ${n === "1" ? "day" : "days"}`;
 }
 
-/** The settled window the backend sent, or null when it sent none — never a
- * default, since a guessed window would be a claim the payload did not make. */
+/** The settled window the backend sent, or null when it sent none or sent 0
+ * (no scan ran) — never a default, since a guessed window would be a claim the
+ * payload did not make. */
 function settledWindow(a: Pick<EcosystemAdoption, "window_days">) {
   const d = a.window_days;
   return typeof d === "number" && Number.isFinite(d) && d > 0 ? d : null;
@@ -366,7 +375,7 @@ export function settledWindowSentence(
 ): string | null {
   const d = settledWindow(a);
   if (d === null) return null;
-  return `Settled workflows counted over the last ${windowSpan(d)} of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.`;
+  return `Settled workflows counted over ${windowSpan(d)} of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.`;
 }
 
 /** An agent with nothing settled. Under a window that is "none in the last N
@@ -377,7 +386,7 @@ export function noSettledSentence(
   const d = settledWindow(a);
   return d === null
     ? "No settled workflows yet."
-    : `No settled workflows in the last ${windowSpan(d)}.`;
+    : `No settled workflows in ${windowSpan(d)}.`;
 }
 
 /** `GABC…WXYZ`. The full address always goes alongside, for screen readers
