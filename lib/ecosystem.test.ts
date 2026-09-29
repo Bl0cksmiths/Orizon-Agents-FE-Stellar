@@ -20,6 +20,8 @@ import {
   teamFundedLabel,
   teamFunding,
   missSentence,
+  noSettledSentence,
+  settledWindowSentence,
   shortAddress,
   targetRows,
   targetsVerdict,
@@ -118,6 +120,17 @@ describe("isEcosystemAdoption", () => {
     expect(isEcosystemAdoption(a)).toBe(true);
   });
 
+  it("accepts a settled window, a null one, and none at all", () => {
+    expect(isEcosystemAdoption(zero({ window_days: 7.0 }))).toBe(true);
+    expect(isEcosystemAdoption(zero({ window_days: 6.5 }))).toBe(true);
+    expect(isEcosystemAdoption(zero({ window_days: null }))).toBe(true);
+    // 0.0 is what the backend sends when no scan ran: a real answer.
+    expect(isEcosystemAdoption(zero({ window_days: 0.0 }))).toBe(true);
+    const a: Record<string, unknown> = { ...zero() };
+    delete a.window_days;
+    expect(isEcosystemAdoption(a)).toBe(true);
+  });
+
   it("accepts an exclusion reason it does not know — it must still be listed", () => {
     const a = zero();
     a.excluded[0].reason = "audit_key";
@@ -203,6 +216,9 @@ describe("isEcosystemAdoption", () => {
       "unreadable agents that are not strings",
       (a) => (a.unreadable_agents = [1]),
     ],
+    ["a settled window that is the string 7", (a) => (a.window_days = "7")],
+    ["a settled window that is not finite", (a) => (a.window_days = NaN)],
+    ["an infinite settled window", (a) => (a.window_days = Infinity)],
   ];
   it.each(broken)("rejects %s", (_name, breakIt) => {
     const a: Record<string, unknown> = { ...zero() };
@@ -367,6 +383,71 @@ describe("unverifiedSentence", () => {
   it("still speaks when degraded without naming anyone", () => {
     expect(unverifiedSentence(zero({ degraded: true }))).toMatch(
       /^Couldn't verify every agent right now\./,
+    );
+  });
+});
+
+describe("the settled window", () => {
+  it("states the window the backend sends beside what it leaves out", () => {
+    expect(settledWindowSentence(zero({ window_days: 7.0 }))).toBe(
+      "Settled workflows counted over the last 7 days of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.",
+    );
+    expect(noSettledSentence(zero({ window_days: 7.0 }))).toBe(
+      "No settled workflows in the last 7 days.",
+    );
+  });
+
+  it("keeps a fractional window and a single day as sent", () => {
+    expect(settledWindowSentence(zero({ window_days: 6.5 }))).toContain(
+      "over the last 6.5 days of ledger history",
+    );
+    expect(settledWindowSentence(zero({ window_days: 1 }))).toContain(
+      "over the last 1 day of ledger history",
+    );
+    expect(noSettledSentence(zero({ window_days: 1 }))).toBe(
+      "No settled workflows in the last 1 day.",
+    );
+  });
+
+  it("rounds a measured window down to one decimal, never up to a whole one", () => {
+    const over = (d: number) => settledWindowSentence(zero({ window_days: d }));
+    expect(over(6.96)).toContain("over the last 6.9 days of ledger history");
+    expect(over(6.9)).toContain("over the last 6.9 days of ledger history");
+    expect(over(6.94)).toContain("over the last 6.9 days of ledger history");
+    expect(over(0.3)).toContain("over the last 0.3 days of ledger history");
+    expect(over(1.05)).toContain("over the last 1 day of ledger history");
+    // Float noise on exactly seven days is still seven, not 6.9.
+    expect(over(7 - 1e-12)).toContain("over the last 7 days of ledger history");
+    expect(noSettledSentence(zero({ window_days: 6.96 }))).toBe(
+      "No settled workflows in the last 6.9 days.",
+    );
+  });
+
+  it("does not call a window under a tenth of a day zero", () => {
+    expect(settledWindowSentence(zero({ window_days: 0.04 }))).toContain(
+      "over the last 0.1 days or less of ledger history",
+    );
+    expect(noSettledSentence(zero({ window_days: 0.04 }))).toBe(
+      "No settled workflows in the last 0.1 days or less.",
+    );
+  });
+
+  it("says nothing about a window when no scan ran", () => {
+    for (const d of [0, 0.0, -1]) {
+      expect(settledWindowSentence(zero({ window_days: d }))).toBeNull();
+      expect(noSettledSentence(zero({ window_days: d }))).toBe(
+        "No settled workflows yet.",
+      );
+    }
+  });
+
+  it("says nothing about a window the backend does not send", () => {
+    const a: Record<string, unknown> = { ...zero() };
+    delete a.window_days;
+    expect(settledWindowSentence(a as EcosystemAdoption)).toBeNull();
+    expect(settledWindowSentence(zero({ window_days: null }))).toBeNull();
+    expect(noSettledSentence(zero({ window_days: null }))).toBe(
+      "No settled workflows yet.",
     );
   });
 });

@@ -30,6 +30,8 @@ import {
   teamFunding,
   teamFundedLabel,
   missSentence,
+  noSettledSentence,
+  settledWindowSentence,
   shortAddress,
   targetRows,
   targetsVerdict,
@@ -61,6 +63,7 @@ export function AdoptionView({
   const rows = targetRows(adoption);
   const ours = excludedOwners(adoption);
   const unverified = unverifiedSentence(adoption);
+  const settledWindow = settledWindowSentence(adoption);
   const network = adoption.network;
 
   return (
@@ -99,7 +102,14 @@ export function AdoptionView({
         </div>
         <ul className="grid gap-4 lg:grid-cols-3">
           {rows.map((row) => (
-            <TargetItem key={row.key} row={row} unverified={!!unverified} />
+            <TargetItem
+              key={row.key}
+              row={row}
+              unverified={!!unverified}
+              windowNote={
+                row.key === "settled_external_workflows" ? settledWindow : null
+              }
+            />
           ))}
         </ul>
       </section>
@@ -119,6 +129,7 @@ export function AdoptionView({
                   ours={ours}
                   network={network}
                   asset={asset}
+                  windowDays={adoption.window_days}
                 />
               </li>
             ))}
@@ -161,9 +172,13 @@ export function AdoptionView({
 function TargetItem({
   row,
   unverified,
+  windowNote,
 }: {
   row: TargetRow;
   unverified: boolean;
+  /** The ledger window this count covers, when the backend says; null
+   * otherwise, and for the targets it does not bound. */
+  windowNote: string | null;
 }) {
   const copy = TARGET_COPY[row.key];
   return (
@@ -190,6 +205,7 @@ function TargetItem({
         {row.met ? `Met: ${row.current} of ${row.target}.` : missSentence(row)}
       </p>
       <p className={body}>{copy.counts}</p>
+      {windowNote && <p className={body}>{windowNote}</p>}
       {unverified && (
         <p className={body}>
           May be incomplete: some agents could not be verified right now.
@@ -247,7 +263,10 @@ function WalletLink({
       className={cn(inlineLink, "font-mono")}
     >
       {shortAddress(owner)}
-      <span className="sr-only"> — {owner}, on Stellar Expert</span>
+      <span className="sr-only">
+        {" "}
+        — {owner}, on Stellar Expert (opens in a new tab)
+      </span>
     </a>
   );
 }
@@ -257,11 +276,13 @@ function OperatorCard({
   ours,
   network,
   asset,
+  windowDays,
 }: {
   operator: ExternalOperator;
   ours: Map<string, ExcludedWallet>;
   network: string;
   asset: string | null;
+  windowDays: EcosystemAdoption["window_days"];
 }) {
   return (
     <Card className="space-y-4">
@@ -287,6 +308,7 @@ function OperatorCard({
                 ours={ours}
                 network={network}
                 asset={asset}
+                windowDays={windowDays}
               />
             </li>
           ))}
@@ -335,13 +357,16 @@ function AgentBlock({
   ours,
   network,
   asset,
+  windowDays,
 }: {
   agent: ExternalAgent;
   ours: Map<string, ExcludedWallet>;
   network: string;
   asset: string | null;
+  windowDays: EcosystemAdoption["window_days"];
 }) {
   const settled = agent.settled_workflows;
+  const windowNote = settledWindowSentence({ window_days: windowDays });
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -369,7 +394,7 @@ function AgentBlock({
         </div>
       </div>
       {settled.length === 0 ? (
-        <p className={body}>No settled workflows yet.</p>
+        <p className={body}>{noSettledSentence({ window_days: windowDays })}</p>
       ) : (
         <StackedTable
           caption={`Settled workflows for ${agent.agent_id}`}
@@ -377,8 +402,11 @@ function AgentBlock({
           rows={settled.map((w) => ({
             key: w.job_id_hex,
             cells: [
+              // Shortened on screen; the whole id is read out, since a
+              // `title` alone reaches neither a screen reader nor a phone.
               <span key="job" title={w.job_id_hex}>
-                {w.job_id_hex.slice(0, 8)}…
+                <span aria-hidden="true">{w.job_id_hex.slice(0, 8)}…</span>
+                <span className="sr-only">{w.job_id_hex}</span>
               </span>,
               formatSettledAmount(w.amount_usdc, asset),
               <span key="payer" className="inline-flex flex-wrap gap-2">
@@ -396,6 +424,7 @@ function AgentBlock({
           }))}
         />
       )}
+      {windowNote && <p className={body}>{windowNote}</p>}
     </>
   );
 }
@@ -434,7 +463,8 @@ function TxLink({
       title={hash}
       className={cn(inlineLink, "font-mono")}
     >
-      tx {hash.slice(0, 8)}…<span className="sr-only"> on Stellar Expert</span>
+      tx {hash.slice(0, 8)}…
+      <span className="sr-only"> on Stellar Expert (opens in a new tab)</span>
     </a>
   );
 }
