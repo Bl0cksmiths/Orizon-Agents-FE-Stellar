@@ -1091,23 +1091,22 @@
       "category": "Technical milestones",
       "metric": "All source code released under MIT License",
       "target": "Yes",
-      "achieved": "No: 1 of 4 public code repositories has an MIT licence file",
-      "status": "not_met",
-      "reason": "3 of the 4 repositories have no MIT licence that GitHub recognises: the frontend (no licence detected), the backend (no licence detected) and the smart contracts (no licence detected).",
+      "achieved": "Yes",
+      "status": "met",
       "method": "Asked GitHub which licence it detects on each repository: the frontend, backend and smart contracts the SOW names, and the example agent. Each must be MIT.",
       "links": [
         {
-          "label": "Frontend repository — GitHub detects no licence",
+          "label": "Frontend repository — MIT licence detected",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar",
           "kind": "repo"
         },
         {
-          "label": "Backend repository — GitHub detects no licence",
+          "label": "Backend repository — MIT licence detected",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar",
           "kind": "repo"
         },
         {
-          "label": "Smart contracts repository — GitHub detects no licence",
+          "label": "Smart contracts repository — MIT licence detected",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar",
           "kind": "repo"
         },
@@ -1117,19 +1116,22 @@
           "kind": "repo"
         },
         {
-          "label": "Frontend pull request #97 (open): adds the MIT licence",
+          "label": "Frontend pull request #97 (merged): adds the MIT licence",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         },
         {
-          "label": "Backend pull request #94 (open): adds the MIT licence",
+          "label": "Backend pull request #94 (merged): adds the MIT licence",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/94",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         },
         {
-          "label": "Contracts pull request #5 (open): adds the MIT licence",
+          "label": "Contracts pull request #5 (merged): adds the MIT licence",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/5",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         }
       ]
     }
