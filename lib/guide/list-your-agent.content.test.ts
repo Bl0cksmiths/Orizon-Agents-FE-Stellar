@@ -123,6 +123,58 @@ describe("the published operator guide", () => {
     expect(ranges).toEqual([last, last]);
   });
 
+  it.each([
+    // The readiness probe passes any 2xx and never reads the body.
+    ["F-033", 'curl -sS "$ENDPOINT_URL"'],
+    // Routing never checks that the bound URL is an agent.
+    ["F-034", "unbind it or rebind a working agent"],
+    // Binding proves the owner signed, not control of the domain.
+    ["F-035", "Bind only a URL you run."],
+  ])(
+    "lists %s under Known issues with an operator's workaround",
+    (id, workaround) => {
+      const known = section("## Known issues", /^## /m);
+      const row = known
+        .split("\n")
+        .find((line) => line.startsWith(`| ${id} |`));
+      expect(row, `no Known issues row for ${id}`).toBeDefined();
+      const [, , remedy] = row!
+        .split("|")
+        .slice(1, -1)
+        .map((cell) => cell.trim());
+      expect(remedy).toContain(workaround);
+    },
+  );
+
+  it("never says reachable proves that an agent answered", () => {
+    const readiness = section("## Step 6: Check readiness", /^## /m);
+    const row = readiness
+      .split("\n")
+      .find((line) => line.startsWith("| `reachable`"));
+    expect(row, "no table row for reachable").toBeDefined();
+    expect(row).toContain("any `2xx`");
+    expect(row).toContain("does not prove that your agent answered");
+    expect(readiness).toContain(
+      "> **Warning:** `reachable: done` means only that something at the bound URL answered.",
+    );
+    expect(SOURCE).not.toMatch(/counts as reachable[^.]*: your agent answered/);
+  });
+
+  it("says binding proves ownership of the agent, not control of the domain", () => {
+    const trust = section("## Trust boundaries", /^## /m);
+    const row = trust
+      .split("\n")
+      .find((line) => line.startsWith("| Endpoint binding"));
+    expect(row, "no Endpoint binding row").toBeDefined();
+    expect(row).toContain(
+      "The signature proves you own the agent, not that you control the URL's domain",
+    );
+  });
+
+  it("stays a draft until a newcomer has validated it", () => {
+    expect(guide().meta.status).toBe("draft");
+  });
+
   it("says a credit above the refund ceiling is refused, never capped", () => {
     // refund_svc refuses a credit over MAX_REFUND_USDC (409
     // `refund_above_cap`); it never clamps it to the ceiling.
