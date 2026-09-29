@@ -76,7 +76,7 @@ Unlocked when `https://orizons.xyz/litepaper` answers 200.
   grep -n fc9fa43 content/evidence/index.json   # 4 hits: 2 URLs, 2 labels
   ```
 
-- #95 label: add `(merged)` and its `date`.
+- #97 label: add `(merged)` and its `date`.
 
 ### `6.1-D4-a`: the demo video
 
