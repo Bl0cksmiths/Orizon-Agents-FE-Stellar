@@ -1,4 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import {
+  DEMO_PUBLISHED_DIST_DIR,
+  DEMO_PUBLISHED_PORT,
+  E2E_PORT,
+} from "./e2e/demo-server";
 
 /**
  * Minimal E2E smoke suite. Runs against `next dev` (no build needed); every
@@ -14,7 +19,7 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * Set E2E_PORT to isolate a checkout:  E2E_PORT=3117 npx playwright test
  */
-const PORT = Number(process.env.E2E_PORT ?? 3000);
+const PORT = E2E_PORT;
 
 /**
  * The guide pages read their Markdown from content/guides/ at build. The suite
@@ -42,11 +47,32 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: `npx next dev -p ${PORT}`,
-    port: PORT,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    env: { GUIDE_CONTENT_DIR },
-  },
+  webServer: [
+    {
+      command: `npx next dev -p ${PORT}`,
+      port: PORT,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      // /demo here is the unpublished fixture: the honest notice, no player.
+      env: {
+        GUIDE_CONTENT_DIR,
+        DEMO_CONTENT_DIR: "test/fixtures/demo/unpublished",
+      },
+    },
+    {
+      // /demo published, from its fixture manifest (e2e/demo-server.ts). A
+      // second server because the page is built from the manifest; its own
+      // build directory because two dev servers cannot share one.
+      command: `npx next dev -p ${DEMO_PUBLISHED_PORT}`,
+      port: DEMO_PUBLISHED_PORT,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      env: {
+        GUIDE_CONTENT_DIR,
+        E2E_DIST_DIR: DEMO_PUBLISHED_DIST_DIR,
+        DEMO_CONTENT_DIR: "test/fixtures/demo/published",
+        DEMO_PUBLIC_DIR: "test/fixtures/demo/public",
+      },
+    },
+  ],
 });
