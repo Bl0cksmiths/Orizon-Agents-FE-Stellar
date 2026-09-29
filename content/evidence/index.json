@@ -641,15 +641,19 @@
       "category": "Adoption targets",
       "metric": "Externally-operated agents registered on Testnet",
       "target": "≥ 2",
-      "achieved": "1",
-      "status": "not_met",
-      "reason": "Only 1 agent is registered by outside operators; the other 12 belong to wallets the team controls. The target is 2.",
+      "achieved": "6",
+      "status": "met",
       "method": "Read every agent the AgentRegistry contract lists, with its owner, straight from testnet. An agent counts only if its owner is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
         {
           "label": "AgentRegistry contract (every registered agent)",
           "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
           "kind": "contract"
+        },
+        {
+          "label": "The 6 counted outside registrations (2026-09-29), as the ecosystem page lists them (their hashes are held back here until consent is recorded)",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
         },
         {
           "label": "Registration of orizon_batch by the team's contract admin and v1 escrow settler — 2026-04-20 (excluded: team wallet)",
@@ -736,11 +740,14 @@
           "date": "2026-09-24"
         },
         {
-          "label": "The counted outside registration, one operator's trial on 2026-09-29, as the ecosystem page lists it (its hash is held back here until consent is recorded)",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
+          "label": "Registration of 3D_Artbot by the team's contract admin and v1 escrow settler — 2026-09-29 (excluded: team wallet)",
+          "url": "https://stellar.expert/explorer/testnet/tx/fc30cd93c316f46f1692ca95df51b82a6d14f9a270a7743d3932787db0e84f3c",
+          "kind": "tx",
+          "tx_hash": "fc30cd93c316f46f1692ca95df51b82a6d14f9a270a7743d3932787db0e84f3c",
+          "date": "2026-09-29"
         }
-      ]
+      ],
+      "reason": "Met on registrations, which is what the SOW counts: 6 agents registered from 2 outside operators' wallets. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their ids and registration hashes are held back here until each operator's consent to publish them is recorded."
     },
     {
       "id": "m02",
