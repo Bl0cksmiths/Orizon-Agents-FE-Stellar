@@ -317,7 +317,7 @@ Every error from the protocol's contracts is enumerated in the shared `codes` mo
 | 6 | `Revoked` | `PaymentEscrow.charge` — buyer revoked |
 | 7 | `Replay` | `ReputationLedger.submit` — duplicate `(agent_id, job_id)` |
 | 8 | `Inactive` | `AgentRegistry.get`/lookup — agent toggled off |
-| 100 | `OutOfRange` | `ReputationLedger.submit` — rating > 5 |
+| 100 | `OutOfRange` | `ReputationLedger.submit` — rating > 100, or weight outside 0 < weight ≤ 100 USDC |
 | 101 | `BadAmount` | `PaymentEscrow.charge` — amount ≤ 0 |
 
 ### 5.3.3 · The x402 flow as a sequence
