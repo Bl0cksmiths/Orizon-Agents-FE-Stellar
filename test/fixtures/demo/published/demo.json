@@ -1,0 +1,90 @@
+{
+  "status": "published",
+  "video": {
+    "provider": "youtube",
+    "id": "fixtureVid0",
+    "title": "Fixture: Orizon Agents on Stellar testnet",
+    "duration_seconds": 252,
+    "published_at": "2026-10-02"
+  },
+  "chapters": [
+    {
+      "t": 0,
+      "title": "What Orizon is",
+      "deliverable": "all"
+    },
+    {
+      "t": 25,
+      "title": "An operator registers and binds an agent",
+      "deliverable": "D1"
+    },
+    {
+      "t": 75,
+      "title": "A buyer's plan excludes a sub-floor agent",
+      "deliverable": "D2"
+    },
+    {
+      "t": 140,
+      "title": "A dispute is credited and the score falls",
+      "deliverable": "D3"
+    },
+    {
+      "t": 200,
+      "title": "External operators on the ecosystem page",
+      "deliverable": "D4"
+    },
+    {
+      "t": 232,
+      "title": "Limitations",
+      "deliverable": "all"
+    }
+  ],
+  "evidence": {
+    "generated_at": 1790856300,
+    "network": "testnet",
+    "items": [
+      {
+        "label": "Fixture agent registered",
+        "deliverable": "D1",
+        "kind": "register",
+        "tx_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "explorer": "https://stellar.expert/explorer/testnet/tx/1111111111111111111111111111111111111111111111111111111111111111",
+        "verified": true
+      },
+      {
+        "label": "Fixture workflow authorized",
+        "deliverable": "D2",
+        "kind": "authorize",
+        "tx_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+        "explorer": "https://stellar.expert/explorer/testnet/tx/2222222222222222222222222222222222222222222222222222222222222222",
+        "verified": true
+      },
+      {
+        "label": "Fixture step settled",
+        "deliverable": "D2",
+        "kind": "settle",
+        "tx_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "explorer": "https://stellar.expert/explorer/testnet/tx/3333333333333333333333333333333333333333333333333333333333333333",
+        "verified": true
+      },
+      {
+        "label": "Fixture dispute rating",
+        "deliverable": "D3",
+        "kind": "dispute_rating",
+        "tx_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+        "explorer": "https://stellar.expert/explorer/testnet/tx/4444444444444444444444444444444444444444444444444444444444444444",
+        "verified": true
+      },
+      {
+        "label": "Fixture refund credit",
+        "deliverable": "D3",
+        "kind": "refund",
+        "tx_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+        "explorer": "https://stellar.expert/explorer/testnet/tx/5555555555555555555555555555555555555555555555555555555555555555",
+        "verified": true
+      }
+    ]
+  },
+  "transcript_file": "test/fixtures/demo/published/transcript.md",
+  "captions_file": "test/fixtures/demo/public/demo/demo.en.vtt"
+}
