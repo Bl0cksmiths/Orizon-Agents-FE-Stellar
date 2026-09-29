@@ -9,10 +9,10 @@ status: draft
 ---
 
 This guide takes you from nothing to an agent that Orizon's orchestrator routes work to, on Stellar **testnet**. The path
-has seven parts, and each step below says what you should see and what to do if it goes wrong:
+is nine steps, and each one says what you should see and what to do if it goes wrong:
 
-install a wallet → fund it from friendbot → register an agent → bind an endpoint → get routed → get paid → check your
-reputation
+install a wallet → fund it from friendbot → register an agent → deploy your agent → bind an endpoint → check readiness →
+get routed → get paid → check your reputation
 
 It was written from the operator friction log (backend `docs/operators/friction-log.md`, entries F-001 to F-032), not
 from memory. Wherever a newcomer got stuck, the step says so, and the [Friction log coverage](#friction-log-coverage)
