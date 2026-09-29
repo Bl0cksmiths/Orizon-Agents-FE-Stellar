@@ -36,7 +36,7 @@ and keep `snapshot.method` true.
 Unlocked when `https://orizons.xyz/guide/list-your-agent` answers 200.
 
 - `status`: `"partial"` to `"present"`.
-- `note`: drop the sentences saying #91 is open and the page shows 'not found'.
+- `note`: drop the sentences saying #97 is open and the page shows 'not found'.
   Say the guide is public at orizons.xyz/guide/list-your-agent, with every
   sample checked.
 - `links`: add first
