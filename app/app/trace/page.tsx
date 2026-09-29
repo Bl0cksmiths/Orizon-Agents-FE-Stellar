@@ -19,8 +19,10 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { getArtifact, openTraceStream } from "@/lib/api";
+import { getArtifact, getStellarNetwork, openTraceStream } from "@/lib/api";
 import { traceSettlementState } from "@/lib/settlement-state";
+import { formatSpent, relabelAmounts, traceSpend } from "@/lib/trace-amounts";
+import { useFetch } from "@/lib/use-fetch";
 import type { ArtifactResponse, TraceLine } from "@/lib/types";
 import { OnChainReceipts } from "./on-chain-receipts";
 import { focusRing } from "@/lib/ui";
@@ -47,7 +49,16 @@ const TAB_ORDER: Tab[] = ["trace", "artifact"];
 // Memoized row: every SSE tick appends a line — previously the whole list
 // re-rendered per tick. Line objects are stable references, so memo skips
 // all already-rendered rows.
-const TraceRow = memo(function TraceRow({ line }: { line: TraceLine }) {
+//
+// `asset` is the network's: the backend writes every amount as "… USDC" off a
+// field name, and the row shows it in the asset that actually moved.
+const TraceRow = memo(function TraceRow({
+  line,
+  asset,
+}: {
+  line: TraceLine;
+  asset: string | null | undefined;
+}) {
   return (
     <div className="flex gap-2 sm:gap-3">
       {/* Fixed gutters ate ~120px of the ~276px a 380px viewport leaves inside
@@ -66,7 +77,7 @@ const TraceRow = memo(function TraceRow({ line }: { line: TraceLine }) {
         {line.level}
       </span>
       <span className="flex-1 min-w-0 break-words text-text/90 leading-5">
-        {line.msg}
+        {relabelAmounts(line.msg, asset)}
       </span>
     </div>
   );
@@ -94,6 +105,13 @@ function TracePageInner() {
   // down and opens a fresh one — the manual counterpart to the automatic
   // reconnects and the polling fallback openTraceStream spends first.
   const [streamAttempt, setStreamAttempt] = useState(0);
+  // What every amount on this page is denominated in: the escrow SAC's
+  // asset, native XLM on testnet. Unknown until the read lands — or if it
+  // fails — and amounts then print with no unit rather than a guessed one.
+  const { data: network } = useFetch(getStellarNetwork, [], {
+    revalidateOnFocus: true,
+  });
+  const asset = network?.asset ?? null;
 
   const [demoCursor, setDemoCursor] = useState(0);
   const [demoPlaying, setDemoPlaying] = useState(true);
@@ -263,20 +281,13 @@ function TracePageInner() {
 
   // Only lines that report money that MOVED count as spent. A simulated
   // run's per-step payments say "(simulated)": summing them under "Spent"
-  // stated as paid a payment nobody made.
-  const isSimulated = (l: TraceLine) => /\(simulated\)/.test(l.msg);
-  const costLines = visible.filter((l) => l.level === "cost");
-  const simulatedOnly = costLines.length > 0 && costLines.every(isSimulated);
-  const spent = costLines
-    .filter((l) => !isSimulated(l))
-    .reduce((acc, l) => {
-      const m = l.msg.match(/([0-9]+\.[0-9]+)\s+USDC/);
-      return acc + (m ? parseFloat(m[1]) : 0);
-    }, 0);
+  // stated as paid a payment nobody made. The amounts are read off the
+  // backend's prose and shown in the network's asset (lib/trace-amounts).
+  const { spent, simulatedOnly } = traceSpend(visible);
 
   // A stream that failed — or that never delivered a line — tells us nothing
   // about what the run cost. The reduce over an empty list formats as
-  // "0.000 USDC", which reads as "this run was free": the exact lie that let
+  // "0.000 XLM", which reads as "this run was free": the exact lie that let
   // days of 404ing backend calls pass as healthy. Spend is only a fact when
   // there are lines to total AND the stream did not drop mid-run (a dropped
   // stream may have missed cost lines that were already charged).
@@ -336,7 +347,7 @@ function TracePageInner() {
       ) : simulatedOnly ? (
         "simulated · no funds moved"
       ) : (
-        `${spent.toFixed(3)} USDC`
+        formatSpent(spent, asset)
       ),
     ],
     [
@@ -391,7 +402,12 @@ function TracePageInner() {
 
       {/* Its own component so the dispute window's countdown re-renders the
           receipt alone, never this page and its trace log. */}
-      <DisputeSection taskId={taskId} workflowDone={done} demo={!taskId} />
+      <DisputeSection
+        taskId={taskId}
+        workflowDone={done}
+        demo={!taskId}
+        asset={asset}
+      />
 
       {artifact && (
         <div className="flex gap-2" role="tablist" aria-label="Trace views">
@@ -522,7 +538,7 @@ function TracePageInner() {
               className="font-mono text-xs p-4 sm:p-5 h-[540px] overflow-y-auto space-y-1.5 bg-[#060010]"
             >
               {visible.map((line, i) => (
-                <TraceRow key={i} line={line} />
+                <TraceRow key={i} line={line} asset={asset} />
               ))}
               {taskId && !done && !streamError && (
                 <div className="flex gap-2 sm:gap-3 animate-pulse">
