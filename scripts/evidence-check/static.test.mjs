@@ -180,7 +180,8 @@ describe("loadValidator", () => {
 
   it("loads the page's real validator from lib/evidence", async () => {
     const v = await loadValidator();
+    const lib = await import("../../lib/evidence/validate.mjs");
     assert.equal(v.source, "lib");
-    assert.equal(v.validateEvidenceIndex(INDEX).ok, true);
+    assert.equal(v.validateEvidenceIndex, lib.validateEvidenceIndex);
   });
 });
