@@ -1070,13 +1070,19 @@
       "target": "Yes",
       "achieved": "No",
       "status": "not_met",
-      "reason": "The /demo page answers HTTP 404: it has not been deployed yet.",
+      "reason": "The /demo page is live but says the video has not been published yet.",
       "method": "Opened the /demo page on the live dApp with no login and read the published marker the page renders (data-demo=\"published\") and the video's running time, which must be 3 to 5 minutes.",
       "links": [
         {
-          "label": "Frontend pull request #97 (open): the demo script and the /demo page",
+          "label": "Demo page",
+          "url": "https://orizons.xyz/demo",
+          "kind": "page"
+        },
+        {
+          "label": "Frontend pull request #97 (merged): the demo script and the /demo page",
           "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-          "kind": "pr"
+          "kind": "pr",
+          "date": "2026-09-29"
         }
       ]
     },
