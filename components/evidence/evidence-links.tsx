@@ -28,7 +28,8 @@ export function EvidenceLinkLine({ link }: { link: EvidenceLink }) {
         {link.label}
         {where.external && (
           <>
-            <span className="sr-only"> {where.hint}</span>
+            {" "}
+            <span className="sr-only">{where.hint}</span>
             <span aria-hidden="true" className="print:hidden">
               {" "}
               ↗
