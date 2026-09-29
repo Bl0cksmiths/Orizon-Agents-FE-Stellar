@@ -342,13 +342,19 @@
         {
           "id": "6.1-D4-b",
           "claim": "The public \"List your agent on Orizon\" integration guide.",
-          "status": "partial",
-          "note": "Partial. The guide is written, and every sample in it was checked, in frontend pull request #97. That pull request is open, so the public page (orizons.xyz/guide/list-your-agent) shows 'not found' today. It goes live when #97 merges to main and Vercel redeploys the site.",
+          "status": "present",
+          "note": "The guide is public at orizons.xyz/guide/list-your-agent, with every sample in it checked.",
           "links": [
             {
-              "label": "Frontend pull request #97 (open): the 'List your agent on Orizon' guide, with every sample checked",
+              "label": "The 'List your agent on Orizon' guide on orizons.xyz",
+              "url": "https://orizons.xyz/guide/list-your-agent",
+              "kind": "page"
+            },
+            {
+              "label": "Frontend pull request #97 (merged): the 'List your agent on Orizon' guide, with every sample checked",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-29"
             },
             {
               "label": "Reference outside agent on GitHub: a copyable example an operator can run (MIT licence)",
