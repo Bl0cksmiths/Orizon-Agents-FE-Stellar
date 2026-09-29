@@ -236,9 +236,10 @@ export function ExecutionPlan({
     }
   });
 
-  /** Real on-chain path: the wallet signs authorize, which moves the cap
-   *  into escrow; the backend then settles (pays delivered steps, returns the
-   *  rest) and seals. */
+  /** Real on-chain path: the wallet signs authorize — under escrow v2 that
+   *  moves the cap into escrow, under v1 it only records an allowance — and
+   *  the backend then settles (v2 pays delivered steps and returns the rest)
+   *  and seals. */
   const authorize = useAsyncAction(async (payer: string) => {
     setFriendlyError(null);
     setAuthorizeHash(null);
