@@ -17,9 +17,11 @@ get routed → get paid → check your reputation
 It was written from the operator friction log (backend `docs/operators/friction-log.md`, entries F-001 to F-032), not
 from memory. Wherever a newcomer got stuck, the step says so, and the [Friction log coverage](#friction-log-coverage)
 appendix maps every entry to the place that answers it. Story 1.07's own friction log for the first external
-registration (backend `docs/evidence/1.07-friction-log.md`) was never filled in: it is still the blank template. The
-registration friction here therefore comes from the UAT team's registration QA (story 6.01) and the 5.02 onboarding log,
-which carries those findings forward.
+registration was never filled in. The backend repository only ever held its blank template, added in commit
+[`7f77a13`](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/7f77a13fe3abc2375869b400e4b5c669fb058653/docs/evidence/1.07-friction-log.md)
+and removed from `main` since; every branch that still has the file has that same blank copy. The registration friction
+here therefore comes from the UAT team's registration QA (story 6.01) and the 5.02 onboarding log, which carries those
+findings forward.
 
 > **Note:** The fastest path is the reference agent (story 2.04):
 > <https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar>. It is one Python file that already verifies the
