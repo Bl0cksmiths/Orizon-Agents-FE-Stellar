@@ -438,10 +438,7 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
   // failed payment — the cap is in escrow — and a second Authorize would lock
   // up a second cap beside it.
   it("keeps a confirmed authorization confirmed when the run cannot start", async () => {
-    api.getStellarNetwork.mockResolvedValue({
-      ...TESTNET,
-      contracts: { payment_escrow: ESCROW_ID },
-    });
+    onEscrowV2();
     api.buildAuthorize.mockResolvedValue({
       xdr: "AAAA",
       expires_at: EXPIRES_AT,
@@ -480,10 +477,7 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
 
   /** Confirms an authorization, then has execute refuse with `refusal`. */
   async function refusedAfterConfirm(refusal: Error) {
-    api.getStellarNetwork.mockResolvedValue({
-      ...TESTNET,
-      contracts: { payment_escrow: ESCROW_ID },
-    });
+    onEscrowV2();
     api.buildAuthorize.mockResolvedValue({
       xdr: "AAAA",
       expires_at: EXPIRES_AT,

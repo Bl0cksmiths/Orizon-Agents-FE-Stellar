@@ -10,31 +10,59 @@
  * charged" either. The authorization took custody of the cap when it
  * confirmed, and it stays in escrow until the buyer reclaims it, so this
  * notice no longer says the authorization lapses on its own; the card shows
- * `EscrowHeldNotice` beside it with what a reclaim needs. It still hands the
- * buyer the one useful next step for the plan: a fresh one from the same
- * intent.
+ * `EscrowHeldNotice` beside it with what a reclaim needs. Under v1, which is
+ * what the deployment runs until a v2 escrow is pinned and reported, the
+ * authorization was only an allowance and does lapse, so it says that
+ * instead (`EscrowGeneration`). It still hands the buyer the one useful next
+ * step for the plan: a fresh one from the same intent.
  */
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { EscrowGeneration } from "@/lib/escrow-generation";
 
 /** Which run the backend refused: a simulated pass, or the on-chain path
  *  after the buyer signed. Only the second has an authorization to explain. */
 export type ExpiredRun = "simulate" | "authorize";
 
+/**
+ * What became of the authorization the buyer just signed, by the escrow it
+ * went to. v2 took custody, so the funds are held or were returned; v1 only
+ * recorded an allowance, so nothing moved; unknown says neither.
+ */
+function authorizationSentence(
+  generation: EscrowGeneration,
+  fundsReturned: boolean,
+): string | null {
+  switch (generation) {
+    case "v2":
+      return fundsReturned
+        ? "The platform returned the authorization you just signed from escrow to your wallet, as shown below."
+        : "The authorization you just signed is held in escrow until you reclaim it, as set out below.";
+    case "v1":
+      return "The authorization you just signed only recorded a spending allowance on the escrow: no funds moved, and it lapses on its own when it expires.";
+    case "unknown":
+      return null;
+  }
+}
+
 export function PlanExpiredNotice({
   run,
+  generation,
   onReplan,
   busy,
   fundsReturned = false,
 }: {
   run: ExpiredRun;
+  /** The escrow the authorization went to, which decides what became of it. */
+  generation: EscrowGeneration;
   /** The platform returned the authorization's custody in full. */
   fundsReturned?: boolean;
   /** Decomposes this plan's intent again, as the page's own submit does. */
   onReplan?: () => void;
   busy?: boolean;
 }): JSX.Element {
+  const signed = authorizationSentence(generation, fundsReturned);
   return (
     // `role="alert"`: this arrives unbidden after the buyer pressed a pay
     // control and their attention has moved on to the transaction — the case
@@ -58,10 +86,8 @@ export function PlanExpiredNotice({
           <p>
             Plans are kept for 15 minutes, and this one had expired by the time
             it was sent to run. <b className="text-text">No task was started</b>{" "}
-            and no agent was paid.{" "}
-            {fundsReturned
-              ? "The platform returned the authorization you just signed from escrow to your wallet, as shown below."
-              : "The authorization you just signed is held in escrow until you reclaim it, as set out below."}
+            and no agent was paid.
+            {signed !== null && ` ${signed}`}
           </p>
         ) : (
           <p>
