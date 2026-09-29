@@ -241,6 +241,84 @@
           ]
         }
       ]
+    },
+    {
+      "id": "D3",
+      "name": "Automated Dispute Window + Partial-Credit Refund",
+      "evidence_type": "tx hash · screen recording",
+      "sow_text": "A dispute tx hash and the corresponding partial-refund tx on Stellar Expert (testnet), plus a recording of the dispute UI on the trace/receipt view.",
+      "items": [
+        {
+          "id": "6.1-D3-a",
+          "claim": "A dispute transaction on Stellar Expert: the negative on-chain rating written when a buyer's dispute is upheld.",
+          "status": "missing",
+          "note": "Missing. No dispute has been raised on the live deployment. A buyer can dispute a step only after its payment settles, and no payment has settled during the sprint (see the disclosure on how payment works). All 28 ratings on the live ReputationLedger are ordinary ratings; none is a dispute. The dispute path is merged (the pull requests here). A test run on a separate drill ledger proved the mechanism, but it is not offered as evidence (see the notes).",
+          "links": [
+            {
+              "label": "ReputationLedger contract on Stellar Expert: 28 ratings so far, none of them a dispute",
+              "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
+              "kind": "contract"
+            },
+            {
+              "label": "Backend pull request #60: the 24-hour dispute window and the dispute endpoint (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/60",
+              "kind": "pr",
+              "date": "2026-09-21"
+            },
+            {
+              "label": "Backend pull request #63: an upheld dispute writes a negative on-chain rating (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/63",
+              "kind": "pr",
+              "date": "2026-09-21"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D3-b",
+          "claim": "The matching partial-refund transaction on Stellar Expert.",
+          "status": "missing",
+          "note": "Missing. No refund has been paid on the live deployment. There is nothing to refund yet, because no payment has settled, and refunds ship switched off until one does. A refund is a credit the platform sends from its own balance (see the disclosures). The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
+          "links": [
+            {
+              "label": "Backend pull request #62: the partial-credit refund, paid by the platform's settler key (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62",
+              "kind": "pr",
+              "date": "2026-09-21"
+            },
+            {
+              "label": "Backend pull request #75: safety checks on the whole dispute money path (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/75",
+              "kind": "pr",
+              "date": "2026-09-25"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D3-c",
+          "claim": "A recording of the dispute controls on the trace and receipt view.",
+          "status": "missing",
+          "note": "Missing. The Dispute button and the refund receipt are merged, but they appear only for a settled payment, and the live deployment has none, so no live recording can be made yet. The Week-3 bundle's dispute screenshots were taken on a local copy with test data. They show the design, not a live dispute, so they are not offered as evidence.",
+          "links": [
+            {
+              "label": "Frontend pull request #68: the Dispute button on the trace and receipt view (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/68",
+              "kind": "pr",
+              "date": "2026-09-21"
+            },
+            {
+              "label": "Frontend pull request #69: dispute status and the refund receipt (merged)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/69",
+              "kind": "pr",
+              "date": "2026-09-22"
+            },
+            {
+              "label": "Week-3 evidence bundle on GitHub: what shipped for disputes, and why the live evidence is outstanding",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/tree/main/Week-3-Tranche-Submission",
+              "kind": "doc"
+            }
+          ]
+        }
+      ]
     }
   ],
   "metrics": [],
