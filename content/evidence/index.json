@@ -1000,8 +1000,8 @@
       "method": "Opened the /guide/list-your-agent page on the live dApp with no login; published means it answers there.",
       "links": [
         {
-          "label": "Frontend pull request #91 (open): the 'List your agent on Orizon' guide",
-          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/91",
+          "label": "Frontend pull request #97 (open): the 'List your agent on Orizon' guide",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
           "kind": "pr"
         }
       ]
