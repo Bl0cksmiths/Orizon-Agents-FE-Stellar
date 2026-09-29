@@ -926,6 +926,8 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
 describe("ExecutionPlan · a wallet that cannot fund the escrow", () => {
   // Escrow v2 moves the whole cap out of the wallet at signing. A buyer
   // short of it is told so before the wallet is asked for anything.
+  beforeEach(() => onEscrowV2());
+
   it("refuses before building or signing, with a typed insufficient balance", async () => {
     wallet.xlmBalance = "0.5000000";
     const { container } = render(<ExecutionPlan plan={plan()} />);
@@ -981,6 +983,40 @@ describe("ExecutionPlan · a wallet that cannot fund the escrow", () => {
     await screen.findByText(/The authorization could not be prepared/);
     expect(container.textContent).toContain("nothing was signed or moved");
     expect(wallet.signXdr).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExecutionPlan · a short wallet under escrow v1", () => {
+  // v1 moves nothing at signing: the cap is an allowance, not a transfer, so
+  // a wallet short of it is not refused, and no refusal is read as custody.
+  beforeEach(() => onEscrowV1());
+
+  it("goes ahead without refusing a wallet short of the cap", async () => {
+    wallet.xlmBalance = "0.5000000";
+    api.buildAuthorize.mockReturnValue(new Promise(() => {}));
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await waitFor(() => expect(api.buildAuthorize).toHaveBeenCalledTimes(1));
+    expect(container.textContent).not.toContain(
+      "Not enough XLM to fund this authorization",
+    );
+  });
+
+  it("never says a failed build could not move the maximum into escrow", async () => {
+    api.buildAuthorize.mockRejectedValue(
+      Object.assign(
+        new Error("POST /stellar/build/authorize → 400 — build_failed"),
+        { status: 400, code: "build_failed" },
+      ),
+    );
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/build_failed/);
+    expect(container.textContent).not.toMatch(
+      /could not be prepared|into escrow|fund this authorization/,
+    );
   });
 });
 

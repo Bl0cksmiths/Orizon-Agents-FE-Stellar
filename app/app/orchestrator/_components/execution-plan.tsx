@@ -53,7 +53,7 @@ import {
 import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
-import type { FriendlyError } from "@/lib/wallet-errors";
+import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 import { isPlanExpired } from "./plan-errors";
@@ -249,13 +249,17 @@ export function ExecutionPlan({
     // cap out of the wallet at signing, so a wallet that cannot cover it plus
     // the fee and reserve would only be refused by the chain after the buyer
     // had been asked to sign. An unread balance is not a refusal: the chain's
-    // own answer is mapped below.
-    const funds = checkEscrowFunds({
-      balance: wallet.xlmBalance,
-      cap,
-      asset: network?.asset,
-    });
-    if (funds.kind === "short") {
+    // own answer is mapped below. Any other escrow moves nothing at signing,
+    // so a wallet short of the cap is no reason to refuse it.
+    const funds =
+      generation === "v2"
+        ? checkEscrowFunds({
+            balance: wallet.xlmBalance,
+            cap,
+            asset: network?.asset,
+          })
+        : null;
+    if (funds?.kind === "short") {
       setFriendlyError(insufficientEscrowFunds(funds));
       setTxState("failed");
       return;
@@ -344,7 +348,10 @@ export function ExecutionPlan({
         setStep("");
         return;
       }
-      const friendly = classifyAuthorizeError(e);
+      // The custody reading of a refusal ("could not move the maximum into
+      // escrow") is v2's; anything else gets the shared wallet wording.
+      const friendly =
+        generation === "v2" ? classifyAuthorizeError(e) : classifyError(e);
       setFriendlyError(friendly);
       setTxState("failed");
       setStep("");
