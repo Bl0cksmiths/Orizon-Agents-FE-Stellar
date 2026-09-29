@@ -263,7 +263,10 @@ function WalletLink({
       className={cn(inlineLink, "font-mono")}
     >
       {shortAddress(owner)}
-      <span className="sr-only"> — {owner}, on Stellar Expert</span>
+      <span className="sr-only">
+        {" "}
+        — {owner}, on Stellar Expert (opens in a new tab)
+      </span>
     </a>
   );
 }
@@ -457,7 +460,8 @@ function TxLink({
       title={hash}
       className={cn(inlineLink, "font-mono")}
     >
-      tx {hash.slice(0, 8)}…<span className="sr-only"> on Stellar Expert</span>
+      tx {hash.slice(0, 8)}…
+      <span className="sr-only"> on Stellar Expert (opens in a new tab)</span>
     </a>
   );
 }
