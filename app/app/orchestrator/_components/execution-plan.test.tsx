@@ -868,6 +868,33 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
     );
   });
 
+  /** Signs, then holds the broadcast open: the button names the stage. */
+  async function broadcasting() {
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockReturnValue(new Promise(() => {}));
+    render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    // Held before the click: the label is the name, and it changes.
+    const button = authorizeButton();
+    fireEvent.click(button);
+    await waitFor(() => expect(api.submitSigned).toHaveBeenCalledTimes(1));
+    return button.textContent;
+  }
+
+  it("names the broadcast as the move into escrow under v2", async () => {
+    onEscrowV2();
+    expect(await broadcasting()).toBe("◉ Moving funds to escrow…");
+  });
+
+  it("names the broadcast as a broadcast under v1, where nothing moves", async () => {
+    onEscrowV1();
+    expect(await broadcasting()).toBe("◉ Broadcasting…");
+  });
+
   it("signs exactly the cap it shows", async () => {
     const { container } = render(<ExecutionPlan plan={plan()} />);
     expect(await shownCap(container)).toBe("0.123 XLM");
