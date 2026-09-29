@@ -18,7 +18,7 @@ PAGEBREAK_DIV = '<div style="page-break-before: always; break-before: page; heig
 
 
 def main() -> None:
-    out, pandoc, tmp = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+    out, pandoc, tmp = Path(sys.argv[1]).resolve(), sys.argv[2], Path(sys.argv[3]).resolve()
     tmp.mkdir(parents=True, exist_ok=True)
     src = tmp / "litepaper-html-src.md"
     src.write_text((out / BOOK).read_text(encoding="utf-8").replace("<!-- pagebreak -->", PAGEBREAK_DIV), encoding="utf-8")
