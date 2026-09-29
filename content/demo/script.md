@@ -40,9 +40,9 @@ Narration is paced at about 150 words a minute, which is 2.5 words a second. Eac
 | S08       | 2:35  | 3:05 | 30 s      | D3          | buyer       | 64      | 128        |
 | S09       | 3:05  | 3:27 | 22 s      | D3          | both        | 52      | 142        |
 | S10       | 3:27  | 3:42 | 15 s      | D4          | both        | 35      | 140        |
-| S11       | 3:42  | 4:05 | 23 s      | limitations | both        | 53      | 138        |
+| S11       | 3:42  | 4:05 | 23 s      | limitations | both        | 56      | 146        |
 | S12       | 4:05  | 4:15 | 10 s      | D4          | both        | 24      | 144        |
-| **Total** |       |      | **255 s** |             |             | **568** | **134**    |
+| **Total** |       |      | **255 s** |             |             | **571** | **134**    |
 
 The word counts are of the narration text exactly as written in this file, and they are re-counted whenever the narration changes. If a scene overruns while recording, **trim its narration**, not another scene's.
 
@@ -210,7 +210,7 @@ The narration's "three runs" and "2.72" hold only for the price and run count re
 | On screen   | The guide's **Trust boundaries** section ("Orizon is not trustless on testnet. These are the places where you rely on the platform rather than on the chain."), with four plain text cards over it in post. Each card appears as its sentence is spoken: **1** "Testnet only · settles native test XLM; the marketing copy names USDC". **2** "The platform funds every dispute credit, and decides every dispute". **3** "Endpoint binding is off-chain". **4** "One platform key: settler, scorer and sealer". Behind card 1, cut briefly to the marketing hero at `https://orizons.xyz/`, whose `orizon.flow` panel prices each step in USDC ("(0.009 USDC)" … "5 agents · 0.166 USDC · 3.93s"), then to the operator's "settled revenue … XLM", so the mismatch is shown rather than only mentioned. No app screen this video visits shows USDC any more; only the marketing copy does. |
 | Evidence    | The guide, `Trust boundaries` and its **Limitation:** notes. `GET https://orizon-agents-be-stellar.onrender.com/api/stellar/network` reports `"asset": "native"`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-> Now the limits, plainly. This is testnet only, and it settles native test XLM while the marketing copy names USDC. The platform funds every dispute credit and decides every dispute. Endpoint binding is off-chain: the platform stores the URL you signed. And one platform key is the settler, the scorer and the sealer.
+> Now the limits, plainly. This is testnet only, and it settles native test XLM while the marketing copy names USDC. The platform funds every dispute credit and decides every dispute. Endpoint binding is off-chain: the platform stores the URL you signed. One platform signing key is the settler, scorer and sealer, and it pays dispute credits.
 
 These limitations are **not** narrated, for time, but go in the description: escrow v2 is a new contract id beside the four published in SOW §6.1; there is no on-chain arbitration and no appeal; a dispute rating sits beside the automatic rating for that step and does not replace it; the free Render backend cold-starts in 30–60 s; and the dispatch signer is a separate key from the settler.
 
