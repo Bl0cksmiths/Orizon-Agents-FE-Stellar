@@ -4,6 +4,10 @@ import { Card } from "@/components/ui/card";
 import { KVRow } from "@/components/ui/kv-row";
 import { SettlementBadge } from "@/components/ui/settlement-badge";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
+import {
+  V1_CANNOT_SETTLE,
+  type EscrowGeneration,
+} from "@/lib/escrow-generation";
 import type { SettlementState } from "@/lib/types";
 
 /**
@@ -21,8 +25,12 @@ export function OnChainReceipts({
   state,
   chargeTx,
   proofTx,
+  generation,
 }: {
   state: SettlementState | undefined;
+  /** The escrow the run settled through, which decides what a failed
+   *  settlement did with the buyer's money (`escrowGeneration`). */
+  generation: EscrowGeneration;
   chargeTx: string | null;
   proofTx: string | null;
 }) {
@@ -50,15 +58,36 @@ export function OnChainReceipts({
       <p role="status" className="max-w-2xl text-xs leading-relaxed text-muted">
         {state === undefined
           ? "The backend has not reported how this run settled, so no transaction is shown here as evidence of payment."
-          : `No transaction is shown here as evidence of payment: ${TRACE_SETTLEMENT_REASON[state]}`}
+          : `No transaction is shown here as evidence of payment: ${
+              state === "failed"
+                ? failedReason(generation)
+                : TRACE_SETTLEMENT_REASON[state]
+            }`}
       </p>
     </Card>
   );
 }
 
+/**
+ * Why a failed settlement has no receipts, by the escrow it went through:
+ * only v2 took custody, so only v2 is told funds may wait in escrow; v1
+ * charged nothing and cannot yet complete a payment (D-039).
+ */
+function failedReason(generation: EscrowGeneration): string {
+  const failed = "the settlement did not go through, so no agent was paid.";
+  switch (generation) {
+    case "v2":
+      return `${failed} Anything the authorization moved into escrow stays there until the platform releases it or the wallet that paid reclaims it after expiry.`;
+    case "v1":
+      return `${failed} ${V1_CANNOT_SETTLE}`;
+    case "unknown":
+      return failed;
+  }
+}
+
 /** Why a run that did not settle has no receipts, by its state. */
 const TRACE_SETTLEMENT_REASON: Record<
-  Exclude<SettlementState, "settled">,
+  Exclude<SettlementState, "settled" | "failed">,
   string
 > = {
   released:
@@ -66,8 +95,6 @@ const TRACE_SETTLEMENT_REASON: Record<
   skipped: "nothing was delivered, so nothing was charged.",
   unconfirmed:
     "the settlement was sent but is not confirmed on-chain, and it may still land.",
-  failed:
-    "the settlement did not go through, so no agent was paid. Anything the authorization moved into escrow stays there until the platform releases it or the wallet that paid reclaims it after expiry.",
 };
 
 function TxRow({ label, hash }: { label: string; hash: string }) {
