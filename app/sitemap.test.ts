@@ -22,14 +22,31 @@ describe("sitemap", () => {
     expect(entries.map((e) => e.url)).toEqual([
       "https://orizons.xyz",
       "https://orizons.xyz/guide",
+      "https://orizons.xyz/demo",
       "https://orizons.xyz/guide/list-your-agent",
     ]);
-    expect(entries[2].lastModified).toEqual(new Date("2026-09-29T00:00:00Z"));
+    expect(entries[3].lastModified).toEqual(new Date("2026-09-29T00:00:00Z"));
   });
 
   it("lists no guide pages when there are none", () => {
     vi.stubEnv("GUIDE_CONTENT_DIR", path.resolve(__dirname, "../no-such-dir"));
-    expect(sitemap().map((e) => e.url)).toEqual(["https://orizons.xyz"]);
+    expect(sitemap().map((e) => e.url)).toEqual([
+      "https://orizons.xyz",
+      "https://orizons.xyz/demo",
+    ]);
+  });
+
+  it("lists the demo undated until it is published, then dated by its video", () => {
+    const fixtures = path.resolve(__dirname, "../test/fixtures/demo");
+    vi.stubEnv("DEMO_CONTENT_DIR", path.join(fixtures, "unpublished"));
+    const before = sitemap().find((e) => e.url === "https://orizons.xyz/demo");
+    expect(before).toBeDefined();
+    expect(before!.lastModified).toBeUndefined();
+
+    vi.stubEnv("DEMO_CONTENT_DIR", path.join(fixtures, "published"));
+    vi.stubEnv("DEMO_PUBLIC_DIR", path.join(fixtures, "public"));
+    const after = sitemap().find((e) => e.url === "https://orizons.xyz/demo");
+    expect(after!.lastModified).toEqual(new Date("2026-10-02T00:00:00Z"));
   });
 });
 
