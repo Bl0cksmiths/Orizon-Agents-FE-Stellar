@@ -321,7 +321,8 @@ Every error from the protocol's contracts is enumerated in the shared `codes` mo
 sequenceDiagram
     autonumber
     participant Buyer as Buyer wallet
-    participant Setl as Protocol settler
+    participant Setl as Settler (v1: admin key)
+    participant Key as Backend key (sealer · scorer)
     participant PE as PaymentEscrow
     participant AR as AgentRegistry
     participant SAC as Native XLM SAC
@@ -331,27 +332,28 @@ sequenceDiagram
     Buyer->>PE: authorize(payer, agent_id, max_amount, expires_at)
     PE-->>Buyer: auth_id : BytesN<16>
 
-    loop For each step
-        Setl->>PE: charge(caller=settler, auth_id, amount, job_id)
-        PE->>PE: assert !revoked & not expired<br/>assert spent + amount ≤ max
-        PE->>AR: owner_of(agent_id)
-        AR-->>PE: agent_owner : Address
-        PE->>SAC: Token::transfer(payer → owner, amount)
-        SAC-->>PE: ok
-        PE->>PE: spent += amount<br/>store Receipt
-        PE-->>Setl: receipt_id : BytesN<16>
-    end
+    Note over Setl,PE: once per workflow, after the last step
+    Setl->>PE: charge(caller=settler, auth_id, total, job_id)
+    PE->>PE: assert !revoked & not expired<br/>assert spent + total ≤ max
+    PE->>AR: owner_of(agent_id)
+    AR-->>PE: agent_owner : Address
+    PE->>SAC: Token::transfer(payer → owner, total)
+    SAC-->>PE: ok (needs the payer's signature: fails on testnet)
+    PE->>PE: spent += total<br/>store Receipt
+    PE-->>Setl: receipt_id : BytesN<16>
 
-    Setl->>AT: seal(caller=settler, job_id, orchestrator,<br/>intent_hash, agents[], receipts[], total_spent)
+    Key->>AT: seal(caller=sealer, job_id, orchestrator,<br/>intent_hash, agents[], receipts[], total_spent)
     AT->>AT: assert !exists(job_id)<br/>store Attestation
-    AT-->>Setl: ok
+    AT-->>Key: ok
 
-    Setl->>RL: submit(caller=scorer, agent_id, rating, job_id)
-    RL->>RL: assert !Rated(agent_id, job_id)<br/>sum += rating, count += 1
-    RL-->>Setl: ok
+    loop For each dispatched step
+        Key->>RL: submit(caller=scorer, agent_id, job_id,<br/>rating_0_to_100, weight, payer, kind)
+        RL->>RL: assert !Rated(agent_id, job_id)<br/>decay, then sum_w += rating × 100 × weight<br/>weight += weight, count += 1
+        RL-->>Key: ok
+    end
 ```
 
-**Figure 5.** The x402 flow as the deployed v1 contracts are written, across the four contracts and the asset SAC. On testnet the `Token::transfer` step fails, because the buyer's signature is not in the charge transaction, so no charge has completed through the deployed escrow; escrow v2, merged but not deployed, takes custody at `authorize` and pays out in one `settle` (§6.8, §6.9).
+**Figure 5.** The x402 flow on the deployed v1 contracts as the backend drives it: one `charge` for the workflow's total, the seal once it confirms, and one rating per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`, `_submit_ratings`; SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`). On testnet the `Token::transfer` step fails, because the buyer's signature is not in the charge transaction, so no charge has completed and the seal is not reached; the ratings are written regardless. Escrow v2, merged but not deployed, takes custody at `authorize` and replaces the `charge` with one `settle` that pays each delivered step's owner and returns the rest (§6.8, §6.9).
 
 The contracts are non-upgradable. Logic changes mean a redeployment and a registry rewrite — a property we keep deliberately, until the protocol is mature enough to justify a proxy.
 
