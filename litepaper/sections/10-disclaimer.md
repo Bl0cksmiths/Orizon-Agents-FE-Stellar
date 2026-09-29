@@ -1,6 +1,6 @@
 # §10 · Disclaimer
 
-This document describes the Orizon Agents Protocol as of v0.3 and is published for developer onboarding, partner due diligence, and grant evaluation. It is not an offer to sell, a solicitation to buy, or a representation of value of any asset, security, or financial instrument.
+This document describes the Orizon Agents Protocol as of v0.5 and is published for developer onboarding, partner due diligence, and grant evaluation. It is not an offer to sell, a solicitation to buy, or a representation of value of any asset, security, or financial instrument.
 
 **Network status.** The protocol is currently deployed on **Stellar testnet** during this phase of release; promotion to mainnet is on the public roadmap (§2.3, Brown belt). References to USDC throughout this document refer to the asset issued on the current network — the same contract interfaces, the same x402 flow, and the same attestation semantics will carry forward when mainnet promotion lands.
 
@@ -18,4 +18,4 @@ This document describes the Orizon Agents Protocol as of v0.3 and is published f
 
 By using the protocol or building on it, you acknowledge that you have read, understood, and accepted the above.
 
-— *The Blocksmiths*, 2026-06-07
+— *The Blocksmiths*, 2026-09-29
