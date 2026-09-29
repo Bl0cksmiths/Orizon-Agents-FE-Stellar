@@ -51,7 +51,7 @@ Same check as D4-b.
 - `status`: `"not_met"` to `"met"`.
 - `reason`: delete it. It is optional on a met metric, and the current one says
   404.
-- `links`: add the same guide page link first. Keep #91, marked `(merged)`.
+- `links`: add the same guide page link first. Keep #97, marked `(merged)`.
 
 ### `6.1-D4-e`: the litepaper
 
