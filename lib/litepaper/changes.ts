@@ -30,7 +30,7 @@ export const LITEPAPER_CHANGES: readonly LitepaperChange[] = [
     where: "§6.7",
     title: "Reputation-gated routing and the cold start",
     kind: "new",
-    text: "The house orchestrator reads each candidate's reputation from chain, smooths it with a prior, and routes on a conservative lower bound against a floor of 5,500 basis points. An agent with no ratings scores 5,677, just above the floor, so a new operator is routable on its first request, and a few poor ratings take it below.",
+    text: "The house orchestrator reads each candidate's reputation from chain, smooths it with a prior, and routes on a conservative lower bound against a floor of 5,500 basis points. An agent with no ratings scores the 7,000 prior, whose lower bound is 5,677, just above the floor, so a new operator is routable on its first request, and a few poor ratings take it below.",
   },
   {
     where: "§6.8",
