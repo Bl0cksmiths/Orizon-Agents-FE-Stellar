@@ -338,6 +338,46 @@ export function unverifiedSentence(a: EcosystemAdoption): string | null {
   return `${who}. Whatever they would add is missing from the figures below until they can be read again — a gap, not a zero.`;
 }
 
+/** The window in days, as sent: "7 days", "1 day", "6.5 days". Up to two
+ * decimals, so a fractional window is not rounded into a whole one. */
+function windowSpan(days: number): string {
+  const n = days.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return `${n} ${n === "1" ? "day" : "days"}`;
+}
+
+/** The settled window the backend sent, or null when it sent none — never a
+ * default, since a guessed window would be a claim the payload did not make. */
+function settledWindow(a: Pick<EcosystemAdoption, "window_days">) {
+  const d = a.window_days;
+  return typeof d === "number" && Number.isFinite(d) && d > 0 ? d : null;
+}
+
+/**
+ * Why a settled-workflow count can fall: the settlement service reads only a
+ * recent window of ledger history, so a workflow settled before it drops out
+ * of the count — and a met target could read as missed a week later with
+ * nothing having gone wrong. Null when the backend does not say how long the
+ * window is; the page then adds nothing rather than a number of its own.
+ */
+export function settledWindowSentence(
+  a: Pick<EcosystemAdoption, "window_days">,
+): string | null {
+  const d = settledWindow(a);
+  if (d === null) return null;
+  return `Settled workflows counted over the last ${windowSpan(d)} of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.`;
+}
+
+/** An agent with nothing settled. Under a window that is "none in the last N
+ * days", not "none yet": it may have settled before the window began. */
+export function noSettledSentence(
+  a: Pick<EcosystemAdoption, "window_days">,
+): string {
+  const d = settledWindow(a);
+  return d === null
+    ? "No settled workflows yet."
+    : `No settled workflows in the last ${windowSpan(d)}.`;
+}
+
 /** `GABC…WXYZ`. The full address always goes alongside, for screen readers
  * and for copying. */
 export function shortAddress(g: string): string {
