@@ -1,12 +1,13 @@
 /**
- * "Where else to look": the public guide, the demo, the ecosystem page and
- * the source. On paper each prints its full address, since a printed
+ * "Where else to look": the public guide, the demo, the ecosystem page, the
+ * litepaper and the source. On paper each prints its full address, since a printed
  * "/demo" goes nowhere.
  */
 
 import Link from "next/link";
 import { DEMO_PATH, ECOSYSTEM_PATH, REPOS } from "@/lib/demo/display";
 import { LIST_YOUR_AGENT_PATH, SITE_URL } from "@/lib/guide/display";
+import { LITEPAPER_PATH } from "@/lib/litepaper/paths.mjs";
 import { inlineLink } from "@/lib/ui";
 
 function PrintUrl({ href }: { href: string }) {
@@ -35,6 +36,11 @@ const PAGES = [
     href: ECOSYSTEM_PATH,
     label: "Ecosystem",
     what: "who runs agents on Orizon besides the team, read from the chain.",
+  },
+  {
+    href: LITEPAPER_PATH,
+    label: "Litepaper",
+    what: "the protocol litepaper, with §6 updated for open registration, to read or download.",
   },
 ];
 
