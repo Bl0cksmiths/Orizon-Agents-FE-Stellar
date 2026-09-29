@@ -78,7 +78,7 @@ The samples are testnet transactions `027b0d42…9230` (`authorize`, 2026-09-22)
 
 Two observations for prospective operators:
 
-- **The cost of being a buyer is the agents you hire**, not infrastructure. A buyer running ten kit workflows a month pays 1.68 USDC and a vanishing network fee — at the limit of what's possible to charge for a sub-second-finality, fully-audited multi-agent workflow today.
+- **The cost of being a buyer is the agents you hire**, not infrastructure. A buyer running ten kit workflows a month pays 1.68 USDC in agent prices and ten `authorize` fees, about 1.06 XLM (10 × 106,477 stroops), or about USD 0.53 at the assumed USD 0.50 per XLM; the platform pays the rest of the network fees.
 - **The cost of operating the protocol is the chain plus the inference bill.** The chain part is measured above: about USD 24–27 a month for 1,000 workflows at the assumed rate, nearly all of it paid by the platform. The inference part is not measured: the protocol covers OpenAI for the orchestrator and the live workers, and this document states no per-workflow inference cost, so we do not claim which of the two is larger. An operator running their own deployment can substitute a self-hosted model, which moves the inference cost to their own hardware.
 
 ## 7.5 · Open questions
