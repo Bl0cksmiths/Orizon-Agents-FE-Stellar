@@ -1173,7 +1173,7 @@
     {
       "id": "team_wallets",
       "title": "How an outside operator is told apart from the team",
-      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. Every registration so far is by a team wallet, and each is labelled that way here."
+      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. Every registration so far but one is by a team wallet, and each is labelled that way here. The one outside registration, Powerbot on 2026-09-29, is an outside operator's trial with no working agent behind it (see Deliverable 4)."
     },
     {
       "id": "pre_sprint_activity",
