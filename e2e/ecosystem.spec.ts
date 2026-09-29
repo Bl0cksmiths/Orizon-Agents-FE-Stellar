@@ -26,6 +26,8 @@ import {
 } from "./mocks";
 
 const PHONE = { width: 360, height: 780 };
+const WINDOW =
+  "Settled workflows counted over the last 7 days of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.";
 const OWNED = mockAgents.filter((a) => a.owner === mockWalletAddress);
 
 async function pageOverflow(page: Page): Promise<number> {
@@ -60,6 +62,8 @@ test.describe("ecosystem page", () => {
       target(page, "Workflows routed to external agents and settled"),
     ).toContainText("Not met: 0 of 3, short by 3.");
     await expect(page.locator("progress, [role=progressbar]")).toHaveCount(0);
+    // This fixture is a backend that sends no window: nothing is guessed.
+    await expect(page.locator("main")).not.toContainText("ledger history");
 
     await expect(
       page.getByRole("heading", { name: "No external operators yet" }),
@@ -93,6 +97,20 @@ test.describe("ecosystem page", () => {
     await expect(target(page, "Externally operated agents")).toContainText(
       "Met: 2 of 2.",
     );
+    // The settled count covers a ledger window, and says so where it is
+    // counted and where each agent's settlements are listed.
+    await expect(
+      target(page, "Workflows routed to external agents and settled"),
+    ).toContainText(WINDOW);
+    await expect(target(page, "Externally operated agents")).not.toContainText(
+      "ledger history",
+    );
+    await expect(page.getByText(WINDOW, { exact: true })).toHaveCount(3);
+    await expect(
+      page.getByText("No settled workflows in the last 7 days.", {
+        exact: true,
+      }),
+    ).toBeVisible();
 
     const table = page.getByRole("table", {
       name: "Settled workflows for ext.translate_long_identifier_v2",
