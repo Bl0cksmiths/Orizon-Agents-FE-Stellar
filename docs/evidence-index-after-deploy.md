@@ -83,7 +83,7 @@ Unlocked when `https://orizons.xyz/litepaper` answers 200.
 Unlocked **in part** when `https://orizons.xyz/demo` answers 200. The item stays
 `"missing"` until the video itself is published.
 
-- `note`: replace "in frontend pull request #92, which is open and not
+- `note`: replace "in frontend pull request #97, which is open and not
   deployed, so orizons.xyz/demo shows 'not found' until it merges" with the page
   being live and still waiting for the video.
 - `links`: add
