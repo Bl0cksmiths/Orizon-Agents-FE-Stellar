@@ -793,7 +793,7 @@
       "target": "≥ 3",
       "achieved": "0",
       "status": "not_met",
-      "reason": "1 agent run by outside operators is registered, but no workflow paid to one has settled since the sprint began on 2026-09-07.",
+      "reason": "6 agents owned by outside operators are registered, but none is bound to a working endpoint, and no workflow paid to one has settled since the sprint began on 2026-09-07.",
       "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract. A workflow counts when at least one of its counted charges paid an agent run by an outside operator; several charges of one job are one workflow.",
       "links": [
         {
