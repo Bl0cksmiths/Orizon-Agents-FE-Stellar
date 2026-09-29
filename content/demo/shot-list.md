@@ -269,6 +269,9 @@ cold-starts in 30-60 s.
 Verify it yourself
 Guide:     https://orizons.xyz/guide/list-your-agent
 Ecosystem: https://orizons.xyz/app/ecosystem
+Evidence:  https://orizons.xyz/evidence
+Demo:      https://orizons.xyz/demo
+Litepaper: https://orizons.xyz/litepaper
 Code (MIT):
   https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar
   https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar
