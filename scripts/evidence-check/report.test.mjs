@@ -122,15 +122,11 @@ describe("report shapes", () => {
     );
   });
 
-  it("Markdown names the stub validator and a refusal", () => {
+  it("Markdown names the page's validator and a refusal", () => {
     const report = sample();
-    report.validator.source = "stub";
     report.refused = "refusing to run: Horizon serves mainnet";
     const md = toMarkdown(report);
-    assert.match(
-      md,
-      /LOCAL STUB: lib\/evidence\/validate\.mjs is not on this branch/,
-    );
+    assert.match(md, /\(lib\/evidence\/validate\.mjs\)/);
     assert.match(md, /\*\*Run refused:\*\* refusing to run/);
   });
 });
