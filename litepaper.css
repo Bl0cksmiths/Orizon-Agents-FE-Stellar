@@ -1,0 +1,231 @@
+/* The Orizon Agents Protocol Litepaper — print/PDF stylesheet */
+
+@page {
+  size: Letter;
+  margin: 0.85in 0.85in 0.95in 0.85in;
+}
+
+:root {
+  --ink: #14131A;
+  --ink-soft: #4A4757;
+  --muted: #7C7A8B;
+  --accent: #5A2EFF;
+  --rule: #D8D6E1;
+  --code-bg: #F4F2F8;
+  --code-border: #E1DEEB;
+  --table-bg: #FAFAFD;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: var(--ink);
+  font-family: "Inter", "Helvetica Neue", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 13pt;
+  line-height: 1.6;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Headings ---------------------------------------------------------------- */
+
+h1, h2, h3, h4 {
+  font-family: "Inter", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.012em;
+  page-break-after: avoid;
+  break-after: avoid-page;
+}
+
+h1 {
+  font-size: 26pt;
+  margin: 0 0 0.45em 0;
+  padding-bottom: 0.4em;
+  border-bottom: 2px solid var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.18;
+}
+
+h1:first-of-type {
+  font-size: 32pt;
+  text-align: center;
+  border: none;
+  padding-bottom: 0;
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+}
+
+h2 {
+  font-size: 17pt;
+  margin: 1.4em 0 0.5em 0;
+  letter-spacing: -0.015em;
+  line-height: 1.24;
+}
+
+h3 {
+  font-size: 13.5pt;
+  margin: 1.2em 0 0.4em 0;
+  color: var(--ink);
+}
+
+h4 {
+  font-size: 12pt;
+  margin: 1em 0 0.35em 0;
+  color: var(--ink-soft);
+}
+
+/* Body text --------------------------------------------------------------- */
+
+p {
+  margin: 0 0 0.85em 0;
+  text-align: left;
+  hyphens: auto;
+}
+
+strong { font-weight: 700; color: var(--ink); }
+em     { font-style: italic; color: var(--ink); }
+
+blockquote {
+  margin: 1.2em 0;
+  padding: 0.3em 1.2em;
+  border-left: 3px solid var(--accent);
+  color: var(--ink-soft);
+  font-style: italic;
+  background: linear-gradient(to right, rgba(90,46,255,0.045), rgba(0,0,0,0));
+}
+
+blockquote p:last-child { margin-bottom: 0; }
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  word-break: break-word;
+}
+a:hover, a:focus { text-decoration: underline; }
+
+hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: 2em 0;
+}
+
+/* Lists ------------------------------------------------------------------- */
+
+ul, ol {
+  margin: 0 0 0.9em 0;
+  padding-left: 1.4em;
+}
+
+li { margin: 0.15em 0 0.3em 0; }
+li > p:first-child { margin-top: 0; }
+
+/* Code -------------------------------------------------------------------- */
+
+code, pre, kbd, samp {
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 9.8pt;
+}
+
+p code, li code, td code, h2 code, h3 code, h4 code {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 3px;
+  padding: 0.05em 0.4em;
+  font-size: 9.4pt;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 1em 0 1.2em 0;
+  overflow-x: auto;
+  line-height: 1.45;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 9.6pt;
+}
+
+/* Tables ------------------------------------------------------------------ */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0 1.4em 0;
+  font-size: 10.2pt;
+  page-break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid var(--rule);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--table-bg);
+  font-weight: 700;
+  color: var(--ink);
+  border-bottom: 2px solid var(--ink);
+}
+
+tr:nth-child(even) td { background: rgba(0, 0, 0, 0.012); }
+
+/* Page breaks ------------------------------------------------------------- */
+
+.pagebreak {
+  page-break-before: always;
+  break-before: page;
+  height: 0;
+}
+
+/* Cover page polish ------------------------------------------------------- */
+
+body > h1:first-child + blockquote {
+  text-align: center;
+  border-left: none;
+  background: none;
+  font-style: normal;
+  font-size: 13pt;
+  color: var(--ink-soft);
+  margin: 0.5em auto 2em auto;
+  max-width: 520px;
+}
+
+/* Print rules ------------------------------------------------------------- */
+
+@media print {
+  body {
+    padding: 0;
+    max-width: none;
+  }
+  a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+  a[href^="http"]::after {
+    content: " " attr(href);
+    font-size: 8.5pt;
+    color: var(--muted);
+    word-break: break-all;
+  }
+  pre, table, blockquote, h1, h2, h3 {
+    page-break-inside: avoid;
+  }
+}

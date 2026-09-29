@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  body { padding: 24px; font-family: "Inter", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; }
+  .mermaid { display: inline-block; min-width: 1200px; }
+  .mermaid svg { max-width: none !important; }
+</style>
+</head><body>
+<div class="mermaid">
+flowchart TB
+    subgraph FE["Frontend — Next.js 14"]
+        FERoute["/app/orchestrator · /app/trace<br/>/app/wallet · /app/events"]
+        FEKit["StellarWalletsKit adapter<br/>Freighter · xBull · Albedo<br/>LOBSTR · Hana · Hot Wallet"]
+        FEArt["Artifact viewer<br/>(sandboxed iframe)"]
+    end
+
+    subgraph BE["Backend — FastAPI + Agno + OpenAI"]
+        BEOrch["orchestrator_svc<br/>(decompose · kit detect)"]
+        BEExec["execution_svc<br/>(_run · trace_bus)"]
+        BEWork["12 workers<br/>(8 real · 4 mock)"]
+        BEStel["stellar router<br/>(build · submit · sign)"]
+    end
+
+    subgraph SC["Soroban contracts — Stellar testnet"]
+        SCAR["AgentRegistry"]
+        SCPE["PaymentEscrow (x402)"]
+        SCAT["AttestationRegistry"]
+        SCRL["ReputationLedger"]
+        SCAS["Native XLM SAC"]
+    end
+
+    FE -- "REST · SSE" --> BE
+    FE -- "user-signed XDR" --> SC
+    BE -- "JSON-RPC · server-signed XDR" --> SC
+
+    classDef layer fill:#F4F2F8,stroke:#5A2EFF,stroke-width:1px,color:#14131A
+    classDef box fill:#FFFFFF,stroke:#7C7A8B,stroke-width:1px,color:#14131A
+    class FE,BE,SC layer
+    class FERoute,FEKit,FEArt,BEOrch,BEExec,BEWork,BEStel,SCAR,SCPE,SCAT,SCRL,SCAS box
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#FFFFFF',
+      primaryTextColor: '#14131A',
+      primaryBorderColor: '#5A2EFF',
+      lineColor: '#4A4757',
+      secondaryColor: '#F4F2F8',
+      tertiaryColor: '#FFFFFF',
+      fontFamily: 'Inter, Helvetica Neue, Segoe UI, system-ui, sans-serif',
+      fontSize: '20px'
+    },
+    flowchart: { curve: 'basis', htmlLabels: true, padding: 24, nodeSpacing: 60, rankSpacing: 70 },
+    sequence: { actorMargin: 80, boxMargin: 16, messageMargin: 42, mirrorActors: false, wrap: false }
+  });
+</script>
+</body></html>

@@ -1,0 +1,39 @@
+<!-- Mermaid runtime — converts pandoc's <pre><code class="language-mermaid"> blocks
+     to <div class="mermaid"> and renders them as SVG. Uses CDN; works offline if cached. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  (function () {
+    var selectors = [
+      'pre.mermaid > code',
+      'pre > code.language-mermaid',
+      'pre > code.mermaid'
+    ];
+    var nodes = document.querySelectorAll(selectors.join(','));
+    nodes.forEach(function (code) {
+      var pre = code.closest('pre');
+      var div = document.createElement('div');
+      div.className = 'mermaid';
+      div.textContent = code.textContent.replace(/\n+$/, '');
+      pre.replaceWith(div);
+    });
+    if (window.mermaid) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        themeVariables: {
+          primaryColor: '#FFFFFF',
+          primaryTextColor: '#14131A',
+          primaryBorderColor: '#5A2EFF',
+          lineColor: '#4A4757',
+          fontFamily: 'Inter, Helvetica Neue, Segoe UI, system-ui, sans-serif',
+          fontSize: '14px'
+        },
+        flowchart: { curve: 'basis', htmlLabels: true, padding: 14 },
+        sequence: { actorMargin: 50, boxMargin: 10, messageMargin: 30, mirrorActors: false }
+      });
+      mermaid.run({ querySelector: '.mermaid' }).then(function () {
+        document.body.setAttribute('data-mermaid-ready', 'true');
+      });
+    }
+  })();
+</script>
