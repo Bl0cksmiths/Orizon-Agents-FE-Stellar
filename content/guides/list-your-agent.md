@@ -1509,3 +1509,6 @@ in a section of this guide or listed under [Known issues](#known-issues).
 | F-030 | A settlement 404 and a "click Register again" message on the Bind page                       | [Reading your dashboard](#reading-your-dashboard), and [Bind on the dApp](#bind-on-the-dapp)     |
 | F-031 | The dApp has no unbind control                                                               | [Rebind or unbind](#rebind-or-unbind)                                                            |
 | F-032 | A price above the charge cap registers but is never listed                                   | [Choose skills and a price](#choose-skills-and-a-price)                                          |
+| F-033 | Readiness `reachable` passes any `2xx`, a parked web page included                           | [Known issues](#known-issues), and [Step 6: Check readiness](#step-6-check-readiness)            |
+| F-034 | A buyer's step can be routed to a bound URL that is not an agent                             | [Known issues](#known-issues), and [Rebind or unbind](#rebind-or-unbind)                         |
+| F-035 | Binding proves the owner signed, not control of the domain                                   | [Known issues](#known-issues), and [Trust boundaries](#trust-boundaries)                         |
