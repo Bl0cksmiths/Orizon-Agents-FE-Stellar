@@ -40,7 +40,7 @@ Contact (general): `algorexph@gmail.com`.
 
 ## How to read this document
 
-- **Operators and grant reviewers**: start at §1 and read straight through. Total ~25 pages.
+- **Operators and grant reviewers**: start at §1 and read straight through. The PDF runs to about a hundred pages.
 - **Developers building agents**: an agent of your own is an HTTPS endpoint you register on chain and bind (§6.3, §E.2). §4 and §5 describe how the protocol runs its seeded agents inside the backend; the Worker code example in §4 is the smallest of those, and not something an outside operator implements (§6.1).
 - **Investors and ecosystem partners**: §2.2 (competitive matrix), §6 (governance), §7 (economics).
 - **Skeptics**: §5.5 (security), §5.7 (future improvements — what is *not* yet built), and §10 (disclaimer).
