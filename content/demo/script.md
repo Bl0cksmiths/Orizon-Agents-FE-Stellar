@@ -428,8 +428,8 @@ What is live was checked on **2026-09-29** against `https://orizon-agents-be-ste
 
 Every UI string, route and behaviour in this script was read from these, and none was written from memory:
 
-- **Frontend** `feat/5.03-integration` at `e19846e`:
-  - `app/app/register/page.tsx`, `app/app/bind/page.tsx` and `lib/binding-status.ts` (register, bind);
+- **Frontend** `feat/5.06-integration` (pull request #95, the top of the #92 to #95 stack) at `f2afa51`:
+  - `app/app/register/page.tsx`, `lib/register-validation.ts`, `app/app/bind/page.tsx` and `lib/binding-status.ts` (register, bind);
   - `app/app/agents/*` and `components/agents/*` (the marketplace);
   - `app/app/operator/*` (My Agents: checklist, routing standing, settlement panel);
   - `app/app/orchestrator/page.tsx` and `_components/{execution-plan,floor-summary,exclusions-panel,floor-notices,degraded-banner,planner-fallback-notice}.tsx` (the plan card);
