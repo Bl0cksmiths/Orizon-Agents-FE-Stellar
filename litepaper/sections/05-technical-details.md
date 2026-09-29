@@ -217,7 +217,7 @@ The **contracts** are four lean Rust Soroban modules.
 | `AgentRegistry` | `CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ` | 7.2 KB | Identity, skills, price catalog; resolves agent owner for payout |
 | `PaymentEscrow` | `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI` | 9.8 KB | x402 authorize → charge → receipt flow; calls registry + SAC |
 | `AttestationRegistry` | `CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK` | 5.1 KB | Write-once workflow receipt under a job id |
-| `ReputationLedger` | `CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV` | 5.1 KB | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
+| `ReputationLedger` | `CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT` | 5.1 KB | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
 | Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | n/a | Settlement asset |
 
 The contracts share a small types crate (`contract/shared`) exporting `Agent`, `Authorization`, `Receipt`, `Attestation`, and `Score`. Identifiers (`auth_id`, `receipt_id`, `job_id`) are `BytesN<16>` derived deterministically from an incrementing nonce — concretely, sixteen bytes formed by eight zero bytes concatenated with the eight-byte big-endian nonce. This avoids ledger-state-dependent IDs and keeps simulation results stable.
