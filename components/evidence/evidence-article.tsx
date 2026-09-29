@@ -22,7 +22,7 @@ export function EvidenceArticle({ index }: { index: EvidenceIndex }) {
   return (
     <article
       data-evidence-page
-      className="mx-auto max-w-4xl space-y-16 px-4 pb-24 pt-28 sm:px-6 print:max-w-none print:space-y-10 print:px-0 print:pb-0 print:pt-0"
+      className="mx-auto max-w-5xl space-y-16 px-4 pb-24 pt-28 sm:px-6 print:max-w-none print:space-y-10 print:px-0 print:pb-0 print:pt-0"
     >
       <EvidenceHeader index={index} />
       <ChecklistSummary deliverables={index.deliverables} />
