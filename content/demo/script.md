@@ -229,7 +229,7 @@ These limitations are **not** narrated, for time, but go in the description: esc
 
 ## The exclusion moment, in detail
 
-S05 is the single clearest proof that D2 is real, and it is the one thing a reviewer cannot infer from the rest. So it is specified against how the plan card actually renders it on the frontend to be deployed (merged `main` with #97, read on `feat/5.06-integration` at `f2afa51`): `app/app/orchestrator/_components/exclusions-panel.tsx`, `floor-summary.tsx`, `execution-plan.tsx` and `floor-notices.ts`.
+S05 is the single clearest proof that D2 is real, and it is the one thing a reviewer cannot infer from the rest. So it is specified against how the plan card actually renders it on the frontend deployed on 2026-09-29 (`main` with #97, read on `feat/5.06-integration` at `f2afa51`): `app/app/orchestrator/_components/exclusions-panel.tsx`, `floor-summary.tsx`, `execution-plan.tsx` and `floor-notices.ts`.
 
 ### Why the faulty agent appears on this buyer's plan at all
 
