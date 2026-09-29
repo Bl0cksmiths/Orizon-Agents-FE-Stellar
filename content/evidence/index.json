@@ -333,8 +333,8 @@
           "note": "Missing. The video has not been recorded. Its script and the public /demo page that will host it are in frontend pull request #97, which is open and not deployed, so orizons.xyz/demo shows 'not found' until it merges. The video needs a real outside registration and settled payments to show, so it waits for those. The one-minute video in the frontend README predates the sprint and is not this video.",
           "links": [
             {
-              "label": "Frontend pull request #92 (open): the demo script and the /demo page that will host the video",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/92",
+              "label": "Frontend pull request #97 (open): the demo script and the /demo page that will host the video",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
               "kind": "pr"
             }
           ]
