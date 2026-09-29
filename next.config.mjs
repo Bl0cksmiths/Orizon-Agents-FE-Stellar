@@ -6,6 +6,11 @@ import { resolveApiBase } from "./lib/api-base.mjs";
 // to the production backend so the proxy can never point at localhost.
 const API_BASE = resolveApiBase(process.env);
 
+// Conservative CSP: hardens plugin/base/framing/form vectors only (see the
+// header below for why there is no default-src or script-src).
+const BASE_CSP =
+  "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
@@ -43,12 +48,27 @@ const nextConfig = {
             // a nonce-based CSP would force dynamic rendering and break the
             // artifact preview iframe. Deferred intentionally.
             key: "Content-Security-Policy",
-            value:
-              "object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+            value: BASE_CSP,
           },
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+      {
+        // The demo page may frame YouTube's privacy-enhanced embed and
+        // nothing else. Scoped to /demo: site-wide, a frame-src would also
+        // bind the console's own frames (the artifact preview, the wallet
+        // kit), which this change has no business restricting. Next applies
+        // the last matching header of a given key, so on /demo this replaces
+        // the site-wide policy above; it repeats every directive of that
+        // policy and adds frame-src.
+        source: "/demo",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: `${BASE_CSP}; frame-src https://www.youtube-nocookie.com`,
           },
         ],
       },
