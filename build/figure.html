@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  body { padding: 24px; font-family: "Inter", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; }
+  .mermaid { display: inline-block; min-width: 1200px; }
+  .mermaid svg { max-width: none !important; }
+</style>
+</head><body>
+<div class="mermaid">
+{{MERMAID}}
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#FFFFFF',
+      primaryTextColor: '#14131A',
+      primaryBorderColor: '#5A2EFF',
+      lineColor: '#4A4757',
+      secondaryColor: '#F4F2F8',
+      tertiaryColor: '#FFFFFF',
+      fontFamily: 'Inter, Helvetica Neue, Segoe UI, system-ui, sans-serif',
+      fontSize: '20px'
+    },
+    flowchart: { curve: 'basis', htmlLabels: true, padding: 24, nodeSpacing: 60, rankSpacing: 70 },
+    sequence: { actorMargin: 80, boxMargin: 16, messageMargin: 42, mirrorActors: false, wrap: false }
+  });
+</script>
+</body></html>
