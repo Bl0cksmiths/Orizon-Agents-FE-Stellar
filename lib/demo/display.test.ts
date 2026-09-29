@@ -68,10 +68,10 @@ describe("links", () => {
       "https://www.youtube.com/watch?v=abcDEF12_-x&t=75s",
     );
     expect(youtubeEmbedUrl("abcDEF12_-x")).toBe(
-      "https://www.youtube-nocookie.com/embed/abcDEF12_-x?autoplay=1&rel=0",
+      "https://www.youtube-nocookie.com/embed/abcDEF12_-x?autoplay=1&rel=0&cc_load_policy=1",
     );
     expect(youtubeEmbedUrl("abcDEF12_-x", 75)).toBe(
-      "https://www.youtube-nocookie.com/embed/abcDEF12_-x?autoplay=1&rel=0&start=75",
+      "https://www.youtube-nocookie.com/embed/abcDEF12_-x?autoplay=1&rel=0&cc_load_policy=1&start=75",
     );
     expect(youtubePosterUrl("abcDEF12_-x")).toBe(
       "https://i.ytimg.com/vi/abcDEF12_-x/hqdefault.jpg",

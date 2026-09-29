@@ -111,9 +111,15 @@ export function youtubeWatchUrl(id: string, start = 0): string {
 /**
  * The privacy-enhanced embed, which sets no cookie until the viewer plays.
  * It is loaded only by a click, so autoplay is what the viewer asked for.
+ * Captions are asked for up front (`cc_load_policy=1`), so a viewer who
+ * needs them does not have to find the CC button first.
  */
 export function youtubeEmbedUrl(id: string, start = 0): string {
-  const params = new URLSearchParams({ autoplay: "1", rel: "0" });
+  const params = new URLSearchParams({
+    autoplay: "1",
+    rel: "0",
+    cc_load_policy: "1",
+  });
   if (start > 0) params.set("start", String(start));
   return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?${params}`;
 }
