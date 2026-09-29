@@ -75,7 +75,7 @@ We chose not to give the admin slot the power to *delete* an agent or *invalidat
 
 ## 6.5 · Emergency pause
 
-The shipped contracts do not include an emergency pause switch. Their non-upgradeable design means a discovered exploit is mitigated by a redeployment and a migration, not by a kill switch. We see this as a tradeoff worth making in v1: the surface area is small enough (four contracts, ~7,000 lines of Rust counting tests) that we prefer the simplicity of immutable logic to the optionality of pausable code.
+The shipped contracts do not include an emergency pause switch. Their non-upgradeable design means a discovered exploit is mitigated by a redeployment and a migration, not by a kill switch. We see this as a tradeoff worth making in v1: the surface area is small enough (four contracts and a shared crate: 1,567 lines of Rust counting tests in the deployed set at SC@88aa554, and 2,669 at SC@dd2d642 with escrow v2; `contract/*/src/*.rs`) that we prefer the simplicity of immutable logic to the optionality of pausable code.
 
 In v0.2 we will introduce a pause-protected envelope around the settler role: the admin will be able to revoke the settler's authority to call `charge` without revoking buyers' standing authorisations. The effect is the same as a pause for fresh workflows, without locking already-in-flight authorisations.
 
