@@ -414,7 +414,7 @@ test.describe("plan card — a plan that expired before it ran", () => {
     await expect(page.getByRole("button", { name: /reclaim/i })).toHaveCount(0);
     await expect(page.getByRole("main")).not.toContainText(/held in escrow/i);
     // Settled, so axe measures the painted colours, not a frame of a fade.
-    await motionSettled(page.locator("main"));
+    await stableBox(notice);
     const { violations } = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();
