@@ -5,7 +5,7 @@
  */
 
 import { SITE_URL } from "@/lib/guide/display";
-import { LITEPAPER_PATH } from "./source.mjs";
+import { LITEPAPER_PATH } from "./paths.mjs";
 
 export { LITEPAPER_PATH };
 
