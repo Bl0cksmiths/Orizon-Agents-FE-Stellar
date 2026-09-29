@@ -424,6 +424,161 @@
           ]
         }
       ]
+    },
+    {
+      "id": "RD",
+      "name": "Repositories & Deployments",
+      "evidence_type": "GitHub repos · live deployments · on-chain proofs",
+      "sow_text": "GitHub repositories (all MIT): frontend github.com/ALGOREX-PH/Orizon-Agents-FE-Stellar, backend github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar, contracts github.com/ALGOREX-PH/Orizon-Agents-Smart-Contract-Stellar. Deployments: dApp orizons.xyz, API orizon-agents-be-stellar.onrender.com. On-chain proofs: every registration, settlement, and attestation is viewable on Stellar Expert (testnet) under the four live contract IDs.",
+      "items": [
+        {
+          "id": "6.1-RD-a",
+          "claim": "Frontend source code is public on GitHub and released under the MIT licence.",
+          "status": "partial",
+          "note": "Partial. The repository is public, but it has no licence file yet, so GitHub shows no licence. The MIT licence is added by the open pull request linked here. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
+          "links": [
+            {
+              "label": "Frontend source code on GitHub (Bl0cksmiths/Orizon-Agents-FE-Stellar)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar",
+              "kind": "repo"
+            },
+            {
+              "label": "Frontend pull request #93 (open): adds the MIT licence",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/93",
+              "kind": "pr"
+            }
+          ]
+        },
+        {
+          "id": "6.1-RD-b",
+          "claim": "Backend source code is public on GitHub and released under the MIT licence.",
+          "status": "partial",
+          "note": "Partial. The repository is public, but it has no licence file yet, so GitHub shows no licence. The MIT licence is added by the open pull request linked here. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
+          "links": [
+            {
+              "label": "Backend source code on GitHub (Bl0cksmiths/Orizon-Agents-BE-Stellar)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar",
+              "kind": "repo"
+            },
+            {
+              "label": "Backend pull request #92 (open): adds the MIT licence",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/92",
+              "kind": "pr"
+            }
+          ]
+        },
+        {
+          "id": "6.1-RD-c",
+          "claim": "Smart-contract source code is public on GitHub and released under the MIT licence.",
+          "status": "partial",
+          "note": "Partial. The repository is public, but it has no licence file yet, so GitHub shows no licence. Its Cargo.toml says MIT, but only as package metadata, which GitHub does not count. The MIT licence is added by the open pull request linked here. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
+          "links": [
+            {
+              "label": "Smart-contract source code on GitHub (Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar)",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar",
+              "kind": "repo"
+            },
+            {
+              "label": "Contracts pull request #5 (open): adds the MIT licence",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/5",
+              "kind": "pr"
+            }
+          ]
+        },
+        {
+          "id": "6.1-RD-d",
+          "claim": "The dApp is live at orizons.xyz and runs on Stellar testnet.",
+          "status": "present",
+          "note": "orizons.xyz points at testnet for this sprint and is due to switch back to mainnet afterwards, so a visit after the sprint may show mainnet (see the notes).",
+          "links": [
+            {
+              "label": "The live Orizon app on orizons.xyz (testnet during the sprint)",
+              "url": "https://orizons.xyz",
+              "kind": "page"
+            },
+            {
+              "label": "The live agent registry page on orizons.xyz",
+              "url": "https://orizons.xyz/app/agents",
+              "kind": "page"
+            }
+          ]
+        },
+        {
+          "id": "6.1-RD-e",
+          "claim": "The API is live at orizon-agents-be-stellar.onrender.com and reports testnet.",
+          "status": "present",
+          "note": "The API runs on a free plan, so the first request can take up to a minute while it wakes. It is updated by a manual deploy and currently runs a build from before 2026-09-25 (see the notes).",
+          "links": [
+            {
+              "label": "Live API: the network (testnet) and the four contract addresses it uses",
+              "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/network",
+              "kind": "page"
+            },
+            {
+              "label": "Live API status check: ready, with the platform's scoring key",
+              "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
+              "kind": "page"
+            },
+            {
+              "label": "Live API endpoint list, including the dispute routes",
+              "url": "https://orizon-agents-be-stellar.onrender.com/openapi.json",
+              "kind": "doc"
+            }
+          ]
+        },
+        {
+          "id": "6.1-RD-f",
+          "claim": "Every registration, settlement and attestation is viewable on Stellar Expert (testnet) under the four live contract IDs.",
+          "status": "present",
+          "note": "These four contracts are the live set the API reports. Each contract page has an Events tab that lists everything it has recorded. They show real activity, but no settlement or attestation from the sprint yet (see Deliverable 4). A fifth contract, escrow v2, is merged but not deployed.",
+          "links": [
+            {
+              "label": "AgentRegistry contract on Stellar Expert (testnet): every agent registration",
+              "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+              "kind": "contract"
+            },
+            {
+              "label": "PaymentEscrow (v1) contract on Stellar Expert (testnet): payment authorizations and charges",
+              "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+              "kind": "contract"
+            },
+            {
+              "label": "ReputationLedger contract on Stellar Expert (testnet): every rating",
+              "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
+              "kind": "contract"
+            },
+            {
+              "label": "AttestationRegistry contract on Stellar Expert (testnet): every sealed workflow",
+              "url": "https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
+              "kind": "contract"
+            },
+            {
+              "label": "Team admin wallet GA7AI…5OQV on Stellar Expert: contract admin and payment settler on the live escrow",
+              "url": "https://stellar.expert/explorer/testnet/account/GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
+              "kind": "account"
+            },
+            {
+              "label": "Platform production key GDB4N…CDHP on Stellar Expert: writes ratings and seals since 2026-09-19",
+              "url": "https://stellar.expert/explorer/testnet/account/GDB4N25UYM3YNTTAWX7LSGI2P7OR62QZQXRNQWAGF5TFVENDKCTTCDHP",
+              "kind": "account"
+            },
+            {
+              "label": "Rating role on the ReputationLedger handed from the admin wallet to the production key GDB4N…CDHP — 2026-09-19",
+              "url": "https://stellar.expert/explorer/testnet/tx/216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8",
+              "kind": "tx",
+              "tx_hash": "216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8",
+              "date": "2026-09-19"
+            },
+            {
+              "label": "Sealing role on the AttestationRegistry handed from the admin wallet to the production key GDB4N…CDHP — 2026-09-19",
+              "url": "https://stellar.expert/explorer/testnet/tx/c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c",
+              "kind": "tx",
+              "tx_hash": "c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c",
+              "date": "2026-09-19"
+            }
+          ]
+        }
+      ]
     }
   ],
   "metrics": [],
