@@ -35,7 +35,7 @@ def detect_kit(intent: str) -> DemoKit | None:
     return None
 ```
 
-For the free-form path, the orchestrator is a single Agno-wrapped chat agent whose system prompt is built from the live agent registry — every seeded agent's id, name, skills, price, and rolling reputation is injected before the user's intent. The agent returns a `Plan` object validated against the Pydantic schema (`Plan{plan_id, intent, steps[], total_usdc, total_eta}`); any malformed return is rejected and re-rolled up to three times before the endpoint returns a 5xx. The validation surface is small but strict — invalid agent ids, negative prices, and zero-step plans are all rejected at parse time.
+For the free-form path, the orchestrator is a single Agno-wrapped chat agent whose system prompt is built from the live agent registry — every routable agent's id, name, skills, price, and reputation is injected before the user's intent. Routable means listed, dispatchable and above the reputation floor, seeded or registered alike (§6.3, §6.7), and the reputation shown is the prior-smoothed on-chain score on a 0–5 display scale, never a seeded or self-declared value (BE@a3dc1f9 · app/services/orchestrator_svc.py · `_routable_registry`, `_smoothed_score`). The agent returns a `Plan` object validated against the Pydantic schema (`Plan{plan_id, intent, steps[], total_usdc, total_eta}`); any malformed return is rejected and re-rolled up to three times before the endpoint returns a 5xx. The validation surface is small but strict — invalid agent ids, negative prices, and zero-step plans are all rejected at parse time.
 
 Measured decompose latency over the four shipped kits (FastAPI `TestClient`, single process, warm cache):
 
