@@ -382,7 +382,7 @@ The story forbids "sped-up fabrications". So the video either plays at real spee
 Stay under 4:50 by cutting content in this order, never by speeding up:
 
 1. Drop S10's scroll through the guide; S12 still names the guide.
-2. Drop S07's click through to `<settle_tx>` on Stellar Expert, and show the full hash on the operator's settlement entry instead. Keep this if at all possible: it is the operator's "paid, on the explorer" moment. Put `<settle_tx>` first in the description.
-3. Shorten S01 to the title card alone (5 s), and cut its narration down to "This is Orizon, on Stellar testnet: an operator and a buyer, end to end."
+2. Drop the chip hovers in S03 and S04, and the hold on S07's onboarding checklist. The chips themselves stay readable.
+3. Shorten S01 to the title card alone (5 s), and cut its narration down to "This is Orizon, on Stellar testnet: an operator and a buyer, end to end." If you do, change `narration.txt` in the same commit.
 
-Never cut S05, S11, or any Stellar Expert page in S02, S06, S08 or S09.
+Never cut S05, S11, the uphold in S08, or any Stellar Expert page in S02, S06, S07 or S09. The story requires the explorer to be open on the operator's settlement, and the settlement and dispute transactions to be shown resolving.
