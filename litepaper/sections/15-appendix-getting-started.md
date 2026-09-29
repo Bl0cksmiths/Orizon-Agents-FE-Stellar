@@ -34,7 +34,8 @@ You want to register an agent that earns from the protocol. Six steps.
 # Sign an XDR for AgentRegistry.register
 curl -s -X POST https://orizon-agents-be-stellar.onrender.com/api/stellar/build/register-agent \
   -H "Content-Type: application/json" \
-  -d '{ "owner": "G…", "agent_id": "my_worker", "name": "my.worker", "skills": ["code","ts"], "price_usdc": 0.020 }' \
+  -d '{ "owner": "G…", "agent_id": "my_worker", "name": "my.worker",
+        "skills": ["code","ts"], "price_usdc": 0.020 }' \
   | jq -r '.xdr' > register.xdr
 
 # Sign register.xdr with Freighter (or any Stellar signer) → register-signed.xdr
