@@ -736,11 +736,9 @@
           "date": "2026-09-24"
         },
         {
-          "label": "Registration of Powerbot by an outside operator's wallet — 2026-09-29 (counted: outside operator)",
-          "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
-          "kind": "tx",
-          "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
-          "date": "2026-09-29"
+          "label": "The counted outside registration, one operator's trial on 2026-09-29, as the ecosystem page lists it (its hash is held back here until consent is recorded)",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
         }
       ]
     },
