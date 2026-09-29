@@ -1,0 +1,18 @@
+{
+  "schema": "orizon.evidence-index/1",
+  "title": "Orizon Agents: evidence index for the Stellar Instaward",
+  "sow": {
+    "version": "v4",
+    "date": "2026-08-01",
+    "note": "This index follows the approved SOW v4, dated 2026-08-01. Section 6.1 says what evidence each deliverable owes, section 6.2 is the checklist the Ambassador Chapter Lead marks (Present, Partial or Missing), and section 6.3 lists the eleven success metrics. Each deliverable below repeats the SOW's Evidence Type and Description word for word. Every piece of evidence has a status and a link you can open, and anything missing or partly done says why in plain words."
+  },
+  "snapshot": {
+    "as_of": "2026-09-29",
+    "network": "testnet",
+    "method": "Every on-chain link was re-read on 2026-09-29 from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json) or holds a platform role on the contracts. Nothing was signed, paid or submitted to make this snapshot."
+  },
+  "deliverables": [],
+  "metrics": [],
+  "disclosures": [],
+  "notes": []
+}
