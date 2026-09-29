@@ -256,7 +256,7 @@ The panel under the steps is a native `<details>`, **collapsed by default**:
 
 After the click (or Enter or Space) the marker becomes `▾`, and the panel reads:
 
-- Intro: "The reputation floor acted on **some of** these agents while this plan was built. It decides who is eligible to be picked, before any step is dispatched, so nothing below is a judgement on work an agent actually did." ("some of " appears only when unbound rows are also listed.)
+- Intro: "The reputation floor acted on **some of** these agents while this plan was built. It decides who is eligible to be picked, before any step is dispatched, by comparing a statistical lower bound on each agent's reputation against the floor." ("some of " appears only when unbound rows are also listed.)
 - If M > 0: "Those marked “no endpoint” were never candidates: they are registered on-chain but have no endpoint bound to dispatch a step to, so the floor did not judge them either way."
 - The faulty agent's row:
   - Badge `✕ excluded` (magenta), then its name in bold.
