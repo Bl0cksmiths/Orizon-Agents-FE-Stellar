@@ -65,3 +65,42 @@ Four roles and four different accounts. No account plays two roles on camera, be
 - [ ] **Written consent before the session.** The external operator agrees that their on-camera agent will be disputed and will carry a **permanent** 10/100 `dispute` rating on the testnet ReputationLedger. The ledger has no entrypoint to amend a rating. Keep the consent (an email or message) with the evidence sheet. **If they decline, use a team operator wallet** and disclose it.
 - [ ] **Their key never touches a team machine.** They record the operator window on their own machine, with the same capture settings (§1: an OBS profile file is sent in advance), while on a call with the team so the scenes happen in order. The two recordings are intercut in post. The events on screen stay in their real order, and each window's clock is visible in at least one frame for syncing.
 - [ ] They use a fresh browser profile set up as in §1, with Freighter holding only their operator account on testnet.
+
+## 3. Tabs, pre-opened in order
+
+Open the tabs left to right, in the order the script visits them. Each wallet is connected in its own window before recording starts. The explorer tabs are **not** pre-opened: each one opens from its "view on stellar.expert ▸" link during its scene, because a link opened live is the proof that the hash on screen is the hash on the explorer.
+
+**Operator window** (profile "Orizon demo · operator", Freighter connected):
+
+1. `https://orizons.xyz/app/register`: the form is empty and the wallet chip shows "owner · G…".
+2. `https://orizons.xyz/app/operator` (My Agents): **reload it just before S07**.
+
+In-scene: S02's link opens the registration tx; S03 navigates to `/app/bind` and then `/app/agents` in tab 1; S07's settlement entry opens `<settle_tx>`.
+
+**Buyer window** (profile "Orizon demo · buyer", Freighter connected):
+
+1. `https://orizons.xyz/app/orchestrator`: the intent box is empty, and the rehearsed intent is on a card beside the monitor, **not** in the clipboard history.
+2. `https://orizons.xyz/app/ecosystem`
+3. `https://orizons.xyz/guide/list-your-agent`, scrolled to **Trust boundaries** (for S11).
+
+In-scene: S06's link opens `<authorize_tx>`; the console moves itself to `/app/trace?task=…`; S09's links open `<refund_tx>` and `<dispute_rating_tx>`.
+
+**Terminal** (S08): the backend repo, with `API=https://orizons.xyz` and `DISPUTE_ID` exported. Read `DISPUTE_ID` off camera, right after S08's "Your dispute was raised.", from `curl -s "$API/api/tasks/$TASK_ID/disputes" | jq -r '.disputes[0].id'`.
+
+**Off-screen reference** (a second monitor, never captured): `GET /api/stellar/reputation/<faulty_id>`, the pre-flight output, and this checklist.
+
+## 4. Timing on the day
+
+Render's free tier sleeps a service after about 15 minutes idle, and wakes it in 30–60 s. Dispatch to an external agent has a **5 s connect timeout**. So a sleeping operator agent **fails its step, is rated 20/100 on camera, and is not paid**. Warm-up is therefore part of the session, not an afterthought.
+
+| When            | Do                                                                                                                                                                                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T−60 min        | Run the full pre-flight. On NO-GO, stop.                                                                                                                                                                                                                                  |
+| T−60 min onward | **No activity against the faulty agent**, so it gets no rating and there is no `awaiting_fresh_read` (script: [cases that must not appear](./script.md#cases-that-must-not-appear-on-camera)).                                                                            |
+| T−15 min        | Set up the machine (§1), open the tabs (§3), and connect both wallets.                                                                                                                                                                                                    |
+| T−5 min         | **Warm everything.** Poll `GET https://orizons.xyz/api/health` until it answers, then open `/readiness`. Hit the operator agent's endpoint with `curl -sS <endpoint>/`. Load every tab once. Re-run the pre-flight (without `--with-decompose` if one already ran today). |
+| T−0             | Record S01–S03 (operator), then S04–S09 (buyer, with operator cutaways) **in one continuous session**. S10–S12 can be recorded straight after.                                                                                                                            |
+| Before S06      | If more than 10 minutes have passed since the warm-up, curl the operator agent's endpoint again **off camera** before clicking Authorize.                                                                                                                                 |
+| After S09       | Stop the capture. Copy the evidence (§5) **before** closing any tab.                                                                                                                                                                                                      |
+
+S01, S11 and S12 are mostly cards and a static guide page, so they can be captured at any time. S10 is filmed after S09, so the Ecosystem page includes this session's settlement if the operator is external.
