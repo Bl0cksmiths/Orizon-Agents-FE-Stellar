@@ -754,13 +754,12 @@
       "category": "Adoption targets",
       "metric": "Unique external operator wallet addresses",
       "target": "≥ 2",
-      "achieved": "1",
-      "status": "not_met",
-      "reason": "Only 1 outside operator wallet owns an agent. The target is 2.",
+      "achieved": "2",
+      "status": "met",
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
         {
-          "label": "The counted outside operator wallet, one operator's trial, as the ecosystem page lists it (its address is held back here until consent is recorded)",
+          "label": "The 2 counted outside operator wallets, as the ecosystem page lists them (their addresses are held back here until consent is recorded)",
           "url": "https://orizons.xyz/app/ecosystem",
           "kind": "page"
         },
@@ -775,7 +774,7 @@
           "kind": "account"
         },
         {
-          "label": "The team's contract admin and v1 escrow settler — owns 7 agents (excluded: team wallet)",
+          "label": "The team's contract admin and v1 escrow settler — owns 8 agents (excluded: team wallet)",
           "url": "https://stellar.expert/explorer/testnet/account/GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
           "kind": "account"
         },
@@ -784,7 +783,8 @@
           "url": "https://stellar.expert/explorer/testnet/account/GA5LEGIRHKZGDKGQ4XHBEMU2Z7BGDX7AE2XUWDXB3V6TCOVTD2LZMQ2M",
           "kind": "account"
         }
-      ]
+      ],
+      "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their addresses are held back here until each operator's consent to publish them is recorded."
     },
     {
       "id": "m03",
