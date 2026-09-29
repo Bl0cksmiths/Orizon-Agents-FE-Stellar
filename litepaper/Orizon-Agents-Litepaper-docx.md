@@ -218,11 +218,11 @@ The single most important property of this roadmap, from a buyer's standpoint, i
 We were asked, many times, why an agent-commerce protocol settles on Stellar rather than Ethereum, Solana, or a purpose-built L2. The answer is four properties that Stellar uniquely combines today, all of which matter when the unit of work is a 0.01-USDC step:
 
 - **Settlement is sub-second.** Stellar's consensus produces finality in ~5 s. The buyer doesn't see "pending" for a meaningful amount of time, and the orchestrator doesn't have to choose between fast UX and on-chain truth.
-- **Per-operation fees are denominated in stroops.** A six-step workflow is nine transactions, not one per step: the buyer's `authorize`, then from the backend one `settle` under escrow v2 (one `charge` for the workflow's total on the deployed v1), one `seal` and six rating `submit`s (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`, `_submit_ratings`). Soroban calls cost far more than a classic payment's 100 stroops: measured on testnet, about **0.048 XLM** for the eight of those nine whose cost has been observed, before `settle`, which has never run because v2 is not deployed (§7.4). That is about 2.4 US cents at USD 0.50 per XLM. The platform pays every one of those fees except the buyer's `authorize` and takes no margin, so on a 0.012 USDC step it runs at a loss today.
+- **Per-operation fees are denominated in stroops.** A six-step workflow is nine transactions, not one per step: the buyer's `authorize`, then from the backend one `settle` under escrow v2 (one `charge` for the workflow's total on the deployed v1), one `seal` and six rating `submit`s (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`, `_submit_ratings`). Soroban calls cost far more than a classic payment's 100 stroops: measured on testnet, about **0.048 XLM** for the eight of those nine whose cost has been observed, before `settle`, which has never run because v2 is not deployed (§7.4). That is about 2.4 US cents at an assumed USD 0.50 per XLM (an assumption made on 2026-09-29, not a quote). The platform pays every one of those fees except the buyer's `authorize` and takes no margin, so on a 0.012 USDC step it runs at a loss today.
 - **Stablecoin native.** USDC issued on Stellar is held in the buyer's wallet directly, transferable as a Stellar asset. The Stellar Asset Contract (SAC) gives Soroban code a `Token::transfer` interface to the asset without bridges, oracles, or stable-mint wrappers. The protocol's `PaymentEscrow` calls `SAC::transfer` directly — one cross-contract hop. In the deployed v1 escrow that call sits in `charge` and cannot complete, because the transfer needs the buyer's signature and the charge transaction carries only the settler's; escrow v2, merged but not deployed, makes the transfer inside the buyer-signed `authorize`, into custody, and pays out from there at `settle` (§6.9; SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::charge`; SC@dd2d642 · same file · `PaymentEscrow::authorize`, `PaymentEscrow::settle`).
-- **Soroban gives us composability without rewriting the language.** The four contracts compile to ~26 KB of WASM total. Storage is tiered (`Instance`, `Persistent`, `Temporary`) which lets us keep the attestation and the rating replay guard in `Persistent` for good. The first ledger kept the replay guard in `Temporary`, where it expired and re-opened the replay window; the deployed ledger keeps it in `Persistent` (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `DataKey::Rated`). No external indexer is needed for events — Soroban RPC indexes them for us.
+- **Soroban gives us composability without rewriting the language.** The four deployed contracts are 32.7 KB of WASM in total (33,532 bytes, fetched from testnet; §5.3). Storage is tiered (`Instance`, `Persistent`, `Temporary`) which lets us keep the attestation and the rating replay guard in `Persistent` for good. The first ledger kept the replay guard in `Temporary`, where it expired and re-opened the replay window; the deployed ledger keeps it in `Persistent` (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `DataKey::Rated`). No external indexer is needed for events — Soroban RPC indexes them for us.
 
-We do not claim Stellar is the only substrate where this protocol could be built. We claim it is the only substrate where this protocol can be built with a v1 that **charges 1.1 cents per step, finalises in 5 s, and ships with 26 KB of contract code**. Every other chain we evaluated forced a compromise on one of those three numbers.
+We do not claim Stellar is the only substrate where this protocol could be built. We claim it is the only substrate where this protocol can be built with a v1 that **prices a step at 2.8 cents on average, finalises in 5 s, and ships with 33 KB of contract code**. The average is the six kit steps' seeded prices, 0.024 + 0.009 + 0.018 + 0.054 + 0.052 + 0.011 = 0.168 USDC, divided by six (BE@a3dc1f9 · app/seed.py · `_SEED`; app/services/orchestrator_svc.py · `_KIT_PIPELINE`). Every other chain we evaluated forced a compromise on one of those three numbers.
 
 The next chapter walks through what users actually do with the protocol today.
 
@@ -629,11 +629,13 @@ The **contracts** are four lean Rust Soroban modules.
 
 | Contract | Address (testnet) | WASM | Role |
 | --- | --- | :---: | --- |
-| `AgentRegistry` | `CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ` | 7.2 KB | Identity, skills, price catalog; resolves agent owner for payout |
-| `PaymentEscrow` | `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI` | 9.8 KB | x402 authorize → charge → receipt flow; calls registry + SAC |
-| `AttestationRegistry` | `CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK` | 5.1 KB | Write-once workflow receipt under a job id |
-| `ReputationLedger` | `CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT` | 5.1 KB | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
+| `AgentRegistry` | `CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ` | 7.2 KB (7,335 B) | Identity, skills, price catalog; resolves agent owner for payout |
+| `PaymentEscrow` | `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI` | 9.7 KB (9,953 B) | x402 authorize → charge → receipt flow; calls registry + SAC |
+| `AttestationRegistry` | `CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK` | 5.1 KB (5,192 B) | Write-once workflow receipt under a job id |
+| `ReputationLedger` | `CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT` | 10.8 KB (11,052 B) | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
 | Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | n/a | Settlement asset |
+
+The WASM sizes are the code deployed at each address, fetched read-only from testnet with `stellar contract fetch` on 2026-09-29 (1 KB = 1,024 bytes); the four total 33,532 bytes, 32.7 KB. Their sha256 hashes, which are the on-chain WASM hashes, begin `a56d2db5`, `d732e8e6`, `7146c4dc` and `2fc4965a` in table order. Escrow v2 is not deployed, and its size is not measured.
 
 The contracts share a small types crate (`contract/shared`) exporting `Agent`, `Authorization`, `Receipt` and `Attestation`; the ledger's `RepState` lives in the ledger itself (SC@dd2d642 · contract/shared/src/lib.rs; contract/reputation-ledger/src/lib.rs · `RepState`). Identifiers (`auth_id`, `receipt_id`, `job_id`) are `BytesN<16>` derived deterministically from an incrementing nonce — concretely, sixteen bytes formed by eight zero bytes concatenated with the eight-byte big-endian nonce. This avoids ledger-state-dependent IDs and keeps simulation results stable.
 
@@ -732,7 +734,7 @@ End-to-end timings, measured on the live deployment with a kit intent:
 
 The 6.4 s for a kit run is dominated by the realistic pacing inserted into the kit short-circuits: ~2 s decompose, ~0.5 s per pre-code step, ~0.6 s for the baked `code.gen`, ~0.6 s for the critic, ~0.4 s for the seal. Each of those numbers comes from a measured pause that mimics the real model-driven path's *feel* without taking the model's time. The shipped trace replay at `/app/trace` uses the same timing budget.
 
-Per-contract WASM sizes (release profile, `opt-level="z"`, `lto=true`, panic=abort) are documented in §5.3. The largest, `PaymentEscrow`, is 9.8 KB; the simplest, `AttestationRegistry`, is 5.1 KB. Storage growth per workflow is bounded: one `Receipt` per step, one `Attestation` per workflow, one `Rated` marker per rating in persistent storage, which does not lapse.
+Per-contract WASM sizes (release profile, `opt-level="z"`, `lto=true`, panic=abort) are documented in §5.3. The largest deployed, `ReputationLedger`, is 10.8 KB; the smallest, `AttestationRegistry`, is 5.1 KB. Storage growth per workflow is bounded: one `Receipt` per step, one `Attestation` per workflow, one `Rated` marker per rating in persistent storage, which does not lapse.
 
 ## 5.5 · Security
 
@@ -1115,12 +1117,12 @@ Network fees over the same window. A six-step workflow is nine transactions, not
 | `submit` (rating) | 6 | 6,000 | 53,314 | 319.88 × 10⁶ stroops = 31.99 |
 | **Total network fee** | **9** | **9,000** | — | **≈ 48.43 XLM, before `settle`** |
 
-The samples are testnet transactions `027b0d42…9230` (`authorize`, 2026-09-22), `03c3f815…67b7` (`seal`, 2026-06-09) and `63031b49…28b2` (`submit`, 2026-09-22). A rating that writes an agent's first evidence costs more, up to 189,423 stroops in the scorer's recent history. `settle` has never run; the deployed v1 `charge`, the nearest call measured, cost 54,989 stroops (`7932846b…9cc2`, 2026-06-09), which would add about 5.50 XLM a month (1,000 × 54,989 stroops = 54.99 × 10⁶ stroops). At USD 0.50 per XLM, the monthly network cost across 1,000 workflows is therefore about **USD 24 before `settle`**, and about USD 27 with a `settle` priced like that `charge`. The agent payouts of ≈ 172 USDC flow entirely through to agent owners; the protocol takes zero margin in v1.
+The samples are testnet transactions `027b0d42…9230` (`authorize`, 2026-09-22), `03c3f815…67b7` (`seal`, 2026-06-09) and `63031b49…28b2` (`submit`, 2026-09-22). A rating that writes an agent's first evidence costs more, up to 189,423 stroops in the scorer's recent history. `settle` has never run; the deployed v1 `charge`, the nearest call measured, cost 54,989 stroops (`7932846b…9cc2`, 2026-06-09), which would add about 5.50 XLM a month (1,000 × 54,989 stroops = 54.99 × 10⁶ stroops). At an assumed USD 0.50 per XLM (an assumption made on 2026-09-29, not a quote), the monthly network cost across 1,000 workflows is therefore about **USD 24 before `settle`** (48.43 × 0.50 = 24.21), and about USD 27 with a `settle` priced like that `charge` ((48.43 + 5.50) × 0.50 = 26.96). The agent payouts of ≈ 172 USDC flow entirely through to agent owners; the protocol takes zero margin in v1.
 
 Two observations for prospective operators:
 
-- **The cost of being a buyer is the agents you hire**, not infrastructure. A buyer running ten kit workflows a month pays 1.68 USDC and a vanishing network fee — at the limit of what's possible to charge for a sub-second-finality, fully-audited multi-agent workflow today.
-- **The cost of operating the protocol is dominated by the inference bill**, not the chain. The protocol covers OpenAI for the orchestrator and the live workers; an operator running their own deployment can substitute a self-hosted model and bring the inference cost to zero. The on-chain footprint stays small.
+- **The cost of being a buyer is the agents you hire**, not infrastructure. A buyer running ten kit workflows a month pays 1.68 USDC in agent prices and ten `authorize` fees, about 1.06 XLM (10 × 106,477 stroops), or about USD 0.53 at the assumed USD 0.50 per XLM; the platform pays the rest of the network fees.
+- **The cost of operating the protocol is the chain plus the inference bill.** The chain part is measured above: about USD 24–27 a month for 1,000 workflows at the assumed rate, nearly all of it paid by the platform. The inference part is not measured: the protocol covers OpenAI for the orchestrator and the live workers, and this document states no per-workflow inference cost, so we do not claim which of the two is larger. An operator running their own deployment can substitute a self-hosted model, which moves the inference cost to their own hardware.
 
 ## 7.5 · Open questions
 
@@ -1345,20 +1347,24 @@ DAG for the `/app/flow` viewer — node list + edge list.
 
 ### `GET /api/stellar/network`
 
-Canonical source of truth for contract IDs and network metadata.
+Canonical source of truth for contract IDs and network metadata. The response below is the live testnet deployment's, read on 2026-09-29; its shape is the `NetworkInfo` model on BE main (BE@a3dc1f9 · app/routers/stellar.py · `NetworkInfo`, `network`), with the contract ids nested under `contracts`. `dispatch_signer` is `null` when no dispatch key is configured.
 
 ```json
 200 OK
 {
-  "network":          "testnet",
+  "network": "testnet",
+  "rpc_url": "https://soroban-testnet.stellar.org",
   "network_passphrase": "Test SDF Network ; September 2015",
-  "rpc_url":          "https://soroban-testnet.stellar.org",
-  "admin":            "GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
-  "agent_registry":      "CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
-  "payment_escrow":      "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
-  "attestation_registry":"CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
-  "reputation_ledger":   "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
-  "asset_sac":           "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+  "admin": "GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
+  "dispatch_signer": "GB5MKHDFLJZ6OFPAHM7R4HGBUPFV5PZYL3W27VTIUZZ25JMQSDZBKCMR",
+  "asset": "native",
+  "asset_sac": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  "contracts": {
+    "agent_registry": "CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+    "reputation_ledger": "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
+    "payment_escrow": "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+    "attestation_registry": "CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK"
+  }
 }
 ```
 
