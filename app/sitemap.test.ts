@@ -23,9 +23,10 @@ describe("sitemap", () => {
       "https://orizons.xyz",
       "https://orizons.xyz/guide",
       "https://orizons.xyz/demo",
+      "https://orizons.xyz/evidence",
       "https://orizons.xyz/guide/list-your-agent",
     ]);
-    expect(entries[3].lastModified).toEqual(new Date("2026-09-29T00:00:00Z"));
+    expect(entries[4].lastModified).toEqual(new Date("2026-09-29T00:00:00Z"));
   });
 
   it("lists no guide pages when there are none", () => {
@@ -33,6 +34,7 @@ describe("sitemap", () => {
     expect(sitemap().map((e) => e.url)).toEqual([
       "https://orizons.xyz",
       "https://orizons.xyz/demo",
+      "https://orizons.xyz/evidence",
     ]);
   });
 
@@ -47,6 +49,19 @@ describe("sitemap", () => {
     vi.stubEnv("DEMO_PUBLIC_DIR", path.join(fixtures, "public"));
     const after = sitemap().find((e) => e.url === "https://orizons.xyz/demo");
     expect(after!.lastModified).toEqual(new Date("2026-10-02T00:00:00Z"));
+  });
+});
+
+describe("sitemap: evidence", () => {
+  it("lists /evidence dated by its snapshot", () => {
+    vi.stubEnv(
+      "EVIDENCE_CONTENT_DIR",
+      path.resolve(__dirname, "../test/fixtures/evidence"),
+    );
+    const entry = sitemap().find(
+      (e) => e.url === "https://orizons.xyz/evidence",
+    );
+    expect(entry?.lastModified).toEqual(new Date("2026-09-28T00:00:00Z"));
   });
 });
 
