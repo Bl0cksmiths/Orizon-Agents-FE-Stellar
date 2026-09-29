@@ -60,101 +60,47 @@ The **bound book** (`Orizon-Agents-Litepaper.md`) is the canonical single-file a
 
 ## Render pipeline
 
-The render is a three-step bash flow. Each step is reproducible and committed:
-
-**Step 1 — Bound book from sections.**
+**Edit `sections/`, then regenerate. Never hand-edit a rendered artifact** (the book, `-docx.md`, `.html`, `.pdf`, `.docx`, `figures/`): the formats drift, and `make check` fails on a hand-edit.
 
 ```bash
-cd whitepaper
-# Take the cover verbatim, append TOC + Figures table, then each chapter
-# preceded by a <!-- pagebreak --> marker, then a footer.
-# See git history for the exact assembly command; the book is the canonical
-# single-file distribution artifact.
+make all      # book → html → pdf → figures → docx, then check
+make check    # the formats agree (see below); exits non-zero on any disagreement
+make test     # the checker's own tests
+make all OUT=/tmp/lp   # build into a scratch directory instead
 ```
 
-**Step 2 — Self-contained HTML via pandoc.**
+Everything runs locally on Linux/WSL with no network. Requirements: `pandoc` 3.10 (on `PATH`, else `~/bin/pandoc`; `PANDOC=` overrides), a Chromium (the newest Playwright `chrome-headless-shell`, else Playwright Chromium, else `chromium` on `PATH`; `CHROME=` overrides), and Python 3 with `build/requirements.txt` (Pillow, pypdf, pytest). Paths are relative to this folder, so the build runs the same wherever it is mounted (e.g. `litepaper/` in the FE repo). Scratch files go to `.build/` (ignored).
 
-```bash
-sed -E 's|<!-- pagebreak -->|<div style="page-break-before: always; break-before: page; height: 0;"></div>|g' \
-  Orizon-Agents-Litepaper.md > /tmp/litepaper-html-src.md
+| step | script | what it does |
+| --- | --- | --- |
+| `make book` | `build/assemble.py` | `sections/00` verbatim as the cover · `---` · a Table of Contents generated from the `# §X` and `## N.M` headings (§2–§7 list subsections; three hand-worded entries are coded in `TOC_LABELS`) · a Figures table generated from the `**Figure N.**` captions · each chapter after a `<!-- pagebreak -->` · `---` · `build/footer.md`, with the version and date read from the cover. Reproduces the v0.4 book byte for byte from the v0.4 sections. |
+| `make html` | `build/render_html.py` | Swaps `<!-- pagebreak -->` for a page-break `<div>`, then `pandoc --from=markdown+raw_html+definition_lists+pipe_tables+fenced_code_attributes --to=html5 --standalone --embed-resources --css=litepaper.css --include-after-body=mermaid-init.html`, title and `lang=en` metadata. Reproduces the v0.4 HTML byte for byte. |
+| `make pdf` | `build/pdf.py` | Headless Chromium `--print-to-pdf --virtual-time-budget=40000 --no-pdf-header-footer` on the HTML, so Mermaid renders before the snapshot. Chromium 153 honours the `@page` size and margins in `litepaper.css`. |
+| `make figures` | `build/figures.py` | Each Mermaid block → `figures/figure-N.mmd`, wrapped in `build/figure.html` → `figures/html/figure-N.html`, screenshotted at 2× (`--force-device-scale-factor=2`, 1400×5000 CSS px window) and trimmed to 30 px of white margin with Pillow → `figures/figure-N.png`. |
+| `make docx` | `build/docx.py` | The book with each Mermaid block swapped for `![Figure N](figures/figure-N.png)` → `Orizon-Agents-Litepaper-docx.md` → `pandoc` to `.docx` with title, author and the cover's date. |
 
-pandoc /tmp/litepaper-html-src.md \
-  -o Orizon-Agents-Litepaper.html \
-  --from=markdown+raw_html+definition_lists+pipe_tables+fenced_code_attributes \
-  --to=html5 \
-  --standalone \
-  --embed-resources \
-  --css=litepaper.css \
-  --include-after-body=mermaid-init.html \
-  --metadata title="The Orizon Agents Protocol Litepaper" \
-  --metadata lang=en
-```
+**Figure numbers are caption numbers.** `figure-N` and the alt text `![Figure N]` belong to the diagram captioned **Figure N.**, not the Nth block in the book (§5.2's Figure 4 comes before §5.3's Figures 2 and 3). Up to v0.4 the files were numbered in document order, so the `.docx` showed "Figure 2" above the caption "Figure 4".
 
-`mermaid-init.html` boots the Mermaid runtime and converts pandoc's `<pre class="mermaid">` blocks into rendered SVG. With `--embed-resources`, the stylesheet *and* the Mermaid runtime are inlined, so the HTML is fully self-contained (~3.3 MB) and works offline.
+**Figures re-render only when their diagram changes.** A PNG is re-rendered when its `.mmd` changed or it is missing; `FORCE=all` (or `FORCE=2,5`) re-renders the rest. The v0.4 PNGs came from Windows Chrome; a re-render here matches them in size but not in bytes, so an unchanged diagram keeps its PNG. A render whose content reaches the window edge is refused: v0.4's Figure 2 (the three-layer architecture) was cut off below `execution_svc` that way, and 0.5 re-renders it whole.
 
-**Step 3 — PDF via headless Chrome (no LaTeX needed).**
+### Determinism
 
-```bash
-# Use whichever Chrome/Edge/Chromium binary you have. On WSL with Windows Chrome:
-chrome.exe \
-  --headless=new --disable-gpu --no-sandbox \
-  --run-all-compositor-stages-before-draw \
-  --virtual-time-budget=40000 \
-  --no-pdf-header-footer \
-  --print-to-pdf=Orizon-Agents-Litepaper.pdf \
-  "file:///path/to/Orizon-Agents-Litepaper.html"
-```
+Re-running the pipeline produces byte-identical files:
 
-`--virtual-time-budget=40000` (40 s) gives Mermaid enough time to render its SVGs before Chrome captures the print snapshot.
+- **Mermaid runtime.** `mermaid-init.html` and the figure wrapper load the floating `mermaid@10` from jsDelivr, which `--embed-resources` inlines at build time. That was 10.9.6 for v0.4 and is 10.9.8 now. The build swaps the URL for `build/vendor/mermaid-10.9.6.min.js` (identical to the runtime embedded in v0.4 and to jsDelivr's `mermaid@10.9.6`, sha256 `eda3a0ad…767151`). The build fails if the URL in those files changes.
+- **Dates.** `SOURCE_DATE_EPOCH` defaults to midnight UTC on the cover's date. It pins the PDF's `/CreationDate` and `/ModDate` (rewritten in place at the same length) and the `.docx` zip and `docProps` timestamps. The `.docx` date field is the cover's date. v0.4's was 2026-06-10, not the 2026-06-07 recorded here then.
+- **Fonts.** v0.4 was printed by Windows Chrome with Segoe UI and Consolas. Under WSL the build points Chromium's fontconfig at `/mnt/c/Windows/Fonts` so text renders in the same faces; `FONT_DIRS=` (empty) turns that off, `FONT_DIRS=a:b` picks other directories. Glyphs Segoe UI lacks (✓, ✗) fall back to DejaVu Sans rather than Segoe UI Symbol.
+- **Layout.** The PDF layout differs slightly from v0.4 even for unchanged text, because Chrome itself changed, from Windows Chrome 148 to Chromium 153. The v0.4 book printed at 84 pages then and 85 now.
+- **Chromium.** The full Playwright Chromium hangs on `--print-to-pdf` under WSL, even for a one-line page; `chrome-headless-shell` does not, so it is preferred.
 
-**Caveat.** Chrome's headless `--print-to-pdf` ignores `@page` CSS sizing — it uses Letter at default margins. For finer pagination control, open the HTML in any browser and **Ctrl-P → Save as PDF**; the interactive print dialog honours `@page`, `page-break-before`, etc.
+### `make check`
 
-## Word / Google-Docs / LibreOffice (.docx)
+The acceptance test for "every format carries the same content, regenerated from the source":
 
-The `.docx` is built by pre-rendering each Mermaid diagram to PNG (Chrome headless screenshots a small HTML wrapper per diagram, Pillow trims the whitespace), then converting an intermediate markdown — where the Mermaid blocks are swapped for `![Figure N](figures/figure-N.png)` references — through pandoc to .docx.
-
-```bash
-# 1. Extract Mermaid blocks → figures/figure-N.mmd and produce *-docx.md
-python3 - << 'PY'
-import re
-from pathlib import Path
-src = Path('Orizon-Agents-Litepaper.md').read_text()
-pat = re.compile(r'```mermaid\n(.*?)\n```', re.DOTALL)
-Path('figures').mkdir(exist_ok=True)
-counter = [0]
-for i, b in enumerate(pat.findall(src), 1):
-    (Path('figures') / f'figure-{i}.mmd').write_text(b)
-def rep(m):
-    counter[0] += 1
-    return f'![Figure {counter[0]}](figures/figure-{counter[0]}.png)'
-Path('Orizon-Agents-Litepaper-docx.md').write_text(pat.sub(rep, src))
-PY
-
-# 2. Wrap each .mmd in a small HTML, screenshot via Chrome headless at 2× DPI
-#    (see git history for the exact wrapper template)
-
-# 3. Trim white margins via Pillow
-python3 -c "
-from PIL import Image, ImageChops
-for i in range(1, 6):
-    p = f'figures/figure-{i}.png'
-    img = Image.open(p).convert('RGB')
-    bg = Image.new('RGB', img.size, (255, 255, 255))
-    bbox = ImageChops.difference(img, bg).getbbox()
-    if bbox:
-        l, t, r, b = bbox
-        img.crop((max(0, l-30), max(0, t-30), min(img.size[0], r+30), min(img.size[1], b+30))).save(p)
-"
-
-# 4. Build the .docx
-pandoc Orizon-Agents-Litepaper-docx.md \
-  -o Orizon-Agents-Litepaper.docx \
-  --metadata title="The Orizon Agents Protocol Litepaper" \
-  --metadata author="The Blocksmiths" \
-  --metadata date="2026-06-07"
-```
-
-The resulting .docx (~800 KB) opens cleanly in Word, Google Docs, and LibreOffice. Word auto-fits images to page width; the 2× DPI screenshots stay crisp when re-scaled.
+1. **Source.** The book equals `assemble(sections/)`. The book's §6 equals `sections/06-*.md` byte for byte. `-docx.md` and `figures/*.mmd` equal what the book derives. This catches a hand-edited book.
+2. **Formats.** For each chapter in `CHECK` (default `6 10 D`), the text from its `§X · Title` heading to the next chapter's heading is compared across the book `.md` (rendered by pandoc), the `.html` (parsed), the `.pdf` (pypdf) and the `.docx` (pandoc to HTML). All text is normalised with NFKC (ligatures, no-break spaces), straight quotes and no soft hyphens. The PDF is compared as a character stream without whitespace or hyphens, because Chrome hyphenates (`hyphens: auto`). Its reference also carries what print adds: link URLs (`a[href^="http"]::after`) and ordered-list numbers. Any difference prints the format and the first diverging word in context. Chapters with Mermaid figures or some code blocks don't compare cleanly: the `.docx` holds PNGs, and pypdf extracts the odd code block out of order.
+3. **Figures.** Every PNG has a white margin, so none is clipped.
+4. **Seed table.** The §6.2 Genesis-agents table agrees row for row, column by column (matched by header), with `_SEED` in the backend's `app/seed.py`. It is read with `git show $(SEED_REF):$(SEED_PATH)` from `SEED_REPO` (defaults `origin/main`, `app/seed.py`, `~/Websites-Services-2026/orizon-agents-BE-Stellar`) and parsed with `ast`, never imported. `SEED_REPO=none` skips it.
 
 ## Pandoc + LaTeX (alternative)
 
