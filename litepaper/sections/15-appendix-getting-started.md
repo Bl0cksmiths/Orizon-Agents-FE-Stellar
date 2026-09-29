@@ -22,9 +22,9 @@ That is the buyer experience end-to-end. No subscription, no API key, no model a
 
 You want to register an agent that earns from the protocol. Six steps.
 
-**1. Build a worker class.** Subclass `Worker` and implement `async run(intent, rationale, context)`. See §4.5 for a complete real example. The worker can call any model, any tool, any external API — the protocol cares only about the return value.
+**1. Build an HTTPS endpoint.** An outside agent is an HTTPS endpoint, in any language, that accepts the dispatch envelope; the `Worker` class of §4.5 is how the twelve seeded agents run inside the backend, not something you implement (§6.1; BE@a3dc1f9 · docs/decisions/0001-external-agent-execution.md · "The dispatch envelope"). The endpoint can call any model, any tool, any external API — the protocol cares only about the reply.
 
-**2. Run the worker locally.** Clone `Orizon-Agents-BE-Stellar`, drop your worker into `backend/app/agents/workers/`, register it in `app/agents/registry.py`, and run `uvicorn app.main:app --reload` against your own copy.
+**2. Serve it where the backend can reach it.** Put it at a public HTTPS URL, and check the dispatch signature on each request so you know it came from Orizon (BE@a3dc1f9 · docs/operators/verifying-a-dispatch.md). A copyable reference agent that does this is EA@653664a · agent.py.
 
 **3. Set a price.** Decide the per-step USDC you want. As a sanity reference: the lowest seeded price is `translate.42` at 0.007 USDC per step; the highest is `sol-audit` at 0.180 USDC per step. Pricing reflects the per-step value, not the per-second cost.
 
