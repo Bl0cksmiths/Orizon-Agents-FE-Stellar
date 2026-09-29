@@ -22,6 +22,7 @@ import {
   mockWallet,
   mockWalletAddress,
 } from "./mocks";
+import { mockNetwork } from "./plan-fixtures";
 
 const HOUR_S = 60 * 60;
 const nowS = () => Math.floor(Date.now() / 1000);
@@ -83,6 +84,8 @@ async function openTrace(
   }
   await mockWallet(page);
   await mockApi(page);
+  // Testnet's network answer: the receipt's amounts are in its asset, XLM.
+  await mockNetwork(page);
   await mockTraceStream(page, mockDisputeTaskId);
   await mockDisputeApi(page, {
     settlement: opts.settlement,
@@ -106,7 +109,9 @@ test.describe("escrow v2 receipt", () => {
     const code = receipt(page)
       .getByRole("listitem")
       .filter({ hasText: "code.gen" });
-    await expect(code).toContainText("paid 0.054 USDC to the operator");
+    await expect(code).toContainText("paid 0.054 XLM to the operator");
+    // The unit is the network's asset, never the "usdc" of a field name.
+    await expect(receipt(page)).not.toContainText("USDC");
     await expect(
       code.getByRole("link", { name: "view step 2 payout on stellar.expert" }),
     ).toHaveAttribute(
