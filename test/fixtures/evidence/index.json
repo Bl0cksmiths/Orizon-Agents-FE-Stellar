@@ -7,7 +7,7 @@
     "note": "Fixture SOW note."
   },
   "snapshot": {
-    "as_of": "2026-09-29",
+    "as_of": "2026-09-28",
     "network": "testnet",
     "method": "Fixture snapshot method: made up for the test suite."
   },
