@@ -356,7 +356,7 @@ sequenceDiagram
     RL-->>Setl: ok
 ```
 
-**Figure 5.** The x402 flow as actually executed across the four contracts and the asset SAC.
+**Figure 5.** The x402 flow as the deployed v1 contracts are written, across the four contracts and the asset SAC. On testnet the `Token::transfer` step fails, because the buyer's signature is not in the charge transaction, so no charge has completed through the deployed escrow; escrow v2, merged but not deployed, takes custody at `authorize` and pays out in one `settle` (§6.8, §6.9).
 
 The contracts are non-upgradable. Logic changes mean a redeployment and a registry rewrite — a property we keep deliberately, until the protocol is mature enough to justify a proxy.
 
