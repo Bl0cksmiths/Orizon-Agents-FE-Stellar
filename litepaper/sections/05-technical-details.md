@@ -220,7 +220,7 @@ The **contracts** are four lean Rust Soroban modules.
 | `ReputationLedger` | `CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT` | 5.1 KB | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
 | Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | n/a | Settlement asset |
 
-The contracts share a small types crate (`contract/shared`) exporting `Agent`, `Authorization`, `Receipt`, `Attestation`, and `Score`. Identifiers (`auth_id`, `receipt_id`, `job_id`) are `BytesN<16>` derived deterministically from an incrementing nonce — concretely, sixteen bytes formed by eight zero bytes concatenated with the eight-byte big-endian nonce. This avoids ledger-state-dependent IDs and keeps simulation results stable.
+The contracts share a small types crate (`contract/shared`) exporting `Agent`, `Authorization`, `Receipt` and `Attestation`; the ledger's `RepState` lives in the ledger itself (SC@dd2d642 · contract/shared/src/lib.rs; contract/reputation-ledger/src/lib.rs · `RepState`). Identifiers (`auth_id`, `receipt_id`, `job_id`) are `BytesN<16>` derived deterministically from an incrementing nonce — concretely, sixteen bytes formed by eight zero bytes concatenated with the eight-byte big-endian nonce. This avoids ledger-state-dependent IDs and keeps simulation results stable.
 
 ```mermaid
 flowchart LR
@@ -253,7 +253,7 @@ The on-chain x402 flow is four steps. A buyer calls `authorize(payer, agent_id, 
 
 ### 5.3.1 · Contract APIs — verbatim
 
-The four contracts share a small types crate exporting `Agent`, `Authorization`, `Receipt`, `Attestation`, and `Score`. Below, every public entry point is listed with its exact signature from `contract/*/src/lib.rs`.
+The four contracts share a small types crate exporting `Agent`, `Authorization`, `Receipt` and `Attestation`. Below, every public entry point is listed with its exact signature from `contract/*/src/lib.rs`.
 
 **`AgentRegistry`** — agent identity, skills, price catalog. Storage keyed by `Agent(Symbol)`.
 
@@ -434,7 +434,7 @@ The on-chain side is the four contracts together. For any sealed workflow you ca
 - the buyer's `Authorization` (payer, agent target, max, expires_at, spent) from `PaymentEscrow.authorization(auth_id)`;
 - every `Receipt` (auth_id, agent_id, amount, job_id, settled_at) from `PaymentEscrow.receipt(receipt_id)`;
 - the `Attestation` (orchestrator, intent_hash, agents, receipts, total_spent, sealed_at) from `AttestationRegistry.get(job_id)`;
-- per-agent `Score` and `avg_bps` from `ReputationLedger.score(agent_id)` and `avg_bps(agent_id)`.
+- per-agent `RepState` and `avg_bps` from `ReputationLedger.rep_state(agent_id)` and `avg_bps(agent_id)`.
 
 The events emitted by each contract (`regd`, `authd`, `charged`, `sealed`, `rated`) are indexed by Soroban RPC, so any external observer can subscribe and replay.
 
