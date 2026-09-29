@@ -371,7 +371,7 @@ The story forbids "sped-up fabrications". So the video either plays at real spee
    If one of these is slow, it plays slow, and the runtime slack absorbs it.
 
 5. **No cut ever joins two different takes of one transaction.** If a take fails partway, the whole scene is retaken (see the shot list), and the hashes in the description come from the take that is shown.
-6. **No re-ordering** that changes what caused what. Scenes play in the order they happened. The one exception is S11's brief cutaway to the trace line and the settlement panel, which is labelled as a cutaway by the S11 cards over it.
+6. **No re-ordering** that changes what caused what. Scenes play in the order they happened. The one exception is S11's brief cutaway to the marketing hero and the settlement panel, which is labelled as a cutaway by the S11 cards over it.
 
 ### If the cut runs long
 
