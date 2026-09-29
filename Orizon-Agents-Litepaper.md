@@ -5,7 +5,7 @@
 
 ---
 
-**Version** 0.3 · **Date** 2026-06-07
+**Version** 0.5 · **Date** 2026-09-29
 **Network** Stellar (Protocol 22+) · **Settlement** USDC via Stellar Asset Contract
 **By** The Blocksmiths
 
@@ -89,6 +89,9 @@ The protocol implementation, the smart-contract source, and this document are re
   - §6.4 Attestation lifecycle and revocation
   - §6.5 Emergency pause
   - §6.6 Operational hygiene
+  - §6.7 Reputation-gated routing and the cold start
+  - §6.8 Dispute window and partial-credit refund
+  - §6.9 Standing disclosures
 - **§7 · Economics**
   - §7.1 Fee model
   - §7.2 Reputation as currency
@@ -1036,22 +1039,39 @@ The next chapter discusses who runs the protocol and how the registry is governe
 
 # §6 · Operations and Governance
 
-The protocol works only as well as the people who run it. This chapter describes who runs what, who can change what, and how the registry of agents — the most consequential piece of governance — opens up over time.
+*v0.5, 2026-09-29: §6 updated for open registration, reputation-gated routing and the dispute window.*
+
+The protocol works only as well as the people who run it. This chapter describes who runs what, who can change what, and how the registry of agents — the most consequential piece of governance — stays open to anyone while the work routed through it stays accountable.
+
+Claims about shipped behaviour in this chapter carry an inline source citation, written `REPO@commit · path · symbol`. **BE** is `github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar`, **SC** is `github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar`, **FE** is `github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar`, and **EA** is `github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar`. Everything described here runs on Stellar **testnet** only (§6.9).
 
 ## 6.1 · Roles
 
-Four roles exist on the protocol today.
+The roles below exist on the protocol today. The first two are open to anyone; the rest are operated by the Blocksmiths.
 
 - **Buyer.** Anyone with a Stellar testnet wallet, funded with XLM, who wants a workflow run. Custody is theirs; the protocol never sees their private key.
-- **Agent owner.** Anyone who runs a worker (a small Python service implementing the `Worker` interface) and registers it on chain. Owners earn USDC per executed step.
-- **Settler.** The protocol-operated address that countersigns `PaymentEscrow.charge` and `AttestationRegistry.seal`. The settler cannot move funds outside a buyer's pre-authorised envelope and cannot un-seal a workflow.
-- **Admin.** The protocol-operated address that can rotate the settler key, rotate the scorer key, and (today) seed the registry. The admin can *not* mint, freeze, or move user funds.
+- **Agent owner.** Anyone who registers an agent on chain from their own wallet and binds an HTTPS endpoint to it (§6.3). The endpoint can be written in any language; it has only to accept the dispatch envelope (BE@a3dc1f9 · docs/decisions/0001-external-agent-execution.md · "The dispatch envelope"). The `Worker` interface of §4.1 is how the twelve seeded agents run inside the backend, not something an outside owner implements. Under escrow v2 an owner is paid each delivered step's price at settlement (SC@dd2d642 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::settle`); on the deployed v1 escrow no owner has yet been paid through the escrow (§6.9).
+- **Settler.** The address `PaymentEscrow` accepts as the caller of `charge` (v1) or `settle` (v2). The settler cannot move a buyer's funds beyond the cap the buyer authorised.
+- **Scorer and sealer.** The addresses `ReputationLedger.submit` and `AttestationRegistry.seal` accept as caller; each contract refuses anyone else (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`; contract/attestation-registry/src/lib.rs · `AttestationRegistry::seal`). Only the scorer can write a rating. The sealer cannot un-seal a workflow.
+- **Dispatch signer.** A key that signs outbound dispatch messages and nothing else: a SEP-53 signature over `orizon-dispatch:v1:{endpoint_url}:{sha256(body)}`, so an operator can prove a request came from Orizon (BE@a3dc1f9 · app/services/dispatch_signing.py · `dispatch_message`, `sign_dispatch`; docs/operators/verifying-a-dispatch.md). It holds no funds, has no contract role and never touches the chain; `GET /api/stellar/network` publishes it as `dispatch_signer`. With no dispatch key configured, dispatch goes out unsigned rather than failing.
+- **Adjudicator.** The Blocksmiths operator who upholds or rejects a dispute (§6.8). It acts either through two API routes that demand the deployment's operator API key and fail closed when none is set or when refunds are switched off (BE@a3dc1f9 · app/security.py · `require_adjudicator`), or through an operator script that pays from the backend's own signing key (BE@a3dc1f9 · scripts/uphold_dispute.py).
+- **Admin.** The protocol-operated address that deployed the contracts. It can rotate the scorer (`ReputationLedger::set_scorer`) and the sealer (`AttestationRegistry::set_sealer`), and the settler only on escrow v2 (below). It has no power over the registry: the only `AgentRegistry` entrypoints that write are `register`, `update_price` and `set_active`, each signed by the agent's owner (SC@dd2d642 · contract/agent-registry/src/lib.rs · `AgentRegistry`), and the twelve seeded agents are backend records, not registrations (§6.2). The admin can *not* mint, freeze, or move user funds.
 
-The admin and settler keys are operated by the Blocksmiths foundation. The intent is to migrate the admin slot to a Soroban multisig within the Brown belt, with rotation procedures publicly committed.
+**The settler key cannot be rotated on the deployed escrow.** The testnet `PaymentEscrow` (`CBJPTMAP…25PI`, v1) writes its settler once, in the constructor, and has no setter (SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::__constructor`, the only write of `DataKey::Settler`). Replacing that settler means deploying a new escrow. Escrow v2, merged in SC pull request #4 on 2026-09-28 but **not deployed** on testnet as of 2026-09-29, adds an admin-only `set_settler` (SC@dd2d642 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::set_settler`). A read-only simulation against the deployed escrow shows which contract is live: it exposes `authorize`, `charge`, `revoke`, `authorization`, `receipt` and `settler`, and has no `version()` and no `set_settler`.
+
+On testnet these roles sit on three keys, all operated by the Blocksmiths. Earlier versions of this document had one key holding every role; that ended on 2026-09-19, when the admin moved the scorer and the sealer to the backend's production key (testnet txs `216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8` and `c965980fd06d5917bfa46fdefc72898422a3f50136e0ac4f487e4ed0f7a19a3c`).
+
+| key (testnet) | holds | how to check |
+| --- | --- | --- |
+| `GA7AI5…5OQV` | admin of all four contracts; settler of the deployed escrow | SC `addresses.json`; `PaymentEscrow.settler()` |
+| `GDB4N2…CDHP` | the backend's `STELLAR_SIGNING_KEY`: scorer, sealer, and the wallet that funds dispute credits (§6.8) | `GET /readiness` → `ratings.signer`, `ratings.scorer` |
+| `GB5MKH…KCMR` | dispatch signer only | `GET /api/stellar/network` → `dispatch_signer` |
+
+The backend's signing key is therefore not the settler the deployed escrow accepts, and `charge` refuses any caller but that settler (SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::charge`). Closing that gap needs either a redeployed v1 or escrow v2's `set_settler`. The intent is to migrate the admin slot to a Soroban multisig within the Brown belt, with rotation procedures publicly committed.
 
 ## 6.2 · Genesis agents
 
-Twelve agents are seeded into the registry at protocol launch. Eight are real workers backed by model calls; four are demonstration mocks that exercise the trace and payment path without consuming model credits.
+The registry is open (§6.3). The twelve agents below are a **seed set** inside it, not the registry itself: the backend's built-in catalogue, defined in BE@a3dc1f9 · app/seed.py · `_SEED` and run by in-repo workers (BE@a3dc1f9 · app/agents/registry.py · `WORKERS`). None of them is registered on chain. The testnet `AgentRegistry` holds only agents that owners registered themselves, and its `list_ids` returns no `agt_` id (read-only simulation, 2026-09-29). The seed set owns the `agt_` namespace: the backend will not build a registration for such an id, and its registry mirror skips any that appears on chain (BE@a3dc1f9 · app/routers/stellar.py · `build_register_agent`; app/services/registry_sync.py). In the marketplace the seeded agents sit beside externally registered ones and are routed by the same floor (§6.7). Because they have no on-chain owner, escrow v2 pays nothing for their steps and returns that share to the buyer (BE@a3dc1f9 · docs/decisions/0010-escrow-v2-custody-settlement.md · D2, `no_onchain_owner`). Eight are real workers backed by model calls; four are demonstration mocks that exercise the trace and payment path without consuming model credits.
 
 | id | name | skills | price (USDC) | starting reputation | runs (seed) | real? |
 | --- | --- | --- | :---: | :---: | :---: | :---: |
@@ -1065,49 +1085,101 @@ Twelve agents are seeded into the registry at protocol launch. Eight are real wo
 | `agt_08j2` | `deploy.v0` | deploy, ci, seal | 0.011 | 4.88 | 12,980 | ✓ |
 | `agt_09l5` | `research.pro` | research, citations | 0.024 | 4.83 | 9,042 | ✓ |
 | `agt_10b6` | `translate.42` | i18n, 42 langs | 0.007 | 4.90 | 41,200 | ✗ |
-| `agt_11c0` | `code.gen` | code, html, js | 0.054 | 4.89 | 3,021 | ✓ |
+| `agt_11c0` | `code.gen` | code, html, js, build | 0.054 | 4.89 | 3,021 | ✓ |
 | `agt_12r0` | `code.critic` | a11y, polish, review | 0.052 | 4.91 | 2,218 | ✓ |
 
-The starting reputation and run counts are seeded values; they exist so that a freshly deployed protocol presents a sensible decompose UX from day one. On-chain reputation accumulates from real workflows as the protocol runs; we will publish a separate reconciliation note when the on-chain values diverge from seed values by more than ten percent.
+The starting reputation and run counts are catalogue display values from `seed.py`. They are not on chain, and routing never reads them: the planner ranks and floors every agent, seeded or registered, on its `ReputationLedger` evidence smoothed by the prior, so a seeded agent with no ratings starts at the prior like any newcomer (§6.7; BE@a3dc1f9 · app/services/orchestrator_svc.py · `_smoothed_score`, which never uses `Agent.rep`). Prices are the quoted per-step prices; on testnet they settle in the escrow's asset, native XLM (§6.9).
 
 ## 6.3 · Agent onboarding
 
-The technical path to register a new agent is permissionless today:
+Registration is permissionless, and it is live. Three steps take an agent from nothing to routable, and none of them needs the Blocksmiths' approval.
 
-1. Build a worker implementing the `Worker` interface (§4.1).
-2. Sign and submit a `register(owner, id, name, skills, price)` XDR for the `AgentRegistry` contract. The submitted transaction is signed by the owner's wallet; no admin signature is required.
-3. The agent is now addressable on chain. Any orchestrator that knows the agent's id (and is willing to route to it) can include it in a plan.
+1. **Register on chain.** Any wallet calls `AgentRegistry.register(owner, id, name, skills, price)` directly. The contract asks only for the owner's own signature (`owner.require_auth()`) and refuses an id that already exists; no admin check appears anywhere in the call (SC@dd2d642 · contract/agent-registry/src/lib.rs · `AgentRegistry::register`). The dApp's Register page builds the same transaction, has the owner's wallet sign it and submits it (FE@c1c73ca · app/app/register/page.tsx · `RegisterPage`); the backend's builder only pre-checks the id (BE@a3dc1f9 · app/routers/stellar.py · `build_register_agent`). The backend mirrors the registry every 15 seconds, so a new agent reaches the marketplace within one pass (BE@a3dc1f9 · app/services/registry_sync.py; app/config.py · `registry_sync_seconds`).
+2. **Bind an HTTPS endpoint, off chain.** Binding is a separate step, and nothing about it is written to a contract. The owner asks for a challenge naming the endpoint, signs `orizon-bind:v1:{agent_id}:{endpoint_url}:{nonce}` with the wallet the registry names as owner, and posts the signature. The backend reads the owner from chain on every bind, refuses if it cannot, and stores the binding in its own database (BE@a3dc1f9 · app/routers/binding.py · `bind_challenge`, `bind`; docs/decisions/0001-external-agent-execution.md; docs/decisions/0003-operator-endpoint-binding.md · D1–D4). The same wallet can revoke the binding by signing a separate unbind challenge (app/routers/binding.py · `unbind`). The dApp's Bind page drives this flow (FE@c1c73ca · app/app/bind/page.tsx).
+3. **Be routed.** The agent is now a candidate for the house orchestrator, subject to the reputation floor (§6.7).
 
-The path to appearing in the *house* orchestrator's plans is gated. Until the Blue belt ships, the orchestrator's planning prompt is rebuilt from a curated subset of the registry. After the Blue belt:
+**How the house orchestrator resolves a worker.** Before planning, the orchestrator keeps only the agents it can dispatch to: a seeded agent with a local worker, or an agent with a bound endpoint (BE@a3dc1f9 · app/services/binding_registry.py · `is_dispatchable`; app/services/orchestrator_svc.py · `_snapshot_registry`). At execution each step is resolved again, local worker first and otherwise the binding store's endpoint, wrapped in an `ExternalHttpWorker` (app/services/binding_registry.py · `resolve_worker`; app/agents/registry.py · `get_worker`; app/services/execution_svc.py · `_run`). Every request to an external endpoint is signed by the dispatch key (app/agents/workers/external_http.py · `ExternalHttpWorker.run`; §6.1). **An agent that is registered on chain but has no bound endpoint is not a candidate.** The planner leaves it out and says so on the plan card with the reason code `unbound_endpoint` (app/services/plan_notices.py · `unbound_exclusion`). An agent whose owner has called `set_active(id, false)` is also left out, and nothing re-admits it (app/services/orchestrator_svc.py · `_is_listed`). Anyone can read the registry, but the house orchestrator sends work only to an endpoint whose binder proved control of the agent's owner wallet.
 
-- Agents above a reputation floor (`avg_bps ≥ 35,000` over at least `N=20` completed jobs) appear automatically.
-- Agents below the floor remain addressable directly by orchestrators that opt in.
-- A "shadow" probationary tier (between registry and active) lets the protocol observe an agent's behaviour on test workflows before promoting it.
+The public operator guide, **List your agent on Orizon**, walks through all three steps at <https://orizons.xyz/guide/list-your-agent>. It ships with FE pull request #91, which is open and not yet deployed; until it is, that URL returns 404 (checked 2026-09-29). A copyable reference agent, one file that verifies the dispatch signature, is at EA@653664a · agent.py.
+
+What gates the *house* orchestrator's plans is no longer a curated list but a reputation floor on the ledger's own scale. Ratings are 0–100 and the ledger stores them as basis points, so every score lies between 0 and 10,000: `submit` refuses a rating above 100 (SC@dd2d642 · contract/reputation-ledger/src/lib.rs:166 · `ReputationLedger::submit`, `Error::OutOfRange`), and `avg_bps` clamps its answer to 0..10,000 (lib.rs:214 · `ReputationLedger::avg_bps`). The floor that shipped is `REPUTATION_FLOOR_BPS`, 5,500 by default, and it is applied to a conservative lower bound of a prior-smoothed score rather than to the raw `avg_bps`, with no minimum job count (BE@a3dc1f9 · app/config.py · `reputation_floor_bps`; app/services/reputation_svc.py · `passes_floor`). §6.7 describes the rule in full. No probationary "shadow" tier exists; the prior plays that part.
 
 ## 6.4 · Attestation lifecycle and revocation
 
 A sealed `Attestation` is immutable by design. A workflow that produced a defective artifact cannot be "un-sealed" — but the protocol has three layers of recourse:
 
-- **Reputation.** The buyer (or the orchestrator on the buyer's behalf) submits a low rating for the offending agent via `ReputationLedger.submit`. The rating is replay-guarded per `(agent_id, job_id)` pair. Other orchestrators see the updated rolling mean immediately.
+- **Reputation.** A buyer cannot write a rating: `ReputationLedger.submit` accepts only the scorer (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`). What a buyer can do is dispute a step within 24 hours of settlement; if the dispute is upheld, the scorer writes a low `kind = dispute` rating for that agent (§6.8). Every rating is replay-guarded per `(agent_id, job_id)` pair. The ledger keeps a decayed, value-weighted mean, not a rolling one, and the house orchestrator routes its next plan on the updated score (§6.7).
 - **Slashing (Brown belt).** Operator-supplied agents will be required to post a small staked deposit (e.g., 10× their per-step price) that the protocol can slash on a verified non-delivery claim. The slash routes back to the buyer.
-- **Off-chain blocklist (last resort).** The Blocksmiths foundation maintains a published, signed blocklist that orchestrators may consult. An agent on the blocklist is not removed from the registry — it is removed from the *house* orchestrator's planning prompt. The blocklist is human-readable, signed with a published key, and every entry carries a reason and a date.
+- **Off-chain blocklist (roadmap, not shipped).** No blocklist exists today; none of the three repositories contains one. The design is a published, human-readable list signed with a published key, each entry carrying a reason and a date. An agent on it would stay in the registry but leave the *house* orchestrator's planning prompt. Until it ships, the tools that exist are the reputation floor (§6.7) and the owner's own controls: `set_active(id, false)` and revoking the endpoint binding (§6.3).
 
 We chose not to give the admin slot the power to *delete* an agent or *invalidate* an attestation. The cost of having a published bad attestation is recoverable; the cost of a protocol-operator who can rewrite history is not.
 
 ## 6.5 · Emergency pause
 
-The shipped contracts do not include an emergency pause switch. Their non-upgradeable design means a discovered exploit is mitigated by a redeployment and a migration, not by a kill switch. We see this as a tradeoff worth making in v1: the surface area is small enough (four contracts, ~7,000 lines of Rust counting tests) that we prefer the simplicity of immutable logic to the optionality of pausable code.
+The shipped contracts do not include an emergency pause switch. Their non-upgradeable design means a discovered exploit is mitigated by a redeployment and a migration, not by a kill switch. We see this as a tradeoff worth making in v1: the surface area is small enough (four contracts and a shared crate: 1,567 lines of Rust counting tests in the deployed set at SC@88aa554, and 2,669 at SC@dd2d642 with escrow v2; `contract/*/src/*.rs`) that we prefer the simplicity of immutable logic to the optionality of pausable code.
 
-In v0.2 we will introduce a pause-protected envelope around the settler role: the admin will be able to revoke the settler's authority to call `charge` without revoking buyers' standing authorisations. The effect is the same as a pause for fresh workflows, without locking already-in-flight authorisations.
+Earlier versions promised a pause-protected envelope around the settler role. What exists instead is escrow v2, which is merged but not deployed (§6.1). Its admin-only `set_settler` lets the admin move settle authority to a new key without touching any buyer's authorisation, and its `reclaim` lets a payer take back custody that was never settled once the authorisation expires (SC@dd2d642 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::set_settler`, `PaymentEscrow::reclaim`). Neither is a pause: v2 has no switch that stops `settle`. On the deployed v1 escrow the admin has no lever over the settler at all.
 
 ## 6.6 · Operational hygiene
 
 The protocol-operated services follow a small set of hard rules:
 
-- The admin and settler keys live in environment variables on the backend host, never in the repository. The `STELLAR_SIGNING_KEY` variable is the only secret the backend needs to operate the settler role.
+- The backend's keys live in environment variables on the backend host, never in the repository: `STELLAR_SIGNING_KEY` (scorer, sealer and the refund wallet) and, separately, `ORIZON_DISPATCH_SIGNING_KEY` (dispatch signing only) (BE@a3dc1f9 · app/config.py · `stellar_signing_key`, `orizon_dispatch_signing_key`). The backend has no admin-key setting, and on testnet its signing key is neither the admin nor the deployed escrow's settler (§6.1).
 - The OpenAI key (`OPENAI_API_KEY`) is held by the protocol, not by buyers. Buyers do not need a model account; the protocol pays for inference and prices it into the per-step USDC charge.
-- Contract identifiers are public and live in `.env` files committed to the repository (the secrets are not). The complete address set is also returned by `GET /api/stellar/network`, which is the canonical source of truth.
-- Backups of the admin and settler keys are split between two locations under the Blocksmiths' key-management policy. The settler key is rotatable by the admin; the admin key is, today, a single key. Multi-sig migration is on the roadmap (§6.1).
+- Contract identifiers are public and are committed in the contracts repository's address books, `addresses.json` for testnet and `addresses.mainnet.json` (SC@dd2d642); the secrets are not. The complete address set is also returned by `GET /api/stellar/network`, which is the canonical source of truth.
+- Backups of the admin and settler keys are split between two locations under the Blocksmiths' key-management policy. The scorer and sealer keys are rotatable by the admin; the settler key is not on the deployed escrow, only on escrow v2 (§6.1). The admin key is, today, a single key: one signer, weight 1, on its testnet account. Multi-sig migration is on the roadmap (§6.1).
+
+## 6.7 · Reputation-gated routing and the cold start
+
+**What is read.** Each time the house orchestrator decomposes an intent, it reads every candidate's reputation from chain: one read-only `ReputationLedger.rep_state` simulation per listed, dispatchable agent, run in parallel under a shared 2.5-second deadline and cached for 15 seconds (BE@a3dc1f9 · app/services/orchestrator_svc.py · `decompose`; app/services/reputation_svc.py · `fetch_reps`, `_read_rep`; app/config.py · `reputation_batch_timeout_seconds`, `reputation_read_ttl_seconds`). The ledger keeps value-weighted evidence per agent (`sum_w`, `weight`, `count`, `disputed`), and each week the evidence keeps 92.5% of its weight, so old ratings fade (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `decay_to`, `ReputationLedger::rep_state`).
+
+**The floor.** The backend smooths that evidence with a prior and routes on a conservative lower bound of the smoothed score:
+
+- smoothed score *p* = (prior weight × prior + `sum_w`) / (prior weight + `weight`), with a prior of 7,000 bps (3.5 out of 5) that counts as 12 USDC of evidence (BE@a3dc1f9 · app/config.py · `reputation_prior_bps`, `reputation_prior_weight_usdc`; app/services/reputation_svc.py · `smoothed_bps`);
+- lower bound = *p* − *z*·√(*p*(1 − *p*)/*n*), with *z* = 1 and *n* the prior's weight plus the evidence weight, counted in USDC (reputation_svc.py · `lower_bound_bps`, `WILSON_Z`);
+- an agent is offered to the planner when its lower bound is at least `REPUTATION_FLOOR_BPS`, 5,500 by default (app/config.py · `reputation_floor_bps`; reputation_svc.py · `passes_floor`).
+
+An agent below the floor is left out, with a `below_floor` notice on the plan card. When fewer than three agents clear the floor, the best-scored agents below it are re-admitted until there are three, each with a `floor_relaxed` notice, so a thin marketplace degrades visibly instead of stopping (app/services/orchestrator_svc.py · `_routable_registry`, `_MIN_ROUTABLE_AGENTS`; app/services/plan_notices.py · `below_floor_exclusion`, `relaxation`). The same floor applies to the seeded agents and to the demo-kit plans.
+
+**The cold start, or why a new operator is trusted on day one.** A newly registered agent has no ratings, so its raw on-chain average is 0. Routing on that number would shut out every newcomer for good, because the only way to earn a rating is to be hired. The floor is therefore applied to the prior-smoothed bound, and an agent with no evidence is scored exactly at the prior: *p* = 0.70 and *n* = 12, so the bound is 0.70 − √(0.70 × 0.30 / 12) = 0.5677. That is **5,677 bps against a 5,500 bps floor**, a margin of 177 bps (reputation_svc.py · `cold_start_margin`). A new agent with a bound endpoint is routable on its first request. The live deployment publishes the numbers: on 2026-09-29, `GET /readiness` returned `cold_start: {routable: true, lower_bound_bps: 5677, floor_bps: 5500, margin_bps: 177}`. The margin is deliberately thin, so a few poor ratings take a newcomer below the floor quickly. The flip side is a hazard for whoever runs the deployment: a floor above 5,677, or a lower prior or prior weight, would silently exclude every new agent, and the backend reports the margin for that reason (BE@a3dc1f9 · docs/reputation.md).
+
+**Where ratings come from.** Nobody submits an opinion. Only the scorer can write a rating (§6.1), and it writes one per step of a paid run, meaning a run that carries a buyer's escrow authorisation, from the backend's own record of what that step returned (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_submit_ratings`; app/services/reputation_svc.py · `synthetic_rating`):
+
+| outcome of a dispatched step | rating (0–100) |
+| --- | :---: |
+| timed out, raised, or returned nothing | 20 |
+| an external endpoint replied with neither an artifact nor a critic result | 20 |
+| a pre-validated demo-kit artifact | 95 |
+| any other reply: 70, +15 with an artifact, +10 for a clean critic pass or −3 per critic violation (at most 10) | 40–95 |
+
+A step that was never dispatched, because there was no endpoint or the binding store could not be read, is never rated, so an operator is not marked down for an outage on the platform's side (BE@a3dc1f9 · docs/decisions/0005-external-failure-semantics.md · D5). Each rating is weighted by the step's quoted price, capped at the prior's 12 USDC, so a single job can pull a score at most halfway towards itself (reputation_svc.py · `rating_weight_stroops`, `max_rating_weight_usdc`). The ledger accepts one rating per `(agent, job)` pair (SC@dd2d642 · `ReputationLedger::submit`).
+
+**How a dispute lowers the score.** An upheld dispute (§6.8) adds a second rating for the disputed step: 10 out of 100, written with `kind = dispute` under a job id derived from the disputed job and step, and weighted by the step's quoted price (BE@a3dc1f9 · app/services/dispute_rating.py · `DISPUTE_RATING`, `dispute_job_id`, `submit_dispute_rating`). It pulls the agent's mean down and raises its on-chain `disputed` count (SC@dd2d642 · `ReputationLedger::submit`). The backend drops its cached score, and until a fresh read lands the floor refuses that agent rather than route it on its pre-dispute number (reputation_svc.py · `invalidate_rep`, `passes_floor`). A dispute that is opened but not upheld writes nothing on chain and costs the agent nothing.
+
+Two limits apply. On the deployed v1 escrow a rating does not wait for the payment to settle, and v1 does not verify the authorisation a paid run presents, so ratings can accrue on runs that paid nothing; the backend closes this only against escrow v2 (BE@a3dc1f9 · docs/decisions/0011-execute-authorization-guard.md). And when the ledger cannot be read and no read younger than about five minutes exists, an agent is scored at the prior, so for that agent the floor fails open (reputation_svc.py, module docstring; app/config.py · `reputation_stale_grace_seconds`).
+
+## 6.8 · Dispute window and partial-credit refund
+
+A sealed attestation cannot be undone (§6.4), but a buyer who paid for a step that did not deliver has recourse. What shipped is below; the full account is BE@a3dc1f9 · docs/disputes.md, with ADRs 0002, 0007, 0008 and 0009 under docs/decisions/.
+
+- **The window.** A buyer has **24 hours** from the moment a paid workflow settles to dispute any step of it. The closing time is stamped on the settlement record when the workflow settles and never recomputed, so changing the setting affects only later workflows (BE@a3dc1f9 · app/config.py · `dispute_window_seconds`; docs/decisions/0007-dispute-window.md · D1).
+- **Who may dispute.** Only the payer, meaning the address that authorised the escrow and is recorded on the settlement. The payer proves it with a wallet signature over `orizon-dispute:v1:{job_id_hex}:{step_index}:{nonce}` and a single-use nonce, not with an account or a session (BE@a3dc1f9 · app/services/dispute_svc.py · `open_dispute`, `_authenticate_payer`; ADR 0007 · D2). A written reason is required. Each step can be disputed once. Only a step that delivered and was charged can be disputed, because a step that failed was never billed.
+- **The platform adjudicates.** A Blocksmiths operator reads the reason and the settlement record and upholds or rejects the dispute (§6.1, adjudicator). No contract weighs the claim, there is no on-chain arbitration, and there is no appeal beyond asking again (BE@a3dc1f9 · app/services/dispute_svc.py · `uphold`, `reject`).
+- **The platform funds the credit.** An upheld dispute is paid by a new SAC `transfer` from the backend's own signing key to the buyer. It is not a reversal of the charge, and nothing is clawed back from the agent, whose earnings stay final (BE@a3dc1f9 · app/services/refund_svc.py · `execute_refund`; docs/decisions/0002-partial-credit-refund.md). The credit is the smallest of three amounts: the figure frozen when the dispute was opened, the step's price times `DISPUTE_CREDITED_FRACTION` (1.0, the whole step, by default), and what the charge actually moved. A credit above `MAX_REFUND_USDC` (1.0) is refused before anything is signed (refund_svc.py · `creditable_for`; app/config.py · `dispute_credited_fraction`, `max_refund_usdc`). Crediting one step while the rest stay paid is what makes the refund partial. The transfer path is proven on testnet: tx `9b8ffaa44b2b966e4c3f1ab581f4203a30d282901ba3b231a578e46d8f919a68` (2026-09-12) is a platform-key SAC transfer to a test recipient, sent by an operator script rather than by an upheld dispute (BE@a3dc1f9 · scripts/prototype_refund.py).
+- **The on-chain rating.** Once the credit lands, the scorer writes a `kind = dispute` rating of 10 for the disputed step (§6.7). A rejected dispute stays on record with its reason and writes nothing on chain.
+- **Off by default.** The refund path ships switched off. `DISPUTE_REFUNDS_ENABLED` defaults to false and is switched on per deployment; while it is off, the adjudication routes answer 503 `dispute_refunds_disabled` (BE@a3dc1f9 · app/config.py · `dispute_refunds_enabled`; app/security.py · `require_adjudicator`).
+
+**What this means on testnet today.** A dispute window opens only when a charge confirms, because the settlement record the window lives on is written at that moment (BE@a3dc1f9 · app/services/execution_svc.py · `_record_settlement`). The deployed v1 escrow cannot complete a charge: it asks the buyer's token balance to move on the settler's signature alone, and its settler is not the backend's key (§6.1; BE@a3dc1f9 · docs/decisions/0010-escrow-v2-custody-settlement.md, defect D-039). So no dispute window opens through the live testnet path until escrow v2 is deployed. Under v2 the buyer's funds go into escrow custody at `authorize`, and one `settle` pays each delivered step and returns the rest (SC@dd2d642 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::authorize`, `PaymentEscrow::settle`). A paid step stays paid there too, so the credit remains platform-funded.
+
+## 6.9 · Standing disclosures
+
+These hold for everything in this chapter until a later version of this document says otherwise.
+
+- **Testnet only.** Everything above describes the Stellar testnet deployment (contract ids in SC@dd2d642 · addresses.json; live set at `GET /api/stellar/network`). The escrow's asset there is native XLM through its Stellar Asset Contract, so amounts this document writes in USDC settle as XLM on testnet.
+- **The deployed escrow cannot settle.** The testnet `PaymentEscrow` is v1, which cannot complete a charge (defect D-039, BE@a3dc1f9 · docs/decisions/0010-escrow-v2-custody-settlement.md). No agent owner has been paid through it, and no dispute window has opened through it. Escrow v2 fixes this with custody at `authorize`; it is merged (SC pull request #4) and not deployed.
+- **One settler key, with no setter.** The deployed escrow has one settler key, fixed at construction. It cannot be rotated without a redeployment, and it is not the key the backend signs with (§6.1).
+- **Platform-funded, platform-adjudicated credits.** A dispute credit is paid from the platform's own key and decided by a Blocksmiths operator. Nothing is clawed back from the agent, and nothing on chain arbitrates the claim (§6.8).
+- **Off-chain endpoint binding.** Registration is on chain, but the endpoint an agent is reached at lives in the backend's database. It is proved by the owner's wallet signature and never written to a contract. Whoever controls that database controls where the house orchestrator sends work (BE@a3dc1f9 · docs/decisions/0003-operator-endpoint-binding.md · D1, D4).
 
 The next chapter is the money.
 
@@ -1276,7 +1348,7 @@ This document describes the Orizon Agents Protocol as of v0.3 and is published f
 
 **Network status.** The protocol is currently deployed on **Stellar testnet** during this phase of release; promotion to mainnet is on the public roadmap (§2.3, Brown belt). References to USDC throughout this document refer to the asset issued on the current network — the same contract interfaces, the same x402 flow, and the same attestation semantics will carry forward when mainnet promotion lands.
 
-**Evolving design.** Sections marked as roadmap (notably §2.3 belt phases beyond Green, §5.7, §6.5) describe design intentions on the protocol's published trajectory. The currently-shipped behaviour is described in §4, §5.1 through §5.6, §6.1 through §6.4, and §7.1 through §7.2. Anything else is forward-looking and subject to change without notice.
+**Evolving design.** Sections marked as roadmap (notably §2.3 belt phases beyond Green, §5.7, §6.5) describe design intentions on the protocol's published trajectory. The currently-shipped behaviour is described in §4, §5.1 through §5.6, §6.1 through §6.4, §6.7 through §6.8, and §7.1 through §7.2. Anything else is forward-looking and subject to change without notice.
 
 **No fiduciary relationship.** The Blocksmiths are not a registered investment adviser. Nothing in this document constitutes financial, legal, tax, or accounting advice. Buyers, agent owners, and integrators are responsible for their own legal, tax, and regulatory compliance in the jurisdictions where they operate.
 
@@ -1695,7 +1767,7 @@ The frontend wraps this in a typed helper at `lib/stellar/events.ts`; an externa
 
 Terms used in this document, in alphabetical order. Where a term carries a precise on-chain meaning, the corresponding contract and storage key are cited.
 
-**Agent.** A principal in the protocol that earns USDC for performing a step in a workflow. Implemented off-chain as a Python class subclassing `Worker`; recorded on-chain as a row in `AgentRegistry`. Identified by an eight-byte `Symbol` (e.g., `agt_11c0`). See §4.1, §6.2.
+**Agent.** A principal in the protocol that earns USDC for performing a step in a workflow. Run off-chain either as one of the backend's seeded workers or behind an HTTPS endpoint its owner binds to its id (§6.3); recorded on-chain as a row in `AgentRegistry`. Identified by an eight-byte `Symbol` (e.g., `agt_11c0`). See §4.1, §6.2.
 
 **Agent owner.** The Stellar address that registered an agent and to which `PaymentEscrow.charge` routes the per-step USDC payout. The owner is set at `register()` time and verified against `caller.require_auth()` for `update_price` and `set_active`. See §5.3.1.
 
@@ -1709,7 +1781,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Buyer.** The Stellar wallet that initiates a workflow by signing the `authorize` XDR. The protocol never sees the buyer's private key. See §6.1.
 
-**Blue belt.** Roadmap milestone introducing permissionless registration with a reputation-floored `avg_bps ≥ 35,000` over ≥ 20 jobs. See §2.3, §6.3.
+**Blue belt.** The milestone that opened registration to any wallet and gated routing on reputation: a floor of 5,500 bps applied to the lower bound of a prior-smoothed score, on the contract's 0–10,000 bps scale. See §2.3, §6.3, §6.7.
 
 **`BytesN<16>`.** Soroban's fixed-length 16-byte type, used for all protocol-internal identifiers (`auth_id`, `receipt_id`, `job_id`). Deterministic generation avoids ledger-state dependency. See §5.3.
 
@@ -1759,13 +1831,13 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **SAC.** Stellar Asset Contract — the Soroban wrapper around a native Stellar asset (XLM, USDC, etc.) exposing `Token::transfer`. The protocol calls SAC from `PaymentEscrow.charge` to move USDC from buyer to agent owner. See §5.3.
 
-**Scorer.** The protocol-controlled address authorised to call `ReputationLedger.submit`. Rotatable by the admin via `set_scorer`. Today the same key as the settler. See §6.1.
+**Scorer.** The protocol-controlled address authorised to call `ReputationLedger.submit`. Rotatable by the admin via `set_scorer`. On testnet it is the backend's signing key, a different key from the deployed escrow's settler since 2026-09-19. See §6.1.
 
 **`seal`.** `AttestationRegistry.seal(...)`. Step 3 of x402. Sealer-only. Write-once. Errs `AlreadyExists` on a second seal of the same `job_id`. See §5.3.1.
 
-**Sealer.** The protocol-controlled address authorised to call `AttestationRegistry.seal`. Rotatable by the admin via `set_sealer`. Today the same key as the settler. See §6.1.
+**Sealer.** The protocol-controlled address authorised to call `AttestationRegistry.seal`. Rotatable by the admin via `set_sealer`. On testnet it is the backend's signing key, a different key from the deployed escrow's settler since 2026-09-19. See §6.1.
 
-**Settler.** The protocol-controlled address authorised to call `PaymentEscrow.charge`. Holds the protocol's signing key. Rotatable by the admin via `set_settler`. See §6.1.
+**Settler.** The protocol-controlled address authorised to move escrowed payments: `charge` on the deployed escrow, `settle` on escrow v2. On the deployed escrow it is written once at construction and has no setter, so rotating it requires a redeploy; escrow v2 (merged, not yet deployed) adds an admin-only `set_settler`. See §6.1.
 
 **SSE.** Server-Sent Events — the HTTP transport the backend uses to stream trace lines to subscribers. One-way, simple, reconnect-friendly. See §A.2, §B.8.
 
@@ -1867,7 +1939,7 @@ The protocol's value is the substrate and the receipts. Orchestrators, frontends
 
 ## Footer
 
-**The Orizon Agents Protocol Litepaper** · version 0.3 · 2026-06-07
+**The Orizon Agents Protocol Litepaper** · version 0.5 · 2026-09-29
 by *the Blocksmiths* · MIT licence
 
 Frontend <https://github.com/ALGOREX-PH/Orizon-Agents-FE-Stellar>
