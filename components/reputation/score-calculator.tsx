@@ -1,4 +1,5 @@
 "use client";
+import { assetLabel } from "@/lib/money";
 import { useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -29,6 +30,7 @@ export function ScoreCalculator({
   error = null,
   retrying = false,
   onRetry,
+  asset = null,
 }: {
   params: ReputationParams | null;
   loading?: boolean;
@@ -36,7 +38,11 @@ export function ScoreCalculator({
   /** An automatic retry is scheduled or in flight (`useFetch.retrying`). */
   retrying?: boolean;
   onRetry?: () => void;
+  /** The network route's `asset`: what evidence weight is denominated in
+   *  ("native" → XLM on testnet). Unknown → no unit, never "USDC". */
+  asset?: string | null;
 }) {
+  const unit = assetLabel(asset);
   const p: RepMathParams = params ?? DEFAULT_REP_PARAMS;
   const uid = useId();
   const [mean, setMean] = useState(85);
@@ -113,7 +119,10 @@ export function ScoreCalculator({
             >
               settled evidence
             </label>
-            <span className="font-mono text-sm text-text">{weight} USDC</span>
+            <span className="font-mono text-sm text-text">
+              {weight}
+              {unit ? ` ${unit}` : ""}
+            </span>
           </div>
           <input
             id={weightId}
@@ -181,8 +190,8 @@ export function ScoreCalculator({
 
         <p className="font-mono text-[10px] text-muted">
           mirrors backend math — prior ★{scoreOutOfFive(p.prior_bps)} carries{" "}
-          {p.prior_weight_usdc} USDC of mass; confidence grows with settled
-          value, not clicks.
+          {p.prior_weight_usdc} {unit || "units"} of mass; confidence grows with
+          settled value, not clicks.
         </p>
       </div>
     </Card>

@@ -1,3 +1,4 @@
+import { assetLabel } from "@/lib/money";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
 import { Skeleton, LoadingStatus } from "@/components/ui/skeleton";
@@ -30,6 +31,7 @@ export function RepStats({
   error,
   retrying = false,
   onRetry,
+  asset = null,
 }: {
   batch: ReputationBatch | null;
   loading: boolean;
@@ -37,6 +39,9 @@ export function RepStats({
   /** An automatic retry is scheduled or in flight (`useFetch.retrying`). */
   retrying?: boolean;
   onRetry?: () => void;
+  /** The network route's `asset`: what evidence weight is denominated in
+   *  ("native" → XLM on testnet). Unknown → no unit, never "USDC". */
+  asset?: string | null;
 }) {
   // Checked before `loading` so a retry keeps the alert on screen (and shows
   // its retrying state) instead of flashing back to skeleton tiles: useFetch
@@ -71,7 +76,7 @@ export function RepStats({
   }
 
   const entries = batch ? Object.values(batch.reputations) : null;
-  // `unit` is split off the value so the longest tile ("1234.56 USDC") can
+  // `unit` is split off the value so the longest tile ("1234.56 XLM") can
   // wrap between amount and unit instead of running past the card — the Card's
   // clip-cyber clip-path cuts overflow off silently, and globals.css sets
   // overflow-x: hidden, so a too-wide money value is lost, not scrollable.
@@ -97,7 +102,10 @@ export function RepStats({
             entries.reduce((sum, r) => sum + r.weight, 0) / STROOPS_PER_USDC
           ).toFixed(2)
         : "—",
-      unit: entries ? "USDC" : null,
+      // The weight is each step's quoted price in stroops of the escrow's
+      // asset — XLM on testnet — so the unit is the network's, never the
+      // "USDC" of a field name, and none at all while it is unknown.
+      unit: entries ? assetLabel(asset) || null : null,
       sub: null,
     },
     {

@@ -6,7 +6,12 @@ import { RatingRubric } from "@/components/reputation/rating-rubric";
 import { RepLeaderboard } from "@/components/reputation/rep-leaderboard";
 import { RepStats } from "@/components/reputation/rep-stats";
 import { ScoreCalculator } from "@/components/reputation/score-calculator";
-import { getReputationParams, listAgents, listReputation } from "@/lib/api";
+import {
+  getReputationParams,
+  getStellarNetwork,
+  listAgents,
+  listReputation,
+} from "@/lib/api";
 import { useFetch } from "@/lib/use-fetch";
 
 /**
@@ -51,6 +56,11 @@ export default function ReputationPage() {
   } = useFetch(getReputationParams, [], {
     revalidateOnFocus: true,
   });
+  // What evidence weight is denominated in: each rating is weighted by its
+  // step's quoted price, in stroops of the escrow's asset — native XLM on
+  // testnet, whatever the params' `*_usdc` names say. Unknown → no unit.
+  const { data: network } = useFetch(getStellarNetwork, []);
+  const asset = network?.asset ?? null;
 
   return (
     <div className="space-y-10">
@@ -72,6 +82,7 @@ export default function ReputationPage() {
         error={batchError}
         retrying={batchRetrying}
         onRetry={reloadBatch}
+        asset={asset}
       />
 
       <section aria-labelledby="rep-leaderboard-heading" className="space-y-4">
@@ -98,6 +109,7 @@ export default function ReputationPage() {
           batchLastSuccessAt={batchLastSuccessAt}
           onRetryAgents={reloadAgents}
           onRetryBatch={reloadBatch}
+          asset={asset}
         />
       </section>
 
@@ -111,6 +123,7 @@ export default function ReputationPage() {
           error={paramsError}
           retrying={paramsRetrying}
           onRetry={reloadParams}
+          asset={asset}
         />
       </div>
 
@@ -120,6 +133,7 @@ export default function ReputationPage() {
         error={paramsError}
         retrying={paramsRetrying}
         onRetry={reloadParams}
+        asset={asset}
       />
 
       <section aria-labelledby="rep-principles-heading" className="space-y-4">
