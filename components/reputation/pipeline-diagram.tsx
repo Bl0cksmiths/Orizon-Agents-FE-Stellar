@@ -11,6 +11,9 @@ import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
  */
 const MAX_RATING_WEIGHT = DEFAULT_REP_PARAMS.prior_weight_usdc;
 
+/** The prior's weight, in the escrow's asset for the same reason. */
+const PRIOR_WEIGHT = DEFAULT_REP_PARAMS.prior_weight_usdc;
+
 type Stage = {
   title: string;
   body: string;
@@ -61,7 +64,7 @@ const LATER_STAGES: Stage[] = [
   },
   {
     title: "Smooth",
-    body: "The backend blends evidence with a Bayesian prior of 3.50★ (7000 bps) carrying 12 USDC of mass — newcomers start at the prior, not zero.",
+    body: `The backend blends evidence with a Bayesian prior of 3.50★ (7000 bps) carrying ${PRIOR_WEIGHT} of weight in the escrow's asset — newcomers start at the prior, not zero.`,
   },
   {
     title: "Gate",
