@@ -753,9 +753,9 @@
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
         {
-          "label": "An outside operator's wallet — owns Powerbot (counted: outside operator)",
-          "url": "https://stellar.expert/explorer/testnet/account/GCVOWZY5SII2HZSYL6I5VFOOYPOJXHMATXRJVKBE227GBW45L7UAKQKX",
-          "kind": "account"
+          "label": "The counted outside operator wallet, one operator's trial, as the ecosystem page lists it (its address is held back here until consent is recorded)",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
         },
         {
           "label": "The team's QA throwaway operator key — owns uat605_ext_op and uat624_ext_op (excluded: team wallet)",
