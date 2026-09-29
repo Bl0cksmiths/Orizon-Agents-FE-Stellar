@@ -47,7 +47,7 @@ The registry is open (§6.3). The twelve agents below are a **seed set** inside 
 | `agt_11c0` | `code.gen` | code, html, js, build | 0.054 | 4.89 | 3,021 | ✓ |
 | `agt_12r0` | `code.critic` | a11y, polish, review | 0.052 | 4.91 | 2,218 | ✓ |
 
-The starting reputation and run counts are seeded values; they exist so that a freshly deployed protocol presents a sensible decompose UX from day one. On-chain reputation accumulates from real workflows as the protocol runs; we will publish a separate reconciliation note when the on-chain values diverge from seed values by more than ten percent.
+The starting reputation and run counts are catalogue display values from `seed.py`. They are not on chain, and routing never reads them: the planner ranks and floors every agent, seeded or registered, on its `ReputationLedger` evidence smoothed by the prior, so a seeded agent with no ratings starts at the prior like any newcomer (§6.7; BE@a3dc1f9 · app/services/orchestrator_svc.py · `_smoothed_score`, which never uses `Agent.rep`). Prices are the quoted per-step prices; on testnet they settle in the escrow's asset, native XLM (§6.9).
 
 ## 6.3 · Agent onboarding
 
