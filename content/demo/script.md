@@ -260,7 +260,7 @@ After the click (or Enter or Space) the marker becomes `▾`, and the panel read
 - If M > 0: "Those marked “no endpoint” were never candidates: they are registered on-chain but have no endpoint bound to dispatch a step to, so the floor did not judge them either way."
 - The faulty agent's row:
   - Badge `✕ excluded` (magenta), then its name in bold.
-  - "Its reputation lower bound is below the floor this plan was built against — the bound discounts a score for how little settled work backs it, so this is thin evidence rather than bad work."
+  - "Its reputation lower bound is below the floor this plan was built against. That bound rests on 3 ratings, and that record, read conservatively, falls short of the floor." (After three real failed runs the notice carries `count: 3` and no disputes, so no dispute sentence follows.)
   - `lower bound 2.72` `floor 2.75`
   - Footnote (the backend's own prose): `below routing floor (5443 < 5500 bps)`
 - Any unbound rows follow, each marked `○ no endpoint`.
