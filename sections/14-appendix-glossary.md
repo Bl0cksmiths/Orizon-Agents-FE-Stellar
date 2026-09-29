@@ -16,7 +16,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Buyer.** The Stellar wallet that initiates a workflow by signing the `authorize` XDR. The protocol never sees the buyer's private key. See §6.1.
 
-**Blue belt.** Roadmap milestone introducing permissionless registration with a reputation-floored `avg_bps ≥ 35,000` over ≥ 20 jobs. See §2.3, §6.3.
+**Blue belt.** The milestone that opened registration to any wallet and gated routing on reputation: a floor of 5,500 bps applied to the lower bound of a prior-smoothed score, on the contract's 0–10,000 bps scale. See §2.3, §6.3, §6.7.
 
 **`BytesN<16>`.** Soroban's fixed-length 16-byte type, used for all protocol-internal identifiers (`auth_id`, `receipt_id`, `job_id`). Deterministic generation avoids ledger-state dependency. See §5.3.
 
