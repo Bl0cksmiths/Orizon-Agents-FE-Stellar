@@ -462,6 +462,7 @@ describe("ExecutionPlan · a plan that expired before it ran", () => {
     );
     expect(text).toContain("transaction confirmed");
     expect(text).not.toContain("Transaction failed");
+    expect(text).not.toContain("spending allowance");
     // Hedged: a failed request may still have started a run that settles.
     const notice = screen.getByRole("region", {
       name: "Your funds are held in escrow",
@@ -644,6 +645,36 @@ describe("ExecutionPlan · a confirmed authorization under escrow v1", () => {
     return view;
   }
 
+  // Nothing is held under v1, so nothing is offered back.
+  it("offers no held-funds notice or reclaim when an expired plan refuses the run", async () => {
+    const { container } = await confirmOnV1(() =>
+      Promise.reject(planExpired()),
+    );
+    await screen.findByText("This plan was too old to run");
+    expect(
+      screen.queryByRole("region", { name: "Your funds are held in escrow" }),
+    ).toBeNull();
+    expect(screen.queryByText("Your funds were returned")).toBeNull();
+    expect(screen.queryByRole("button", { name: /reclaim/i })).toBeNull();
+    expect(container.textContent).not.toMatch(/held in escrow|reclaim/i);
+  });
+
+  it("says nothing moved, and offers no reclaim, when the run cannot start", async () => {
+    const { container } = await confirmOnV1(() =>
+      Promise.reject(
+        new Error("POST /orchestrator/execute → 503 — capacity exhausted"),
+      ),
+    );
+    await screen.findByText(/the run was not started/);
+    expect(container.textContent).toContain(
+      "The authorization only recorded a spending allowance, so no funds moved.",
+    );
+    expect(
+      screen.queryByRole("region", { name: "Your funds are held in escrow" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /reclaim/i })).toBeNull();
+  });
+
   // v1's authorize is an allowance, not a transfer: nothing was sent.
   it("draws no sent-to-escrow row on the confirmed card", async () => {
     const { container } = await confirmOnV1(() =>
@@ -653,6 +684,37 @@ describe("ExecutionPlan · a confirmed authorization under escrow v1", () => {
     expect(text).toContain("a1b2c3");
     expect(text).not.toContain("→ CBJPTM");
     expect(text).not.toMatch(/\bsent\b/);
+  });
+});
+
+describe("ExecutionPlan · a confirmed authorization while the escrow is unknown", () => {
+  // The network read never answered: the card cannot say where the cap is,
+  // so it says neither that it is held nor that nothing moved.
+  it("claims neither held funds nor an allowance when the run cannot start", async () => {
+    onEscrowUnknown();
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "SUCCESS",
+      hash: "a1b2c3",
+      return_value: "0123456789abcdef0123456789abcdef",
+    });
+    api.execute.mockRejectedValue(
+      new Error("POST /orchestrator/execute → 503 — capacity exhausted"),
+    );
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/the run was not started/);
+    expect(
+      screen.queryByRole("region", { name: "Your funds are held in escrow" }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /reclaim/i })).toBeNull();
+    expect(container.textContent).not.toMatch(
+      /held in escrow|allowance|no funds moved/,
+    );
   });
 });
 
