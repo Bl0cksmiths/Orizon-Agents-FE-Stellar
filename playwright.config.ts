@@ -57,6 +57,9 @@ export default defineConfig({
       env: {
         GUIDE_CONTENT_DIR,
         DEMO_CONTENT_DIR: "test/fixtures/demo/unpublished",
+        // /evidence from its fixture index (fake hashes), so
+        // e2e/evidence.spec.ts does not change when the real index is filled.
+        EVIDENCE_CONTENT_DIR: "test/fixtures/evidence",
       },
     },
     {
