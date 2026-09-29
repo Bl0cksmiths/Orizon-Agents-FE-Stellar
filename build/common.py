@@ -25,6 +25,10 @@ MERMAID_RE = re.compile(r"```mermaid\n(.*?)\n```", re.DOTALL)
 # Fonts the v0.4 PDF and figures were rendered with (Windows Chrome): Segoe UI
 # for text, Consolas for code. On WSL they are read from the Windows install so
 # a Linux render matches; elsewhere Chrome falls back to the system fonts.
+# Glyphs Segoe UI lacks (✓, ✗) still fall back to a Linux font (DejaVu Sans)
+# rather than Windows' Segoe UI Symbol: fontconfig's fallback ranks charset
+# coverage above family preference, and a strong family rule would override
+# explicit families such as Consolas.
 DEFAULT_FONT_DIRS = ["/mnt/c/Windows/Fonts"]
 
 
@@ -48,14 +52,17 @@ def source_date_epoch(book_text: str) -> int:
 
 
 def find_chrome() -> str:
-    """$CHROME, else the newest Playwright Chromium, else a chromium on PATH."""
+    """$CHROME, else the newest Playwright headless shell or Chromium, else PATH."""
     if os.environ.get("CHROME"):
         return os.environ["CHROME"]
-    home = Path.home()
-    found = glob.glob(str(home / ".cache/ms-playwright/chromium-*/chrome-linux*/chrome"))
-    found.sort(key=lambda p: int(re.search(r"chromium-(\d+)", p).group(1)))
-    if found:
-        return found[-1]
+    # chrome-headless-shell first: the full Chromium hangs on --print-to-pdf
+    # under WSL (even for a one-line page), the headless shell does not.
+    pw = Path.home() / ".cache/ms-playwright"
+    for pattern in ("chromium_headless_shell-*/chrome-*/chrome-headless-shell", "chromium-*/chrome-linux*/chrome"):
+        found = glob.glob(str(pw / pattern))
+        found.sort(key=lambda p: int(re.search(r"-(\d+)/", p).group(1)))
+        if found:
+            return found[-1]
     for name in ("chromium", "chromium-browser", "google-chrome", "chrome"):
         if shutil.which(name):
             return shutil.which(name)
@@ -87,7 +94,7 @@ def chrome(args: list[str], tmp: Path, timeout: int = 180) -> None:
     shutil.rmtree(profile, ignore_errors=True)
     cmd = [
         find_chrome(),
-        "--headless=new",
+        "--headless",
         "--disable-gpu",
         "--no-sandbox",
         "--no-first-run",
