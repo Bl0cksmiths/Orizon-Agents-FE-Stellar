@@ -14,7 +14,7 @@ const MAX_RATING_WEIGHT = DEFAULT_REP_PARAMS.prior_weight_usdc;
 const PRINCIPLES = [
   {
     eyebrow: "verified purchase",
-    body: "Ratings exist only for settled x402 payments, so wash-trading costs real USDC per fake rating — an insight borrowed from the ERC-8004 empirical record: unvalidated feedback inflates.",
+    body: "Ratings exist only for settled x402 payments, so wash-trading costs a settled payment per fake rating — an insight borrowed from the ERC-8004 empirical record: unvalidated feedback inflates.",
   },
   {
     eyebrow: "cheap pseudonyms priced in",
