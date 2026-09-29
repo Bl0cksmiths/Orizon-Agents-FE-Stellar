@@ -66,13 +66,14 @@ Unlocked when `https://orizons.xyz/litepaper` answers 200.
   This must be the only orizons.xyz address the item gives, because
   `e2e/litepaper.spec.ts` checks it.
 - **Re-pin the two GitHub links.** Both are pinned to
-  `f2afa5193aaa7e83445dbc7a4431b9562d1c32ff` (the `feat/5.06-integration` head
-  when they were added). Once #95 merges, replace that sha in both URLs and
-  change `f2afa51` in both labels to the merge commit on main:
+  `fc9fa43a38fd39bc970a59b58f84032120a21ba6` (the audit-fix integration
+  commit holding the corrected book). Once the audit-fix PR merges, replace
+  that sha in both URLs and change `fc9fa43` in both labels to the merge
+  commit on main:
 
   ```sh
   git fetch origin && git rev-parse origin/main
-  grep -n f2afa51 content/evidence/index.json   # 4 hits: 2 URLs, 2 labels
+  grep -n fc9fa43 content/evidence/index.json   # 4 hits: 2 URLs, 2 labels
   ```
 
 - #95 label: add `(merged)` and its `date`.
