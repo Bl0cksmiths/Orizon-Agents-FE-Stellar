@@ -1017,8 +1017,8 @@
       "method": "Opened the /demo page on the live dApp with no login and read the published marker the page renders (data-demo=\"published\") and the video's running time, which must be 3 to 5 minutes.",
       "links": [
         {
-          "label": "Frontend pull request #92 (open): the demo script and the /demo page",
-          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/92",
+          "label": "Frontend pull request #97 (open): the demo script and the /demo page",
+          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
           "kind": "pr"
         }
       ]
