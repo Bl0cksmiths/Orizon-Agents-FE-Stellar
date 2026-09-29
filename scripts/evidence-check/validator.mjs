@@ -38,13 +38,7 @@ export async function loadValidator({ realPath = REAL_VALIDATOR } = {}) {
       path: realPath,
     };
   }
-  const stubPath = fileURLToPath(
-    new URL("./validate.stub.mjs", import.meta.url),
+  throw new Error(
+    `${realPath} is missing: the checker keeps no rules of its own, so it cannot validate the index`,
   );
-  const stub = await import(pathToFileURL(stubPath).href);
-  return {
-    validateEvidenceIndex: stub.validateEvidenceIndex,
-    source: "stub",
-    path: stubPath,
-  };
 }
