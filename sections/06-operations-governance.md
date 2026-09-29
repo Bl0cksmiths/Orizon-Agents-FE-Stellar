@@ -67,7 +67,7 @@ What gates the *house* orchestrator's plans is no longer a curated list but a re
 
 A sealed `Attestation` is immutable by design. A workflow that produced a defective artifact cannot be "un-sealed" — but the protocol has three layers of recourse:
 
-- **Reputation.** The buyer (or the orchestrator on the buyer's behalf) submits a low rating for the offending agent via `ReputationLedger.submit`. The rating is replay-guarded per `(agent_id, job_id)` pair. Other orchestrators see the updated rolling mean immediately.
+- **Reputation.** A buyer cannot write a rating: `ReputationLedger.submit` accepts only the scorer (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`). What a buyer can do is dispute a step within 24 hours of settlement; if the dispute is upheld, the scorer writes a low `kind = dispute` rating for that agent (§6.8). Every rating is replay-guarded per `(agent_id, job_id)` pair. The ledger keeps a decayed, value-weighted mean, not a rolling one, and the house orchestrator routes its next plan on the updated score (§6.7).
 - **Slashing (Brown belt).** Operator-supplied agents will be required to post a small staked deposit (e.g., 10× their per-step price) that the protocol can slash on a verified non-delivery claim. The slash routes back to the buyer.
 - **Off-chain blocklist (last resort).** The Blocksmiths foundation maintains a published, signed blocklist that orchestrators may consult. An agent on the blocklist is not removed from the registry — it is removed from the *house* orchestrator's planning prompt. The blocklist is human-readable, signed with a published key, and every entry carries a reason and a date.
 
