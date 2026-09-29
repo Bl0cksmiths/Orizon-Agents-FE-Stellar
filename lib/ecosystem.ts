@@ -86,6 +86,14 @@ export type EcosystemAdoption = {
   degraded?: boolean | null;
   /** The agents that read could not see. */
   unreadable_agents?: string[] | null;
+  /**
+   * How many days of ledger history the settled-workflow counts cover: the
+   * settlement service scans only a recent window of RPC events, so a
+   * settlement older than this drops out of every count. Absent on a backend
+   * that predates it, in which case the page says nothing about a window
+   * rather than guessing one.
+   */
+  window_days?: number | null;
 };
 
 export const ADOPTION_PATH = "/ecosystem/adoption";
@@ -184,7 +192,12 @@ export function isEcosystemAdoption(v: unknown): v is EcosystemAdoption {
     isOptionalBool(v.degraded) &&
     (v.unreadable_agents === undefined ||
       v.unreadable_agents === null ||
-      isStrArray(v.unreadable_agents))
+      isStrArray(v.unreadable_agents)) &&
+    // A window is a positive span of days. A string would print as the
+    // window verbatim, and zero or less is no window at all.
+    (v.window_days === undefined ||
+      v.window_days === null ||
+      (isNum(v.window_days) && v.window_days > 0))
   );
 }
 
