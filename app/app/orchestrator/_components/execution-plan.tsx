@@ -45,7 +45,11 @@ import {
   type EscrowRelease,
 } from "@/lib/execute-refusal";
 import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
-import { V1_CANNOT_SETTLE, generationOf } from "@/lib/escrow-generation";
+import {
+  V1_CANNOT_SETTLE,
+  generationOf,
+  type EscrowGeneration,
+} from "@/lib/escrow-generation";
 import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
@@ -79,6 +83,20 @@ const MIN_CAP = 0.001;
 /** The notice shown when the backend's escrow is not the one this build
  *  pins; Authorize is described by it while it shows. */
 const ESCROW_MISMATCH_ID = "escrow-mismatch-notice";
+
+/** What paying on-chain does, told to a buyer before they connect. */
+function connectSentence(generation: EscrowGeneration): string {
+  const connect = `Connect Freighter (${NETWORK_LABEL}) to pay on-chain`;
+  const simulate = "Or run a simulated pass, which moves no funds.";
+  switch (generation) {
+    case "v2":
+      return `${connect}: authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles. ${simulate}`;
+    case "v1":
+      return `${connect}: authorizing records a spending allowance on the escrow contract, and no funds move when you sign. ${V1_CANNOT_SETTLE} ${simulate}`;
+    case "unknown":
+      return `${connect}. ${simulate}`;
+  }
+}
 
 /** What the pay panel says in place of a cap when there is nothing to pay. */
 const EMPTY_PLAN =
@@ -632,9 +650,7 @@ export function ExecutionPlan({
                   ▸ wallet required
                 </div>
                 <div className="text-sm">
-                  {empty
-                    ? EMPTY_PLAN
-                    : `Connect Freighter (${NETWORK_LABEL}) to pay on-chain: authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles. Or run a simulated pass, which moves no funds.`}
+                  {empty ? EMPTY_PLAN : connectSentence(generation)}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
