@@ -5,7 +5,13 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -27,7 +33,7 @@ afterEach(() => {
 /** A PATH holding only a fake ffprobe that reports `seconds`. */
 function fakeFfprobe(seconds: string): string {
   const bin = path.join(tmp, "bin");
-  spawnSync("mkdir", ["-p", bin]);
+  mkdirSync(bin, { recursive: true });
   const exe = path.join(bin, "ffprobe");
   writeFileSync(exe, `#!/bin/sh\necho ${seconds}\n`);
   chmodSync(exe, 0o755);
@@ -41,7 +47,7 @@ function run(
   const result = spawnSync(process.execPath, [SCRIPT, ...args], {
     encoding: "utf8",
     // An empty PATH by default: no ffprobe, whatever the machine has.
-    env: { PATH: path.join(tmp, "empty"), ...env },
+    env: { NODE_ENV: "test", PATH: path.join(tmp, "empty"), ...env },
   });
   return { status: result.status, out: result.stdout + result.stderr };
 }
