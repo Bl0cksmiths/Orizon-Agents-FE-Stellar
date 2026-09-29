@@ -24,6 +24,8 @@ import {
   mockWallet,
 } from "./mocks";
 import {
+  escrowV2Pin,
+  mockEscrowV2Network,
   mockNetwork,
   mockTestnetNetwork,
   mockPlanStepEvidence,
@@ -177,13 +179,18 @@ function expectWithinWidth(box: Box, frame: Viewport, what: string) {
 async function decomposeWith(
   page: Page,
   plan: DecomposeResponse,
-  options: { wallet?: boolean; network?: boolean } = {},
+  options: { wallet?: boolean; network?: boolean | "v2" } = {},
 ): Promise<void> {
   if (options.wallet) await mockWallet(page);
   await mockApi(page, { plan });
   // After `mockApi`, so it answers ahead of the catch-all. Without it the card
-  // has no asset to name its amounts in and prints them bare.
-  if (options.network) await mockNetwork(page);
+  // has no asset to name its amounts in and prints them bare. `true` is the
+  // deployed testnet (escrow v1); "v2" reports the pinned v2 escrow.
+  if (options.network)
+    await mockNetwork(
+      page,
+      options.network === "v2" ? mockEscrowV2Network : mockTestnetNetwork,
+    );
   await page.goto("/app/orchestrator");
   await page.getByRole("textbox", { name: /intent/i }).fill(plan.intent);
   await page.getByRole("button", { name: /decompos/i }).click();
@@ -750,34 +757,65 @@ test.describe("plan card — what each claim rests on", () => {
     expect(unread).not.toMatch(/no on-chain ratings/i);
   });
 
-  test("the authorize line names the cap in the network's asset", async ({
-    page,
-  }) => {
-    await page.setViewportSize(EVIDENCE_FRAME);
-    await decomposeWith(page, mockPlanStepEvidence, {
-      wallet: true,
-      network: true,
-    });
-
-    // The unit comes from the network payload rather than from this spec, so
-    // the assertion follows the deployment: "native" is XLM on testnet.
+  // The unit comes from the network payload rather than from this spec, so
+  // the assertion follows the deployment: "native" is XLM on testnet. To the
+  // stroop it is signed at (finding S6), never rounded for display.
+  const signedCap = () => {
     const unit = assetLabel(mockTestnetNetwork.asset);
     expect(unit).toBe("XLM");
-    // To the stroop it is signed at (finding S6), never rounded for display.
     const cap = formatSettled(
       Math.round(mockPlanStepEvidence.total_usdc * STROOPS_PER_UNIT),
       mockTestnetNetwork.asset,
     );
     expect(cap.endsWith(` ${unit}`)).toBe(true);
+    return cap;
+  };
+
+  // Escrow v1, as deployed: the signature records an allowance and moves
+  // nothing, and a paid run cannot yet settle (D-039).
+  test("the authorize line names the cap in the network's asset", async ({
+    page,
+  }) => {
+    test.skip(escrowV2Pin !== null, "escrow v2 is pinned: v1 is history");
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence, {
+      wallet: true,
+      network: true,
+    });
+    const cap = signedCap();
 
     // The line a buyer reads immediately before signing, and the total above.
-    // Escrow v2 takes custody at authorize, and the line says so.
+    const line = page.getByText(/Freighter will prompt/i);
+    await expect(line).toContainText(`authorizing up to ${cap}.`);
+    await expect(line).toContainText(
+      "It records a spending allowance on the escrow contract; no funds move when you sign.",
+    );
+    await expect(line).toContainText(
+      "so a paid run reports its settlement as failed and nothing is charged.",
+    );
+    await expect(line).not.toContainText(/into escrow now|comes back/);
+    await expect(page.getByText(cap, { exact: true })).toHaveCount(2);
+    // `total_usdc` is a field name; nothing on the card may read it aloud.
+    await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
+  });
+
+  // Escrow v2, once pinned and reported: custody at authorize.
+  test("the authorize line says a v2 signature moves the cap into escrow", async ({
+    page,
+  }) => {
+    test.skip(escrowV2Pin === null, "escrow v2 is not pinned on testnet yet");
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence, {
+      wallet: true,
+      network: "v2",
+    });
+    const cap = signedCap();
+
     await expect(page.getByText(/moves up to/i)).toContainText(cap);
     await expect(page.getByText(/moves up to/i)).toContainText(
       "from your wallet into escrow now",
     );
     await expect(page.getByText(cap, { exact: true })).toHaveCount(2);
-    // `total_usdc` is a field name; nothing on the card may read it aloud.
     await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
   });
 
@@ -885,7 +923,7 @@ test.describe("plan card — what each claim rests on", () => {
         }
         if (options.wallet) {
           expectWithinWidth(
-            await stableBox(page.getByText(/moves up to/i)),
+            await stableBox(page.getByText(/Freighter will prompt/i)),
             frame,
             "the authorize line",
           );
@@ -895,7 +933,7 @@ test.describe("plan card — what each claim rests on", () => {
           // so a button past its row is gone even while the page has room.
           const controls = page
             .locator("div")
-            .filter({ has: page.getByText(/moves up to/i) })
+            .filter({ has: page.getByText(/Freighter will prompt/i) })
             .filter({ has: page.getByRole("button", { name: /authorize/i }) })
             .last();
           const row = await stableBox(controls);
@@ -1097,7 +1135,7 @@ test.describe("plan card — shapes the backend may send", () => {
 
     await expect(steps(page)).toHaveCount(0);
     await expect(planCard(page)).toContainText(/nothing to authorize/i);
-    await expect(page.getByText(/moves up to/i)).toHaveCount(0);
+    await expect(page.getByText(/Freighter will prompt/i)).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: /authorize/i }),
     ).toBeDisabled();

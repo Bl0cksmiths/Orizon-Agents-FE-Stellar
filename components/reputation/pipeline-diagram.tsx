@@ -1,5 +1,18 @@
 "use client";
 import { m } from "framer-motion";
+import type { EscrowGeneration } from "@/lib/escrow-generation";
+import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
+
+/**
+ * One rating's weight cap, read off the prior's weight: the backend's
+ * `max_rating_weight_usdc()` is min(100, 1.0 × the prior's 12) = 12. No unit,
+ * because weight is in the escrow's asset (native XLM on testnet), never the
+ * "USDC" in the backend's field names (friction F-022).
+ */
+const MAX_RATING_WEIGHT = DEFAULT_REP_PARAMS.prior_weight_usdc;
+
+/** The prior's weight, in the escrow's asset for the same reason. */
+const PRIOR_WEIGHT = DEFAULT_REP_PARAMS.prior_weight_usdc;
 
 type Stage = {
   title: string;
@@ -8,13 +21,34 @@ type Stage = {
   note?: string;
 };
 
-const STAGES: Stage[] = [
-  {
+/**
+ * The first stage, by the escrow the deployment settles through: v2 pays the
+ * operator from the buyer's custody at `settle`; v1 charges against an
+ * allowance and cannot yet complete that charge (D-039); unknown names
+ * neither contract call.
+ */
+const SETTLE: Record<EscrowGeneration, Stage> = {
+  v2: {
     title: "Settle",
     body: "A workflow step completes and its operator is paid from the buyer's escrowed funds when the run settles; only settled work may rate.",
     call: "PaymentEscrow.settle",
     note: "verified-purchase provenance — no payment, no opinion.",
   },
+  v1: {
+    title: "Settle",
+    body: "A workflow step completes and is charged against the buyer's spending allowance on the escrow; only settled work may rate. On this deployment the escrow cannot yet complete that charge (a known defect; the fix is deployed separately).",
+    call: "PaymentEscrow.charge",
+    note: "verified-purchase provenance — no payment, no opinion.",
+  },
+  unknown: {
+    title: "Settle",
+    body: "A workflow step completes and its payment settles through the escrow; only settled work may rate.",
+    note: "verified-purchase provenance — no payment, no opinion.",
+  },
+};
+
+/** Every stage after Settle, the same whichever escrow is live. */
+const LATER_STAGES: Stage[] = [
   {
     title: "Rate",
     body: "The settler derives a synthetic 0–100 rating from verifiable workflow signals — artifact shipped? critic violations? — and submits it on-chain, replay-guarded per (agent, job).",
@@ -22,7 +56,7 @@ const STAGES: Stage[] = [
   },
   {
     title: "Weigh",
-    body: "The rating's evidence weight is the step's settled value in USDC, capped at 100 USDC — reputation is settled economic history, not a count of clicks.",
+    body: `The rating's evidence weight is the step's settled value, capped at ${MAX_RATING_WEIGHT}, the prior's own weight, so a single rating counts for at most as much as the prior — reputation is settled economic history, not a count of clicks.`,
   },
   {
     title: "Decay",
@@ -30,7 +64,7 @@ const STAGES: Stage[] = [
   },
   {
     title: "Smooth",
-    body: "The backend blends evidence with a Bayesian prior of 3.50★ (7000 bps) carrying 12 USDC of mass — newcomers start at the prior, not zero.",
+    body: `The backend blends evidence with a Bayesian prior of 3.50★ (7000 bps) carrying ${PRIOR_WEIGHT} of weight in the escrow's asset — newcomers start at the prior, not zero.`,
   },
   {
     title: "Gate",
@@ -43,7 +77,13 @@ const STAGES: Stage[] = [
  * pipeline from x402 settlement to the routing gate. Static explainer; the
  * numbers mirror the deployed backend + contract constants.
  */
-export function PipelineDiagram() {
+export function PipelineDiagram({
+  generation,
+}: {
+  /** The escrow the deployment settles through (`escrowGeneration`). */
+  generation: EscrowGeneration;
+}) {
+  const stages = [SETTLE[generation], ...LATER_STAGES];
   return (
     <section className="space-y-4" aria-labelledby="rep-pipeline-heading">
       <div>
@@ -58,12 +98,12 @@ export function PipelineDiagram() {
           How a score is born
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Every rating starts as settled USDC and ends as a conservative routing
-          score.
+          Every rating starts as a settled payment and ends as a conservative
+          routing score.
         </p>
       </div>
       <ol className="grid gap-4 md:grid-cols-3">
-        {STAGES.map((s, i) => (
+        {stages.map((s, i) => (
           <m.li
             key={s.title}
             initial={{ opacity: 0, y: 12 }}

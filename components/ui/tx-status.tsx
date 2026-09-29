@@ -166,7 +166,9 @@ function SuccessCard({
       <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan mb-3">
         ✓ transaction confirmed
       </div>
-      <div className="space-y-2 font-mono text-sm">
+      {/* A <dl>: each KVRow is a <dt>/<dd> pair, which axe (dlitem) flags
+          anywhere else. */}
+      <dl className="space-y-2 font-mono text-sm">
         {amount && destination && (
           <KVRow
             k="sent"
@@ -181,7 +183,7 @@ function SuccessCard({
           divider={false}
           valueClassName="text-cyan"
         />
-      </div>
+      </dl>
       <div className="mt-4 flex flex-wrap gap-2">
         <StellarExpertLink
           kind="tx"

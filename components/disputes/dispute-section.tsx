@@ -18,6 +18,7 @@ import {
   getHeldAuthorization,
   type HeldAuthorization,
 } from "@/lib/held-authorizations";
+import type { EscrowGeneration } from "@/lib/escrow-generation";
 import { useDisputePanel } from "@/lib/use-dispute-panel";
 import { useReasonUnlock } from "@/lib/use-reason-unlock";
 import { cn } from "@/lib/utils";
@@ -285,6 +286,11 @@ type Props = {
    * undefined while it is unknown, and amounts then print with no unit.
    */
   asset?: string | null;
+  /**
+   * The escrow the deployment settles through (`escrowGeneration`). Only v2
+   * holds a failed settlement's funds, so only v2 is offered a reclaim.
+   */
+  escrowGeneration: EscrowGeneration;
 };
 
 /**
@@ -328,6 +334,7 @@ export const DisputeSection = memo(function DisputeSection({
   workflowDone,
   demo,
   asset,
+  escrowGeneration,
 }: Props) {
   const { view, loading, error, refresh, offsetMs, adopt } = useDisputePanel(
     taskId,
@@ -521,8 +528,13 @@ export const DisputeSection = memo(function DisputeSection({
           reasonUnlock={
             unlock.unavailable ? null : { status: unlock.status, onUnlock }
           }
+          escrowGeneration={escrowGeneration}
         />
-        {reclaimable && <ReceiptReclaim held={reclaimable} />}
+        {/* v1 took no custody, so there is nothing to reclaim; while the
+            escrow is unknown nothing is offered either. */}
+        {reclaimable && escrowGeneration === "v2" && (
+          <ReceiptReclaim held={reclaimable} />
+        )}
         {/* Mounted while a step can be disputed — which keeps a half-typed
           reason across an accidental close — or while its dialog is still
           open after the last step stopped being disputable. */}

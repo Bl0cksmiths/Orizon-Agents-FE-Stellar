@@ -25,12 +25,9 @@ import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
-import {
-  StellarExpertLink,
-  defaultExplorerNetwork,
-} from "@/components/ui/stellar-link";
+import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { getSettlement, getStellarNetwork } from "@/lib/api";
-import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
+import { escrowGeneration } from "@/lib/escrow-generation";
 import { assetLabel, formatSettled } from "@/lib/money";
 import type { AgentSettlement, SettlementEntry } from "@/lib/types";
 import { focusRing } from "@/lib/ui";
@@ -184,7 +181,7 @@ function TruncatedNotice({ data }: { data: AgentSettlement }) {
  *
  * Escrow v2 does not have this defect, so the note is scoped to v1 by name:
  * it is shown whenever the panel cannot establish that the scan reads the v2
- * escrow this build pins (`escrowAgreement`), and `EscrowV2Note` replaces it
+ * escrow this build pins (`escrowGeneration`), and `EscrowV2Note` replaces it
  * when it can. The closing sentences stay deliberately negative claims ("not
  * a measure of", "not a signal about") rather than a reassurance about the
  * future: nobody can promise this agent will be paid, so nothing here says so.
@@ -497,9 +494,7 @@ export function SettlementPanel({
   // that it is v2; anything else — no pin yet, another escrow, a failed read
   // — keeps the v1 explanation, which names v1 rather than claiming it.
   const { data: network } = useFetch(getStellarNetwork, []);
-  const readsV2 =
-    escrowAgreement(network, pinnedEscrowId(defaultExplorerNetwork)).kind ===
-    "match";
+  const readsV2 = escrowGeneration(network) === "v2";
   const headingId = useId();
 
   // Checked before `loading` so an automatic retry keeps the announced failure
