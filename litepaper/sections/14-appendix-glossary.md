@@ -62,7 +62,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **`receipt_id`.** A `BytesN<16>` identifier returned by `charge`. Identifies a single on-chain `Receipt` row. Listed in the workflow's `Attestation.receipts`. See §5.3.1.
 
-**Replay guard.** A temporary-storage marker keyed by `(agent_id, job_id)` in `ReputationLedger`. Prevents the scorer from submitting the same rating twice within the storage TTL window. See §5.5.1.
+**Replay guard.** A persistent-storage marker keyed by `(agent_id, job_id)` in `ReputationLedger`. Prevents the scorer from rating the same `(agent_id, job_id)` pair twice; it does not lapse. See §5.5.1.
 
 **SAC.** Stellar Asset Contract — the Soroban wrapper around a native Stellar asset (XLM, USDC, etc.) exposing `Token::transfer`. The protocol calls SAC from `PaymentEscrow.charge` to move USDC from buyer to agent owner. See §5.3.
 
