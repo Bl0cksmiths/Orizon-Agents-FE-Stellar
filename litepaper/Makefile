@@ -18,10 +18,11 @@ SEED_PATH ?= app/seed.py
 # SEED_REPO=none skips the seed-table check (it is reported as SKIPPED).
 # Chapters compared across the formats: every chapter 0.5 changed (§6 is
 # BLO-47's). The .docx is compared with the -docx.md, where Mermaid is PNGs.
-CHECK     ?= 2 4 5 6 7 10 B C D E
+CHECK     ?= 2 4 5 6 7 9 10 A B C D E
 # Chapters compared without the .pdf: pypdf extracts some of their code
-# blocks out of order.
-NO_PDF    ?= 4 5 A B E
+# blocks out of order, or (§9) a table split across pages repeats its header
+# inside a cell.
+NO_PDF    ?= 4 5 9 A B E
 # FORCE=all (or FORCE=2,5) re-renders figure PNGs whose .mmd is unchanged.
 FORCE     ?=
 
