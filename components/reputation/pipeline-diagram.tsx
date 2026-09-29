@@ -1,5 +1,14 @@
 "use client";
 import { m } from "framer-motion";
+import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
+
+/**
+ * One rating's weight cap, read off the prior's weight: the backend's
+ * `max_rating_weight_usdc()` is min(100, 1.0 × the prior's 12) = 12. No unit,
+ * because weight is in the escrow's asset (native XLM on testnet), never the
+ * "USDC" in the backend's field names (friction F-022).
+ */
+const MAX_RATING_WEIGHT = DEFAULT_REP_PARAMS.prior_weight_usdc;
 
 type Stage = {
   title: string;
@@ -22,7 +31,7 @@ const STAGES: Stage[] = [
   },
   {
     title: "Weigh",
-    body: "The rating's evidence weight is the step's settled value in USDC, capped at 100 USDC — reputation is settled economic history, not a count of clicks.",
+    body: `The rating's evidence weight is the step's settled value, capped at ${MAX_RATING_WEIGHT}, the prior's own weight, so a single rating counts for at most as much as the prior — reputation is settled economic history, not a count of clicks.`,
   },
   {
     title: "Decay",
