@@ -939,7 +939,7 @@
       "target": "≥ 1",
       "achieved": "0",
       "status": "not_met",
-      "reason": "No dispute has been refunded yet. The reputation ledger holds 28 ratings (28 of kind auto) and no dispute rating; its lifetime dispute count is 0 across all 13 agents. No charge has settled since the sprint began on 2026-09-07 that a dispute could refund. The only transfer out of a platform key on record, on 2026-09-12, went to a team key with no dispute behind it.",
+      "reason": "No dispute has been refunded yet. The reputation ledger holds 34 ratings (34 of kind auto) and no dispute rating; its lifetime dispute count is 0 across all 19 agents. No charge has settled since the sprint began on 2026-09-07 that a dispute could refund. The only transfer out of a platform key on record, on 2026-09-12, went to a team key with no dispute behind it.",
       "method": "Read the dispute ratings the platform wrote to the ReputationLedger (from its keys' full transaction history) and traced each back, through the derived job id the backend records a dispute under, to the charge it disputes. A refund counts only when that charge counts and the platform then paid its payer back over the asset contract, no more than the charge. A transfer with no dispute behind it (such as a refund drill) does not count. The ledger's lifetime dispute count for every agent is read as a cross-check.",
       "links": [
         {
