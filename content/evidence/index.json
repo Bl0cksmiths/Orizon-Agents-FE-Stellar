@@ -1182,7 +1182,7 @@
       "title": "Ratings and dispute decisions are made by the platform",
       "text": "SOW §3.8: \"reputation ratings can only be submitted by the platform's scorer key. Settlement, rating submission, and dispute resolution are therefore trusted, permissioned operations today.\" This is still true. Only the platform's production key writes ratings, and disputes are decided by the platform's operator.",
       "sow_ref": "§3.8",
-      "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). The 27 ratings written during the sprint all come from runs whose payment did not settle."
+      "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). The 33 ratings written during the sprint all come from runs whose payment did not settle."
     }
   ],
   "notes": [
