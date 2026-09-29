@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage && node --test scripts/evidence-check/*.test.mjs",
     "e2e": "playwright test",
     "bundle": "node scripts/check-bundle-size.mjs",
     "check:addresses": "node scripts/check-contract-addresses.mjs",
