@@ -76,9 +76,14 @@
         {
           "id": "6.1-D1-c",
           "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
-          "status": "missing",
-          "note": "Missing. One outside operator's trial registration (2026-09-29) was made from a wallet the team does not control (see Deliverable 4). It is not counted here yet because it is a trial: its server address is a parked web page, not a working agent, and it has had no dispatches and no settlements. Its agent id, wallet and registration hash are held back from this index until the operator's consent to publish them is recorded. The other 12 agents on the registry were registered by wallets the team controls, so none of them counts. The five team registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside developer registers a working agent from their own wallet on orizons.xyz/app/register.",
+          "status": "partial",
+          "note": "Partial. Outside wallets have registered agents: one outside operator's trial registration of one agent, and a second outside operator who registered five agents, all on 2026-09-29 (see Deliverable 4). No outside agent has a working endpoint, a dispatch or a settlement yet: the trial agent is bound to a parked web page, and the five are not bound to any endpoint. Their agent ids, wallets and registration hashes are held back from this index until each operator's consent to publish them is recorded; the platform's public ecosystem page, linked here, lists outside operators by design. The other 13 agents on the registry were registered by wallets the team controls, so none of them counts. The five team registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside agent has a working endpoint and its registration can be linked with its operator's consent.",
           "links": [
+            {
+              "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
+              "url": "https://orizons.xyz/app/ecosystem",
+              "kind": "page"
+            },
             {
               "label": "Registration of sign_probe_bb5c12 by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
               "url": "https://stellar.expert/explorer/testnet/tx/416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
@@ -115,7 +120,7 @@
               "date": "2026-09-24"
             },
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 13 registrations, 12 by team wallets and 1 by an outside operator (a trial)",
+              "label": "AgentRegistry contract on Stellar Expert: all 19 registrations, 13 by team wallets and 6 by 2 outside operators",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
