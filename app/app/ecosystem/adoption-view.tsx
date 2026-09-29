@@ -402,8 +402,11 @@ function AgentBlock({
           rows={settled.map((w) => ({
             key: w.job_id_hex,
             cells: [
+              // Shortened on screen; the whole id is read out, since a
+              // `title` alone reaches neither a screen reader nor a phone.
               <span key="job" title={w.job_id_hex}>
-                {w.job_id_hex.slice(0, 8)}…
+                <span aria-hidden="true">{w.job_id_hex.slice(0, 8)}…</span>
+                <span className="sr-only">{w.job_id_hex}</span>
               </span>,
               formatSettledAmount(w.amount_usdc, asset),
               <span key="payer" className="inline-flex flex-wrap gap-2">
