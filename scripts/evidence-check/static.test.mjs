@@ -171,19 +171,16 @@ describe("loadValidator", () => {
     );
   });
 
-  it("falls back to the local stub when lib is absent, and the stub enforces the shape", async () => {
-    const v = await loadValidator({
-      realPath: join(dir, "absent", "validate.mjs"),
-    });
-    assert.equal(v.source, "stub");
-    assert.deepEqual(v.validateEvidenceIndex(INDEX), {
-      ok: true,
-      problems: [],
-    });
-    const bad = structuredClone(INDEX);
-    bad.deliverables[0].items[0].links[0].tx_hash = "ABC";
-    const verdict = v.validateEvidenceIndex(bad);
-    assert.equal(verdict.ok, false);
-    assert.match(verdict.problems.join("\n"), /tx_hash/);
+  it("refuses when the page's validator is absent, rather than validating with rules of its own", async () => {
+    await assert.rejects(
+      loadValidator({ realPath: join(dir, "absent", "validate.mjs") }),
+      /is missing: the checker keeps no rules of its own/,
+    );
+  });
+
+  it("loads the page's real validator from lib/evidence", async () => {
+    const v = await loadValidator();
+    assert.equal(v.source, "lib");
+    assert.equal(v.validateEvidenceIndex(INDEX).ok, true);
   });
 });
