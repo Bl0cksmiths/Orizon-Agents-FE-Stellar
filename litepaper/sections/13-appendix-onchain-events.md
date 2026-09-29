@@ -54,12 +54,12 @@ data:   ("GA7AI5TAJEZA27I666DSJC4…", 1680000)   // orchestrator, total stroops
 | --- | --- | --- | --- |
 | **Rated** | `(Symbol("rated"), agent_id: Symbol)` | `(rating_0_to_100: u32, weight: i128, job_id: BytesN<16>, kind: Symbol)` | `submit()` |
 
-`set_scorer()` emits no event (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`, `ReputationLedger::set_scorer`). `kind` is `auto` for the backend's per-step rating and `dispute` for an upheld dispute's (BE@a3dc1f9 · app/stellar/client.py · `submit_rating`; §6.7).
+`set_scorer()` emits no event (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`, `ReputationLedger::set_scorer`). `weight` is the step's quoted price in stroops, capped (§6.7). `kind` is `auto` for the backend's per-step rating and `dispute` for an upheld dispute's (BE@a3dc1f9 · app/stellar/client.py · `submit_rating`; §6.7).
 
 ```text
 example:
 topics: ("rated", "agt_11c0")
-data:   (95, 540000, "0x0000000000000000000000000000002a", "auto")   // rating 0–100, weight in stroops (0.054 USDC), job_id, kind
+data:   (95, 540000, "0x0000000000000000000000000000002a", "auto")   // rating, weight, job_id, kind
 ```
 
 ## C.5 · Subscribing
