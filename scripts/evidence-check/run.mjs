@@ -34,7 +34,7 @@ export const REPORT_SCHEMA = "orizon.evidence-check-report/1";
  * @typedef {{
  *   schema: string, mode: "static" | "live", index: string, network: "testnet",
  *   generated_at: string, endpoints: import("./checks.mjs").Endpoints | null,
- *   validator: { source: "lib" | "stub" | null, ok: boolean, problems: string[] },
+ *   validator: { source: "lib" | null, ok: boolean, problems: string[] },
  *   errors: string[], refused: string | null, rows: Row[],
  *   summary: { links: number, passed: number, failed: number, unverified: number, not_checked: number, redirected: number },
  * }} Report
