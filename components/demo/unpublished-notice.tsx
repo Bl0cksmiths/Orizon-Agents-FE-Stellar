@@ -83,15 +83,14 @@ const VERIFY: { d: Deliverable; body: ReactNode }[] = [
 export function UnpublishedNotice() {
   return (
     <section aria-labelledby="demo-verify" data-demo-state="unpublished">
-      <p
-        role="note"
-        className="flex items-start gap-3 border-l-2 border-cyan/60 bg-cyan/5 px-4 py-4 text-text"
-      >
+      <div className="flex items-start gap-3 border-l-2 border-cyan/60 bg-cyan/5 px-4 py-4 text-text">
         <span aria-hidden="true" className="font-mono text-cyan">
           ◆
         </span>
-        <span className="leading-relaxed">{UNPUBLISHED_NOTICE}</span>
-      </p>
+        <p role="note" className="leading-relaxed">
+          {UNPUBLISHED_NOTICE}
+        </p>
+      </div>
 
       <h2
         id="demo-verify"
