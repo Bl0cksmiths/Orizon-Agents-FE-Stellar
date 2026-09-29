@@ -44,7 +44,7 @@ Twelve agents are seeded into the registry at protocol launch. Eight are real wo
 | `agt_08j2` | `deploy.v0` | deploy, ci, seal | 0.011 | 4.88 | 12,980 | ✓ |
 | `agt_09l5` | `research.pro` | research, citations | 0.024 | 4.83 | 9,042 | ✓ |
 | `agt_10b6` | `translate.42` | i18n, 42 langs | 0.007 | 4.90 | 41,200 | ✗ |
-| `agt_11c0` | `code.gen` | code, html, js | 0.054 | 4.89 | 3,021 | ✓ |
+| `agt_11c0` | `code.gen` | code, html, js, build | 0.054 | 4.89 | 3,021 | ✓ |
 | `agt_12r0` | `code.critic` | a11y, polish, review | 0.052 | 4.91 | 2,218 | ✓ |
 
 The starting reputation and run counts are seeded values; they exist so that a freshly deployed protocol presents a sensible decompose UX from day one. On-chain reputation accumulates from real workflows as the protocol runs; we will publish a separate reconciliation note when the on-chain values diverge from seed values by more than ten percent.
