@@ -58,7 +58,7 @@ Same check as D4-b.
 Unlocked when `https://orizons.xyz/litepaper` answers 200.
 
 - `status`: `"partial"` to `"present"`.
-- `note`: drop "is in frontend pull request #95, which is open, so the page
+- `note`: drop "is in frontend pull request #97, which is open, so the page
   shows 'not found' today. It goes live when…" and "Until then, the PDF and the
   updated §6 are linked here on GitHub." Keep the formats sentence.
 - `links`: add first
