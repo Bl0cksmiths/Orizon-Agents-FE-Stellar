@@ -22,7 +22,12 @@ const txLinks = () =>
 describe("OnChainReceipts", () => {
   it("links the settlement and the seal once the settlement is settled", () => {
     render(
-      <OnChainReceipts state="settled" chargeTx={CHARGE} proofTx={PROOF} />,
+      <OnChainReceipts
+        state="settled"
+        chargeTx={CHARGE}
+        proofTx={PROOF}
+        generation="v2"
+      />,
     );
     expect(document.body.textContent).toContain("On-chain receipts");
     const hrefs = txLinks().map((a) => a.getAttribute("href"));
@@ -41,7 +46,12 @@ describe("OnChainReceipts", () => {
     "shows a %s settlement's state, never its hashes as receipts",
     (state, badge, reason) => {
       render(
-        <OnChainReceipts state={state} chargeTx={CHARGE} proofTx={PROOF} />,
+        <OnChainReceipts
+          state={state}
+          chargeTx={CHARGE}
+          proofTx={PROOF}
+          generation="v2"
+        />,
       );
       const text = document.body.textContent ?? "";
       expect(text).toContain(badge);
@@ -52,10 +62,45 @@ describe("OnChainReceipts", () => {
     },
   );
 
+  // What a failed settlement did with the buyer's money depends on the
+  // escrow: only v2 took custody, and v1 cannot complete a payment at all.
+  it.each([
+    [
+      "v2",
+      "No transaction is shown here as evidence of payment: the settlement did not go through, so no agent was paid. Anything the authorization moved into escrow stays there until the platform releases it or the wallet that paid reclaims it after expiry.",
+    ],
+    [
+      "v1",
+      "No transaction is shown here as evidence of payment: the settlement did not go through, so no agent was paid. On this deployment the escrow cannot yet complete a payment (a known defect; the fix is deployed separately), so a paid run reports its settlement as failed and nothing is charged.",
+    ],
+    [
+      "unknown",
+      "No transaction is shown here as evidence of payment: the settlement did not go through, so no agent was paid.",
+    ],
+  ] as const)(
+    "says what a failed settlement did with the money on escrow %s",
+    (generation, sentence) => {
+      render(
+        <OnChainReceipts
+          state="failed"
+          chargeTx={CHARGE}
+          proofTx={PROOF}
+          generation={generation}
+        />,
+      );
+      expect(screen.getByRole("status").textContent).toBe(sentence);
+    },
+  );
+
   // An older backend reported a rejected settlement's hash as `charge_tx`.
   it("links nothing when the backend never said how the run settled", () => {
     render(
-      <OnChainReceipts state={undefined} chargeTx={CHARGE} proofTx={null} />,
+      <OnChainReceipts
+        state={undefined}
+        chargeTx={CHARGE}
+        proofTx={null}
+        generation="v2"
+      />,
     );
     expect(screen.getByRole("status").textContent).toContain(
       "has not reported how this run settled",

@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { DisputeDialogCloseReason } from "@/components/disputes/dispute-dialog";
+import { AmountAssetProvider } from "@/components/disputes/amount-asset";
 import { ReceiptPanel } from "@/components/disputes/receipt-panel";
 import { ReclaimControl } from "@/components/escrow/reclaim-control";
 import { Card } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import {
   getHeldAuthorization,
   type HeldAuthorization,
 } from "@/lib/held-authorizations";
+import type { EscrowGeneration } from "@/lib/escrow-generation";
 import { useDisputePanel } from "@/lib/use-dispute-panel";
 import { useReasonUnlock } from "@/lib/use-reason-unlock";
 import { cn } from "@/lib/utils";
@@ -278,6 +280,17 @@ type Props = {
   workflowDone: boolean;
   /** The trace page's demo replay: a run nobody paid for. */
   demo: boolean;
+  /**
+   * The network route's `asset`, which every amount on the receipt and the
+   * dispute form is denominated in ("native" → XLM on testnet). null or
+   * undefined while it is unknown, and amounts then print with no unit.
+   */
+  asset?: string | null;
+  /**
+   * The escrow the deployment settles through (`escrowGeneration`). Only v2
+   * holds a failed settlement's funds, so only v2 is offered a reclaim.
+   */
+  escrowGeneration: EscrowGeneration;
 };
 
 /**
@@ -286,7 +299,7 @@ type Props = {
  *
  * Everything that changes on the window's tick lives in here — the hook's
  * clock, the panel it feeds, the open dialog — so a tick re-renders this
- * subtree and never the trace page. Memoized on its three primitive props for
+ * subtree and never the trace page. Memoized on its four primitive props for
  * the same reason in the other direction: the page re-renders on every trace
  * line, and no trace line changes what the receipt says.
  */
@@ -320,6 +333,8 @@ export const DisputeSection = memo(function DisputeSection({
   taskId,
   workflowDone,
   demo,
+  asset,
+  escrowGeneration,
 }: Props) {
   const { view, loading, error, refresh, offsetMs, adopt } = useDisputePanel(
     taskId,
@@ -478,62 +493,69 @@ export const DisputeSection = memo(function DisputeSection({
   // a phone and centres it above. A closed <dialog> is display:none and an
   // open one sits in the top layer, so neither takes a gap.
   return (
-    <div className="flex flex-col gap-4">
-      {error && (
-        // Beside the receipt, never instead of the page: the trace below
-        // renders from its own stream whatever this read did.
-        <ErrorNote
-          onRetry={() => void retry()}
-          retrying={retrying}
-          retryLabel="↻ retry"
-        >
-          {/* A failed re-read deliberately KEEPS the receipt on screen, so
+    <AmountAssetProvider asset={asset}>
+      <div className="flex flex-col gap-4">
+        {error && (
+          // Beside the receipt, never instead of the page: the trace below
+          // renders from its own stream whatever this read did.
+          <ErrorNote
+            onRetry={() => void retry()}
+            retrying={retrying}
+            retryLabel="↻ retry"
+          >
+            {/* A failed re-read deliberately KEEPS the receipt on screen, so
               "unavailable" would be printed directly above a fully drawn one.
               The words follow what is actually there: nothing to show, or
               something that may have moved since it was read. */}
-          {view.kind === "hidden"
-            ? `⚠ receipt unavailable — ${error}`
-            : `⚠ this receipt may be out of date — ${error}`}
-        </ErrorNote>
-      )}
-      {alreadyDisputed && (
-        <p
-          role="status"
-          className="clip-cyber-sm border border-violet/40 bg-violet/5 px-4 py-3 text-xs leading-relaxed text-text/90"
-        >
-          {alreadyDisputed}
-        </p>
-      )}
-      <ReceiptPanel
-        view={view}
-        headingRef={receiptHeadingRef}
-        onDispute={onDispute}
-        onConnect={onConnect}
-        reasonUnlock={
-          unlock.unavailable ? null : { status: unlock.status, onUnlock }
-        }
-      />
-      {reclaimable && <ReceiptReclaim held={reclaimable} />}
-      {/* Mounted while a step can be disputed — which keeps a half-typed
+            {view.kind === "hidden"
+              ? `⚠ receipt unavailable — ${error}`
+              : `⚠ this receipt may be out of date — ${error}`}
+          </ErrorNote>
+        )}
+        {alreadyDisputed && (
+          <p
+            role="status"
+            className="clip-cyber-sm border border-violet/40 bg-violet/5 px-4 py-3 text-xs leading-relaxed text-text/90"
+          >
+            {alreadyDisputed}
+          </p>
+        )}
+        <ReceiptPanel
+          view={view}
+          headingRef={receiptHeadingRef}
+          onDispute={onDispute}
+          onConnect={onConnect}
+          reasonUnlock={
+            unlock.unavailable ? null : { status: unlock.status, onUnlock }
+          }
+          escrowGeneration={escrowGeneration}
+        />
+        {/* v1 took no custody, so there is nothing to reclaim; while the
+            escrow is unknown nothing is offered either. */}
+        {reclaimable && escrowGeneration === "v2" && (
+          <ReceiptReclaim held={reclaimable} />
+        )}
+        {/* Mounted while a step can be disputed — which keeps a half-typed
           reason across an accidental close — or while its dialog is still
           open after the last step stopped being disputable. */}
-      {(canDispute || target !== null) && (
-        <DisputeDialog
-          open={target !== null}
-          step={target?.step ?? null}
-          settlement={target?.settlement ?? null}
-          onClose={onClose}
-          onSubmitted={onSubmitted}
-          returnFocusRef={receiptHeadingRef}
-          // The panel's own verdict, on the server-corrected clock: a dialog
-          // left open across the close stops offering a signature (D-060).
-          // A view that is not a settled one says nothing about the window,
-          // and the dialog's own guards on the server's clock still hold.
-          windowOpen={view.kind === "settled" ? view.window.open : true}
-          offsetMs={offsetMs}
-          windowClosesAtMs={target?.closesAtMs ?? 0}
-        />
-      )}
-    </div>
+        {(canDispute || target !== null) && (
+          <DisputeDialog
+            open={target !== null}
+            step={target?.step ?? null}
+            settlement={target?.settlement ?? null}
+            onClose={onClose}
+            onSubmitted={onSubmitted}
+            returnFocusRef={receiptHeadingRef}
+            // The panel's own verdict, on the server-corrected clock: a dialog
+            // left open across the close stops offering a signature (D-060).
+            // A view that is not a settled one says nothing about the window,
+            // and the dialog's own guards on the server's clock still hold.
+            windowOpen={view.kind === "settled" ? view.window.open : true}
+            offsetMs={offsetMs}
+            windowClosesAtMs={target?.closesAtMs ?? 0}
+          />
+        )}
+      </div>
+    </AmountAssetProvider>
   );
 });

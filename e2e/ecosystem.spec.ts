@@ -26,6 +26,8 @@ import {
 } from "./mocks";
 
 const PHONE = { width: 360, height: 780 };
+const WINDOW =
+  "Settled workflows counted over the last 6.9 days of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.";
 const OWNED = mockAgents.filter((a) => a.owner === mockWalletAddress);
 
 async function pageOverflow(page: Page): Promise<number> {
@@ -60,6 +62,8 @@ test.describe("ecosystem page", () => {
       target(page, "Workflows routed to external agents and settled"),
     ).toContainText("Not met: 0 of 3, short by 3.");
     await expect(page.locator("progress, [role=progressbar]")).toHaveCount(0);
+    // No scan ran, so the window is 0: no sentence, never "the last 0 days".
+    await expect(page.locator("main")).not.toContainText("ledger history");
 
     await expect(
       page.getByRole("heading", { name: "No external operators yet" }),
@@ -93,6 +97,22 @@ test.describe("ecosystem page", () => {
     await expect(target(page, "Externally operated agents")).toContainText(
       "Met: 2 of 2.",
     );
+    // The settled count covers a ledger window, and says so where it is
+    // counted and where each agent's settlements are listed.
+    await expect(
+      target(page, "Workflows routed to external agents and settled"),
+    ).toContainText(WINDOW);
+    await expect(target(page, "Externally operated agents")).not.toContainText(
+      "ledger history",
+    );
+    await expect(page.getByText(WINDOW, { exact: true })).toHaveCount(3);
+    // Measured at 6.96 days: shown as 6.9, never rounded up to a week.
+    await expect(page.locator("main")).not.toContainText("last 7 days");
+    await expect(
+      page.getByText("No settled workflows in the last 6.9 days.", {
+        exact: true,
+      }),
+    ).toBeVisible();
 
     const table = page.getByRole("table", {
       name: "Settled workflows for ext.translate_long_identifier_v2",
@@ -118,6 +138,51 @@ test.describe("ecosystem page", () => {
       "href",
       `https://stellar.expert/explorer/testnet/account/${mockTeamWallet}`,
     );
+  });
+
+  test("names every explorer link as a new tab and reads each job id in full", async ({
+    page,
+  }) => {
+    await mockApi(page, { adoption: mockAdoptionWithOperator });
+    await page.goto("/app/ecosystem");
+    const table = page.getByRole("table", {
+      name: "Settled workflows for ext.translate_long_identifier_v2",
+    });
+    const rows = table.getByRole("row");
+    await expect(rows).toHaveCount(3);
+
+    await expect(
+      rows.nth(1).getByRole("link", {
+        name: "tx 4f1d0c9a… on Stellar Expert (opens in a new tab)",
+        exact: true,
+      }),
+    ).toHaveAttribute("target", "_blank");
+    await expect(
+      rows.nth(2).getByRole("link", {
+        name: `${mockTeamWallet.slice(0, 4)}…${mockTeamWallet.slice(-4)} — ${mockTeamWallet}, on Stellar Expert (opens in a new tab)`,
+        exact: true,
+      }),
+    ).toHaveAttribute("target", "_blank");
+    // Every link on the page that opens a new tab says so in its name.
+    const away = page.locator('main a[target="_blank"]');
+    const count = await away.count();
+    expect(count).toBeGreaterThanOrEqual(6);
+    for (let i = 0; i < count; i++) {
+      await expect(away.nth(i)).toHaveAccessibleName(/\(opens in a new tab\)$/);
+    }
+
+    // The job cell is heard as the whole id; the short form is only seen.
+    for (const [n, id] of [
+      [1, "7c2e9b41d05a4f38a6e1b9c3d7f20a58"],
+      [2, "8d3f0c52e16b5049b7f2c0d4e8031b69"],
+    ] as const) {
+      await expect(
+        rows.nth(n).getByRole("cell", { name: id, exact: true }),
+      ).toHaveCount(1);
+      await expect(rows.nth(n)).toContainText(`${id.slice(0, 8)}…`);
+      // In the text itself, not only in a `title` a phone never shows.
+      await expect(rows.nth(n).getByRole("cell").first()).toContainText(id);
+    }
   });
 
   test("announces a failed read instead of reporting no operators", async ({

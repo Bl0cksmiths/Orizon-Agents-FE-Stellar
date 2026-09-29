@@ -21,7 +21,8 @@ import { useId, useState, type ReactNode } from "react";
 
 import { formatAge } from "@/components/ui/stale-badge";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { formatUsdc, receiptBadgeStatus } from "@/lib/disputes";
+import { receiptBadgeStatus } from "@/lib/disputes";
+import { useFormatAmount } from "./amount-asset";
 import type {
   CreditPolicy,
   DisputeArtifact,
@@ -115,6 +116,7 @@ export function DisputeReceipt({
   className?: string;
 }) {
   const headingId = useId();
+  const formatAmount = useFormatAmount();
   const voice = viewer === "payer" ? PAYER_VOICE : OTHER_VOICE;
   const announcement = useStatusAnnouncement(
     announcedState(view),
@@ -156,7 +158,7 @@ export function DisputeReceipt({
       </div>
 
       <p className="text-xs leading-relaxed text-text/90">
-        {nextStep(view, agentName, voice)}
+        {nextStep(view, agentName, voice, formatAmount)}
       </p>
 
       {view.status !== "rejected" && <CreditLine view={view} voice={voice} />}
@@ -263,9 +265,10 @@ function nextStep(
   view: DisputeReceiptView,
   agent: string,
   voice: Voice,
+  formatAmount: (n: number) => string,
 ): string {
   const sentence = pendingStep(view, agent, voice);
-  if (sentence === null) return settledStep(view, agent, voice);
+  if (sentence === null) return settledStep(view, agent, voice, formatAmount);
   return view.stoppedChecking
     ? sentence.replace(/\.$/, `; ${STOPPED_CHECKING}`)
     : sentence;
@@ -326,6 +329,7 @@ function settledStep(
   view: DisputeReceiptView,
   agent: string,
   voice: Voice,
+  formatAmount: (n: number) => string,
 ): string {
   if (view.status === "rejected") {
     return `The platform did not uphold this dispute: no credit was issued, ${agent}'s reputation is unchanged${
@@ -334,7 +338,9 @@ function settledStep(
   }
   // A promise is never restated as a payment: without the settled figure
   // the sentence says the credit arrived, not how much.
-  const paid = view.amount.final ? formatUsdc(view.amount.usdc) : "the credit";
+  const paid = view.amount.final
+    ? formatAmount(view.amount.usdc)
+    : "the credit";
   if (view.rating.state === "confirmed") {
     return `Done: ${voice.who} received ${paid}, and it cost ${agent} a dispute rating on its reputation.`;
   }
@@ -359,9 +365,10 @@ function CreditLine({
   view: DisputeReceiptView;
   voice: Voice;
 }) {
+  const formatAmount = useFormatAmount();
   const figure = (
     <span className="font-mono text-sm text-text">
-      {formatUsdc(view.amount.usdc)}
+      {formatAmount(view.amount.usdc)}
     </span>
   );
   let claim: ReactNode;

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mockApi, mockOverview, mockTasks } from "./mocks";
+import { mockNetwork } from "./plan-fixtures";
 
 test.describe("console overview", () => {
   test("/app renders sidebar nav, mocked metrics, and recent tasks", async ({
@@ -30,5 +31,28 @@ test.describe("console overview", () => {
 
     // Recent-tasks table shows a mocked task id.
     await expect(page.getByText(mockTasks[0].id)).toBeVisible();
+  });
+
+  // F-022: a task's spend is in the escrow's asset — native XLM on testnet —
+  // and with the asset unknown it carries no unit, never a guessed "USDC".
+  test("/app prints each task's spend in the network's asset", async ({
+    page,
+  }) => {
+    await mockApi(page);
+    await mockNetwork(page);
+    await page.goto("/app");
+    const row = page.getByRole("row", { name: new RegExp(mockTasks[0].id) });
+    await expect(row).toContainText(`${mockTasks[0].spent.toFixed(3)} XLM`);
+    await expect(page.getByRole("main")).not.toContainText("USDC");
+  });
+
+  test("/app prints spend with no unit while the asset is unknown", async ({
+    page,
+  }) => {
+    await mockApi(page);
+    await page.goto("/app");
+    const row = page.getByRole("row", { name: new RegExp(mockTasks[0].id) });
+    await expect(row).toContainText(mockTasks[0].spent.toFixed(3));
+    await expect(page.getByRole("main")).not.toContainText(/USDC|XLM/);
   });
 });

@@ -1,0 +1,54 @@
+/*
+ * The evidence page on paper: "Save as PDF" should give a clean evidence pack.
+ *
+ * Every rule is inside @media print and scoped to the evidence page (the
+ * article's data-evidence-page, or a document that contains it), so this
+ * sheet changes nothing on screen and nothing on any other page, even after a
+ * client-side navigation has left it loaded.
+ *
+ * The rest is in the markup as Tailwind print: variants: the nav and footer
+ * are hidden, each link's full URL is shown under it, tables print whole, and
+ * badges print as their words in black.
+ */
+
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+
+  html:has([data-evidence-page]),
+  body:has([data-evidence-page]) {
+    background: #fff !important;
+    color: #000 !important;
+    overflow: visible !important;
+  }
+
+  /* The film-grain overlay would print as a grey wash over every page. */
+  body:has([data-evidence-page])::after {
+    display: none !important;
+  }
+
+  [data-evidence-page],
+  [data-evidence-page] * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  [data-evidence-page] a {
+    text-decoration: underline !important;
+  }
+
+  [data-evidence-page] h2,
+  [data-evidence-page] h3,
+  [data-evidence-page] h4 {
+    break-after: avoid;
+  }
+
+  [data-evidence-page] tr,
+  [data-evidence-page] li,
+  [data-evidence-page] blockquote {
+    break-inside: avoid;
+  }
+}

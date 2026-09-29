@@ -3,7 +3,13 @@
     "collect": {
       "startServerCommand": "npm run start",
       "startServerReadyPattern": "Ready in",
-      "url": ["http://localhost:3000/"],
+      "url": [
+        "http://localhost:3000/",
+        "http://localhost:3000/guide/list-your-agent",
+        "http://localhost:3000/demo",
+        "http://localhost:3000/evidence",
+        "http://localhost:3000/litepaper"
+      ],
       "numberOfRuns": 3,
       "settings": {
         "preset": "desktop",

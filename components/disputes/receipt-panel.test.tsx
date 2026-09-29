@@ -15,6 +15,7 @@
  * Assertions are plain DOM checks — this repo does not install jest-dom.
  */
 
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   act,
@@ -26,7 +27,7 @@ import {
 } from "@testing-library/react";
 
 import { formatAge } from "@/components/ui/stale-badge";
-import { disputeReceipt, formatRemaining, formatUsdc } from "@/lib/disputes";
+import { disputeReceipt, formatAmount, formatRemaining } from "@/lib/disputes";
 import type {
   CreditPolicy,
   Dispute,
@@ -36,7 +37,9 @@ import type {
   SettlementStepView,
   StepDisputeState,
 } from "@/lib/types";
+import type { EscrowGeneration } from "@/lib/escrow-generation";
 import type { ReasonUnlockStatus } from "@/lib/use-reason-unlock";
+import { AmountAssetProvider } from "./amount-asset";
 import { ReceiptPanel } from "./receipt-panel";
 import { WindowState } from "./window-state";
 
@@ -156,11 +159,29 @@ function settled(
 
 const CLOSED = { open: false, closesAtMs: CLOSES_AT, remainingMs: 0 };
 
-function renderPanel(view: DisputePanelView) {
+/** Testnet, where the escrow's SAC wraps the native asset: amounts are XLM. */
+function Testnet({ children }: { children: ReactNode }) {
+  return <AmountAssetProvider asset="native">{children}</AmountAssetProvider>;
+}
+
+/** An amount as the panel prints it on testnet. */
+const xlm = (n: number) => formatAmount(n, "native");
+
+/** Rendered on escrow v2 unless a test names the escrow it is about. */
+function renderPanel(
+  view: DisputePanelView,
+  escrowGeneration: EscrowGeneration = "v2",
+) {
   const onDispute = vi.fn();
   const onConnect = vi.fn();
   const utils = render(
-    <ReceiptPanel view={view} onDispute={onDispute} onConnect={onConnect} />,
+    <ReceiptPanel
+      view={view}
+      onDispute={onDispute}
+      onConnect={onConnect}
+      escrowGeneration={escrowGeneration}
+    />,
+    { wrapper: Testnet },
   );
   return { ...utils, onDispute, onConnect };
 }
@@ -208,6 +229,30 @@ describe("ReceiptPanel — not settled", () => {
   });
 });
 
+describe("ReceiptPanel — the unit its amounts are printed in", () => {
+  // F-022: every `*_usdc` figure is in whatever the escrow's SAC wraps, and
+  // with the asset unknown no unit is claimed at all — least of all the one
+  // in the field name.
+  it("prints its figures with no unit, and never USDC, while the asset is unknown", () => {
+    render(
+      <ReceiptPanel
+        view={settled([{ step: step(0), state: { kind: "disputable" } }])}
+        onDispute={vi.fn()}
+        onConnect={vi.fn()}
+        escrowGeneration="v2"
+      />,
+    );
+    expect(text()).toContain(formatAmount(0.162, null));
+    expect(text()).not.toMatch(/USDC|XLM/);
+  });
+
+  it("prints them in XLM on testnet", () => {
+    renderPanel(settled([{ step: step(0), state: { kind: "disputable" } }]));
+    expect(text()).toContain("0.162 XLM");
+    expect(text()).not.toMatch(/USDC/);
+  });
+});
+
 describe("ReceiptPanel — the settled header", () => {
   it("shows the receipt heading, age, total and both transactions", () => {
     renderPanel(settled([{ step: step(0), state: { kind: "disputable" } }]));
@@ -215,7 +260,7 @@ describe("ReceiptPanel — the settled header", () => {
     expect(screen.getByRole("heading", { name: "Receipt" })).toBeTruthy();
     // One hour in, on the server's clock the view carries.
     expect(text()).toContain("Settled 1h ago");
-    expect(text()).toContain(formatUsdc(0.162));
+    expect(text()).toContain(xlm(0.162));
 
     const hrefs = screen
       .getAllByRole("link")
@@ -270,11 +315,11 @@ describe("ReceiptPanel — the step list", () => {
     expect(items).toHaveLength(2);
     expect(items[0].textContent).toContain("Step 1");
     expect(items[0].textContent).toContain("Agent 0");
-    expect(items[0].textContent).toContain(formatUsdc(0.054));
+    expect(items[0].textContent).toContain(xlm(0.054));
     // No registered name: the agent id stands in for it.
     expect(items[1].textContent).toContain("Step 2");
     expect(items[1].textContent).toContain("agt_1");
-    expect(items[1].textContent).toContain(formatUsdc(0.108));
+    expect(items[1].textContent).toContain(xlm(0.108));
   });
 
   it("offers a Dispute button that hands back the right step", () => {
@@ -295,7 +340,7 @@ describe("ReceiptPanel — the step list", () => {
   });
 
   // A policy that credits nothing is possible, and the dialog handles it;
-  // the row printed "credits 0 USDC if upheld" beside the action.
+  // the row printed "credits 0 XLM if upheld" beside the action.
   it("offers no credit hint beside a step an uphold would credit nothing for", () => {
     renderPanel(
       settled([
@@ -309,7 +354,7 @@ describe("ReceiptPanel — the step list", () => {
       screen.getByRole("button", { name: "Dispute step 1, Agent 0" }),
     ).toBeTruthy();
     expect(text()).not.toContain("if upheld");
-    expect(text()).not.toMatch(/credits (up to )?0 USDC/);
+    expect(text()).not.toMatch(/credits (up to )?0 XLM/);
   });
 
   // The struck figure is for the eye; the ear hears what it means. And the
@@ -334,15 +379,15 @@ describe("ReceiptPanel — the step list", () => {
     );
     const [, uncharged] = screen.getAllByRole("listitem");
     expect(
-      within(uncharged).getByText("Not charged, priced at 0.012 USDC"),
+      within(uncharged).getByText("Not charged, priced at 0.012 XLM"),
     ).toBeTruthy();
-    const struck = within(uncharged).getByText("0.012 USDC");
+    const struck = within(uncharged).getByText("0.012 XLM");
     expect(struck.closest("[aria-hidden='true']")).not.toBeNull();
 
     const heard = Array.from(screen.getByRole("list").querySelectorAll("span"))
       .filter(
         (el) =>
-          /^\d+(\.\d+)? USDC$/.test(el.textContent ?? "") &&
+          /^\d+(\.\d+)? XLM$/.test(el.textContent ?? "") &&
           el.closest("[aria-hidden='true']") === null,
       )
       .map((el) => parseFloat(el.textContent ?? ""));
@@ -360,8 +405,8 @@ describe("ReceiptPanel — the step list", () => {
       ]),
     );
     // A ceiling, never an exact promise (D-071).
-    expect(text()).toContain(`credits up to ${formatUsdc(0.027)} if upheld`);
-    expect(text()).not.toContain(`credits ${formatUsdc(0.027)} if upheld`);
+    expect(text()).toContain(`credits up to ${xlm(0.027)} if upheld`);
+    expect(text()).not.toContain(`credits ${xlm(0.027)} if upheld`);
   });
 
   it("shows a disputed step's status and never a second Dispute button", () => {
@@ -508,7 +553,7 @@ describe("ReceiptPanel — a disputed step's receipt", () => {
     });
     expect(receipt.textContent).toContain("Refunded");
     expect(receipt.textContent).toContain(
-      `${formatUsdc(0.0265)} credited to your wallet — funded by the platform, not clawed back from the agent.`,
+      `${xlm(0.0265)} credited to your wallet — funded by the platform, not clawed back from the agent.`,
     );
     const hrefs = within(receipt)
       .getAllByRole("link")
@@ -810,6 +855,7 @@ describe("ReceiptPanel — reasons the backend withheld", () => {
         onDispute={vi.fn()}
         onConnect={vi.fn()}
         reasonUnlock={offered ? { status, onUnlock } : null}
+        escrowGeneration="v2"
       />,
     );
     return onUnlock;
@@ -908,6 +954,29 @@ describe("ReceiptPanel — a workflow with no settlement on record", () => {
     );
   });
 
+  // v1 took no custody and cannot complete a payment (D-039): a failed
+  // settlement charged nothing and left nothing to reclaim.
+  it("says a failed v1 settlement charged nothing, and offers no way back", () => {
+    renderPanel(
+      { kind: "not_settled", running: false, settlementState: "failed" },
+      "v1",
+    );
+    expect(status().textContent).toBe(
+      "The settlement did not go through, so no agent was paid. On this deployment the escrow cannot yet complete a payment (a known defect; the fix is deployed separately), so a paid run reports its settlement as failed and nothing is charged.",
+    );
+    expect(text()).not.toMatch(/into escrow|reclaim|returns it/);
+  });
+
+  it("says only what failed while the escrow is unknown", () => {
+    renderPanel(
+      { kind: "not_settled", running: false, settlementState: "failed" },
+      "unknown",
+    );
+    expect(status().textContent).toBe(
+      "The settlement did not go through, so no agent was paid.",
+    );
+  });
+
   it("keeps the running sentence while the workflow is still going", () => {
     renderPanel({
       kind: "not_settled",
@@ -971,7 +1040,7 @@ describe("ReceiptPanel — an escrow v2 settlement", () => {
 
   it("shows each paid step's payout with a link of its own to the settlement", () => {
     renderPanel(v2());
-    expect(text()).toContain(`paid ${formatUsdc(0.054)} to the operator`);
+    expect(text()).toContain(`paid ${xlm(0.054)} to the operator`);
     const link = screen.getByRole("link", {
       name: "view step 1 payout on stellar.expert",
     });
@@ -1023,7 +1092,7 @@ describe("ReceiptPanel — an escrow v2 settlement", () => {
 
   it("states a remainder the backend reported", () => {
     renderPanel(v2({ remainder: { kind: "returned", usdc: 0.017 } }));
-    expect(text()).toContain(`${formatUsdc(0.017)} to the payer`);
+    expect(text()).toContain(`${xlm(0.017)} to the payer`);
   });
 
   it("links nothing for a payout whose transaction was not recorded", () => {
@@ -1065,7 +1134,7 @@ describe("ReceiptPanel — an escrow v2 settlement", () => {
           },
         ),
       );
-      expect(text()).not.toContain(formatUsdc(0.162));
+      expect(text()).not.toContain(xlm(0.162));
       expect(text()).toContain("nothing is shown as paid");
       expect(text()).not.toMatch(/\bpaid \d|✓ settled|Settled \d/);
       expect(text()).toContain(remainder);
@@ -1074,6 +1143,33 @@ describe("ReceiptPanel — an escrow v2 settlement", () => {
           ? "settlement unconfirmed"
           : "settlement failed",
       );
+    },
+  );
+
+  // Only v2 holds anything: a v1 or unknown escrow never reads as holding
+  // the buyer's money, even on a recorded receipt whose settlement failed.
+  it.each(["v1", "unknown"] as const)(
+    "never says a failed settlement's funds are held when the escrow is %s",
+    (generation) => {
+      renderPanel(
+        settled(
+          [
+            {
+              step: PAID,
+              state: { kind: "not_charged" },
+              payout: { kind: "not_paid" },
+            },
+          ],
+          { settlementState: "failed", remainder: { kind: "held" } },
+        ),
+        generation,
+      );
+      expect(text()).toContain("settlement failed");
+      expect(text()).toContain(
+        "The settlement did not go through, so no agent was paid.",
+      );
+      expect(text()).not.toMatch(/held in escrow|into escrow|reclaim/);
+      expect(text()).not.toContain("none yet");
     },
   );
 
@@ -1095,9 +1191,7 @@ describe("ReceiptPanel — an escrow v2 settlement", () => {
     expect(text()).toContain(
       "This step's payout is not confirmed on-chain yet, so it cannot be disputed until it is.",
     );
-    expect(text()).toContain(
-      `Payout not confirmed, priced at ${formatUsdc(0.054)}`,
-    );
+    expect(text()).toContain(`Payout not confirmed, priced at ${xlm(0.054)}`);
   });
 
   it("says it stopped checking an unconfirmed settlement", () => {

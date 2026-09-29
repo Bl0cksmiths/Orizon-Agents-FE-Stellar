@@ -14,6 +14,7 @@
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { motionSettled } from "./motion-settled";
 import {
   mockApi,
   mockPlan,
@@ -23,6 +24,8 @@ import {
   mockWallet,
 } from "./mocks";
 import {
+  escrowV2Pin,
+  mockEscrowV2Network,
   mockNetwork,
   mockTestnetNetwork,
   mockPlanStepEvidence,
@@ -176,13 +179,18 @@ function expectWithinWidth(box: Box, frame: Viewport, what: string) {
 async function decomposeWith(
   page: Page,
   plan: DecomposeResponse,
-  options: { wallet?: boolean; network?: boolean } = {},
+  options: { wallet?: boolean; network?: boolean | "v2" } = {},
 ): Promise<void> {
   if (options.wallet) await mockWallet(page);
   await mockApi(page, { plan });
   // After `mockApi`, so it answers ahead of the catch-all. Without it the card
-  // has no asset to name its amounts in and prints them bare.
-  if (options.network) await mockNetwork(page);
+  // has no asset to name its amounts in and prints them bare. `true` is the
+  // deployed testnet (escrow v1); "v2" reports the pinned v2 escrow.
+  if (options.network)
+    await mockNetwork(
+      page,
+      options.network === "v2" ? mockEscrowV2Network : mockTestnetNetwork,
+    );
   await page.goto("/app/orchestrator");
   await page.getByRole("textbox", { name: /intent/i }).fill(plan.intent);
   await page.getByRole("button", { name: /decompos/i }).click();
@@ -192,6 +200,52 @@ async function decomposeWith(
 }
 
 test.describe("plan card — reputation, source and exclusions", () => {
+  // What is on camera for the SOW's routing example: each exclusion says only
+  // what the notice's own evidence supports. An agent sunk by many real low
+  // ratings is not "thin evidence rather than bad work", and a count the
+  // backend did not send says nothing about cause (BLO-38).
+  test("each exclusion is worded from the ratings its bound rests on", async ({
+    page,
+  }) => {
+    await page.setViewportSize(EVIDENCE_FRAME);
+    const [ocr, scrape] = mockPlanExcluded.notices;
+    await decomposeWith(page, {
+      ...mockPlanExcluded,
+      notices: [
+        { ...ocr, count: 9, dispute_rate_bps: 1111 },
+        { ...scrape, count: 1, dispute_rate_bps: 0 },
+        {
+          ...scrape,
+          agent_id: "brief.old",
+          agent_name: "brief.old",
+          count: null,
+          dispute_rate_bps: null,
+        },
+      ],
+    });
+    await exclusions(page).locator("summary").click();
+
+    const row = (name: string) =>
+      exclusionRows(page).filter({ hasText: name }).locator("p").first();
+    const OPENING =
+      "Its reputation lower bound is below the floor this plan was built against.";
+    await expect(row("vision.ocr")).toHaveText(
+      `${OPENING} That bound rests on 9 ratings, and that record, read conservatively, falls short of the floor. 11.1% of those ratings were disputes.`,
+    );
+    await expect(row("scrape.fast")).toHaveText(
+      `${OPENING} That bound rests on a single rating, so the evidence behind it is thin.`,
+    );
+    await expect(row("brief.old")).toHaveText(OPENING);
+
+    // The intro calls the floor what it is, and no longer vouches for work.
+    await expect(exclusions(page)).toContainText(
+      "by comparing a statistical lower bound on each agent's reputation against the floor.",
+    );
+    await expect(exclusions(page)).not.toContainText(
+      /bad work|judgement on work|actually did/,
+    );
+  });
+
   test("AC-7 — one frame carries per-agent reputation and the excluded sub-floor agent", async ({
     page,
   }) => {
@@ -453,6 +507,7 @@ test.describe("plan card — reputation, source and exclusions", () => {
     // warning — has ever reached axe. It is also the state that most wants
     // checking: three components composed by a fourth, each carrying meaning
     // in colour, and a decision about money at the end of it.
+    await motionSettled(page.locator("main"));
     const { violations } = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();
@@ -702,34 +757,65 @@ test.describe("plan card — what each claim rests on", () => {
     expect(unread).not.toMatch(/no on-chain ratings/i);
   });
 
-  test("the authorize line names the cap in the network's asset", async ({
-    page,
-  }) => {
-    await page.setViewportSize(EVIDENCE_FRAME);
-    await decomposeWith(page, mockPlanStepEvidence, {
-      wallet: true,
-      network: true,
-    });
-
-    // The unit comes from the network payload rather than from this spec, so
-    // the assertion follows the deployment: "native" is XLM on testnet.
+  // The unit comes from the network payload rather than from this spec, so
+  // the assertion follows the deployment: "native" is XLM on testnet. To the
+  // stroop it is signed at (finding S6), never rounded for display.
+  const signedCap = () => {
     const unit = assetLabel(mockTestnetNetwork.asset);
     expect(unit).toBe("XLM");
-    // To the stroop it is signed at (finding S6), never rounded for display.
     const cap = formatSettled(
       Math.round(mockPlanStepEvidence.total_usdc * STROOPS_PER_UNIT),
       mockTestnetNetwork.asset,
     );
     expect(cap.endsWith(` ${unit}`)).toBe(true);
+    return cap;
+  };
+
+  // Escrow v1, as deployed: the signature records an allowance and moves
+  // nothing, and a paid run cannot yet settle (D-039).
+  test("the authorize line names the cap in the network's asset", async ({
+    page,
+  }) => {
+    test.skip(escrowV2Pin !== null, "escrow v2 is pinned: v1 is history");
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence, {
+      wallet: true,
+      network: true,
+    });
+    const cap = signedCap();
 
     // The line a buyer reads immediately before signing, and the total above.
-    // Escrow v2 takes custody at authorize, and the line says so.
+    const line = page.getByText(/Freighter will prompt/i);
+    await expect(line).toContainText(`authorizing up to ${cap}.`);
+    await expect(line).toContainText(
+      "It records a spending allowance on the escrow contract; no funds move when you sign.",
+    );
+    await expect(line).toContainText(
+      "so a paid run reports its settlement as failed and nothing is charged.",
+    );
+    await expect(line).not.toContainText(/into escrow now|comes back/);
+    await expect(page.getByText(cap, { exact: true })).toHaveCount(2);
+    // `total_usdc` is a field name; nothing on the card may read it aloud.
+    await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
+  });
+
+  // Escrow v2, once pinned and reported: custody at authorize.
+  test("the authorize line says a v2 signature moves the cap into escrow", async ({
+    page,
+  }) => {
+    test.skip(escrowV2Pin === null, "escrow v2 is not pinned on testnet yet");
+    await page.setViewportSize(EVIDENCE_FRAME);
+    await decomposeWith(page, mockPlanStepEvidence, {
+      wallet: true,
+      network: "v2",
+    });
+    const cap = signedCap();
+
     await expect(page.getByText(/moves up to/i)).toContainText(cap);
     await expect(page.getByText(/moves up to/i)).toContainText(
       "from your wallet into escrow now",
     );
     await expect(page.getByText(cap, { exact: true })).toHaveCount(2);
-    // `total_usdc` is a field name; nothing on the card may read it aloud.
     await expect(page.getByRole("main").getByText(/\bUSDC\b/)).toHaveCount(0);
   });
 
@@ -837,7 +923,7 @@ test.describe("plan card — what each claim rests on", () => {
         }
         if (options.wallet) {
           expectWithinWidth(
-            await stableBox(page.getByText(/moves up to/i)),
+            await stableBox(page.getByText(/Freighter will prompt/i)),
             frame,
             "the authorize line",
           );
@@ -847,7 +933,7 @@ test.describe("plan card — what each claim rests on", () => {
           // so a button past its row is gone even while the page has room.
           const controls = page
             .locator("div")
-            .filter({ has: page.getByText(/moves up to/i) })
+            .filter({ has: page.getByText(/Freighter will prompt/i) })
             .filter({ has: page.getByRole("button", { name: /authorize/i }) })
             .last();
           const row = await stableBox(controls);
@@ -897,6 +983,7 @@ test.describe("plan card — what each claim rests on", () => {
         await expect(exclusions(page)).toHaveJSProperty("open", true);
       }
 
+      await motionSettled(page.locator("main"));
       const { violations } = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
         .analyze();
@@ -1009,6 +1096,7 @@ test.describe("plan card — reputation that could not be read", () => {
     await stableBox(estimateBanner(page));
     await expect(estimateSummary(page)).toHaveText(/estimates/);
 
+    await motionSettled(page.locator("main"));
     const { violations } = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();
@@ -1047,7 +1135,7 @@ test.describe("plan card — shapes the backend may send", () => {
 
     await expect(steps(page)).toHaveCount(0);
     await expect(planCard(page)).toContainText(/nothing to authorize/i);
-    await expect(page.getByText(/moves up to/i)).toHaveCount(0);
+    await expect(page.getByText(/Freighter will prompt/i)).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: /authorize/i }),
     ).toBeDisabled();

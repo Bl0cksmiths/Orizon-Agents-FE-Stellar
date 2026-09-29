@@ -45,10 +45,15 @@ import {
   type EscrowRelease,
 } from "@/lib/execute-refusal";
 import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
+import {
+  V1_CANNOT_SETTLE,
+  escrowGeneration,
+  type EscrowGeneration,
+} from "@/lib/escrow-generation";
 import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
-import type { FriendlyError } from "@/lib/wallet-errors";
+import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import { FiatFund } from "./fiat-fund";
 import { isPlanExpired } from "./plan-errors";
@@ -66,10 +71,21 @@ type ExecStep = "" | "sign" | "broadcast" | "execute";
 
 const STEP_LABEL: Record<Exclude<ExecStep, "">, string> = {
   sign: "◉ Freighter…",
-  // The broadcast is the moment the cap leaves the wallet for the escrow.
-  broadcast: "◉ Moving funds to escrow…",
+  broadcast: "◉ Broadcasting…",
   execute: "◉ Launching…",
 };
+
+/** The button's label for a stage. Under escrow v2 the broadcast is the
+ *  moment the cap leaves the wallet for the escrow, and it says so; under
+ *  any other escrow nothing moves then, and it says only what happens. */
+function stepLabel(
+  step: Exclude<ExecStep, "">,
+  generation: EscrowGeneration,
+): string {
+  return step === "broadcast" && generation === "v2"
+    ? "◉ Moving funds to escrow…"
+    : STEP_LABEL[step];
+}
 
 /** The smallest cap an authorization is signed for. A plan priced at zero
  *  still needs a positive cap to authorize against. */
@@ -78,6 +94,20 @@ const MIN_CAP = 0.001;
 /** The notice shown when the backend's escrow is not the one this build
  *  pins; Authorize is described by it while it shows. */
 const ESCROW_MISMATCH_ID = "escrow-mismatch-notice";
+
+/** What paying on-chain does, told to a buyer before they connect. */
+function connectSentence(generation: EscrowGeneration): string {
+  const connect = `Connect Freighter (${NETWORK_LABEL}) to pay on-chain`;
+  const simulate = "Or run a simulated pass, which moves no funds.";
+  switch (generation) {
+    case "v2":
+      return `${connect}: authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles. ${simulate}`;
+    case "v1":
+      return `${connect}: authorizing records a spending allowance on the escrow contract, and no funds move when you sign. ${V1_CANNOT_SETTLE} ${simulate}`;
+    case "unknown":
+      return `${connect}. ${simulate}`;
+  }
+}
 
 /** What the pay panel says in place of a cap when there is nothing to pay. */
 const EMPTY_PLAN =
@@ -156,6 +186,20 @@ export function ExecutionPlan({
   const { data: network } = useFetch(getStellarNetwork, [], {
     revalidateOnFocus: true,
   });
+  // Which escrow a signature here goes to, and so what it does: v2 takes the
+  // cap into custody at signing, v1 only records an allowance and cannot
+  // complete a payment (D-039). Every custody sentence and control on this
+  // card reads this one decision; `unknown` claims neither story.
+  //
+  // When this build pins the v2 escrow and the backend reports a different
+  // one, a signature would go to a contract the copy does not describe — so
+  // the card will not ask for one. Simulate and fiat do not sign against it.
+  const escrow = escrowAgreement(
+    network,
+    pinnedEscrowId(defaultExplorerNetwork),
+  );
+  const escrowMismatch = escrow.kind === "mismatch";
+  const generation = escrowGeneration(network);
   /**
    * An amount exactly as it is signed, with its real unit — or bare while the
    * unit is unknown. Rounded to the stroop, as the backend converts it
@@ -192,9 +236,10 @@ export function ExecutionPlan({
     }
   });
 
-  /** Real on-chain path: the wallet signs authorize, which moves the cap
-   *  into escrow; the backend then settles (pays delivered steps, returns the
-   *  rest) and seals. */
+  /** Real on-chain path: the wallet signs authorize — under escrow v2 that
+   *  moves the cap into escrow, under v1 it only records an allowance — and
+   *  the backend then settles (v2 pays delivered steps and returns the rest)
+   *  and seals. */
   const authorize = useAsyncAction(async (payer: string) => {
     setFriendlyError(null);
     setAuthorizeHash(null);
@@ -205,13 +250,17 @@ export function ExecutionPlan({
     // cap out of the wallet at signing, so a wallet that cannot cover it plus
     // the fee and reserve would only be refused by the chain after the buyer
     // had been asked to sign. An unread balance is not a refusal: the chain's
-    // own answer is mapped below.
-    const funds = checkEscrowFunds({
-      balance: wallet.xlmBalance,
-      cap,
-      asset: network?.asset,
-    });
-    if (funds.kind === "short") {
+    // own answer is mapped below. Any other escrow moves nothing at signing,
+    // so a wallet short of the cap is no reason to refuse it.
+    const funds =
+      generation === "v2"
+        ? checkEscrowFunds({
+            balance: wallet.xlmBalance,
+            cap,
+            asset: network?.asset,
+          })
+        : null;
+    if (funds?.kind === "short") {
       setFriendlyError(insufficientEscrowFunds(funds));
       setTxState("failed");
       return;
@@ -300,7 +349,10 @@ export function ExecutionPlan({
         setStep("");
         return;
       }
-      const friendly = classifyAuthorizeError(e);
+      // The custody reading of a refusal ("could not move the maximum into
+      // escrow") is v2's; anything else gets the shared wallet wording.
+      const friendly =
+        generation === "v2" ? classifyAuthorizeError(e) : classifyError(e);
       setFriendlyError(friendly);
       setTxState("failed");
       setStep("");
@@ -309,16 +361,6 @@ export function ExecutionPlan({
       // second time via useAsyncAction's captured error.
     }
   });
-
-  // Everything this card says about paying describes escrow v2. When this
-  // build pins the v2 escrow and the backend reports a different one, a
-  // signature would go to a contract the copy does not describe — so the
-  // card will not ask for one. Simulate and fiat do not sign against it.
-  const escrow = escrowAgreement(
-    network,
-    pinnedEscrowId(defaultExplorerNetwork),
-  );
-  const escrowMismatch = escrow.kind === "mismatch";
 
   // Every notice above the Authorize panel that is on the page, in reading
   // order. Composed, never chosen between: a fallback plan built during a
@@ -565,7 +607,7 @@ export function ExecutionPlan({
                 </div>
                 {empty ? (
                   <div className="text-sm">{EMPTY_PLAN}</div>
-                ) : (
+                ) : generation === "v2" ? (
                   // Escrow v2 takes custody at authorize: this signature moves
                   // the money now, not at settlement. A buyer who reads "up
                   // to" as a cap on a later charge has been told v1's story.
@@ -575,6 +617,16 @@ export function ExecutionPlan({
                     <b className="text-text">{priced(cap)}</b> from your wallet
                     into escrow now. Delivered steps are paid from it, and the
                     rest comes back to you when the run settles.
+                  </div>
+                ) : (
+                  // v1 moves nothing at signing, and says so; until the
+                  // escrow is known, the sentence claims neither.
+                  <div className="max-w-xl text-sm leading-relaxed">
+                    Freighter will prompt for{" "}
+                    <b className="text-text">one signature</b> authorizing up to{" "}
+                    <b className="text-text">{priced(cap)}</b>.
+                    {generation === "v1" &&
+                      ` It records a spending allowance on the escrow contract; no funds move when you sign. ${V1_CANNOT_SETTLE}`}
                   </div>
                 )}
               </div>
@@ -604,7 +656,7 @@ export function ExecutionPlan({
                 >
                   {executing
                     ? step
-                      ? STEP_LABEL[step]
+                      ? stepLabel(step, generation)
                       : "◉ Launching…"
                     : "Authorize & Execute ▸"}
                 </Button>
@@ -617,9 +669,7 @@ export function ExecutionPlan({
                   ▸ wallet required
                 </div>
                 <div className="text-sm">
-                  {empty
-                    ? EMPTY_PLAN
-                    : `Connect Freighter (${NETWORK_LABEL}) to pay on-chain: authorizing moves the plan's maximum into escrow, delivered steps are paid from it, and the rest comes back when the run settles. Or run a simulated pass, which moves no funds.`}
+                  {empty ? EMPTY_PLAN : connectSentence(generation)}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
@@ -644,6 +694,7 @@ export function ExecutionPlan({
             run={expired}
             onReplan={onReplan}
             busy={executing}
+            generation={generation}
             fundsReturned={release?.kind === "returned"}
           />
         )}
@@ -655,6 +706,12 @@ export function ExecutionPlan({
           >
             <p>The authorization confirmed, but the run was not started.</p>
             <p className="mt-1 text-text/90">{runError}</p>
+            {generation === "v1" && (
+              <p className="mt-1 text-text/90">
+                The authorization only recorded a spending allowance, so no
+                funds moved.
+              </p>
+            )}
             {onReplan && (
               <Button
                 type="button"
@@ -670,7 +727,11 @@ export function ExecutionPlan({
           </div>
         )}
 
+        {/* Only escrow v2 holds anything to hand back or reclaim. A v1
+            authorization moved nothing, and while the escrow is unknown the
+            card claims neither. */}
         {held &&
+          generation === "v2" &&
           (expired === "authorize" || runError) &&
           (release?.kind === "returned" ? (
             <FundsReturnedNotice amount={priced(cap)} txHash={release.txHash} />
@@ -708,12 +769,19 @@ export function ExecutionPlan({
         {/* A confirmed authorize under escrow v2 is a transfer: the cap left
             the wallet for the escrow contract. The card says so with the
             figure signed and the contract it went to — only once both are
-            known, since a guessed destination would be a false receipt. */}
+            known, since a guessed destination would be a false receipt. Under
+            any other escrow nothing was sent, so no "sent" row is drawn. */}
         <TxStatus
           state={txState}
           hash={authorizeHash ?? undefined}
-          amount={authorizeHash ? priced(cap) : undefined}
-          destination={network?.contracts.payment_escrow || undefined}
+          amount={
+            authorizeHash && generation === "v2" ? priced(cap) : undefined
+          }
+          destination={
+            generation === "v2"
+              ? network?.contracts.payment_escrow || undefined
+              : undefined
+          }
           error={friendlyError}
         />
       </Card>

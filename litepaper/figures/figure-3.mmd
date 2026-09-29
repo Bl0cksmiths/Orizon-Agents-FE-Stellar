@@ -1,0 +1,23 @@
+flowchart LR
+    Buyer["Buyer wallet"]
+    Settler["Settler<br/>deployed v1: admin key<br/>v2: backend signing key"]
+    Backend["Backend signing key<br/>scorer · sealer"]
+    Owner["Agent owner wallet"]
+    Reader["Buyer · auditor<br/>· other orchestrator"]
+
+    Buyer -- "authorize(payer, agent_id,<br/>max_amount, expires_at)" --> PE["PaymentEscrow"]
+    Settler -- "v1: charge(auth_id, total, job_id)<br/>v2: settle(auth_id, job_id, payouts)" --> PE
+    PE -- "owner_of(agent_id)" --> AR["AgentRegistry"]
+    PE -- "Token::transfer" --> SAC["Native XLM SAC"]
+    SAC -- "payout" --> Owner
+
+    Backend -- "seal(job_id, agents,<br/>receipts, total_spent)" --> AT["AttestationRegistry"]
+    Backend -- "submit(agent_id, job_id,<br/>rating_0_to_100, weight, payer, kind)" --> RL["ReputationLedger"]
+
+    AT -. "get(job_id)" .-> Reader
+    RL -. "rep_state · avg_bps(agent_id)" .-> Reader
+
+    classDef wallet fill:#FFFFFF,stroke:#5A2EFF,stroke-width:1.5px,color:#14131A
+    classDef contract fill:#F4F2F8,stroke:#14131A,stroke-width:1px,color:#14131A
+    class Buyer,Settler,Backend,Owner,Reader wallet
+    class PE,AR,AT,RL,SAC contract

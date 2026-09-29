@@ -20,6 +20,7 @@ import {
   mockWallet,
   mockWalletAddress,
 } from "./mocks";
+import { mockNetwork } from "./plan-fixtures";
 
 /** Stand-ins for the build/submit round trip. Only the shapes matter — the
  *  guards in lib/guards.ts reject anything else, and the hash is rendered. */
@@ -111,6 +112,32 @@ test.describe("registration hands off to binding", () => {
     await expect(
       page.getByRole("button", { name: /Register agent/i }),
     ).toBeDisabled();
+  });
+
+  // F-022: the price is entered in the network's asset, native XLM on
+  // testnet, whatever the API field `price_usdc` is called.
+  test("labels the price in the network's asset, and never USDC", async ({
+    page,
+  }) => {
+    await mockApi(page);
+    await mockNetwork(page);
+    await page.goto("/app/register");
+    await expect(page.getByLabel("price per step (XLM)")).toBeVisible();
+    await expect(
+      page.getByText("entered in XLM, converted once at submit"),
+    ).toBeVisible();
+    await expect(page.getByRole("main")).not.toContainText("USDC");
+  });
+
+  test("labels the price with no unit while the asset is unknown", async ({
+    page,
+  }) => {
+    await mockApi(page);
+    await page.goto("/app/register");
+    await expect(
+      page.getByLabel("price per step", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("main")).not.toContainText(/USDC|XLM/);
   });
 
   test("carries the registered agent id into the bind step", async ({

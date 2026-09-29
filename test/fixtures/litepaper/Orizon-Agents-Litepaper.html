@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Orizon Agents Protocol Litepaper (fixture)</title>
+    <!-- Inline, as in the real book: the tests check the page's CSP lets
+         this style and the script below run. -->
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      .mermaid svg {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 class="title">The Orizon Agents Protocol Litepaper (fixture)</h1>
+    <nav id="TOC">
+      <ul>
+        <li>
+          <a href="#operations-and-governance"
+            >§6 · Operations and Governance</a
+          >
+        </li>
+      </ul>
+    </nav>
+    <h1 id="the-ai-coordination-dilemma">§1 · The AI Coordination Dilemma</h1>
+    <p>A fixture chapter.</p>
+    <h1 id="operations-and-governance">
+      §6 · Operations and <em>Governance</em>
+    </h1>
+    <p>A fixture chapter, with one diagram.</p>
+    <pre><code class="language-mermaid">flowchart LR
+  A --> B</code></pre>
+    <!-- Stands in for the Mermaid runtime: turns each diagram into an SVG and
+         marks the body ready, as the real book's init script does. -->
+    <script>
+      (function () {
+        document
+          .querySelectorAll("pre > code.language-mermaid")
+          .forEach(function (code) {
+            var div = document.createElement("div");
+            div.className = "mermaid";
+            div.innerHTML =
+              '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="20" role="img" aria-label="diagram"><rect width="80" height="20" fill="#5A2EFF"></rect></svg>';
+            code.closest("pre").replaceWith(div);
+          });
+        document.body.setAttribute("data-mermaid-ready", "true");
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,35 @@
+sequenceDiagram
+    autonumber
+    participant U as Buyer browser
+    participant B as Backend (FastAPI)
+    participant W as Wallet (Freighter)
+    participant S as Stellar (Soroban)
+
+    U->>B: POST /orchestrator/decompose { intent }
+    B->>B: detect_kit · or · LLM plan
+    B-->>U: { plan_id, steps[], total_usdc }
+
+    U->>B: POST /stellar/build/authorize
+    B-->>U: unsigned XDR
+    U->>W: signTransaction(xdr)
+    W-->>U: signed XDR
+    U->>B: POST /stellar/submit
+    B->>S: broadcast authorize
+    S-->>B: hash · auth_id
+    B-->>U: { hash, auth_id_hex }
+
+    U->>B: POST /orchestrator/execute { plan_id, auth_id }
+    B-->>U: { task_id }
+    U->>B: EventSource /trace/{task_id}/stream
+
+    loop For each step
+        B->>B: worker.run(intent, rationale, context)
+        B-->>U: SSE — exec · out · artifact
+        B->>S: PaymentEscrow.charge
+        S-->>B: receipt_id
+        B-->>U: SSE — cost
+    end
+
+    B->>S: AttestationRegistry.seal { job_id, ... }
+    S-->>B: tx hash
+    B-->>U: SSE — proof · final artifact

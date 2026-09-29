@@ -16,6 +16,7 @@
 
 import { GET_TIMEOUT_MS, ensure, fetchWithTimeout, httpError } from "./api";
 import { assetLabel } from "./money";
+import { LIST_YOUR_AGENT_PATH } from "./guide/display";
 
 /** The three SOW §6.3 targets, in the order the SOW states them. */
 export const TARGET_KEYS = [
@@ -85,6 +86,15 @@ export type EcosystemAdoption = {
   degraded?: boolean | null;
   /** The agents that read could not see. */
   unreadable_agents?: string[] | null;
+  /**
+   * How many days of ledger history the settled-workflow counts cover: the
+   * settlement service scans only a recent window of RPC events, so a
+   * settlement older than this drops out of every count. When the per-agent
+   * scans differ it is the shortest. 0 when no scan ran (no external agents,
+   * or every scan failed), and absent on a backend that predates it; either
+   * way the page says nothing about a window rather than guessing one.
+   */
+  window_days?: number | null;
 };
 
 export const ADOPTION_PATH = "/ecosystem/adoption";
@@ -183,7 +193,13 @@ export function isEcosystemAdoption(v: unknown): v is EcosystemAdoption {
     isOptionalBool(v.degraded) &&
     (v.unreadable_agents === undefined ||
       v.unreadable_agents === null ||
-      isStrArray(v.unreadable_agents))
+      isStrArray(v.unreadable_agents)) &&
+    // A number, or nothing. A string would print as the window verbatim.
+    // Zero is legitimate — it is what the backend sends when no scan ran —
+    // and is shown as no window at all, not rejected as malformed.
+    (v.window_days === undefined ||
+      v.window_days === null ||
+      isNum(v.window_days))
   );
 }
 
@@ -324,6 +340,56 @@ export function unverifiedSentence(a: EcosystemAdoption): string | null {
   return `${who}. Whatever they would add is missing from the figures below until they can be read again — a gap, not a zero.`;
 }
 
+/**
+ * "the last 7 days", "the last 6.9 days", "the last 1 day". One decimal at
+ * most, rounded DOWN: a measured 6.96 is "6.9", never a precise-sounding 7,
+ * because overstating the window would imply settlements are counted that
+ * are not. A window too short to show at one decimal says so rather than
+ * reading as zero.
+ */
+function windowSpan(days: number): string {
+  // The epsilon absorbs float noise from the backend's seconds-to-days
+  // division: exactly seven days arriving as 6.999999999999 is still 7.
+  const tenths = Math.floor(days * 10 + 1e-9) / 10;
+  if (tenths === 0) return "the last 0.1 days or less";
+  const n = tenths.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  return `the last ${n} ${n === "1" ? "day" : "days"}`;
+}
+
+/** The settled window the backend sent, or null when it sent none or sent 0
+ * (no scan ran) — never a default, since a guessed window would be a claim the
+ * payload did not make. */
+function settledWindow(a: Pick<EcosystemAdoption, "window_days">) {
+  const d = a.window_days;
+  return typeof d === "number" && Number.isFinite(d) && d > 0 ? d : null;
+}
+
+/**
+ * Why a settled-workflow count can fall: the settlement service reads only a
+ * recent window of ledger history, so a workflow settled before it drops out
+ * of the count — and a met target could read as missed a week later with
+ * nothing having gone wrong. Null when the backend does not say how long the
+ * window is; the page then adds nothing rather than a number of its own.
+ */
+export function settledWindowSentence(
+  a: Pick<EcosystemAdoption, "window_days">,
+): string | null {
+  const d = settledWindow(a);
+  if (d === null) return null;
+  return `Settled workflows counted over ${windowSpan(d)} of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.`;
+}
+
+/** An agent with nothing settled. Under a window that is "none in the last N
+ * days", not "none yet": it may have settled before the window began. */
+export function noSettledSentence(
+  a: Pick<EcosystemAdoption, "window_days">,
+): string {
+  const d = settledWindow(a);
+  return d === null
+    ? "No settled workflows yet."
+    : `No settled workflows in ${windowSpan(d)}.`;
+}
+
 /** `GABC…WXYZ`. The full address always goes alongside, for screen readers
  * and for copying. */
 export function shortAddress(g: string): string {
@@ -350,8 +416,7 @@ export function formatSettledAmount(
 
 /**
  * The operator docs: how an outside operator registers, binds and verifies a
- * dispatch. They live in the backend repository, next to the code they
- * describe; this frontend repository has no operator guide of its own.
+ * dispatch. It is the public guide on this site, readable with no login and
+ * versioned against the backend commit it was checked on.
  */
-export const OPERATOR_DOCS_URL =
-  "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/tree/main/docs/operators";
+export const OPERATOR_DOCS_URL = LIST_YOUR_AGENT_PATH;

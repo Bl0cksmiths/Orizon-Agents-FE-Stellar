@@ -22,6 +22,12 @@ import {
   mockWallet,
   mockWalletAddress,
 } from "./mocks";
+import {
+  escrowV2Pin,
+  mockEscrowV2Network,
+  mockNetwork,
+  mockTestnetNetwork,
+} from "./plan-fixtures";
 
 const HOUR_S = 60 * 60;
 const nowS = () => Math.floor(Date.now() / 1000);
@@ -53,6 +59,8 @@ async function openTrace(
     settlement: ReturnType<typeof mockSettlementView> | null;
     state: TaskDisputes["settlement_state"];
     held?: boolean;
+    /** The escrow the backend reports: v1's by default, as deployed. */
+    escrow?: "v1" | "v2";
   },
 ) {
   await mockTaskReadToken(page);
@@ -83,6 +91,11 @@ async function openTrace(
   }
   await mockWallet(page);
   await mockApi(page);
+  // Testnet's network answer: the receipt's amounts are in its asset, XLM.
+  await mockNetwork(
+    page,
+    opts.escrow === "v2" ? mockEscrowV2Network : mockTestnetNetwork,
+  );
   await mockTraceStream(page, mockDisputeTaskId);
   await mockDisputeApi(page, {
     settlement: opts.settlement,
@@ -106,7 +119,9 @@ test.describe("escrow v2 receipt", () => {
     const code = receipt(page)
       .getByRole("listitem")
       .filter({ hasText: "code.gen" });
-    await expect(code).toContainText("paid 0.054 USDC to the operator");
+    await expect(code).toContainText("paid 0.054 XLM to the operator");
+    // The unit is the network's asset, never the "usdc" of a field name.
+    await expect(receipt(page)).not.toContainText("USDC");
     await expect(
       code.getByRole("link", { name: "view step 2 payout on stellar.expert" }),
     ).toHaveAttribute(
@@ -157,12 +172,39 @@ test.describe("escrow v2 receipt", () => {
   test("offers the paying tab the reclaim a failed settlement leaves", async ({
     page,
   }) => {
-    await openTrace(page, { settlement: null, state: "failed", held: true });
+    test.skip(escrowV2Pin === null, "escrow v2 is not pinned on testnet yet");
+    await openTrace(page, {
+      settlement: null,
+      state: "failed",
+      held: true,
+      escrow: "v2",
+    });
     const reclaim = page.getByRole("region", { name: "Reclaim your funds" });
     await expect(reclaim).toBeVisible();
     await expect(
       reclaim.getByRole("button", { name: "Reclaim held funds ▸" }),
     ).toBeVisible();
+    expect(await disputeScan(page)).toEqual([]);
+  });
+
+  // v1 took no custody and cannot complete a payment (D-039): a failed
+  // settlement left nothing in escrow, so even the tab that signed is
+  // offered nothing to reclaim, and is told nothing was charged.
+  test("offers the paying tab no reclaim under escrow v1, and says nothing was charged", async ({
+    page,
+  }) => {
+    test.skip(escrowV2Pin !== null, "escrow v2 is pinned: v1 is history");
+    await openTrace(page, { settlement: null, state: "failed", held: true });
+    await expect(receipt(page).getByRole("status")).toHaveText(
+      "The settlement did not go through, so no agent was paid. On this deployment the escrow cannot yet complete a payment (a known defect; the fix is deployed separately), so a paid run reports its settlement as failed and nothing is charged.",
+    );
+    await expect(
+      page.getByRole("region", { name: "Reclaim your funds" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /reclaim/i })).toHaveCount(0);
+    await expect(page.getByRole("main")).not.toContainText(
+      /held in escrow|moved into escrow/,
+    );
     expect(await disputeScan(page)).toEqual([]);
   });
 

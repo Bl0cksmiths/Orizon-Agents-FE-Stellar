@@ -1,0 +1,33 @@
+sequenceDiagram
+    autonumber
+    participant Buyer as Buyer wallet
+    participant Setl as Settler (v1: admin key)
+    participant Key as Backend key (sealer · scorer)
+    participant PE as PaymentEscrow
+    participant AR as AgentRegistry
+    participant SAC as Native XLM SAC
+    participant AT as AttestationRegistry
+    participant RL as ReputationLedger
+
+    Buyer->>PE: authorize(payer, agent_id, max_amount, expires_at)
+    PE-->>Buyer: auth_id : BytesN<16>
+
+    Note over Setl,PE: once per workflow, after the last step
+    Setl->>PE: charge(caller=settler, auth_id, total, job_id)
+    PE->>PE: assert !revoked & not expired<br/>assert spent + total ≤ max
+    PE->>AR: owner_of(agent_id)
+    AR-->>PE: agent_owner : Address
+    PE->>SAC: Token::transfer(payer → owner, total)
+    SAC-->>PE: needs the payer's signature, so fails on testnet
+    PE->>PE: spent += total<br/>store Receipt
+    PE-->>Setl: receipt_id : BytesN<16>
+
+    Key->>AT: seal(caller=sealer, job_id, orchestrator,<br/>intent_hash, agents[], receipts[], total_spent)
+    AT->>AT: assert !exists(job_id)<br/>store Attestation
+    AT-->>Key: ok
+
+    loop For each dispatched step
+        Key->>RL: submit(caller=scorer, agent_id, job_id,<br/>rating_0_to_100, weight, payer, kind)
+        RL->>RL: assert !Rated(agent_id, job_id)<br/>decay, then sum_w += rating × 100 × weight<br/>weight += weight, count += 1
+        RL-->>Key: ok
+    end

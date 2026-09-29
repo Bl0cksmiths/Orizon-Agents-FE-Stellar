@@ -314,6 +314,10 @@ function isPlanFloorNotice(v: unknown): v is PlanFloorNotice {
     isOptionalStr(v.reason_code) &&
     isOptionalNum(v.lower_bound_bps) &&
     isOptionalNum(v.floor_bps) &&
+    // The evidence the panel words a below-floor row from: a string here
+    // would print "NaN ratings" or read as a count it is not.
+    isOptionalNum(v.count) &&
+    isOptionalNum(v.dispute_rate_bps) &&
     // Strictly boolean: it decides whether a bound is worded as under the
     // floor, and the string "false" is truthy.
     isOptionalBool(v.awaiting_fresh_read)

@@ -43,6 +43,7 @@ import {
   mockWalletAddress,
   type MockDisputeReads,
 } from "./mocks";
+import { mockNetwork } from "./plan-fixtures";
 
 const HOUR_S = 60 * 60;
 
@@ -73,6 +74,9 @@ type ReceiptSetup = {
   clock?: () => number | Promise<number>;
   /** The settled steps, when a test needs others than the fixture's. */
   steps?: SettlementStepView[];
+  /** Whether the network read answers (testnet, asset "native"). Default
+   *  yes; without it the page cannot name the asset and prints no unit. */
+  network?: boolean;
 };
 
 /**
@@ -82,13 +86,21 @@ type ReceiptSetup = {
  */
 async function openReceipt(
   page: Page,
-  { disputes, settledAtS = nowS() - HOUR_S, payer, clock, steps }: ReceiptSetup,
+  {
+    disputes,
+    settledAtS = nowS() - HOUR_S,
+    payer,
+    clock,
+    steps,
+    network = true,
+  }: ReceiptSetup,
 ): Promise<MockDisputeReads> {
   // The tab that ran the workflow, holding its read token: the one the
   // backend sends the buyer's words to.
   await mockTaskReadToken(page);
   await mockWallet(page);
   await mockApi(page);
+  if (network) await mockNetwork(page);
   await mockTraceStream(page, mockDisputeTaskId);
   const settlement = mockSettlementView({ settledAtS, payer });
   const reads = await mockDisputeReads(page, {
@@ -176,7 +188,7 @@ test.describe("dispute status and refund receipt", () => {
 
     const row = stepRow(page, codeStep.agent_id);
     await expect(row).toContainText("Refunded");
-    await expect(row).toContainText("0.0265 USDC");
+    await expect(row).toContainText("0.0265 XLM");
     // The link resolves on the testnet explorer, to exactly this refund.
     const refund = row.getByRole("link", { name: /refund/i });
     await expect(refund).toHaveAttribute("href", testnetTx(mockRefundTx));
@@ -316,7 +328,7 @@ test.describe("dispute status and refund receipt", () => {
     await expect(inFlight).toContainText(inFlightTx);
     await expect(crediting).not.toContainText("Confirmed on Stellar");
     // The figure is still the promise: nothing has been paid yet.
-    await expect(crediting).toContainText("Up to 0.0045 USDC to be credited");
+    await expect(crediting).toContainText("Up to 0.0045 XLM to be credited");
 
     // The refund landed; the rating did not, and the receipt says which.
     const credited = stepRow(page, codeStep.agent_id);
@@ -365,7 +377,7 @@ test.describe("dispute status and refund receipt", () => {
       "the refund transfer is not confirmed on Stellar yet",
     );
     // And the figure stays a promise.
-    await expect(row).toContainText("Up to 0.027 USDC to be credited");
+    await expect(row).toContainText("Up to 0.027 XLM to be credited");
     await attachShot(testInfo, "receipt — credited, refund unconfirmed", row);
   });
 
@@ -388,7 +400,7 @@ test.describe("dispute status and refund receipt", () => {
       .locator("p")
       .filter({ hasText: /^credit · / });
     await expect(creditLine).toHaveText(
-      "credit · 0.0265 USDC credited to your wallet — funded by the platform, not clawed back from the agent.",
+      "credit · 0.0265 XLM credited to your wallet — funded by the platform, not clawed back from the agent.",
     );
     await attachShot(testInfo, "receipt — credit line", creditLine);
   });
@@ -429,8 +441,8 @@ test.describe("dispute status and refund receipt", () => {
     // The only figure this backend knows is the promise made at opening, and
     // it is printed as one — "up to" — never as the amount a refund moved.
     const creditLine = row.locator("p").filter({ hasText: /^credit · / });
-    await expect(creditLine).toHaveText(/^credit · Up to 0\.027 USDC /);
-    await expect(creditLine).not.toHaveText(/^credit · [\d.]+ USDC credited/);
+    await expect(creditLine).toHaveText(/^credit · Up to 0\.027 XLM /);
+    await expect(creditLine).not.toHaveText(/^credit · [\d.]+ XLM credited/);
     await expect(row).not.toContainText("received 0.027");
 
     // A rating hash with no word that it landed is pending, not confirmed.
@@ -598,6 +610,43 @@ test.describe("dispute status and refund receipt", () => {
  * receipt is drawn with all five statuses at once and asked for its computed
  * colours and its running animations.
  */
+/**
+ * F-022 on the trace page: the backend writes every amount as "… USDC", after
+ * a field name, while testnet's escrow SAC wraps native XLM. The receipt, the
+ * trace lines and the "Spent" total all print the network's asset — XLM on
+ * testnet, no unit while it is unknown — and none of them says USDC.
+ */
+test.describe("trace amounts in the network's asset", () => {
+  /** The trace summary's "Spent" value. */
+  const spent = (page: Page) =>
+    page.locator("dt", { hasText: /^Spent$/ }).locator("xpath=..");
+
+  test("prints the receipt, the trace lines and Spent in XLM on testnet", async ({
+    page,
+  }) => {
+    await openReceipt(page, { disputes: [] });
+    // The fixture's two cost lines, 0.009 + 0.054, read off the backend's
+    // "… USDC" prose and shown in the network's unit.
+    await expect(
+      page.getByText("x402 payment → code.gen :: 0.054 XLM"),
+    ).toBeVisible();
+    await expect(spent(page)).toContainText("0.063 XLM");
+    await expect(receipt(page)).toContainText("XLM");
+    await expect(page.getByRole("main")).not.toContainText("USDC");
+  });
+
+  test("prints them with no unit while the asset is unknown", async ({
+    page,
+  }) => {
+    await openReceipt(page, { disputes: [], network: false });
+    await expect(
+      page.getByText("x402 payment → code.gen :: 0.054", { exact: true }),
+    ).toBeVisible();
+    await expect(spent(page)).toContainText("0.063");
+    await expect(page.getByRole("main")).not.toContainText(/USDC|XLM/);
+  });
+});
+
 test.describe("dispute statuses as the browser draws them", () => {
   const STATUSES: DisputeStatus[] = [
     "open",

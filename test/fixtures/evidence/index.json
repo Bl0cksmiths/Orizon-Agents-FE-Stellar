@@ -1,0 +1,394 @@
+{
+  "schema": "orizon.evidence-index/1",
+  "title": "Fixture evidence index",
+  "sow": {
+    "version": "v4",
+    "date": "2026-08-01",
+    "note": "Fixture SOW note."
+  },
+  "snapshot": {
+    "as_of": "2026-09-28",
+    "network": "testnet",
+    "method": "Fixture snapshot method: made up for the test suite."
+  },
+  "deliverables": [
+    {
+      "id": "D1",
+      "name": "Permissionless Agent Registration",
+      "evidence_type": "Repo PR(s) · live URL · tx hash",
+      "sow_text": "Merged PRs for the registration flow, the live \"Register an Agent\" URL on the deployed dApp, and an externally owned agent's registration tx hash on Stellar Expert (testnet).",
+      "items": [
+        {
+          "id": "6.1-D1-a",
+          "claim": "Fixture: the registration flow was merged",
+          "status": "present",
+          "links": [
+            {
+              "label": "Fixture merged pull request for the register page",
+              "url": "https://example.com/fixture/pull/1",
+              "kind": "pr",
+              "date": "2026-09-10"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D1-b",
+          "claim": "Fixture: the Register an Agent page is live",
+          "status": "present",
+          "links": [
+            {
+              "label": "Open the fixture Register an Agent page",
+              "url": "https://orizons.xyz/app/agents/register",
+              "kind": "page"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D1-c",
+          "claim": "Fixture: an outside operator registered an agent",
+          "status": "present",
+          "links": [
+            {
+              "label": "Fixture registration by an outside operator",
+              "url": "https://stellar.expert/explorer/testnet/tx/1111111111111111111111111111111111111111111111111111111111111111",
+              "kind": "tx",
+              "tx_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+              "date": "2026-09-12"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "D2",
+      "name": "Reputation-Gated Routing",
+      "evidence_type": "Screen recording · screenshots · code link",
+      "sow_text": "A short recording/screenshots of the decompose plan card showing on-chain reputation per agent, plus a routing example where a sub-floor agent is excluded, and a link to the routing code.",
+      "items": [
+        {
+          "id": "6.1-D2-a",
+          "claim": "Fixture: the plan card shows each agent’s reputation",
+          "status": "present",
+          "links": [
+            {
+              "label": "Fixture recording of the plan card",
+              "url": "https://example.com/fixture/plan-card.mp4",
+              "kind": "video"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D2-b",
+          "claim": "Fixture: a below-floor agent is left out of a plan",
+          "status": "partial",
+          "note": "Fixture partial note: the recording shows the notice but not the agent’s score.",
+          "links": [
+            {
+              "label": "Fixture screenshot of the floor notice",
+              "url": "https://example.com/fixture/floor.png",
+              "kind": "doc"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D2-c",
+          "claim": "Fixture: the routing code",
+          "status": "missing",
+          "note": "Fixture missing note: the pinned link is not added yet.",
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "D3",
+      "name": "Automated Dispute Window + Partial-Credit Refund",
+      "evidence_type": "tx hash · screen recording",
+      "sow_text": "A dispute tx hash and the corresponding partial-refund tx on Stellar Expert (testnet), plus a recording of the dispute UI on the trace/receipt view.",
+      "items": [
+        {
+          "id": "6.1-D3-a",
+          "claim": "Fixture: a dispute was recorded on-chain",
+          "status": "missing",
+          "note": "Fixture missing note: no dispute has been filed yet.",
+          "links": []
+        },
+        {
+          "id": "6.1-D3-b",
+          "claim": "Fixture: the partial refund was paid",
+          "status": "missing",
+          "note": "Fixture missing note: no refund without a dispute.",
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "D4",
+      "name": "Ecosystem Validation Package",
+      "evidence_type": "Demo video · integration guide · tx-hash list",
+      "sow_text": "A 3–5 minute demo video (operator + buyer perspectives), the public \"List your agent on Orizon\" integration guide, and a list of ≥ 2 external registration tx hashes plus ≥ 3 settlement tx hashes on Stellar Expert (testnet).",
+      "items": [
+        {
+          "id": "6.1-D4-a",
+          "claim": "Fixture: the demo video",
+          "status": "partial",
+          "note": "Fixture partial note: the video is recorded but runs 6 minutes.",
+          "links": [
+            {
+              "label": "Fixture demo video on the video host",
+              "url": "https://example.com/fixture/video",
+              "kind": "video"
+            }
+          ]
+        },
+        {
+          "id": "6.1-D4-d",
+          "claim": "Fixture: three settlements",
+          "status": "missing",
+          "note": "Fixture missing note: one of three settled so far.",
+          "links": []
+        }
+      ]
+    },
+    {
+      "id": "RD",
+      "name": "Repositories & Deployments",
+      "evidence_type": "GitHub repos · live deployments · on-chain proofs",
+      "sow_text": "GitHub repositories (all MIT): frontend github.com/ALGOREX-PH/Orizon-Agents-FE-Stellar, backend github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar, contracts github.com/ALGOREX-PH/Orizon-Agents-Smart-Contract-Stellar. Deployments: dApp orizons.xyz, API orizon-agents-be-stellar.onrender.com. On-chain proofs: every registration, settlement, and attestation is viewable on Stellar Expert (testnet) under the four live contract IDs.",
+      "items": [
+        {
+          "id": "6.1-RD-a",
+          "claim": "Fixture: the frontend source, MIT licensed",
+          "status": "present",
+          "links": [
+            {
+              "label": "Fixture frontend repository on GitHub",
+              "url": "https://example.com/fixture/frontend",
+              "kind": "repo"
+            }
+          ]
+        },
+        {
+          "id": "6.1-RD-f1",
+          "claim": "Fixture: the agent registry contract",
+          "status": "present",
+          "links": [
+            {
+              "label": "Fixture AgentRegistry contract on Stellar Expert",
+              "url": "https://stellar.expert/explorer/testnet/contract/CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "kind": "contract"
+            },
+            {
+              "label": "Fixture outside operator wallet on Stellar Expert",
+              "url": "https://stellar.expert/explorer/testnet/account/GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "kind": "account"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "id": "m01",
+      "category": "Adoption targets",
+      "metric": "Externally-operated agents registered on Testnet",
+      "target": "≥ 2",
+      "achieved": "Fixture achieved m01",
+      "status": "met",
+      "method": "Fixture method for m01.",
+      "links": [
+        {
+          "label": "Fixture proof for metric m01",
+          "url": "https://stellar.expert/explorer/testnet/tx/1111111111111111111111111111111111111111111111111111111111111111",
+          "kind": "tx",
+          "tx_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "date": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": "m02",
+      "category": "Adoption targets",
+      "metric": "Unique external operator wallet addresses",
+      "target": "≥ 2",
+      "achieved": "Fixture achieved m02",
+      "status": "met",
+      "method": "Fixture method for m02.",
+      "links": [
+        {
+          "label": "Fixture proof for metric m02",
+          "url": "https://stellar.expert/explorer/testnet/tx/2222222222222222222222222222222222222222222222222222222222222222",
+          "kind": "tx",
+          "tx_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "date": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": "m03",
+      "category": "Transaction targets",
+      "metric": "Workflows routed to external agents & settled on Testnet",
+      "target": "≥ 3",
+      "achieved": "Fixture short m03",
+      "status": "not_met",
+      "reason": "Fixture reason for m03: not reached in the fixture.",
+      "method": "Fixture method for m03.",
+      "links": []
+    },
+    {
+      "id": "m04",
+      "category": "Transaction targets",
+      "metric": "On-chain USDC settlements (charges) recorded",
+      "target": "≥ 3",
+      "achieved": "Fixture achieved m04",
+      "status": "met",
+      "method": "Fixture method for m04.",
+      "links": [
+        {
+          "label": "Fixture proof for metric m04",
+          "url": "https://stellar.expert/explorer/testnet/tx/4444444444444444444444444444444444444444444444444444444444444444",
+          "kind": "tx",
+          "tx_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "date": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": "m05",
+      "category": "Transaction targets",
+      "metric": "Dispute → partial-refund settlements",
+      "target": "≥ 1",
+      "achieved": "Fixture short m05",
+      "status": "not_met",
+      "reason": "Fixture reason for m05: not reached in the fixture.",
+      "method": "Fixture method for m05.",
+      "links": []
+    },
+    {
+      "id": "m06",
+      "category": "Technical milestones",
+      "metric": "Permissionless AgentRegistry.register flow live on the dApp",
+      "target": "Yes",
+      "achieved": "Fixture achieved m06",
+      "status": "met",
+      "method": "Fixture method for m06.",
+      "links": [
+        {
+          "label": "Fixture proof for metric m06",
+          "url": "https://stellar.expert/explorer/testnet/tx/6666666666666666666666666666666666666666666666666666666666666666",
+          "kind": "tx",
+          "tx_hash": "6666666666666666666666666666666666666666666666666666666666666666",
+          "date": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": "m07",
+      "category": "Technical milestones",
+      "metric": "Reputation-gated routing (reads avg_bps, applies a floor) live",
+      "target": "Yes",
+      "achieved": "Fixture achieved m07",
+      "status": "met",
+      "method": "Fixture method for m07.",
+      "links": [
+        {
+          "label": "Fixture proof for metric m07",
+          "url": "https://stellar.expert/explorer/testnet/tx/7777777777777777777777777777777777777777777777777777777777777777",
+          "kind": "tx",
+          "tx_hash": "7777777777777777777777777777777777777777777777777777777777777777",
+          "date": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": "m08",
+      "category": "Technical milestones",
+      "metric": "Automated dispute window + partial-credit refund live",
+      "target": "Yes",
+      "achieved": "Fixture short m08",
+      "status": "not_met",
+      "reason": "Fixture reason for m08: not reached in the fixture.",
+      "method": "Fixture method for m08.",
+      "links": []
+    },
+    {
+      "id": "m09",
+      "category": "Technical milestones",
+      "metric": "Public \"List your agent on Orizon\" integration guide published",
+      "target": "Yes",
+      "achieved": "Fixture achieved m09",
+      "status": "met",
+      "method": "Fixture method for m09.",
+      "links": [
+        {
+          "label": "Fixture proof for metric m09",
+          "url": "https://stellar.expert/explorer/testnet/tx/9999999999999999999999999999999999999999999999999999999999999999",
+          "kind": "tx",
+          "tx_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+          "date": "2026-09-20"
+        }
+      ]
+    },
+    {
+      "id": "m10",
+      "category": "Technical milestones",
+      "metric": "3–5 min demo video published",
+      "target": "Yes",
+      "achieved": "Fixture short m10",
+      "status": "not_met",
+      "reason": "Fixture reason for m10: not reached in the fixture.",
+      "method": "Fixture method for m10.",
+      "links": []
+    },
+    {
+      "id": "m11",
+      "category": "Technical milestones",
+      "metric": "All source code released under MIT License",
+      "target": "Yes",
+      "achieved": "Fixture achieved m11",
+      "status": "met",
+      "method": "Fixture method for m11.",
+      "links": [
+        {
+          "label": "Fixture proof for metric m11",
+          "url": "https://stellar.expert/explorer/testnet/tx/2222222222222222222222222222222222222222222222222222222222222222",
+          "kind": "tx",
+          "tx_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "date": "2026-09-20"
+        }
+      ]
+    }
+  ],
+  "disclosures": [
+    {
+      "id": "testnet",
+      "title": "Fixture: testnet only",
+      "text": "Fixture testnet disclosure text.",
+      "sow_ref": "§3.6"
+    },
+    {
+      "id": "platform_credits",
+      "title": "Fixture: platform-funded dispute credits",
+      "text": "Fixture credits disclosure text.",
+      "changed_since_sow": "Fixture: changed since the SOW."
+    },
+    {
+      "id": "offchain_binding",
+      "title": "Fixture: off-chain endpoint binding",
+      "text": "Fixture binding disclosure text."
+    },
+    {
+      "id": "single_settler_key",
+      "title": "Fixture: a single settler key",
+      "text": "Fixture settler disclosure text.",
+      "sow_ref": "§3.8"
+    }
+  ],
+  "notes": [
+    {
+      "id": "usdc_xlm",
+      "title": "Fixture note: XLM, not USDC",
+      "text": "Fixture note text."
+    }
+  ]
+}

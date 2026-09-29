@@ -13,7 +13,8 @@ next-env.d.ts
 .turbo
 
 
-# Internal docs — litepaper & Instawards SOW/budget (kept local, not published)
+# Internal docs — Instawards SOW/budget and working files (kept local, not
+# published). The public litepaper lives in litepaper/, tracked.
 whitepaper/
 tsconfig.tsbuildinfo
 coverage
@@ -36,3 +37,8 @@ playwright-report/
 # lib/contract-addresses.json by scripts/check-contract-addresses.mjs.
 # CI writes it here; a local clone belongs here too, never committed.
 .canonical-contracts/
+
+# The litepaper's published copy: scripts/litepaper-assets.mjs copies the
+# rendered files from litepaper/ into it before every build. Generated, never
+# committed, so the artifacts live in git once, under litepaper/.
+/public/litepaper/

@@ -1,5 +1,17 @@
 import { Card } from "@/components/ui/card";
+import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
 import { cn } from "@/lib/utils";
+
+/**
+ * The most evidence weight one rating can carry. The backend's
+ * `reputation_svc.max_rating_weight_usdc()` is min(REPUTATION_MAX_RATING_WEIGHT_USDC
+ * 100, REPUTATION_MAX_RATING_TO_PRIOR_RATIO 1.0 × REPUTATION_PRIOR_WEIGHT_USDC
+ * 12) = 12: at a ratio of 1 a rating weighs at most what the prior does. So it
+ * is read off the prior's weight rather than written down a second time, and
+ * given no unit: weight is in stroops of the escrow's asset, native XLM on
+ * testnet, whatever the backend's `_usdc` field names say (friction F-022).
+ */
+const MAX_RATING_WEIGHT = DEFAULT_REP_PARAMS.prior_weight_usdc;
 
 type RubricRow = {
   signal: string;
@@ -109,8 +121,10 @@ export function RatingRubric() {
         </table>
       </div>
       <p className="mt-4 font-mono text-xs text-muted">
-        weight = min(step price, 100 USDC) — a rating on a 0.054 USDC step
-        carries proportionally less evidence than one on an 18 USDC step.
+        weight = min(step price, {MAX_RATING_WEIGHT}) — the cap is the
+        prior&apos;s own weight, so one rating counts for at most as much as the
+        prior. price and weight are in the escrow&apos;s asset. a rating on a
+        0.05 step carries proportionally less evidence than one on a 5 step.
         ratings clamp to 0–100.
       </p>
     </Card>

@@ -147,7 +147,9 @@ export function ManagePanel({
     void run(
       () =>
         buildUpdatePrice({ owner, agent_id: agent.id, price_usdc: priceNum }),
-      `Price updated to ${priceNum.toFixed(3)} USDC.`,
+      // No unit, like the price column this panel opens under: the one in
+      // the wire field's name ("usdc") is not what testnet settles in (F-022).
+      `Price updated to ${priceNum.toFixed(3)}.`,
     );
   }
 
@@ -165,7 +167,7 @@ export function ManagePanel({
         {/* Change price */}
         <div>
           <label htmlFor={`price-${agent.id}`} className={labelCls}>
-            New price · current {agent.price.toFixed(3)} USDC
+            New price · current {agent.price.toFixed(3)}
           </label>
           <input
             id={`price-${agent.id}`}

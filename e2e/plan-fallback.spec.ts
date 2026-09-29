@@ -15,11 +15,15 @@
  */
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { motionSettled } from "./motion-settled";
 import { mockApi, mockPlanExcluded, mockWallet } from "./mocks";
 import {
+  escrowV2Pin,
   mockAuthorizeConfirmed,
   mockDecomposeSequence,
+  mockEscrowV2Network,
   mockExecuteExpired,
+  mockNetwork,
   mockPlanPlannerAnswered,
   mockPlanPlannerFallback,
   mockPlanPlannerFallbackUnread,
@@ -230,6 +234,7 @@ test.describe("plan card — a plan built without the planner", () => {
       // the entry fade.
       await stableBox(fallbackNotice(page));
 
+      await motionSettled(page.locator("main"));
       const { violations } = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
         .analyze();
@@ -285,7 +290,7 @@ test.describe("plan card — a plan built without the planner", () => {
       // controls still inside the row that holds them.
       const controls = page
         .locator("div")
-        .filter({ has: page.getByText(/moves up to/i) })
+        .filter({ has: page.getByText(/Freighter will prompt/i) })
         .filter({ has: page.getByRole("button", { name: /authorize/i }) })
         .last();
       const row = await stableBox(controls);
@@ -365,12 +370,13 @@ test.describe("plan card — a plan that expired before it ran", () => {
       .getByRole("alert")
       .filter({ hasText: /too old to run/i });
 
-  test("after a confirmed authorization, says no task ran, where the funds are, and rebuilds the same request", async ({
-    page,
-  }) => {
+  /** Signs an authorization that confirms, then has the run refused as
+   *  expired, with the backend on `escrow`. */
+  async function authorizeThenExpire(page: Page, escrow: "v1" | "v2") {
     await page.setViewportSize(LAPTOP);
     await mockWallet(page);
     await mockApi(page);
+    await mockNetwork(page, escrow === "v2" ? mockEscrowV2Network : undefined);
     const asked = await mockDecomposeSequence(page, [
       mockPlanExcluded,
       mockPlanPlannerAnswered,
@@ -384,10 +390,48 @@ test.describe("plan card — a plan that expired before it ran", () => {
     await page.getByRole("button", { name: /decompos/i }).click();
 
     const authorize = page.getByRole("button", { name: /authorize/i });
+    // The pay line names the unit once the network read lands.
+    await expect(page.getByText(/Freighter will prompt/i)).toContainText("XLM");
     await authorize.click();
 
     const notice = expiredNotice(page);
     await expect(notice).toHaveCount(1);
+    return { asked, authorize, notice };
+  }
+
+  // Escrow v1, as deployed: the authorization only recorded an allowance, so
+  // nothing is held and nothing is offered back.
+  test("after a confirmed v1 authorization, says no task ran and nothing moved", async ({
+    page,
+  }) => {
+    test.skip(escrowV2Pin !== null, "escrow v2 is pinned: v1 is history");
+    const { notice } = await authorizeThenExpire(page, "v1");
+    await expect(notice).toContainText(/no task was started/i);
+    await expect(notice).toContainText(
+      "The authorization you just signed only recorded a spending allowance on the escrow: no funds moved, and it lapses on its own when it expires.",
+    );
+    await expect(
+      page.getByRole("region", { name: "Your funds are held in escrow" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /reclaim/i })).toHaveCount(0);
+    await expect(page.getByRole("main")).not.toContainText(/held in escrow/i);
+    // Settled, so axe measures the painted colours, not a frame of a fade.
+    await motionSettled(page.locator("main"));
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(
+      violations.map(
+        (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
+      ),
+    ).toEqual([]);
+  });
+
+  test("after a confirmed authorization, says no task ran, where the funds are, and rebuilds the same request", async ({
+    page,
+  }) => {
+    test.skip(escrowV2Pin === null, "escrow v2 is not pinned on testnet yet");
+    const { asked, authorize, notice } = await authorizeThenExpire(page, "v2");
     // Escrow v2 took custody when the authorization confirmed: nothing ran
     // and no agent was paid, but it is not "nothing charged" — the funds are
     // held until reclaimed, and the card says where and how.

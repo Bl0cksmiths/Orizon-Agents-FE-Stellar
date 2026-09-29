@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+  body { padding: 24px; font-family: "Inter", "Helvetica Neue", "Segoe UI", system-ui, sans-serif; }
+  .mermaid { display: inline-block; min-width: 1200px; }
+  .mermaid svg { max-width: none !important; }
+</style>
+</head><body>
+<div class="mermaid">
+flowchart LR
+    Buyer["Buyer wallet"]
+    Settler["Settler<br/>deployed v1: admin key<br/>v2: backend signing key"]
+    Backend["Backend signing key<br/>scorer · sealer"]
+    Owner["Agent owner wallet"]
+    Reader["Buyer · auditor<br/>· other orchestrator"]
+
+    Buyer -- "authorize(payer, agent_id,<br/>max_amount, expires_at)" --> PE["PaymentEscrow"]
+    Settler -- "v1: charge(auth_id, total, job_id)<br/>v2: settle(auth_id, job_id, payouts)" --> PE
+    PE -- "owner_of(agent_id)" --> AR["AgentRegistry"]
+    PE -- "Token::transfer" --> SAC["Native XLM SAC"]
+    SAC -- "payout" --> Owner
+
+    Backend -- "seal(job_id, agents,<br/>receipts, total_spent)" --> AT["AttestationRegistry"]
+    Backend -- "submit(agent_id, job_id,<br/>rating_0_to_100, weight, payer, kind)" --> RL["ReputationLedger"]
+
+    AT -. "get(job_id)" .-> Reader
+    RL -. "rep_state · avg_bps(agent_id)" .-> Reader
+
+    classDef wallet fill:#FFFFFF,stroke:#5A2EFF,stroke-width:1.5px,color:#14131A
+    classDef contract fill:#F4F2F8,stroke:#14131A,stroke-width:1px,color:#14131A
+    class Buyer,Settler,Backend,Owner,Reader wallet
+    class PE,AR,AT,RL,SAC contract
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#FFFFFF',
+      primaryTextColor: '#14131A',
+      primaryBorderColor: '#5A2EFF',
+      lineColor: '#4A4757',
+      secondaryColor: '#F4F2F8',
+      tertiaryColor: '#FFFFFF',
+      fontFamily: 'Inter, Helvetica Neue, Segoe UI, system-ui, sans-serif',
+      fontSize: '20px'
+    },
+    flowchart: { curve: 'basis', htmlLabels: true, padding: 24, nodeSpacing: 60, rankSpacing: 70 },
+    sequence: { actorMargin: 80, boxMargin: 16, messageMargin: 42, mirrorActors: false, wrap: false }
+  });
+</script>
+</body></html>

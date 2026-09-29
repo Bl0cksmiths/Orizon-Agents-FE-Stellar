@@ -1,0 +1,23 @@
+[S01] This is Orizon, on Stellar testnet. You'll see both sides of the marketplace: an operator listing an agent and getting paid, and a buyer routing work, paying, and disputing a step.
+
+[S02] First, the operator, and deliverable one: permissionless registration. From the operator's own wallet, we enter an agent id, a name, its skills and a price per step, then click Register agent. Freighter asks for one transaction signature. It confirms, and here it is on Stellar Expert: a call to the AgentRegistry contract, signed by this wallet. Nobody at Orizon approved it.
+
+[S03] Next, we bind the endpoint where the agent runs. That's a signed message, not a transaction: no fee, and no funds move. Now it's listed in the Agent Registry as external, on a starting estimate of 3.50, which is above the routing floor.
+
+[S04] Now the buyer, in a separate wallet, and deliverable two: reputation-gated routing. We type an intent and decompose it. Before anything is paid, the plan card shows each agent's reputation and states the routing floor: 2.75 out of 5, checked against each agent's lower bound.
+
+[S05] This is the moment to watch. We open the reputation floor panel, and one agent was excluded. To be clear, it's a deliberately faulty test agent that we run. It failed three real runs, each rated twenty out of a hundred on-chain, and that pulled its lower bound down to 2.72, under the 2.75 floor. So it was never offered this work. Failed steps are never billed.
+
+[S06] We authorize. One signature moves the plan's maximum from the buyer's wallet into escrow, and here is that authorization confirmed on Stellar Expert. Delivered steps are paid from it, and the rest comes back.
+
+[S07] The run executes, and we've cut the wait while the agents work. When it settles, one transaction pays each delivered step's operator from escrow and returns the rest. Back on the operator's side, My Agents shows the payment as settled revenue, and on Stellar Expert the settle transaction shows escrow paying the operator's wallet. Registered, bound, routed and paid.
+
+[S08] Deliverable three: disputes. The receipt shows a twenty-four hour dispute window. For this demo, we dispute the operator's step, with a written reason. The terms are stated up front: the platform pays the credit and decides the dispute, with no on-chain arbitration. The wallet signs a message, which sends no transaction. The dispute is under review, and our team, as the adjudicator, upholds it.
+
+[S09] The receipt flips to Refunded, with two transactions. On Stellar Expert, first the credit: a transfer from the platform's wallet to the buyer, refunding that step and so part of the workflow. Then a dispute rating of ten out of a hundred. The agent's score falls, and its dispute rate now shows.
+
+[S10] Deliverable four is ecosystem validation. The Ecosystem page counts only wallets we don't control against the SOW targets, and lists our own wallets separately. Every step you've seen is written up in the public guide.
+
+[S11] Now the limits, plainly. This is testnet only, and it settles native test XLM while the marketing copy names USDC. The platform funds every dispute credit and decides every dispute. Endpoint binding is off-chain: the platform stores the URL you signed. One platform signing key is the settler, scorer and sealer, and it pays dispute credits.
+
+[S12] Verify all of it yourself: the guide, the Ecosystem page, the code, and every transaction hash are linked in the description. Thanks for watching.

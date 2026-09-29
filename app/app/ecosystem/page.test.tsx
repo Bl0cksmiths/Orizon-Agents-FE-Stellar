@@ -213,6 +213,72 @@ describe("AdoptionView — a partial read", () => {
   });
 });
 
+describe("AdoptionView — the settled window", () => {
+  const WINDOW =
+    "Settled workflows counted over the last 7 days of ledger history — older settlements are not shown here; each transaction stays verifiable on Stellar Expert.";
+  const settledTarget = () =>
+    target("Workflows routed to external agents and settled");
+  const agentItem = (name: string) =>
+    screen.getByRole("heading", { name }).closest("li")!;
+
+  it("states the window beside the settled target and under every agent", () => {
+    render(
+      <AdoptionView
+        adoption={{ ...withOperator([BUYER]), window_days: 7.0 }}
+      />,
+    );
+    expect(text(settledTarget())).toContain(WINDOW);
+    // Only the settled count is bounded by the window.
+    expect(text(target("Externally operated agents"))).not.toContain(
+      "ledger history",
+    );
+    expect(text(target("Unique operator wallets"))).not.toContain(
+      "ledger history",
+    );
+    expect(text(agentItem("Translator"))).toContain(WINDOW);
+    // An agent with nothing in the window may have settled before it.
+    const idle = agentItem("ext.idle");
+    expect(text(idle)).toContain("No settled workflows in the last 7 days.");
+    expect(text(idle)).not.toContain("No settled workflows yet.");
+    expect(text(idle)).toContain(WINDOW);
+  });
+
+  it("states it on today's zeros too", () => {
+    render(<AdoptionView adoption={zero({ window_days: 7.0 })} />);
+    expect(text(settledTarget())).toContain(WINDOW);
+  });
+
+  it("adds nothing when no scan ran and the window is 0", () => {
+    render(
+      <AdoptionView
+        adoption={{ ...withOperator([BUYER]), window_days: 0.0 }}
+      />,
+    );
+    expect(text(document.body)).not.toContain("ledger history");
+    expect(text(document.body)).not.toMatch(/last \d/);
+    expect(text(agentItem("ext.idle"))).toContain("No settled workflows yet.");
+  });
+
+  it("shows a fractional window rounded down, not as a whole week", () => {
+    render(
+      <AdoptionView
+        adoption={{ ...withOperator([BUYER]), window_days: 6.96 }}
+      />,
+    );
+    expect(text(settledTarget())).toContain(
+      "counted over the last 6.9 days of ledger history",
+    );
+    expect(text(document.body)).not.toContain("last 7 days");
+  });
+
+  it("adds nothing when the backend sends no window", () => {
+    render(<AdoptionView adoption={withOperator([BUYER])} />);
+    expect(text(document.body)).not.toContain("ledger history");
+    expect(text(document.body)).not.toMatch(/last \d/);
+    expect(text(agentItem("ext.idle"))).toContain("No settled workflows yet.");
+  });
+});
+
 describe("AdoptionView — external operators", () => {
   it("gives an empty list honest copy, the register link and the docs", () => {
     render(<AdoptionView adoption={zero()} />);
@@ -228,11 +294,13 @@ describe("AdoptionView — external operators", () => {
         .getByRole("link", { name: "Register an agent" })
         .getAttribute("href"),
     ).toBe("/app/register");
-    expect(
-      within(card)
-        .getByRole("link", { name: /Read the operator docs/ })
-        .getAttribute("href"),
-    ).toBe(OPERATOR_DOCS_URL);
+    // The public guide, on this site and in this tab: no login, no new window.
+    const guide = within(card).getByRole("link", {
+      name: "Read the guide: List your agent on Orizon",
+    });
+    expect(guide.getAttribute("href")).toBe(OPERATOR_DOCS_URL);
+    expect(OPERATOR_DOCS_URL).toBe("/guide/list-your-agent");
+    expect(guide.getAttribute("target")).toBeNull();
   });
 
   it("does not mention excluded wallets when there are none", () => {
@@ -284,6 +352,51 @@ describe("AdoptionView — external operators", () => {
       `https://stellar.expert/explorer/testnet/tx/${TX}`,
     );
     expect(text(row)).not.toContain("team-funded");
+  });
+
+  it("names each explorer link in full and says it opens a new tab", () => {
+    const a = withOperator([BUYER]);
+    a.operators[0].owner_explorer = `https://stellar.expert/explorer/testnet/account/${OUTSIDER}`;
+    render(<AdoptionView adoption={a} />);
+    // jsdom drops the space where the visible and hidden text meet; the e2e
+    // spec checks the exact names in a real browser.
+    const wallet = screen.getByRole("link", {
+      name: new RegExp(
+        `^GBOU…XXXX ?— ${OUTSIDER}, on Stellar Expert \\(opens in a new tab\\)$`,
+      ),
+    });
+    expect(wallet.getAttribute("target")).toBe("_blank");
+    const tx = screen.getByRole("link", {
+      name: /^tx cdcdcdcd… ?on Stellar Expert \(opens in a new tab\)$/,
+    });
+    expect(tx.getAttribute("target")).toBe("_blank");
+    // Every link that leaves in a new tab says so — the payer and the excluded
+    // wallets included.
+    const away = screen
+      .getAllByRole("link")
+      .filter((l) => l.getAttribute("target") === "_blank");
+    expect(away.length).toBeGreaterThanOrEqual(4);
+    for (const link of away) {
+      expect(text(link)).toMatch(/\(opens in a new tab\)$/);
+    }
+  });
+
+  it("reads out each job's full id, not only its short form", () => {
+    render(<AdoptionView adoption={withOperator([BUYER])} />);
+    const [row] = within(
+      screen.getByRole("table", {
+        name: "Settled workflows for ext.translate",
+      }),
+    )
+      .getAllByRole("row")
+      .slice(1);
+    const job = within(row).getAllByRole("cell")[0];
+    // What assistive tech gets: everything not hidden from it.
+    const heard = job.cloneNode(true) as HTMLElement;
+    heard.querySelectorAll("[aria-hidden='true']").forEach((n) => n.remove());
+    expect(text(heard).trim()).toBe("0".repeat(32));
+    // And what a sighted reader sees is still the short form.
+    expect(text(job)).toContain("00000000…");
   });
 
   it("labels a team payer with the role the backend sends", () => {

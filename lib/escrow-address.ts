@@ -1,12 +1,13 @@
 /**
  * The PaymentEscrow v2 contract this build is written for, per network.
  *
- * Everything the console says about paying — that authorizing moves the cap
- * into escrow NOW, that delivered steps are paid from it and the rest comes
- * back, that an unsettled authorization can be reclaimed — is true of escrow
- * v2 and false of v1, whose `authorize` moved nothing and whose `charge`
- * could never settle (D-039). So the id is pinned, and the pin is checked
- * three ways:
+ * What the console says about paying under v2 — that authorizing moves the
+ * cap into escrow NOW, that delivered steps are paid from it and the rest
+ * comes back, that an unsettled authorization can be reclaimed — is false of
+ * v1, whose `authorize` moves nothing and whose `charge` can never settle
+ * (D-039). So the id is pinned, the copy says v2's story only when the pin
+ * and the live escrow agree (lib/escrow-generation.ts), and the pin is
+ * checked three ways:
  *
  * 1. `scripts/check-contract-addresses.mjs` (CI, and daily in drift.yml)
  *    compares it with the contract repo's address book (`payment_escrow`).
@@ -44,7 +45,7 @@ export function pinnedEscrowId(network: ExplorerNetwork): string | null {
  * - `unknown`: the network read has not landed (or failed). Nothing is
  *   decided on it — the card's own states cover a failed read.
  * - `unpinned`: no v2 id is pinned for this network, so there is nothing to
- *   compare. The copy then rests on the deploy order in the switch doc.
+ *   compare. Which story the copy tells is `escrowGeneration`'s to decide.
  * - `match` / `mismatch`: compared.
  */
 export type EscrowAgreement =

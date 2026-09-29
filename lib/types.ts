@@ -150,6 +150,12 @@ export type PlanFloorNotice = {
    *  when the agent had no reputation entry at all. */
   lower_bound_bps?: number | null;
   floor_bps?: number;
+  /** The evidence behind that bound: how many ratings it rests on (lifetime),
+   *  and what share of them were disputes, in bps. null when the agent has no
+   *  reputation entry; absent from a backend predating them. Reported, not
+   *  routed on — they change no verdict. */
+  count?: number | null;
+  dispute_rate_bps?: number | null;
   /**
    * The agent was held off (refused, or substituted) because a rating landed
    * since its last reputation read and the fresh read has not answered yet

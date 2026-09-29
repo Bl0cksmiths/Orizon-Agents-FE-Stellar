@@ -1,4 +1,5 @@
 "use client";
+import { assetLabel } from "@/lib/money";
 import { useMemo, useState } from "react";
 import { m } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -187,6 +188,7 @@ export function RepLeaderboard({
   batchLastSuccessAt = null,
   onRetryAgents,
   onRetryBatch,
+  asset = null,
 }: {
   agents: Agent[] | null;
   batch: ReputationBatch | null;
@@ -201,7 +203,11 @@ export function RepLeaderboard({
   batchLastSuccessAt?: number | null;
   onRetryAgents?: () => void;
   onRetryBatch?: () => void;
+  /** The network route's `asset`: what evidence weight is denominated in
+   *  ("native" → XLM on testnet). Unknown → no unit, never "USDC". */
+  asset?: string | null;
 }) {
+  const unit = assetLabel(asset);
   const [sort, setSort] = useState<{ col: SortCol; dir: SortDir }>({
     col: "score",
     dir: "desc",
@@ -454,7 +460,7 @@ export function RepLeaderboard({
                       {prior ? (
                         <span className="text-muted">—</span>
                       ) : (
-                        `${(rep.weight / STROOPS_PER_USDC).toFixed(2)} USDC`
+                        `${(rep.weight / STROOPS_PER_USDC).toFixed(2)}${unit ? ` ${unit}` : ""}`
                       )}
                     </td>
                     <td className="py-3 text-right font-mono text-xs text-muted">

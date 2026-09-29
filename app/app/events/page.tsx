@@ -1,13 +1,14 @@
 "use client";
 import { memo, useMemo } from "react";
-import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ErrorNote } from "@/components/ui/error-note";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { NETWORK_LABEL, StellarExpertLink } from "@/components/ui/stellar-link";
 import { getStellarNetwork } from "@/lib/api";
-import { focusRing, inlineLink } from "@/lib/ui";
+import { escrowGeneration } from "@/lib/escrow-generation";
+import { focusRing } from "@/lib/ui";
+import { EventsEmptyHint } from "./empty-hint";
 import { useFetch } from "@/lib/use-fetch";
 import { useStellarEvents, type FeedEvent } from "@/lib/stellar-events";
 import { prettyName } from "@/lib/utils";
@@ -195,18 +196,7 @@ export default function EventsPage() {
           </div>
         ) : events.length === 0 ? (
           <div className="space-y-2">
-            <div className="text-sm text-muted">
-              No events yet. Run a workflow on{" "}
-              <Link href="/app/orchestrator" className={inlineLink}>
-                /app/orchestrator
-              </Link>{" "}
-              — it publishes <code className="text-cyan">authd</code> when you
-              authorize, <code className="text-cyan">charged</code> for each
-              step's payout and <code className="text-cyan">settled</code> when
-              the run settles, then the attestation's{" "}
-              <code className="text-cyan">seal</code>, each here within a
-              ledger.
-            </div>
+            <EventsEmptyHint generation={escrowGeneration(info)} />
             <div className="flex gap-3 pt-3">
               {[1, 2, 3, 4].map((i) => (
                 <div

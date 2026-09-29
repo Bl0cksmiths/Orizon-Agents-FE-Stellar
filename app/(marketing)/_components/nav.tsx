@@ -4,14 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/ui/logo";
 import { ButtonLink } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
+import { EVIDENCE_PATH } from "@/lib/evidence/display";
+import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
+import { LITEPAPER_PATH } from "@/lib/litepaper/paths.mjs";
 import { cn } from "@/lib/utils";
 
+// Section links are rooted at "/" so they also work from the guide pages,
+// which share this nav; on the home page they still just scroll.
 const links = [
-  { href: "#solution", label: "Product" },
-  { href: "#architecture", label: "Architecture" },
-  { href: "#reputation", label: "Reputation" },
-  { href: "#use-cases", label: "Use Cases" },
-  { href: "#roadmap", label: "Roadmap" },
+  { href: "/#solution", label: "Product" },
+  { href: "/#architecture", label: "Architecture" },
+  { href: "/#reputation", label: "Reputation" },
+  { href: "/#use-cases", label: "Use Cases" },
+  { href: "/#roadmap", label: "Roadmap" },
+  { href: LIST_YOUR_AGENT_PATH, label: "Guide" },
+  { href: EVIDENCE_PATH, label: "Evidence" },
+  { href: LITEPAPER_PATH, label: "Litepaper" },
 ];
 
 export function Nav() {
@@ -54,19 +62,19 @@ export function Nav() {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Logo />
-        <nav className="hidden items-center gap-8 md:flex">
+        <nav className="hidden items-center gap-6 xl:flex 2xl:gap-8">
           {links.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted hover:text-text transition-colors"
+              className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.22em] text-muted hover:text-text transition-colors"
             >
               {l.label}
             </Link>
           ))}
         </nav>
         <div className="flex items-center gap-3">
-          <ConnectWallet size="sm" className="hidden md:flex" />
+          <ConnectWallet size="sm" className="hidden xl:flex" />
           <ButtonLink href="/app" size="sm" variant="primary">
             Launch App ▸
           </ButtonLink>
@@ -77,7 +85,7 @@ export function Nav() {
             aria-controls="marketing-mobile-menu"
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={() => setOpen((v) => !v)}
-            className="grid h-9 w-9 place-items-center text-muted hover:text-text transition-colors md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan"
+            className="grid h-9 w-9 place-items-center text-muted hover:text-text transition-colors xl:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan"
           >
             <svg
               viewBox="0 0 20 20"
@@ -109,7 +117,7 @@ export function Nav() {
         id="marketing-mobile-menu"
         aria-label="Mobile"
         className={cn(
-          "border-b border-border bg-bg/95 px-6 pb-6 pt-2 backdrop-blur-xl md:hidden",
+          "border-b border-border bg-bg/95 px-6 pb-6 pt-2 backdrop-blur-xl xl:hidden",
           open ? "block" : "hidden",
         )}
       >

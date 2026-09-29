@@ -33,7 +33,6 @@ import {
   agentLabel,
   disputeErrorCode,
   formatCreditShare,
-  formatUsdc,
   raiseDispute,
 } from "@/lib/disputes";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
@@ -48,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 import { classifyError } from "@/lib/wallet-errors";
 
+import { useFormatAmount } from "./amount-asset";
 import { disputeStatusLabel } from "./dispute-status-badge";
 
 /**
@@ -380,6 +380,7 @@ function DisputeRaised({
   dispute: Dispute;
   step: SettlementStepView;
 }) {
+  const formatAmount = useFormatAmount();
   return (
     <div className="space-y-4">
       <Badge tone="success" dot>
@@ -398,7 +399,7 @@ function DisputeRaised({
           <>
             If the platform upholds your dispute, up to{" "}
             <span className="font-mono text-cyan">
-              {formatUsdc(dispute.creditable_usdc)}
+              {formatAmount(dispute.creditable_usdc)}
             </span>{" "}
             is credited to the wallet that paid.
           </>
@@ -415,10 +416,10 @@ function DisputeRaised({
               a buyer, which is what `disputeStatusLabel` exists to stop. */}
           <Badge tone="cyan">{disputeStatusLabel(dispute.status)}</Badge>
         </KVRow>
-        <KVRow k="Charged" value={formatUsdc(dispute.charged_usdc)} />
+        <KVRow k="Charged" value={formatAmount(dispute.charged_usdc)} />
         <KVRow
           k="Credited if upheld"
-          value={upTo(dispute.creditable_usdc)}
+          value={upTo(dispute.creditable_usdc, formatAmount)}
           valueClassName="text-cyan"
         />
       </dl>
@@ -438,8 +439,8 @@ const stepNumber = (step: SettlementStepView) => step.step_index + 1;
  * that can be credited, never a sum the buyer is owed to the unit — and the
  * receipt already prints it as "Up to".
  */
-const upTo = (usdc: number) =>
-  usdc > 0 ? `Up to ${formatUsdc(usdc)}` : "Nothing, under the current terms";
+const upTo = (usdc: number, formatAmount: (n: number) => string) =>
+  usdc > 0 ? `Up to ${formatAmount(usdc)}` : "Nothing, under the current terms";
 
 /** GABC…WXYZ — enough of a G-address to recognise the wallet by. */
 const shortAddress = (address: string) =>
@@ -524,6 +525,7 @@ function DisputeForm({
   windowClosesAtMs,
 }: DisputeDialogProps) {
   const wallet = useWallet();
+  const formatAmount = useFormatAmount();
   const shown = open && step !== null && settlement !== null;
   const [reason, setReason] = useState("");
   const [state, setState] = useState<FormState>(IDLE);
@@ -878,11 +880,11 @@ function DisputeForm({
               <dl className="space-y-2 font-mono text-sm">
                 <KVRow
                   k="Charged for this step"
-                  value={formatUsdc(step.price_usdc)}
+                  value={formatAmount(step.price_usdc)}
                 />
                 <KVRow
                   k="Credited if upheld"
-                  value={upTo(step.creditable_usdc)}
+                  value={upTo(step.creditable_usdc, formatAmount)}
                   valueClassName="text-cyan"
                 />
               </dl>
