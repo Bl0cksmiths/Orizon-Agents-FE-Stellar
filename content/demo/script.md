@@ -267,13 +267,9 @@ After the click (or Enter or Space) the marker becomes `▾`, and the panel read
 
 The excluded agent is never a step, so it has no reputation chip on the card. Its numbers are this row.
 
-### A copy problem to settle before recording
+### The card's copy, resolved
 
-For **this** agent, two sentences on the card are wrong. The row says the low bound is "thin evidence rather than bad work", and the intro says "nothing below is a judgement on work an agent actually did". This agent's bound is low **because of** three real failed runs. The sentences are right for a new agent with thin evidence, and wrong for an agent rated down by real work.
-
-The S05 narration states the fact ("It failed three real runs, each rated twenty out of a hundred on-chain"). It does not read the card's sentence aloud. But a reviewer who pauses on the frame will see the contradiction.
-
-**This lane does not own that file.** It is raised for the frontend owner of `exclusions-panel.tsx`, as a finding against the 3.04/3.02 copy: the `below_floor` sentence should not describe the evidence as thin when `count` is well above zero and the mean is below the prior. If the copy is not changed before recording, leave it on screen. Do not crop it out: the narration has already said what is true.
+An earlier build called every below-floor bound "thin evidence rather than bad work" and said the panel held "nothing … a judgement on work an agent actually did". Both were false for this agent, whose bound is low because of three real failed runs. The 5.04 copy fix (frontend `lib/floor-evidence.ts`) now states only what the notice's `count` and `dispute_rate_bps` support, so the row above is true on camera. The S05 narration still states the fact directly ("It failed three real runs, each rated twenty out of a hundred on-chain").
 
 ### Cases that must not appear on camera
 
