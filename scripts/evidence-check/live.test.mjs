@@ -11,6 +11,8 @@ import {
   StrKey,
   TransactionBuilder,
 } from "@stellar/stellar-sdk";
+import { HarnessError, loadStellarSdk } from "./checks.mjs";
+import { main } from "./cli.mjs";
 import { emptyWorld, PUBNET, startFake, TESTNET } from "./fake-server.mjs";
 import { USER_AGENT } from "./http.mjs";
 import { checkEvidence, exitCodeOf } from "./run.mjs";
@@ -44,11 +46,8 @@ const okValidator = async () => ({
   path: "(test)",
 });
 
-/**
- * Runs --live over an index holding these links (as one deliverable item).
- * @param {object[]} links
- */
-async function live(links) {
+/** Writes an index holding these links (as one deliverable item). @param {object[]} links */
+function writeIndex(links) {
   const indexPath = join(
     dir,
     `index-${Math.random().toString(36).slice(2)}.json`,
@@ -63,10 +62,20 @@ async function live(links) {
       metrics: [],
     }),
   );
+  return indexPath;
+}
+
+/**
+ * Runs --live over an index holding these links (as one deliverable item).
+ * @param {object[]} links
+ * @param {Partial<import("./run.mjs").RunOptions>} [options]
+ */
+async function live(links, options = {}) {
   const report = await checkEvidence({
-    indexPath,
+    indexPath: writeIndex(links),
     mode: "live",
     loadValidator: okValidator,
+    ...options,
     clientOptions: { retryDelaysMs: [], minIntervalMs: 0, timeoutMs: 5_000 },
     endpoints: {
       horizon: `${fake.base}/horizon`,
@@ -331,5 +340,97 @@ describe("evidence-check --live", () => {
     assert.equal(code, 1);
     assert.match(report.rows[0].detail, /points at mainnet/);
     assert.ok(!fake.requests.some((r) => r.url.includes("/explorer/public/")));
+  });
+});
+
+describe("evidence-check --live without @stellar/stellar-sdk", () => {
+  const missing = async () => {
+    throw new Error(
+      "Cannot find package '@stellar/stellar-sdk' imported from checks.mjs",
+    );
+  };
+  const chainLinks = () => [
+    {
+      label: "registry",
+      url: page(`/explorer/testnet/contract/${REGISTRY}`),
+      kind: "contract",
+    },
+    txLink(HASH("f"), "2026-09-20"),
+    { label: "register", url: page("/app/register"), kind: "page" },
+  ];
+
+  it("stops with a harness error naming the package: exit 2, no link failed or passed, nothing fetched", async () => {
+    world.pages[`/explorer/testnet/contract/${REGISTRY}`] = {};
+    world.pages["/app/register"] = {};
+    world.contractKeys.add(instanceKey(REGISTRY));
+    const { report, code } = await live(chainLinks(), { importSdk: missing });
+    assert.equal(code, 2);
+    assert.match(
+      report.harness_error ?? "",
+      /^harness error: cannot import @stellar\/stellar-sdk \(Cannot find package/,
+    );
+    assert.match(report.harness_error ?? "", /npm ci/);
+    assert.deepEqual(
+      report.rows.map((row) => row.result),
+      ["not_checked", "not_checked", "not_checked"],
+    );
+    assert.equal(report.summary.failed, 0);
+    assert.equal(report.summary.passed, 0);
+    assert.ok(
+      !report.rows.some((row) => /not a valid contract id/.test(row.detail)),
+    );
+    assert.equal(fake.requests.length, 0);
+  });
+
+  it("says so on stderr and in the report, and the cli exits 2", async () => {
+    /** @type {string[]} */
+    const errors = [];
+    /** @type {string[]} */
+    const logs = [];
+    const code = await main(
+      [
+        "--live",
+        "--index",
+        writeIndex(chainLinks()),
+        "--report-dir",
+        join(dir, "harness-report"),
+        "--horizon",
+        `${fake.base}/horizon`,
+        "--rpc",
+        `${fake.base}/rpc`,
+      ],
+      {
+        log: (line) => logs.push(line),
+        error: (line) => errors.push(line),
+        loadValidator: okValidator,
+        importSdk: missing,
+      },
+    );
+    assert.equal(code, 2);
+    assert.match(errors.join("\n"), /cannot import @stellar\/stellar-sdk/);
+    assert.match(
+      logs.join("\n"),
+      /\*\*Checker could not run \(exit 2\):\*\* harness error: cannot import @stellar\/stellar-sdk/,
+    );
+    assert.equal(fake.requests.length, 0);
+  });
+
+  it("loadStellarSdk throws a HarnessError naming the package, or the exports it lacks", async () => {
+    await assert.rejects(
+      loadStellarSdk(missing),
+      (err) =>
+        err instanceof HarnessError &&
+        /cannot import @stellar\/stellar-sdk/.test(err.message),
+    );
+    await assert.rejects(
+      loadStellarSdk(async () => ({ Contract })),
+      (err) =>
+        err instanceof HarnessError &&
+        /@stellar\/stellar-sdk was imported but has no TransactionBuilder, FeeBumpTransaction/.test(
+          err.message,
+        ),
+    );
+    const sdk = await loadStellarSdk();
+    assert.equal(sdk.Contract, Contract);
   });
 });
