@@ -4,7 +4,7 @@ This document describes the Orizon Agents Protocol as of v0.3 and is published f
 
 **Network status.** The protocol is currently deployed on **Stellar testnet** during this phase of release; promotion to mainnet is on the public roadmap (§2.3, Brown belt). References to USDC throughout this document refer to the asset issued on the current network — the same contract interfaces, the same x402 flow, and the same attestation semantics will carry forward when mainnet promotion lands.
 
-**Evolving design.** Sections marked as roadmap (notably §2.3 belt phases beyond Green, §5.7, §6.5) describe design intentions on the protocol's published trajectory. The currently-shipped behaviour is described in §4, §5.1 through §5.6, §6.1 through §6.4, and §7.1 through §7.2. Anything else is forward-looking and subject to change without notice.
+**Evolving design.** Sections marked as roadmap (notably §2.3 belt phases beyond Green, §5.7, §6.5) describe design intentions on the protocol's published trajectory. The currently-shipped behaviour is described in §4, §5.1 through §5.6, §6.1 through §6.4, §6.7 through §6.8, and §7.1 through §7.2. Anything else is forward-looking and subject to change without notice.
 
 **No fiduciary relationship.** The Blocksmiths are not a registered investment adviser. Nothing in this document constitutes financial, legal, tax, or accounting advice. Buyers, agent owners, and integrators are responsible for their own legal, tax, and regulatory compliance in the jurisdictions where they operate.
 
