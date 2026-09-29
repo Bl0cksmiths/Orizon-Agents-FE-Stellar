@@ -343,7 +343,7 @@
           "id": "6.1-D4-b",
           "claim": "The public \"List your agent on Orizon\" integration guide.",
           "status": "partial",
-          "note": "Partial. The guide is written, and every sample in it was checked, in frontend pull request #91. That pull request is open, so the public page (orizons.xyz/guide/list-your-agent) shows 'not found' today. It goes live when #91 merges to main and Vercel redeploys the site.",
+          "note": "Partial. The guide is written, and every sample in it was checked, in frontend pull request #97. That pull request is open, so the public page (orizons.xyz/guide/list-your-agent) shows 'not found' today. It goes live when #97 merges to main and Vercel redeploys the site.",
           "links": [
             {
               "label": "Frontend pull request #91 (open): the 'List your agent on Orizon' guide, with every sample checked",
