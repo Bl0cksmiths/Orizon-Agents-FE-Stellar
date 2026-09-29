@@ -97,14 +97,40 @@ async function stranger(
 async function sidewaysOverflow(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const limit = document.documentElement.clientWidth + 1;
+    const scrolls = (el: Element) =>
+      ["auto", "scroll"].includes(getComputedStyle(el).overflowX) &&
+      el !== document.documentElement &&
+      el !== document.body;
+    const skip = (el: Element | null): boolean => {
+      for (let n = el; n; n = n.parentElement) {
+        if (n.classList.contains("sr-only")) return true;
+        if (scrolls(n) && n !== el) return true;
+      }
+      return false;
+    };
     const out: string[] = [];
+    const label = (el: Element, right: number) =>
+      `<${el.tagName.toLowerCase()}> to ${Math.round(right)}px "${(el.textContent ?? "").trim().slice(0, 40)}"`;
     for (const el of Array.from(document.querySelectorAll("body *"))) {
-      if (el.closest(".sr-only")) continue;
+      if (skip(el)) continue;
       const box = el.getBoundingClientRect();
-      if (box.width > 0 && box.right > limit) {
-        out.push(
-          `<${el.tagName.toLowerCase()}> to ${Math.round(box.right)}px "${(el.textContent ?? "").trim().slice(0, 40)}"`,
-        );
+      if (box.width > 0 && box.right > limit) out.push(label(el, box.right));
+    }
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+    );
+    for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+      const parent = t.parentElement;
+      if (!parent || !t.textContent?.trim() || skip(parent)) continue;
+      if (scrolls(parent)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(t);
+      for (const rect of Array.from(range.getClientRects())) {
+        if (rect.width > 0 && rect.right > limit) {
+          out.push(label(parent, rect.right));
+          break;
+        }
       }
     }
     return out;
@@ -203,11 +229,14 @@ test.describe("litepaper page by keyboard", () => {
       ...FILES.map((f) => f.href),
       `${HTML_BOOK}#operations-and-governance`,
     ]);
-    // The focused link shows a ring, not just the browser's default.
-    const ring = await page.evaluate(
-      () => getComputedStyle(document.activeElement!).boxShadow,
-    );
-    expect(ring).not.toBe("none");
+    // The focused link shows a ring that is not there without focus.
+    const ring = () =>
+      page
+        .locator(`a[href="${HTML_BOOK}#operations-and-governance"]`)
+        .evaluate((a) => getComputedStyle(a).boxShadow);
+    const focused = await ring();
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    expect(focused).not.toBe(await ring());
     await page.context().close();
   });
 });
