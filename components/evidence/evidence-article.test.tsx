@@ -326,18 +326,19 @@ describe("the evidence page", () => {
     expect(screen.queryByRole("heading", { name: "Notes" })).toBeNull();
   });
 
-  it("points to the guide, the demo, the ecosystem page and the repos", () => {
+  it("points to the guide, the demo, the ecosystem page, the litepaper and the repos", () => {
     render(<EvidenceArticle index={fixture()} />);
     const where = section("Where else to look");
     const hrefs = within(where)
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
-    expect(hrefs.slice(0, 3)).toEqual([
+    expect(hrefs.slice(0, 4)).toEqual([
       "/guide/list-your-agent",
       "/demo",
       "/app/ecosystem",
+      "/litepaper",
     ]);
-    expect(hrefs.slice(3)).toHaveLength(3);
+    expect(hrefs.slice(4)).toHaveLength(3);
     for (const name of [
       "Frontend source code (opens GitHub)",
       "Backend source code (opens GitHub)",
@@ -350,10 +351,11 @@ describe("the evidence page", () => {
     const printed = Array.from(where.querySelectorAll("[data-print-url]")).map(
       (p) => p.textContent,
     );
-    expect(printed.slice(0, 3)).toEqual([
+    expect(printed.slice(0, 4)).toEqual([
       "https://orizons.xyz/guide/list-your-agent",
       "https://orizons.xyz/demo",
       "https://orizons.xyz/app/ecosystem",
+      "https://orizons.xyz/litepaper",
     ]);
   });
 
