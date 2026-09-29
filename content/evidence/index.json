@@ -758,11 +758,16 @@
       "category": "Adoption targets",
       "metric": "Unique external operator wallet addresses",
       "target": "≥ 2",
-      "achieved": "0",
+      "achieved": "1",
       "status": "not_met",
-      "reason": "No outside operator wallet owns an agent yet; the 12 registered agents belong to 4 wallets the team controls.",
+      "reason": "Only 1 outside operator wallet owns an agent. The target is 2.",
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
       "links": [
+        {
+          "label": "An outside operator's wallet — owns Powerbot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GCVOWZY5SII2HZSYL6I5VFOOYPOJXHMATXRJVKBE227GBW45L7UAKQKX",
+          "kind": "account"
+        },
         {
           "label": "The team's QA throwaway operator key — owns uat605_ext_op and uat624_ext_op (excluded: team wallet)",
           "url": "https://stellar.expert/explorer/testnet/account/GBWMD26IB6CMG3JO3HU7SD7ZJSTF4BIJ5JS77ANMLJ52M6FV6K3J7BQJ",
