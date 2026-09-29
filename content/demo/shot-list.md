@@ -104,3 +104,33 @@ Render's free tier sleeps a service after about 15 minutes idle, and wakes it in
 | After S09       | Stop the capture. Copy the evidence (§5) **before** closing any tab.                                                                                                                                                                                                      |
 
 S01, S11 and S12 are mostly cards and a static guide page, so they can be captured at any time. S10 is filmed after S09, so the Ecosystem page includes this session's settlement if the operator is external.
+
+## 5. Evidence capture
+
+Every hash in the video description comes from this session, is copied **in full** from where the UI shows it, and is re-read on Horizon as `successful: true` before it is published. A truncated hash (`tx abcdef1234…` in the trace log) is never evidence on its own: find the full hash at the source named below.
+
+### Where each hash comes from
+
+| Placeholder              | Scene   | Transaction                                                                          | Copy the full hash from                                                                                                                                   |
+| ------------------------ | ------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<register_tx>`          | S02     | `AgentRegistry.register`, signed by the operator                                     | The register success card's **⧉ copy evidence** (agent id, wallet, hash and both explorer links)                                                          |
+| `<authorize_tx>`         | S06     | PaymentEscrow v2 `authorize`, signed by the buyer                                    | The plan card's "✓ transaction confirmed" hash                                                                                                            |
+| `<settle_tx>`            | S07     | PaymentEscrow v2 `settle`: the operator's payout and the remainder back to the buyer | The receipt's `charge` row, or the operator's settlement entry. They are the same hash; check that they match.                                            |
+| `<seal_tx>`              | S07     | `AttestationRegistry.seal`                                                           | The receipt's `seal` row                                                                                                                                  |
+| `<rating_tx_1>`          | S07     | ReputationLedger `submit`: the operator's agent's automatic rating                   | The ReputationLedger's latest `rated` event for the agent on Stellar Expert (`/contract/CDCSOBEV…422ZT`), matched to the trace line's first 10 characters |
+| `<refund_tx>`            | S08/S09 | SAC `transfer`, settler → buyer (the credit)                                         | The uphold JSON's `refund_tx`, which must equal the receipt's "Refund transfer"                                                                           |
+| `<dispute_rating_tx>`    | S08/S09 | ReputationLedger `submit`, `kind="dispute"`, 10/100                                  | The uphold JSON's `rating_tx`, which must equal the receipt's "Dispute rating against …"                                                                  |
+| `<fault_rating_tx_1..3>` | S05     | ReputationLedger `submit`, 20/100, for the faulty agent                              | Each fault run's `docs/evidence/5.04/fault-run-N/lifecycle.md` (the `rating` rows)                                                                        |
+
+### The files
+
+- **The lifecycle harness evidence** (backend repo, [`docs/operators/lifecycle-harness.md`](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/operators/lifecycle-harness.md)). The faulty agent's three runs are harness runs, so their `lifecycle.jsonl` and `lifecycle.md` are the evidence for S05: every row has its hash, its explorer link, and the `onchain_status` RPC or Horizon answered. **Never commit or publish their `state.json`**: it holds a task read token.
+- **The evidence sheet** (being built by another 5.04 lane). Add one row per hash above, with the scene, what it proves, the full hash, the Stellar Expert URL (`https://stellar.expert/explorer/testnet/tx/<hash>`), the source account, the ledger, the UTC time, and Horizon's `successful`. Add the external operator's written consent, the faulty agent's id, owner wallet and evidence directories, and the published video URL.
+
+### Verify before publishing
+
+- [ ] Re-read every hash on Horizon testnet: `curl -s https://horizon-testnet.stellar.org/transactions/<hash> | jq '{successful, ledger, created_at, source_account}'`.
+- [ ] Run `python scripts/verify_registration.py` on `<register_tx>` (the 1.07 verifier; see its `--help`).
+- [ ] Run `python scripts/verify_external_settlement.py --agent <id> --owner <operator G…> --tx <settle_tx> --api-base https://orizons.xyz/api --network testnet`. It reports the asset from the ledger, so on testnet it says XLM.
+- [ ] Open the dispute rating on Stellar Expert. Check that the first 16 hex characters of its `job_id` equal the first 16 of the seal's `job_id`, and that `kind` is `dispute` with rating `10`.
+- [ ] Check that every hash visible in the final cut is character-for-character the one in the description. Scrub the export and compare.
