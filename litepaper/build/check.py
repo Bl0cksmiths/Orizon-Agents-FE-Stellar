@@ -209,23 +209,36 @@ def pdf_text(path: Path) -> str:
     return PRIVATE_USE.sub("", text)
 
 
-def format_texts(out: Path, pandoc_bin: str, chapter_md: str) -> dict[str, tuple[str, str]]:
-    """{format: (reference text from the book, text read from the format)}."""
-    ref_html = pandoc(pandoc_bin, [f"--from={MD_FROM}", "--to=html5"], chapter_md.encode())
+def format_texts(out: Path, pandoc_bin: str, chapter_md: str, docx_chapter_md: str,
+                 pdf: bool = True) -> dict[str, tuple[str, str]]:
+    """{format: (reference text from the book, text read from the format)}.
+
+    The .docx is compared with the chapter as the -docx.md carries it, where
+    each Mermaid block is already its figure's PNG (check_source ties that
+    file to the book), so a chapter with figures compares cleanly."""
+    def md_html(md: str) -> str:
+        return pandoc(pandoc_bin, [f"--from={MD_FROM}", "--to=html5"], md.encode())
+
+    ref_html = md_html(chapter_md)
     ref, ref_printed = html_text(ref_html), html_text(ref_html, printed=True)
     texts = {}
     texts["html"] = (ref, html_text((out / HTML).read_text(encoding="utf-8")))
-    texts["pdf"] = (ref_printed, pdf_text(out / PDF))
-    texts["docx"] = (ref, html_text(pandoc(pandoc_bin, ["--from=docx", "--to=html5", str(out / DOCX)])))
+    if pdf:
+        texts["pdf"] = (ref_printed, pdf_text(out / PDF))
+    texts["docx"] = (html_text(md_html(docx_chapter_md)),
+                     html_text(pandoc(pandoc_bin, ["--from=docx", "--to=html5", str(out / DOCX)])))
     return texts
 
 
-def check_formats(out: Path, pandoc_bin: str, num: str = "6") -> list[str]:
+def check_formats(out: Path, pandoc_bin: str, num: str = "6", pdf: bool = True) -> list[str]:
     book = (out / BOOK).read_text(encoding="utf-8")
     chapter_md, title, next_title = book_chapter(book, num)
+    docx_chapter_md = book_chapter((out / DOCX_MD).read_text(encoding="utf-8"), num)[0]
     start, end = words(title), words(next_title)
     failures = []
-    for fmt, (ref_text, got_text) in format_texts(out, pandoc_bin, chapter_md).items():
+    if not pdf:
+        print(f"SKIP  pdf: §{num} (NO_PDF: pypdf extracts its code blocks out of order)")
+    for fmt, (ref_text, got_text) in format_texts(out, pandoc_bin, chapter_md, docx_chapter_md, pdf).items():
         ref = section_slice(words(ref_text), start, [])
         got = section_slice(words(got_text), start, end)
         if got is None:
