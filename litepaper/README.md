@@ -1,13 +1,13 @@
 # Orizon Agents Litepaper — repository
 
-This folder holds the **Orizon Agents Protocol Litepaper** (v0.1) authored by *the Blocksmiths*.
+This folder holds the **Orizon Agents Protocol Litepaper** (v0.5) authored by *the Blocksmiths*.
 
 ## What's in here
 
 ```
-whitepaper/
+litepaper/
 ├── README.md                          ← you are here
-├── Orizon-Agents-Litepaper.md         bound book — cover · TOC · §1–§10 · §A–§C · footer
+├── Orizon-Agents-Litepaper.md         bound book — cover · TOC · §1–§10 · §A–§E · footer
 ├── Orizon-Agents-Litepaper.html       self-contained HTML (CSS + Mermaid runtime embedded)
 ├── Orizon-Agents-Litepaper.pdf        PDF via headless Chrome
 ├── Orizon-Agents-Litepaper.docx       Word/Google-Docs/LibreOffice — Mermaid rendered to PNG
@@ -39,7 +39,7 @@ whitepaper/
 
 ## Figures (Mermaid)
 
-The litepaper carries four diagrams, all written as native Mermaid blocks so GitHub renders them inline:
+The litepaper carries five diagrams, all written as native Mermaid blocks so GitHub renders them inline:
 
 | # | Title | Section | Type |
 |---|---|---|---|
@@ -53,8 +53,8 @@ The **bound book** (`Orizon-Agents-Litepaper.md`) is the canonical single-file a
 
 ## How to read
 
-- **Operators and grant reviewers** — read `Orizon-Agents-Litepaper.md` straight through (~30 pages).
-- **Developers building agents** — §4 and §5 are written for you.
+- **Operators and grant reviewers** — read `Orizon-Agents-Litepaper.md` straight through (96 pages as a PDF).
+- **Developers building agents** — §6.3 and §E.2 for an agent of your own (an HTTPS endpoint you register and bind); §4 and §5 for how the backend runs its seeded agents.
 - **Investors and ecosystem partners** — §2.2 (comparison), §6 (governance), §7 (economics).
 - **Skeptics** — §5.5 (security), §5.7 (what isn't built yet), §10 (disclaimer).
 
