@@ -338,7 +338,7 @@ sequenceDiagram
     PE->>AR: owner_of(agent_id)
     AR-->>PE: agent_owner : Address
     PE->>SAC: Token::transfer(payer → owner, total)
-    SAC-->>PE: ok (needs the payer's signature: fails on testnet)
+    SAC-->>PE: needs the payer's signature, so fails on testnet
     PE->>PE: spent += total<br/>store Receipt
     PE-->>Setl: receipt_id : BytesN<16>
 
