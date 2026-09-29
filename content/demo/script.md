@@ -293,7 +293,7 @@ The reference agent ([`Orizon-Agents-Example-Agent-Stellar`](https://github.com/
 
 ### The arithmetic
 
-These are the constants from `app/config.py` and `app/services/reputation_svc.py` on backend `main` (`a3dc1f9`, the same values as `16819ef`). The per-rating cap there is `max_rating_weight_usdc()` = min(`REPUTATION_MAX_RATING_WEIGHT_USDC` 100.0, `REPUTATION_MAX_RATING_TO_PRIOR_RATIO` 1.0 × `REPUTATION_PRIOR_WEIGHT_USDC` 12.0) = 12. **The backend deployed on 2026-09-29 reported the cap as 100**, the absolute cap alone, and it keeps reporting 100 until it is redeployed (row 2 of [What must be deployed before recording](#what-must-be-deployed-before-recording)). At the recommended price the cap never binds, because each failed run weighs 0.20, so the table below holds on either build.
+These are the constants from `app/config.py` and `app/services/reputation_svc.py` on backend `main` (`a3dc1f9`, the same values as `16819ef`). The per-rating cap there is `max_rating_weight_usdc()` = min(`REPUTATION_MAX_RATING_WEIGHT_USDC` 100.0, `REPUTATION_MAX_RATING_TO_PRIOR_RATIO` 1.0 × `REPUTATION_PRIOR_WEIGHT_USDC` 12.0) = 12. **The backend live before 2026-09-29 reported the cap as 100**, the absolute cap alone. The redeploy of 2026-09-29 (`main` `44c3411`, row 2 of [What must be deployed before recording](#what-must-be-deployed-before-recording)) fixed that: on 2026-09-30 `GET /api/stellar/reputation/params` reads `max_rating_weight_usdc: 12.0`. At the recommended price the cap never binds, because each failed run weighs 0.20, so the table below holds on either build.
 
 | Constant                       | Value                       |
 | ------------------------------ | --------------------------- |
