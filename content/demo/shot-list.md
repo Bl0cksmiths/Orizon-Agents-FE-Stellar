@@ -87,6 +87,7 @@ In-scene: S02's link opens the registration tx; S03 navigates to `/app/bind` and
 1. `https://orizons.xyz/app/orchestrator`: the intent box is empty, and the rehearsed intent is on a card beside the monitor, **not** in the clipboard history.
 2. `https://orizons.xyz/app/ecosystem`
 3. `https://orizons.xyz/guide/list-your-agent`, scrolled to **Trust boundaries** (for S11).
+4. `https://orizons.xyz/`, the marketing hero, whose `orizon.flow` panel prices its steps in USDC (for S11's cutaway).
 
 In-scene: S06's link opens `<authorize_tx>`; the console moves itself to `/app/trace?task=…`; S09's links open `<refund_tx>` and `<dispute_rating_tx>`.
 
