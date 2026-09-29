@@ -30,6 +30,14 @@ const PORT = E2E_PORT;
 const GUIDE_CONTENT_DIR =
   process.env.GUIDE_CONTENT_DIR ?? "test/fixtures/guides";
 
+/**
+ * /litepaper and its files come from the fixture book, a tiny fake, so the
+ * spec does not change when the litepaper does. The copy step runs before the
+ * server starts, as `prebuild` does before a build, publishing the fixture's
+ * files under public/litepaper/. LITEPAPER_DIR=litepaper serves the real one.
+ */
+const LITEPAPER_DIR = process.env.LITEPAPER_DIR ?? "test/fixtures/litepaper";
+
 export default defineConfig({
   testDir: "e2e",
   // First on-demand compile of a route under `next dev` can be slow.
@@ -49,7 +57,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `npx next dev -p ${PORT}`,
+      command: `node scripts/litepaper-assets.mjs && npx next dev -p ${PORT}`,
       port: PORT,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
@@ -60,6 +68,7 @@ export default defineConfig({
         // /evidence from its fixture index (fake hashes), so
         // e2e/evidence.spec.ts does not change when the real index is filled.
         EVIDENCE_CONTENT_DIR: "test/fixtures/evidence",
+        LITEPAPER_DIR,
       },
     },
     {
