@@ -1184,7 +1184,7 @@
     {
       "id": "live_backend",
       "title": "The live API is updated by hand",
-      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It currently runs a build from before 2026-09-25. Merged work waiting for the next deploy includes settlement through escrow v2 (backend pull request #88) and the adoption counter (backend pull request #89)."
+      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It was last deployed on 2026-09-29, with everything merged to the backend's main branch up to pull request #94, including the adoption counter (backend pull request #89). Settlement through escrow v2 (backend pull request #88) is in that build but cannot run yet: the escrow v2 contract is not deployed to testnet, so the live escrow is still v1. No merged backend work is waiting for a deploy."
     },
     {
       "id": "network_switch",
