@@ -65,8 +65,8 @@ export function WhereElse() {
               rel="noopener noreferrer"
               className={inlineLink}
             >
-              {repo.label} source code
-              <span className="sr-only"> (opens GitHub)</span>
+              {repo.label} source code{" "}
+              <span className="sr-only">(opens GitHub)</span>
               <span aria-hidden="true" className="print:hidden">
                 {" "}
                 ↗
