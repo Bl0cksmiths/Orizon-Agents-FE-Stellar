@@ -188,11 +188,34 @@ describe("AgentStanding — the floor verdict", () => {
     expect(text).toContain("starvation backstop");
   });
 
-  // The floor acts while the plan is built: the agent was passed over, not
-  // asked and found wanting.
-  it("blames thin evidence rather than the agent's work", () => {
-    const { container } = renderCell({ rep: thinEvidence() });
-    expect(detail(container)).toContain("thin evidence rather than bad work");
+  // Why the bound is low is said only from the ratings it rests on: thin
+  // evidence at one rating, the record at more, a dispute share when there is
+  // one. Never "bad work", and never "not bad work" beyond that.
+  it("calls a bound on a single rating thin evidence", () => {
+    const { container } = renderCell({ rep: thinEvidence({ count: 1 }) });
+    expect(detail(container)).toContain(
+      "The floor reads the lower bound, a conservative statistical estimate of its score. That bound rests on a single rating, so the evidence behind it is thin.",
+    );
+  });
+
+  it("describes a bound on many ratings as that record, not thin evidence", () => {
+    const { container } = renderCell({
+      rep: thinEvidence({ count: 9, dispute_rate_bps: 1111 }),
+    });
+    const text = detail(container);
+    expect(text).toContain(
+      "That bound rests on 9 ratings, and that record, read conservatively, falls short of the floor. 11.1% of those ratings were disputes.",
+    );
+    expect(text).not.toMatch(/thin evidence|bad work|rather than/);
+  });
+
+  it("says nothing about cause when the count is not a count", () => {
+    const { container } = renderCell({
+      rep: thinEvidence({ count: Number.NaN }),
+    });
+    const text = detail(container);
+    expect(text).toMatch(/estimate of its score\.$/);
+    expect(text).not.toMatch(/rests on|thin|bad work/);
   });
 });
 
