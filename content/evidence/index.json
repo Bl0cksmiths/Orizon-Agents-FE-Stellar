@@ -974,11 +974,11 @@
           "kind": "contract"
         },
         {
-          "label": "Registration of Powerbot signed by an outside operator's wallet, not the registry admin — 2026-09-29",
-          "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "label": "Registration of uat624_ext_op signed by the team's QA throwaway operator key, not the registry admin — 2026-09-24",
+          "url": "https://stellar.expert/explorer/testnet/tx/e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
           "kind": "tx",
-          "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
-          "date": "2026-09-29"
+          "tx_hash": "e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
+          "date": "2026-09-24"
         }
       ]
     },
