@@ -36,6 +36,11 @@ export function toMarkdown(report) {
     "",
   ];
   if (report.refused) lines.push(`**Run refused:** ${report.refused}`, "");
+  if (report.harness_error)
+    lines.push(
+      `**Checker could not run (exit 2):** ${report.harness_error}`,
+      "",
+    );
   if (report.errors.length > 0) {
     lines.push("## Errors", "", ...report.errors.map((e) => `- ${e}`), "");
   }

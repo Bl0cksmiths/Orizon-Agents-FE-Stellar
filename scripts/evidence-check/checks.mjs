@@ -20,6 +20,11 @@
  *
  * Each check is pass, fail or unverified. No answer at all (NetworkError) is
  * unverified, never a pass; a row is the worst of its checks.
+ *
+ * The chain checks read contract ids and transaction envelopes with
+ * @stellar/stellar-sdk, which run.mjs loads once, before any link. If it
+ * cannot be imported that is the harness's fault, not a link's: the run stops
+ * with a HarnessError (exit 2), and no link is judged either way.
  */
 import { NetworkError, parseJson } from "./http.mjs";
 import {
@@ -50,6 +55,49 @@ export const TESTNET_ENDPOINTS = Object.freeze({
  */
 
 export class RefusedError extends Error {}
+
+/** The chain checks' one dependency outside Node. */
+export const STELLAR_SDK = "@stellar/stellar-sdk";
+
+/**
+ * The parts of @stellar/stellar-sdk the chain checks use.
+ * @typedef {Pick<typeof import("@stellar/stellar-sdk"), "Contract" | "TransactionBuilder" | "FeeBumpTransaction">} Sdk
+ */
+
+/**
+ * The checker itself cannot run: a missing dependency, not a bad link. The
+ * run stops before any link is judged, and exits 2.
+ */
+export class HarnessError extends Error {}
+
+/**
+ * Imports @stellar/stellar-sdk for the chain checks. Throws HarnessError,
+ * naming the package, when it cannot be imported or lacks what they use.
+ *
+ * @param {() => Promise<unknown>} [importer]  a seam for tests
+ * @returns {Promise<Sdk>}
+ */
+export async function loadStellarSdk(importer = () => import(STELLAR_SDK)) {
+  let mod;
+  try {
+    mod = /** @type {Record<string, unknown>} */ (await importer());
+  } catch (err) {
+    throw new HarnessError(
+      `harness error: cannot import ${STELLAR_SDK} (${why(err)}). The live check needs it to read contract ids and transaction envelopes, so no link was checked. Install the dependencies (npm ci) and run again.`,
+    );
+  }
+  const missing = [
+    "Contract",
+    "TransactionBuilder",
+    "FeeBumpTransaction",
+  ].filter((name) => typeof mod?.[name] !== "function");
+  if (missing.length > 0) {
+    throw new HarnessError(
+      `harness error: ${STELLAR_SDK} was imported but has no ${missing.join(", ")}, so no link was checked. Reinstall the dependencies (npm ci) and run again.`,
+    );
+  }
+  return /** @type {Sdk} */ (/** @type {unknown} */ (mod));
+}
 
 /** @param {unknown} err */
 const why = (err) => (err instanceof Error ? err.message : String(err));
@@ -231,13 +279,18 @@ export async function checkReachable(client, url, endpoints) {
   return { check, finalUrl: answer.url, redirected };
 }
 
-/** @param {string} envelopeXdr */
-async function sourceOfEnvelope(envelopeXdr) {
+/**
+ * The source account of a transaction envelope, or null when the envelope
+ * does not parse. The SDK is already loaded, so a failure here is the
+ * envelope's, never a missing dependency.
+ *
+ * @param {string} envelopeXdr
+ * @param {Sdk} sdk
+ */
+function sourceOfEnvelope(envelopeXdr, sdk) {
   try {
-    const { TransactionBuilder, FeeBumpTransaction } =
-      await import("@stellar/stellar-sdk");
-    const tx = TransactionBuilder.fromXDR(envelopeXdr, TESTNET_PASSPHRASE);
-    return tx instanceof FeeBumpTransaction
+    const tx = sdk.TransactionBuilder.fromXDR(envelopeXdr, TESTNET_PASSPHRASE);
+    return tx instanceof sdk.FeeBumpTransaction
       ? tx.innerTransaction.source
       : tx.source;
   } catch {
@@ -253,9 +306,10 @@ async function sourceOfEnvelope(envelopeXdr) {
  * @param {string} hash
  * @param {Endpoints} endpoints
  * @param {Reachable} reachable
+ * @param {Sdk} sdk
  * @returns {Promise<ChainTx | null>}
  */
-async function findOnTestnet(client, hash, endpoints, reachable) {
+async function findOnTestnet(client, hash, endpoints, reachable, sdk) {
   if (reachable.horizon) {
     const answer = await client.request(
       `${endpoints.horizon}/transactions/${hash}`,
@@ -305,7 +359,7 @@ async function findOnTestnet(client, hash, endpoints, reachable) {
         : null,
     source_account:
       typeof result.envelopeXdr === "string"
-        ? await sourceOfEnvelope(result.envelopeXdr)
+        ? sourceOfEnvelope(result.envelopeXdr, sdk)
         : null,
     successful: result.status === "SUCCESS",
     via: "rpc",
@@ -324,9 +378,10 @@ function utcDate(value) {
  * @param {import("./links.mjs").Link} link
  * @param {Endpoints} endpoints
  * @param {Reachable} reachable
+ * @param {Sdk} sdk
  * @returns {Promise<{ checks: Check[], chain: ChainTx | null }>}
  */
-export async function checkTx(client, link, endpoints, reachable) {
+export async function checkTx(client, link, endpoints, reachable, sdk) {
   const hash = txHashOf(link);
   if (!hash) {
     return {
@@ -342,7 +397,7 @@ export async function checkTx(client, link, endpoints, reachable) {
   }
   let chain;
   try {
-    chain = await findOnTestnet(client, hash, endpoints, reachable);
+    chain = await findOnTestnet(client, hash, endpoints, reachable, sdk);
   } catch (err) {
     return {
       checks: [{ name: "testnet-tx", result: "unverified", detail: why(err) }],
@@ -413,9 +468,10 @@ export async function checkTx(client, link, endpoints, reachable) {
  * @param {import("./links.mjs").Link} link
  * @param {Endpoints} endpoints
  * @param {Reachable} reachable
+ * @param {Sdk} sdk
  * @returns {Promise<Check>}
  */
-export async function checkContract(client, link, endpoints, reachable) {
+export async function checkContract(client, link, endpoints, reachable, sdk) {
   const id = contractIdOf(link);
   if (!id)
     return {
@@ -425,8 +481,7 @@ export async function checkContract(client, link, endpoints, reachable) {
     };
   let key;
   try {
-    const { Contract } = await import("@stellar/stellar-sdk");
-    key = new Contract(id).getFootprint().toXDR("base64");
+    key = new sdk.Contract(id).getFootprint().toXDR("base64");
   } catch (err) {
     return {
       name: "testnet-contract",
@@ -574,9 +629,10 @@ export function summarize(checks) {
  * @param {import("./links.mjs").LocatedLink} located
  * @param {Endpoints} endpoints
  * @param {Reachable} reachable
+ * @param {Sdk} sdk  loaded by loadStellarSdk before any link is checked
  * @returns {Promise<Row>}
  */
-export async function checkLink(client, located, endpoints, reachable) {
+export async function checkLink(client, located, endpoints, reachable, sdk) {
   const row = rowBase(located);
   const refused = networkRefusal(row.url);
   if (refused) return { ...row, checks: [refused], ...summarize([refused]) };
@@ -593,12 +649,12 @@ export async function checkLink(client, located, endpoints, reachable) {
   const checks = [reach.check];
   let chain = null;
   if (row.kind === "tx") {
-    const tx = await checkTx(client, located.link, endpoints, reachable);
+    const tx = await checkTx(client, located.link, endpoints, reachable, sdk);
     checks.push(...tx.checks);
     chain = tx.chain;
   } else if (row.kind === "contract") {
     checks.push(
-      await checkContract(client, located.link, endpoints, reachable),
+      await checkContract(client, located.link, endpoints, reachable, sdk),
     );
   } else if (row.kind === "account") {
     checks.push(await checkAccount(client, located.link, endpoints, reachable));

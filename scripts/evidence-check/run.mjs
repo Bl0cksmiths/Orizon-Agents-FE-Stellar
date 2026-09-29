@@ -10,12 +10,16 @@
  *
  * Exit codes (exitCodeOf): 0 every check passed · 1 anything failed (a
  * validator problem, an unreadable index, a failed link) · 2 the run was
- * refused because an endpoint is not testnet · 3 nothing failed but at least
- * one link could not be checked (unverified), which is never a pass.
+ * refused because an endpoint is not testnet, or the harness could not run
+ * (live mode could not import @stellar/stellar-sdk), and no link was judged ·
+ * 3 nothing failed but at least one link could not be checked (unverified),
+ * which is never a pass.
  */
 import { existsSync, readFileSync } from "node:fs";
 import {
   checkLink,
+  HarnessError,
+  loadStellarSdk,
   networkRefusal,
   preflight,
   RefusedError,
@@ -35,12 +39,14 @@ export const REPORT_SCHEMA = "orizon.evidence-check-report/1";
  *   schema: string, mode: "static" | "live", index: string, network: "testnet",
  *   generated_at: string, endpoints: import("./checks.mjs").Endpoints | null,
  *   validator: { source: "lib" | null, ok: boolean, problems: string[] },
- *   errors: string[], refused: string | null, rows: Row[],
+ *   errors: string[], refused: string | null, harness_error: string | null,
+ *   rows: Row[],
  *   summary: { links: number, passed: number, failed: number, unverified: number, not_checked: number, redirected: number },
  * }} Report
  * @typedef {{
  *   indexPath: string, mode: "static" | "live",
  *   loadValidator?: typeof loadValidator,
+ *   importSdk?: () => Promise<unknown>,
  *   client?: import("./checks.mjs").Client,
  *   clientOptions?: import("./http.mjs").ClientOptions,
  *   endpoints?: Partial<import("./checks.mjs").Endpoints>,
@@ -98,6 +104,7 @@ export async function checkEvidence(options) {
     validator: { source: null, ok: false, problems: [] },
     errors: [],
     refused: null,
+    harness_error: null,
     rows: [],
     summary: summaryOf([]),
   };
@@ -131,6 +138,17 @@ export async function checkEvidence(options) {
     return report;
   }
 
+  let sdk;
+  try {
+    sdk = await loadStellarSdk(options.importSdk);
+  } catch (err) {
+    if (!(err instanceof HarnessError)) throw err;
+    report.harness_error = err.message;
+    report.rows = links.map(staticRow);
+    report.summary = summaryOf(report.rows);
+    return report;
+  }
+
   const client = options.client ?? createClient(options.clientOptions);
   let reachable;
   try {
@@ -143,7 +161,9 @@ export async function checkEvidence(options) {
     return report;
   }
   for (const located of links) {
-    report.rows.push(await checkLink(client, located, endpoints, reachable));
+    report.rows.push(
+      await checkLink(client, located, endpoints, reachable, sdk),
+    );
   }
   report.summary = summaryOf(report.rows);
   return report;
@@ -151,7 +171,7 @@ export async function checkEvidence(options) {
 
 /** @param {Report} report */
 export function exitCodeOf(report) {
-  if (report.refused) return 2;
+  if (report.refused || report.harness_error) return 2;
   if (
     report.errors.length > 0 ||
     !report.validator.ok ||
