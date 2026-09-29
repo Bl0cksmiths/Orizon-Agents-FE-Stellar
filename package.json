@@ -21,6 +21,8 @@
     "guide:live": "node scripts/guide-samples/cli.mjs --live",
     "guide:offline": "node scripts/guide-samples/cli.mjs --offline",
     "demo:check": "node scripts/demo-check.mjs",
+    "evidence:check": "node scripts/evidence-check/cli.mjs --static",
+    "evidence:verify": "node scripts/evidence-check/cli.mjs --live",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
