@@ -168,7 +168,7 @@ Backend-signed `PaymentEscrow.charge`, v1 only: against a v2 escrow it answers 4
 
 ### `POST /api/stellar/server/seal`
 
-Backend-signed `AttestationRegistry.seal`. Called once at workflow completion. Carries `job_id_hex`, `orchestrator`, `intent_hash`, `agents[]`, `receipts[]`, `total_spent`; returns the broadcast `tx_hash`.
+Backend-signed `AttestationRegistry.seal`, behind the operator API key when one is configured. The execution service seals a run itself, once, after its settlement confirms, and does not call this route (§A.1). Carries `job_id_hex`, `orchestrator`, `intent_hash_hex`, `agents[]`, `receipts_hex[]`, `total_spent_usdc`; returns the transaction's `hash` and `status` (BE@a3dc1f9 · app/routers/stellar.py · `SealReq`, `server_seal`).
 
 ### `GET /api/stellar/agent/{agent_id}`
 
