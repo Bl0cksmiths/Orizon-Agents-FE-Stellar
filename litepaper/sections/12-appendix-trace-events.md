@@ -42,7 +42,7 @@ Emitted once per step *after* the worker returns successfully. Carries the agent
 01.318  cost  x402 payment → agt_02k2 :: 0.018 USDC (tx b04ee2d1…7a85)
 ```
 
-When the protocol is run in a self-hosted configuration without a settler key, the suffix carries that configuration's marker instead of a settled transaction hash. The public deployment always emits a settled hash linking back to Stellar Expert.
+The per-step lines above carry a transaction hash only in this illustration. In the shipped backend, a run without an escrow authorisation emits one `cost` line per step marked `(simulated)`, and a paid run emits a single `cost` line for the workflow's charge instead (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_settle_onchain`). On testnet no paid run gets a settled hash: the deployed escrow cannot complete a charge, and the trace carries an `error` line in its place (§6.9).
 
 ## B.4 · `out` — worker result summary
 
@@ -75,7 +75,7 @@ Emitted at most once per workflow, after the `AttestationRegistry.seal` call ret
 06.420  proof  workflow sealed — 6 agents · 0.168 USDC · 6.42s
 ```
 
-A workflow that never reaches `proof` either failed before the seal, or was run by a self-hosted operator who has not configured a settler key. The public deployment always emits a `proof` line on a successful workflow.
+A workflow that never reaches the sealed `proof` line either failed before the seal, or was run by a self-hosted operator who has not configured a signing key. On testnet a paid workflow does not reach the seal: the backend seals only after the charge confirms, and the deployed escrow cannot complete a charge (§6.9; BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`). A run without an escrow authorisation gets `proof` lines marked `(simulated)`.
 
 ## B.7 · `error` — unrecoverable failure
 

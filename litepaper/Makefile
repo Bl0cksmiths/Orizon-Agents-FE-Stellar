@@ -16,10 +16,13 @@ SEED_REPO ?= $(HOME)/Websites-Services-2026/orizon-agents-BE-Stellar
 SEED_REF  ?= origin/main
 SEED_PATH ?= app/seed.py
 # SEED_REPO=none skips the seed-table check (it is reported as SKIPPED).
-# Chapters compared across all four formats (§6 is BLO-47's; §10 and §D
-# changed in 0.5 too). Chapters with code blocks or figures do not compare
-# cleanly: pypdf reorders some code blocks, and the .docx has PNGs for Mermaid.
-CHECK     ?= 6 10 D
+# Chapters compared across the formats: every chapter 0.5 changed (§6 is
+# BLO-47's). The .docx is compared with the -docx.md, where Mermaid is PNGs.
+CHECK     ?= 2 4 5 6 7 9 10 A B C D E
+# Chapters compared without the .pdf: pypdf extracts some of their code
+# blocks out of order, or (§9) a table split across pages repeats its header
+# inside a cell.
+NO_PDF    ?= 4 5 9 A B E
 # FORCE=all (or FORCE=2,5) re-renders figure PNGs whose .mmd is unchanged.
 FORCE     ?=
 
@@ -50,6 +53,7 @@ docx: book figures
 
 check:
 	$(PYTHON) $(BUILD)/check.py --out $(OUT) --pandoc $(PANDOC) $(addprefix --section ,$(CHECK)) \
+	  $(addprefix --no-pdf ,$(NO_PDF)) \
 	  --seed-repo $(SEED_REPO) --seed-ref $(SEED_REF) --seed-path $(SEED_PATH)
 
 test:

@@ -37,7 +37,7 @@ Content-Type: application/json
 
 ### `POST /api/orchestrator/execute`
 
-Spawn the background execution for a plan and return a task id. If `auth_id_hex` and `payer` are supplied, the backend will sign and submit `charge` and `seal` XDR on chain per step.
+Spawn the background execution for a plan and return a task id. If `auth_id_hex` and `payer` are supplied, the backend signs and submits the settlement once, at the end of the run: one `charge` for the workflow's total on the deployed v1 escrow, or one `settle` paying each delivered step on escrow v2 (merged, not deployed), then the `seal` once that confirms, and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`, `_settle_v2`, `_submit_ratings`). On testnet the v1 `charge` cannot complete, so the seal is not reached (§6.9).
 
 ```http
 POST /api/orchestrator/execute
@@ -65,7 +65,7 @@ Single-task snapshot. Returns id, intent, agents involved, status, started times
 
 ### `GET /api/tasks/{task_id}/artifact`
 
-Return the produced `CodeArtifact` once available. Polled by the frontend until `200`.
+Return the produced `CodeArtifact` once available. Polled by the frontend until `200`. `charge_tx` is the run's one settlement transaction, or `null` when none confirmed (BE@a3dc1f9 · app/routers/tasks.py · `ArtifactResponse`).
 
 ```json
 200 OK
@@ -79,7 +79,7 @@ Return the produced `CodeArtifact` once available. Polled by the frontend until 
     "source": "baked",
     "kit_id": "calculator"
   },
-  "charge_tx": ["47a13c…", "8b2f01…", "…"],
+  "charge_tx": "47a13c…",
   "proof_tx":  "0x7fa2c41b…b91d12e4"
 }
 ```
@@ -123,20 +123,24 @@ DAG for the `/app/flow` viewer — node list + edge list.
 
 ### `GET /api/stellar/network`
 
-Canonical source of truth for contract IDs and network metadata.
+Canonical source of truth for contract IDs and network metadata. The response below is the live testnet deployment's, read on 2026-09-29; its shape is the `NetworkInfo` model on BE main (BE@a3dc1f9 · app/routers/stellar.py · `NetworkInfo`, `network`), with the contract ids nested under `contracts`. `dispatch_signer` is `null` when no dispatch key is configured.
 
 ```json
 200 OK
 {
-  "network":          "testnet",
+  "network": "testnet",
+  "rpc_url": "https://soroban-testnet.stellar.org",
   "network_passphrase": "Test SDF Network ; September 2015",
-  "rpc_url":          "https://soroban-testnet.stellar.org",
-  "admin":            "GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
-  "agent_registry":      "CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
-  "payment_escrow":      "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
-  "attestation_registry":"CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
-  "reputation_ledger":   "CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV",
-  "asset_sac":           "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+  "admin": "GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
+  "dispatch_signer": "GB5MKHDFLJZ6OFPAHM7R4HGBUPFV5PZYL3W27VTIUZZ25JMQSDZBKCMR",
+  "asset": "native",
+  "asset_sac": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  "contracts": {
+    "agent_registry": "CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+    "reputation_ledger": "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
+    "payment_escrow": "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+    "attestation_registry": "CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK"
+  }
 }
 ```
 
@@ -164,11 +168,11 @@ Broadcast a signed XDR to Soroban RPC. Returns the transaction hash and any deco
 
 ### `POST /api/stellar/server/charge`
 
-Backend-signed `PaymentEscrow.charge`. Called once per step by the execution service when on-chain settlement is enabled. The request carries `auth_id_hex`, `payer`, `agent_id`, `amount_usdc`, and `job_id_hex`; the response carries `receipt_id` and the broadcast `tx_hash`.
+Backend-signed `PaymentEscrow.charge`, v1 only: against a v2 escrow it answers 409 `charge_unsupported_on_v2`. It sits behind the operator API key when one is configured, and the execution service does not call it; a run settles once, at its end (§A.1). The request carries `auth_id_hex`, `amount_usdc` and `job_id_hex`; the response carries the transaction's `hash`, `status`, `ledger` and decoded `result`, the `receipt_id` (BE@a3dc1f9 · app/routers/stellar.py · `ChargeReq`, `server_charge`; app/stellar/client.py · `_finalize_invoke`). On testnet the charge is signed by the backend's key, which is not the deployed escrow's settler, so the contract refuses it (§6.1).
 
 ### `POST /api/stellar/server/seal`
 
-Backend-signed `AttestationRegistry.seal`. Called once at workflow completion. Carries `job_id_hex`, `orchestrator`, `intent_hash`, `agents[]`, `receipts[]`, `total_spent`; returns the broadcast `tx_hash`.
+Backend-signed `AttestationRegistry.seal`, behind the operator API key when one is configured. The execution service seals a run itself, once, after its settlement confirms, and does not call this route (§A.1). Carries `job_id_hex`, `orchestrator`, `intent_hash_hex`, `agents[]`, `receipts_hex[]`, `total_spent_usdc`; returns the transaction's `hash` and `status` (BE@a3dc1f9 · app/routers/stellar.py · `SealReq`, `server_seal`).
 
 ### `GET /api/stellar/agent/{agent_id}`
 

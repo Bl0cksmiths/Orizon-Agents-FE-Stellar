@@ -388,10 +388,12 @@ and answer for what they ship.</p>
 <h2 id="how-to-read-this-document">How to read this document</h2>
 <ul>
 <li><strong>Operators and grant reviewers</strong>: start at §1 and read
-straight through. Total ~25 pages.</li>
-<li><strong>Developers building agents</strong>: §4 and §5 are written
-for you. The Worker code example in §4 is the smallest thing that
-runs.</li>
+straight through. The PDF runs to about a hundred pages.</li>
+<li><strong>Developers building agents</strong>: an agent of your own is
+an HTTPS endpoint you register on chain and bind (§6.3, §E.2). §4 and §5
+describe how the protocol runs its seeded agents inside the backend; the
+Worker code example in §4 is the smallest of those, and not something an
+outside operator implements (§6.1).</li>
 <li><strong>Investors and ecosystem partners</strong>: §2.2 (competitive
 matrix), §6 (governance), §7 (economics).</li>
 <li><strong>Skeptics</strong>: §5.5 (security), §5.7 (future
@@ -633,11 +635,16 @@ Stellar testnet:</p>
 <li><strong>Pay-per-workflow settlement.</strong> A single
 Freighter-signed <code>authorize</code> operation grants an escrow
 contract the right to draw up to a maximum amount, for a single
-workflow, before an expiry. Each step within the workflow triggers a
-<code>charge</code> that moves USDC from the buyer’s wallet to the agent
-owner’s wallet — without re-prompting the user. When the workflow ends,
-the buyer’s authorisation is consumed; whatever is unspent is returned
-by lapse.</li>
+workflow, before an expiry. The protocol then pays the agents without
+re-prompting the user. That payment is not live on testnet: the deployed
+escrow’s <code>charge</code> cannot move the buyer’s funds on the
+settler’s signature alone, so no workflow has settled through it. Escrow
+v2, merged but not deployed, takes the funds into custody at
+<code>authorize</code> and, in one <code>settle</code>, pays each
+delivered step to its agent’s owner and returns the rest to the buyer
+(§6.8, §6.9; SC@dd2d642 · contract/payment-escrow/src/lib.rs ·
+<code>PaymentEscrow::authorize</code>,
+<code>PaymentEscrow::settle</code>).</li>
 <li><strong>Verifiable execution.</strong> Each workflow emits a stream
 of trace events at seven defined levels (<code>input</code>,
 <code>exec</code>, <code>cost</code>, <code>out</code>,
@@ -654,8 +661,11 @@ JSON-serialisable result. The execution service threads the result of
 every prior step into the <code>context</code> of every later step, so a
 <code>code.gen</code> agent can read the brand identity produced by
 <code>seo.brief</code> two steps earlier without any out-of-band call.
-The same interface is used by twelve seeded agents and by future
-operator-supplied agents.</li>
+The twelve seeded agents implement that interface inside the backend; an
+operator-supplied agent is reached at the HTTPS endpoint its owner
+binds, which the backend wraps in the same interface (§6.1, §6.3;
+BE@a3dc1f9 · app/services/binding_registry.py ·
+<code>resolve_worker</code>).</li>
 <li><strong>Curated demo kits with baked artifacts.</strong> Four
 high-confidence intent classes — <code>tetris</code>,
 <code>calculator</code>, <code>snake</code>, <code>pomodoro</code> —
@@ -667,12 +677,14 @@ output every time. Free-form intents continue through the LLM path; the
 kit path exists to make live demos <em>predictable</em> without
 compromising what the protocol does in the general case.</li>
 <li><strong>On-chain reputation.</strong> A separate
-<code>ReputationLedger</code> accumulates ratings per agent. The settler
-submits ratings after the workflow seals; a replay guard keyed by
-<code>(agent_id, job_id)</code> in temporary storage prevents
-double-counting. Reads are public: any client can query the rolling mean
-and the rating count for any agent, and any operator can use that signal
-to choose between agents at decompose time.</li>
+<code>ReputationLedger</code> accumulates ratings per agent. The scorer,
+which is the platform’s signing key and not the deployed escrow’s
+settler, submits one rating per step of a paid run; a replay guard keyed
+by <code>(agent_id, job_id)</code> in persistent storage prevents
+double-counting (§6.1, §6.7). Reads are public: any client can query the
+decayed, value-weighted mean and the rating count for any agent, and any
+operator can use that signal to choose between agents at decompose
+time.</li>
 </ul>
 <h2 id="comparison">2.2 · Comparison</h2>
 <p>The closest neighbours in the design space are decentralised compute
@@ -827,7 +839,9 @@ settlement</td>
 <td>Marketplace flywheel</td>
 <td>Permissionless agent registration, on-chain reputation signal at
 decompose-time, automated dispute window</td>
-<td>Planned</td>
+<td><strong>Live on testnet</strong>: registration and reputation
+routing (§6.3, §6.7). <strong>Merged, not deployed</strong>: escrow v2,
+without which no dispute window opens on testnet (§6.8)</td>
 </tr>
 <tr>
 <td><strong>Purple</strong></td>
@@ -872,33 +886,55 @@ produces finality in ~5 s. The buyer doesn’t see “pending” for a
 meaningful amount of time, and the orchestrator doesn’t have to choose
 between fast UX and on-chain truth.</li>
 <li><strong>Per-operation fees are denominated in stroops.</strong> A
-six-step workflow today pays the network roughly <strong>0.0006
-XLM</strong> in fees across <code>authorize</code>, six
-<code>charge</code> calls, and <code>seal</code> — well under a tenth of
-a US cent at any plausible XLM price. The protocol can take zero margin
-on a 0.012 USDC translation step and not lose money. That property is
-what made per-call agent commerce <em>economically</em> possible in the
-first place.</li>
+six-step workflow is nine transactions, not one per step: the buyer’s
+<code>authorize</code>, then from the backend one <code>settle</code>
+under escrow v2 (one <code>charge</code> for the workflow’s total on the
+deployed v1), one <code>seal</code> and six rating <code>submit</code>s
+(BE@a3dc1f9 · app/services/execution_svc.py · <code>_settle_v2</code>,
+<code>_settle_onchain</code>, <code>_submit_ratings</code>). Soroban
+calls cost far more than a classic payment’s 100 stroops: measured on
+testnet, about <strong>0.048 XLM</strong> for the eight of those nine
+whose cost has been observed, before <code>settle</code>, which has
+never run because v2 is not deployed (§7.4). That is about 2.4 US cents
+at an assumed USD 0.50 per XLM (an assumption made on 2026-09-29, not a
+quote). The platform pays every one of those fees except the buyer’s
+<code>authorize</code> and takes no margin, so on a 0.012 USDC step it
+runs at a loss today.</li>
 <li><strong>Stablecoin native.</strong> USDC issued on Stellar is held
 in the buyer’s wallet directly, transferable as a Stellar asset. The
 Stellar Asset Contract (SAC) gives Soroban code a
 <code>Token::transfer</code> interface to the asset without bridges,
 oracles, or stable-mint wrappers. The protocol’s
-<code>PaymentEscrow.charge</code> calls <code>SAC::transfer</code>
-directly — six lines of Rust, one cross-contract hop, and the payment is
-final.</li>
+<code>PaymentEscrow</code> calls <code>SAC::transfer</code> directly —
+one cross-contract hop. In the deployed v1 escrow that call sits in
+<code>charge</code> and cannot complete, because the transfer needs the
+buyer’s signature and the charge transaction carries only the settler’s;
+escrow v2, merged but not deployed, makes the transfer inside the
+buyer-signed <code>authorize</code>, into custody, and pays out from
+there at <code>settle</code> (§6.9; SC@88aa554 ·
+contract/payment-escrow/src/lib.rs · <code>PaymentEscrow::charge</code>;
+SC@dd2d642 · same file · <code>PaymentEscrow::authorize</code>,
+<code>PaymentEscrow::settle</code>).</li>
 <li><strong>Soroban gives us composability without rewriting the
-language.</strong> The four contracts compile to ~26 KB of WASM total.
-Storage is tiered (<code>Instance</code>, <code>Persistent</code>,
-<code>Temporary</code>) which lets us put the replay guard in
-<code>Temporary</code> for free expiry and the attestation in
-<code>Persistent</code> for forever. No external indexer is needed for
-events — Soroban RPC indexes them for us.</li>
+language.</strong> The four deployed contracts are 32.7 KB of WASM in
+total (33,532 bytes, fetched from testnet; §5.3). Storage is tiered
+(<code>Instance</code>, <code>Persistent</code>, <code>Temporary</code>)
+which lets us keep the attestation and the rating replay guard in
+<code>Persistent</code> for good. The first ledger kept the replay guard
+in <code>Temporary</code>, where it expired and re-opened the replay
+window; the deployed ledger keeps it in <code>Persistent</code>
+(SC@dd2d642 · contract/reputation-ledger/src/lib.rs ·
+<code>DataKey::Rated</code>). No external indexer is needed for events —
+Soroban RPC indexes them for us.</li>
 </ul>
 <p>We do not claim Stellar is the only substrate where this protocol
 could be built. We claim it is the only substrate where this protocol
-can be built with a v1 that <strong>charges 1.1 cents per step,
-finalises in 5 s, and ships with 26 KB of contract code</strong>. Every
+can be built with a v1 that <strong>prices a step at 2.8 cents on
+average, finalises in 5 s, and ships with 33 KB of contract
+code</strong>. The average is the six kit steps’ seeded prices, 0.024 +
+0.009 + 0.018 + 0.054 + 0.052 + 0.011 = 0.168 USDC, divided by six
+(BE@a3dc1f9 · app/seed.py · <code>_SEED</code>;
+app/services/orchestrator_svc.py · <code>_KIT_PIPELINE</code>). Every
 other chain we evaluated forced a compromise on one of those three
 numbers.</p>
 <p>The next chapter walks through what users actually do with the
@@ -1335,16 +1371,20 @@ new worker</em> plugged into the existing pipeline:</p>
 <code>run(intent, rationale, context)</code>.</li>
 <li>Add the agent to the registry seed
 (<code>backend/app/seed.py</code>) with a price and a starting
-reputation.</li>
+reputation. The starting reputation is a display value; routing never
+reads it, and a seeded agent is floored on its on-chain evidence like
+any other (§6.2).</li>
 <li>Optionally add a <code>DemoKit</code> whose plan references the new
 agent — this gives the agent a deterministic, demo-grade activation
 path.</li>
-<li>Register the agent on chain by signing a
-<code>register(owner, id, name, skills, price)</code> XDR for the
-<code>AgentRegistry</code> contract.</li>
 </ol>
-<p>Step 4 is the only step that requires Stellar. Everything before it
-is plain Python.</p>
+<p>None of this touches Stellar. A seeded agent is a backend record, not
+an on-chain registration: the seed set owns the <code>agt_</code>
+namespace, and the backend will not build a registration for such an id
+(§6.2; BE@a3dc1f9 · app/routers/stellar.py ·
+<code>build_register_agent</code>). This path is for contributors to the
+backend. An outside operator instead registers its own id on chain and
+binds an HTTPS endpoint (§6.3, §E.2).</p>
 <h2 id="a-real-worker-end-to-end">4.5 · A real worker, end-to-end</h2>
 <p>The shipped <code>research.pro</code> worker shows every concern in
 one place: kit short-circuit, optional model call, context read, summary
@@ -1478,8 +1518,13 @@ wins, ordered to put more specific tokens before less specific:</p>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span></span></code></pre></div>
 <p>For the free-form path, the orchestrator is a single Agno-wrapped
 chat agent whose system prompt is built from the live agent registry —
-every seeded agent’s id, name, skills, price, and rolling reputation is
-injected before the user’s intent. The agent returns a <code>Plan</code>
+every routable agent’s id, name, skills, price, and reputation is
+injected before the user’s intent. Routable means listed, dispatchable
+and above the reputation floor, seeded or registered alike (§6.3, §6.7),
+and the reputation shown is the prior-smoothed on-chain score on a 0–5
+display scale, never a seeded or self-declared value (BE@a3dc1f9 ·
+app/services/orchestrator_svc.py · <code>_routable_registry</code>,
+<code>_smoothed_score</code>). The agent returns a <code>Plan</code>
 object validated against the Pydantic schema
 (<code>Plan{plan_id, intent, steps[], total_usdc, total_eta}</code>);
 any malformed return is rejected and re-rolled up to three times before
@@ -1532,9 +1577,10 @@ body: { plan_id, auth_id_hex?, payer? }
 and returns the task id immediately. The frontend opens an
 <code>EventSource</code> to <code>/api/trace/{task_id}/stream</code> and
 watches the workflow unfold.</p>
-<p>Inside <code>_run()</code>, the loop is (verbatim from
-<code>backend/app/services/execution_svc.py</code>, lightly abridged for
-prose):</p>
+<p>Inside <code>_run()</code>, the loop is (abridged from BE@a3dc1f9 ·
+app/services/execution_svc.py · <code>_run</code>; the real function
+also resolves external endpoints, tracks failures and records the
+settlement):</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> _run(plan: Plan, task_id: <span class="bu">str</span>, auth_id_hex: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>, payer: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>):</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    start <span class="op">=</span> time.monotonic()</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    context: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {<span class="st">&quot;intent&quot;</span>: plan.intent}</span>
@@ -1543,64 +1589,58 @@ prose):</p>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;input&quot;</span>, <span class="ss">f&quot;intent received → </span><span class="sc">{</span>plan<span class="sc">.</span>intent<span class="sc">!r}</span><span class="ss">&quot;</span>)</span>
 <span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    receipts: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> []</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> step <span class="kw">in</span> plan.steps:</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;exec&quot;</span>,</span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f&quot;match agent: </span><span class="sc">{</span>step<span class="sc">.</span>name<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>step<span class="sc">.</span>agent_id<span class="sc">}</span><span class="ss">) — </span><span class="sc">{</span>step<span class="sc">.</span>rationale<span class="sc">}</span><span class="ss">&quot;</span>)</span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        worker <span class="op">=</span> workers_by_id(step.agent_id)</span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> worker <span class="kw">is</span> <span class="va">None</span>:</span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;error&quot;</span>,</span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>                        <span class="ss">f&quot;unknown agent </span><span class="sc">{</span>step<span class="sc">.</span>agent_id<span class="sc">}</span><span class="ss">&quot;</span>)</span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span></span>
-<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
-<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>            result <span class="op">=</span> <span class="cf">await</span> asyncio.wait_for(</span>
-<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>                worker.run(plan.intent, step.rationale, context<span class="op">=</span>context),</span>
-<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>                timeout<span class="op">=</span><span class="fl">120.0</span>,</span>
-<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> asyncio.<span class="pp">TimeoutError</span>:</span>
-<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;error&quot;</span>,</span>
-<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>                        <span class="ss">f&quot;</span><span class="sc">{</span>step<span class="sc">.</span>name<span class="sc">}</span><span class="ss"> timed out after 120s&quot;</span>)</span>
-<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    delivered: <span class="bu">dict</span>[<span class="bu">int</span>, Any] <span class="op">=</span> {}</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    spent <span class="op">=</span> <span class="fl">0.0</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> step_index, step <span class="kw">in</span> <span class="bu">enumerate</span>(plan.steps):</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;exec&quot;</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f&quot;match agent: </span><span class="sc">{</span>step<span class="sc">.</span>name<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span>step<span class="sc">.</span>agent_id<span class="sc">}</span><span class="ss">) — </span><span class="sc">{</span>step<span class="sc">.</span>rationale<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        worker <span class="op">=</span> get_worker(step.agent_id)</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> worker <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;error&quot;</span>,</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>                        <span class="ss">f&quot;unknown agent </span><span class="sc">{</span>step<span class="sc">.</span>agent_id<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span>                      <span class="co"># the step fails; the run goes on</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>            result <span class="op">=</span> <span class="cf">await</span> asyncio.wait_for(</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>                worker.run(plan.intent, step.rationale, context<span class="op">=</span>context),</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>                timeout<span class="op">=</span>STEP_TIMEOUT_SECONDS,   <span class="co"># 120 s</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> asyncio.<span class="pp">TimeoutError</span>:</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;error&quot;</span>, <span class="ss">f&quot;</span><span class="sc">{</span>worker<span class="sc">.</span>name<span class="sc">}</span><span class="ss"> timed out&quot;</span>)</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
 <span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Charge — happens only after a successful return.</span></span>
-<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> auth_id_hex <span class="kw">and</span> payer:</span>
-<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>            receipt_id, charge_tx <span class="op">=</span> <span class="cf">await</span> stellar.charge(</span>
-<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>                auth_id_hex<span class="op">=</span>auth_id_hex,</span>
-<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>                payer<span class="op">=</span>payer,</span>
-<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>                agent_id<span class="op">=</span>step.agent_id,</span>
-<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>                amount_usdc<span class="op">=</span>step.price_usdc,</span>
-<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>                job_id_hex<span class="op">=</span>task_id,</span>
-<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>            receipts.append(receipt_id)</span>
-<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;cost&quot;</span>,</span>
-<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>                        <span class="ss">f&quot;x402 payment → </span><span class="sc">{</span>step<span class="sc">.</span>agent_id<span class="sc">}</span><span class="ss"> :: &quot;</span></span>
-<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>                        <span class="ss">f&quot;</span><span class="sc">{</span>step<span class="sc">.</span>price_usdc<span class="sc">}</span><span class="ss"> USDC (</span><span class="sc">{</span>charge_tx<span class="sc">}</span><span class="ss">)&quot;</span>)</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Nothing is paid inside the loop: a delivered step is only noted.</span></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>        delivered[step_index] <span class="op">=</span> result</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>        spent <span class="op">+=</span> step.est_price_usdc</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Emit summary + (optional) artifact.</span></span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;out&quot;</span>,</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>                    result.get(<span class="st">&quot;summary&quot;</span>, <span class="st">&quot;(no summary)&quot;</span>))</span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (artifact <span class="op">:=</span> result.get(<span class="st">&quot;artifact&quot;</span>)):</span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;artifact&quot;</span>,</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>                        artifact_summary(artifact))</span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>            state.artifacts[task_id] <span class="op">=</span> artifact</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>        context[step.name] <span class="op">=</span> result  <span class="co"># plumb forward</span></span>
 <span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Emit summary + (optional) artifact.</span></span>
-<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;out&quot;</span>,</span>
-<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a>                    result.get(<span class="st">&quot;summary&quot;</span>, <span class="st">&quot;(no summary)&quot;</span>))</span>
-<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (artifact <span class="op">:=</span> result.get(<span class="st">&quot;artifact&quot;</span>)):</span>
-<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a>            <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;artifact&quot;</span>,</span>
-<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a>                        artifact_summary(artifact))</span>
-<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>            state.artifacts[task_id] <span class="op">=</span> artifact</span>
-<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>        context[step.name] <span class="op">=</span> result  <span class="co"># plumb forward</span></span>
-<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Seal — write-once attestation on chain.</span></span>
-<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> auth_id_hex <span class="kw">and</span> payer:</span>
-<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a>        seal_tx <span class="op">=</span> <span class="cf">await</span> stellar.seal(</span>
-<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>            job_id_hex<span class="op">=</span>task_id,</span>
-<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a>            orchestrator<span class="op">=</span>payer,</span>
-<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a>            intent_hash<span class="op">=</span>hash_intent(plan.intent),</span>
-<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a>            agents<span class="op">=</span>[s.agent_id <span class="cf">for</span> s <span class="kw">in</span> plan.steps],</span>
-<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a>            receipts<span class="op">=</span>receipts,</span>
-<span id="cb8-61"><a href="#cb8-61" aria-hidden="true" tabindex="-1"></a>            total_spent<span class="op">=</span><span class="bu">sum</span>(s.price_usdc <span class="cf">for</span> s <span class="kw">in</span> plan.steps),</span>
-<span id="cb8-62"><a href="#cb8-62" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb8-63"><a href="#cb8-63" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> _emit(task_id, start, <span class="st">&quot;proof&quot;</span>,</span>
-<span id="cb8-64"><a href="#cb8-64" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f&quot;workflow sealed — </span><span class="sc">{</span><span class="bu">len</span>(plan.steps)<span class="sc">}</span><span class="ss"> agents · &quot;</span></span>
-<span id="cb8-65"><a href="#cb8-65" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f&quot;</span><span class="sc">{</span><span class="bu">sum</span>(s.price_usdc <span class="cf">for</span> s <span class="kw">in</span> plan.steps)<span class="sc">}</span><span class="ss"> USDC · &quot;</span></span>
-<span id="cb8-66"><a href="#cb8-66" aria-hidden="true" tabindex="-1"></a>                    <span class="ss">f&quot;tx </span><span class="sc">{</span>seal_tx<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Settle once, at the end, for the delivered steps; seal after it confirms.</span></span>
+<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a>    job_id <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> auth_id_hex <span class="kw">and</span> payer <span class="kw">and</span> delivered:</span>
+<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="cf">await</span> _escrow_version() <span class="op">&gt;=</span> <span class="dv">2</span>:</span>
+<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a>            <span class="co"># v2: one `settle` pays each delivered step&#39;s owner from custody</span></span>
+<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a>            <span class="co"># and returns the rest to the buyer, then the seal.</span></span>
+<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>            settle_tx, proof_tx, job_id <span class="op">=</span> <span class="cf">await</span> _settle_v2(</span>
+<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a>                task_id, start, plan, payer<span class="op">=</span>payer, auth_id_hex<span class="op">=</span>auth_id_hex,</span>
+<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>                delivered_steps<span class="op">=</span><span class="bu">frozenset</span>(delivered))</span>
+<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a>            <span class="co"># v1 (deployed): one `charge` for the workflow&#39;s total, then the seal.</span></span>
+<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a>            charge_tx, proof_tx, job_id <span class="op">=</span> <span class="cf">await</span> _settle_onchain(</span>
+<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a>                task_id, start, plan, payer<span class="op">=</span>payer, auth_id_hex<span class="op">=</span>auth_id_hex,</span>
+<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>                total_usdc<span class="op">=</span>spent)</span>
+<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a>    <span class="co"># One rating per dispatched step, whether or not the money moved.</span></span>
+<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> auth_id_hex <span class="kw">and</span> payer:</span>
+<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> _submit_ratings(task_id, start, plan, delivered, payer<span class="op">=</span>payer,</span>
+<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a>                              job_id<span class="op">=</span>job_id <span class="kw">or</span> unsettled_job_id(task_id))</span></code></pre></div>
 <p>Three properties of this loop are worth highlighting.</p>
 <p><strong>Context is monotonic.</strong> Every result is keyed by the
 worker’s <code>name</code> (<code>code.gen</code>,
@@ -1608,14 +1648,17 @@ worker’s <code>name</code> (<code>code.gen</code>,
 read prior outputs by name. No worker ever sees a partial dict; the
 merge happens after a successful return.</p>
 <p><strong>Timeouts are enforced.</strong> A worker has 120 seconds to
-return. If it does not, the wrapper emits an <code>error</code> line,
-the workflow stops, the buyer’s authorisation lapses on its own TTL, and
-no further charges are emitted. We never attempt to “kill” a worker; we
-just stop waiting.</p>
-<p><strong>Charges happen out-of-loop relative to the result.</strong>
-The charge is emitted <em>after</em> the worker returns successfully. A
-failed worker never produces a charge. This means a buyer pays for value
-that arrived, never for value that didn’t.</p>
+return. If it does not, the wrapper emits an <code>error</code> line and
+the run moves on to the next step; the step that timed out is not
+billed. We never attempt to “kill” a worker; we just stop waiting.</p>
+<p><strong>Settlement happens once, after the loop.</strong> Nothing is
+paid per step. At the end of the run the backend submits one settlement
+for the delivered steps only: one <code>settle</code> under escrow v2,
+one <code>charge</code> for the workflow’s total on the deployed v1,
+which cannot complete on testnet (§6.9). A failed step is never billed,
+so a buyer pays for value that arrived, never for value that didn’t
+(BE@a3dc1f9 · app/services/execution_svc.py · <code>_run</code>,
+<code>_settle_v2</code>, <code>_settle_onchain</code>).</p>
 <p>The <code>code.critic</code> worker uses a parallel short-circuit:
 when the prior step’s result carries <code>source: &quot;baked&quot;</code>, the
 critic runs the structural validator
@@ -1725,27 +1768,28 @@ modules.</p>
 <tr>
 <td><code>AgentRegistry</code></td>
 <td><code>CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ</code></td>
-<td style="text-align: center;">7.2 KB</td>
+<td style="text-align: center;">7.2 KB (7,335 B)</td>
 <td>Identity, skills, price catalog; resolves agent owner for
 payout</td>
 </tr>
 <tr>
 <td><code>PaymentEscrow</code></td>
 <td><code>CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI</code></td>
-<td style="text-align: center;">9.8 KB</td>
+<td style="text-align: center;">9.7 KB (9,953 B)</td>
 <td>x402 authorize → charge → receipt flow; calls registry + SAC</td>
 </tr>
 <tr>
 <td><code>AttestationRegistry</code></td>
 <td><code>CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK</code></td>
-<td style="text-align: center;">5.1 KB</td>
+<td style="text-align: center;">5.1 KB (5,192 B)</td>
 <td>Write-once workflow receipt under a job id</td>
 </tr>
 <tr>
 <td><code>ReputationLedger</code></td>
-<td><code>CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV</code></td>
-<td style="text-align: center;">5.1 KB</td>
-<td>Rolling-mean rating per agent with replay guard</td>
+<td><code>CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT</code></td>
+<td style="text-align: center;">10.8 KB (11,052 B)</td>
+<td>Decayed, value-weighted rating evidence per agent, 0–10,000 bps,
+with replay guard</td>
 </tr>
 <tr>
 <td>Native XLM SAC</td>
@@ -1755,64 +1799,86 @@ payout</td>
 </tr>
 </tbody>
 </table>
+<p>The WASM sizes are the code deployed at each address, fetched
+read-only from testnet with <code>stellar contract fetch</code> on
+2026-09-29 (1 KB = 1,024 bytes); the four total 33,532 bytes, 32.7 KB.
+Their sha256 hashes, which are the on-chain WASM hashes, begin
+<code>a56d2db5</code>, <code>d732e8e6</code>, <code>7146c4dc</code> and
+<code>2fc4965a</code> in table order. Escrow v2 is not deployed, and its
+size is not measured.</p>
 <p>The contracts share a small types crate
 (<code>contract/shared</code>) exporting <code>Agent</code>,
-<code>Authorization</code>, <code>Receipt</code>,
-<code>Attestation</code>, and <code>Score</code>. Identifiers
-(<code>auth_id</code>, <code>receipt_id</code>, <code>job_id</code>) are
-<code>BytesN&lt;16&gt;</code> derived deterministically from an
-incrementing nonce — concretely, sixteen bytes formed by eight zero
-bytes concatenated with the eight-byte big-endian nonce. This avoids
-ledger-state-dependent IDs and keeps simulation results stable.</p>
+<code>Authorization</code>, <code>Receipt</code> and
+<code>Attestation</code>; the ledger’s <code>RepState</code> lives in
+the ledger itself (SC@dd2d642 · contract/shared/src/lib.rs;
+contract/reputation-ledger/src/lib.rs · <code>RepState</code>).
+Identifiers (<code>auth_id</code>, <code>receipt_id</code>,
+<code>job_id</code>) are <code>BytesN&lt;16&gt;</code> derived
+deterministically from an incrementing nonce — concretely, sixteen bytes
+formed by eight zero bytes concatenated with the eight-byte big-endian
+nonce. This avoids ledger-state-dependent IDs and keeps simulation
+results stable.</p>
 <pre class="mermaid"><code>flowchart LR
     Buyer[&quot;Buyer wallet&quot;]
-    Settler[&quot;Protocol settler key&quot;]
+    Settler[&quot;Settler&lt;br/&gt;deployed v1: admin key&lt;br/&gt;v2: backend signing key&quot;]
+    Backend[&quot;Backend signing key&lt;br/&gt;scorer · sealer&quot;]
     Owner[&quot;Agent owner wallet&quot;]
     Reader[&quot;Buyer · auditor&lt;br/&gt;· other orchestrator&quot;]
 
     Buyer -- &quot;authorize(payer, agent_id,&lt;br/&gt;max_amount, expires_at)&quot; --&gt; PE[&quot;PaymentEscrow&quot;]
-    Settler -- &quot;charge(auth_id, amount, job_id)&quot; --&gt; PE
+    Settler -- &quot;v1: charge(auth_id, total, job_id)&lt;br/&gt;v2: settle(auth_id, job_id, payouts)&quot; --&gt; PE
     PE -- &quot;owner_of(agent_id)&quot; --&gt; AR[&quot;AgentRegistry&quot;]
     PE -- &quot;Token::transfer&quot; --&gt; SAC[&quot;Native XLM SAC&quot;]
-    SAC -- &quot;USDC payout&quot; --&gt; Owner
+    SAC -- &quot;payout&quot; --&gt; Owner
 
-    Settler -- &quot;seal(job_id, agents,&lt;br/&gt;receipts, total_spent)&quot; --&gt; AT[&quot;AttestationRegistry&quot;]
-    Settler -- &quot;submit(agent_id, rating, job_id)&quot; --&gt; RL[&quot;ReputationLedger&quot;]
+    Backend -- &quot;seal(job_id, agents,&lt;br/&gt;receipts, total_spent)&quot; --&gt; AT[&quot;AttestationRegistry&quot;]
+    Backend -- &quot;submit(agent_id, job_id,&lt;br/&gt;rating_0_to_100, weight, payer, kind)&quot; --&gt; RL[&quot;ReputationLedger&quot;]
 
     AT -. &quot;get(job_id)&quot; .-&gt; Reader
-    RL -. &quot;avg_bps(agent_id)&quot; .-&gt; Reader
+    RL -. &quot;rep_state · avg_bps(agent_id)&quot; .-&gt; Reader
 
     classDef wallet fill:#FFFFFF,stroke:#5A2EFF,stroke-width:1.5px,color:#14131A
     classDef contract fill:#F4F2F8,stroke:#14131A,stroke-width:1px,color:#14131A
-    class Buyer,Settler,Owner,Reader wallet
+    class Buyer,Settler,Backend,Owner,Reader wallet
     class PE,AR,AT,RL,SAC contract</code></pre>
 <p><strong>Figure 3.</strong> Soroban contract topology —
 <code>PaymentEscrow</code> resolves agent ownership through
 <code>AgentRegistry</code> and routes settlement through the native XLM
 SAC; <code>AttestationRegistry</code> and <code>ReputationLedger</code>
-are write paths for the settler and public read paths for everyone
-else.</p>
+are write paths for the sealer and the scorer and public read paths for
+everyone else. On testnet the sealer and the scorer are the backend’s
+signing key, <code>GDB4N2…CDHP</code>, and the deployed escrow’s settler
+is the admin key, <code>GA7AI5…5OQV</code>; the backend key becomes the
+settler once escrow v2 is deployed (§6.1).</p>
 <p>The on-chain x402 flow is four steps. A buyer calls
 <code>authorize(payer, agent_id, max_amount, expires_at)</code> once and
-receives an <code>auth_id</code>. The settler (the protocol’s backend)
-calls <code>charge(caller, auth_id, amount, job_id)</code> per step,
-which validates the authorisation, looks up the agent owner via
+receives an <code>auth_id</code>. The settler calls
+<code>charge(caller, auth_id, amount, job_id)</code>, which validates
+the authorisation, looks up the agent owner via
 <code>AgentRegistry.owner_of(agent_id)</code>, and transfers USDC from
-the buyer to the owner via the asset’s <code>Token::transfer</code>. The
-settler calls
+the buyer to the owner via the asset’s <code>Token::transfer</code>. On
+the deployed escrow the settler is the admin key, not the backend’s, and
+that transfer cannot complete, because it needs the buyer’s signature,
+which the charge transaction does not carry (§6.1, §6.9; SC@88aa554 ·
+contract/payment-escrow/src/lib.rs ·
+<code>PaymentEscrow::charge</code>). The backend submits one
+<code>charge</code> for the workflow’s total (BE@a3dc1f9 ·
+app/services/execution_svc.py · <code>_settle_onchain</code>). The
+sealer calls
 <code>seal(caller, job_id, orchestrator, intent_hash, agents, receipts, total_spent)</code>
 on <code>AttestationRegistry</code> once at the end — write-once, second
 seal of the same <code>job_id</code> returns <code>AlreadyExists</code>.
-A scorer calls <code>submit(caller, agent_id, rating, job_id)</code> on
-<code>ReputationLedger</code>, with a
-<code>Rated(agent_id, job_id)</code> temporary-storage key guarding
-against replay.</p>
+The scorer calls
+<code>submit(caller, agent_id, job_id, rating_0_to_100, weight, payer, kind)</code>
+on <code>ReputationLedger</code>, with a
+<code>Rated(agent_id, job_id)</code> persistent-storage key guarding
+against replay. The sealer and the scorer are the backend’s signing key
+on testnet (§6.1).</p>
 <h3 id="contract-apis-verbatim">5.3.1 · Contract APIs — verbatim</h3>
 <p>The four contracts share a small types crate exporting
-<code>Agent</code>, <code>Authorization</code>, <code>Receipt</code>,
-<code>Attestation</code>, and <code>Score</code>. Below, every public
-entry point is listed with its exact signature from
-<code>contract/*/src/lib.rs</code>.</p>
+<code>Agent</code>, <code>Authorization</code>, <code>Receipt</code> and
+<code>Attestation</code>. Below, every public entry point is listed with
+its exact signature from <code>contract/*/src/lib.rs</code>.</p>
 <p><strong><code>AgentRegistry</code></strong> — agent identity, skills,
 price catalog. Storage keyed by <code>Agent(Symbol)</code>.</p>
 <table>
@@ -1996,10 +2062,12 @@ workflow seal. Storage keyed by <code>Job(BytesN&lt;16&gt;)</code>.</p>
 </tr>
 </tbody>
 </table>
-<p><strong><code>ReputationLedger</code></strong> — rolling-mean rating
-per agent. Storage keyed by <code>Score(Symbol)</code> for the aggregate
-and <code>Rated(Symbol, BytesN&lt;16&gt;)</code> (temporary tier) for
-the replay guard.</p>
+<p><strong><code>ReputationLedger</code></strong> — decayed,
+value-weighted rating evidence per agent, on a 0–10,000 basis-point
+scale. Storage keyed by <code>Rep(Symbol)</code> for the aggregate and
+<code>Rated(Symbol, BytesN&lt;16&gt;)</code> (persistent tier) for the
+replay guard (SC@dd2d642 · contract/reputation-ledger/src/lib.rs ·
+<code>ReputationLedger</code>, <code>DataKey</code>).</p>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -2024,22 +2092,47 @@ the replay guard.</p>
 </tr>
 <tr>
 <td><code>submit</code></td>
-<td><code>(env, caller, agent_id, rating_0_to_5, job_id) → Result&lt;(), Error&gt;</code></td>
+<td><code>(env, caller, agent_id, job_id, rating_0_to_100, weight, payer, kind) → Result&lt;(), Error&gt;</code></td>
 <td>scorer only</td>
-<td>Step 4; errs <code>Replay</code> on <code>(agent_id, job_id)</code>
-duplicate, errs <code>OutOfRange</code> if rating &gt; 5</td>
+<td>Step 4; stores the rating as <code>rating_0_to_100 × 100</code> bps,
+weighted by the job’s value; errs <code>Replay</code> on
+<code>(agent_id, job_id)</code> duplicate, errs <code>OutOfRange</code>
+if rating &gt; 100 or the weight is outside 0 &lt; weight ≤ 100
+USDC</td>
 </tr>
 <tr>
-<td><code>score</code></td>
-<td><code>(env, agent_id) → Score</code></td>
+<td><code>rep_state</code></td>
+<td><code>(env, agent_id) → RepState</code></td>
 <td>public</td>
-<td>Raw <code>{sum, count}</code> for the agent</td>
+<td>Raw evidence
+<code>{sum_w, weight, count, disputed, last_epoch}</code>, decayed to
+now</td>
 </tr>
 <tr>
 <td><code>avg_bps</code></td>
 <td><code>(env, agent_id) → u32</code></td>
 <td>public</td>
-<td>Rolling mean × 10 000 (basis points); 0 if no ratings yet</td>
+<td>Decayed, weighted mean in basis points, clamped to 0..10,000; 0 if
+no ratings yet</td>
+</tr>
+<tr>
+<td><code>rep_bps</code></td>
+<td><code>(env, agent_id, prior_bps, prior_weight) → u32</code></td>
+<td>public</td>
+<td>The mean smoothed by a caller-supplied prior, clamped to
+0..10,000</td>
+</tr>
+<tr>
+<td><code>dispute_rate_bps</code></td>
+<td><code>(env, agent_id) → u32</code></td>
+<td>public</td>
+<td>Lifetime <code>disputed × 10,000 / count</code></td>
+</tr>
+<tr>
+<td><code>payer_weight</code></td>
+<td><code>(env, agent_id, payer) → i128</code></td>
+<td>public</td>
+<td>Cumulative weight one payer has contributed to the agent</td>
 </tr>
 <tr>
 <td><code>set_scorer</code></td>
@@ -2115,7 +2208,8 @@ caller</td>
 <tr>
 <td style="text-align: center;">100</td>
 <td><code>OutOfRange</code></td>
-<td><code>ReputationLedger.submit</code> — rating &gt; 5</td>
+<td><code>ReputationLedger.submit</code> — rating &gt; 100, or weight
+outside 0 &lt; weight ≤ 100 USDC</td>
 </tr>
 <tr>
 <td style="text-align: center;">101</td>
@@ -2129,7 +2223,8 @@ sequence</h3>
 <pre class="mermaid"><code>sequenceDiagram
     autonumber
     participant Buyer as Buyer wallet
-    participant Setl as Protocol settler
+    participant Setl as Settler (v1: admin key)
+    participant Key as Backend key (sealer · scorer)
     participant PE as PaymentEscrow
     participant AR as AgentRegistry
     participant SAC as Native XLM SAC
@@ -2139,26 +2234,38 @@ sequence</h3>
     Buyer-&gt;&gt;PE: authorize(payer, agent_id, max_amount, expires_at)
     PE--&gt;&gt;Buyer: auth_id : BytesN&lt;16&gt;
 
-    loop For each step
-        Setl-&gt;&gt;PE: charge(caller=settler, auth_id, amount, job_id)
-        PE-&gt;&gt;PE: assert !revoked &amp; not expired&lt;br/&gt;assert spent + amount ≤ max
-        PE-&gt;&gt;AR: owner_of(agent_id)
-        AR--&gt;&gt;PE: agent_owner : Address
-        PE-&gt;&gt;SAC: Token::transfer(payer → owner, amount)
-        SAC--&gt;&gt;PE: ok
-        PE-&gt;&gt;PE: spent += amount&lt;br/&gt;store Receipt
-        PE--&gt;&gt;Setl: receipt_id : BytesN&lt;16&gt;
-    end
+    Note over Setl,PE: once per workflow, after the last step
+    Setl-&gt;&gt;PE: charge(caller=settler, auth_id, total, job_id)
+    PE-&gt;&gt;PE: assert !revoked &amp; not expired&lt;br/&gt;assert spent + total ≤ max
+    PE-&gt;&gt;AR: owner_of(agent_id)
+    AR--&gt;&gt;PE: agent_owner : Address
+    PE-&gt;&gt;SAC: Token::transfer(payer → owner, total)
+    SAC--&gt;&gt;PE: needs the payer&#39;s signature, so fails on testnet
+    PE-&gt;&gt;PE: spent += total&lt;br/&gt;store Receipt
+    PE--&gt;&gt;Setl: receipt_id : BytesN&lt;16&gt;
 
-    Setl-&gt;&gt;AT: seal(caller=settler, job_id, orchestrator,&lt;br/&gt;intent_hash, agents[], receipts[], total_spent)
+    Key-&gt;&gt;AT: seal(caller=sealer, job_id, orchestrator,&lt;br/&gt;intent_hash, agents[], receipts[], total_spent)
     AT-&gt;&gt;AT: assert !exists(job_id)&lt;br/&gt;store Attestation
-    AT--&gt;&gt;Setl: ok
+    AT--&gt;&gt;Key: ok
 
-    Setl-&gt;&gt;RL: submit(caller=scorer, agent_id, rating, job_id)
-    RL-&gt;&gt;RL: assert !Rated(agent_id, job_id)&lt;br/&gt;sum += rating, count += 1
-    RL--&gt;&gt;Setl: ok</code></pre>
-<p><strong>Figure 5.</strong> The x402 flow as actually executed across
-the four contracts and the asset SAC.</p>
+    loop For each dispatched step
+        Key-&gt;&gt;RL: submit(caller=scorer, agent_id, job_id,&lt;br/&gt;rating_0_to_100, weight, payer, kind)
+        RL-&gt;&gt;RL: assert !Rated(agent_id, job_id)&lt;br/&gt;decay, then sum_w += rating × 100 × weight&lt;br/&gt;weight += weight, count += 1
+        RL--&gt;&gt;Key: ok
+    end</code></pre>
+<p><strong>Figure 5.</strong> The x402 flow on the deployed v1 contracts
+as the backend drives it: one <code>charge</code> for the workflow’s
+total, the seal once it confirms, and one rating per dispatched step
+(BE@a3dc1f9 · app/services/execution_svc.py ·
+<code>_settle_onchain</code>, <code>_submit_ratings</code>; SC@dd2d642 ·
+contract/reputation-ledger/src/lib.rs ·
+<code>ReputationLedger::submit</code>). On testnet the
+<code>Token::transfer</code> step fails, because the buyer’s signature
+is not in the charge transaction, so no charge has completed and the
+seal is not reached; the ratings are written regardless. Escrow v2,
+merged but not deployed, takes custody at <code>authorize</code> and
+replaces the <code>charge</code> with one <code>settle</code> that pays
+each delivered step’s owner and returns the rest (§6.8, §6.9).</p>
 <p>The contracts are non-upgradable. Logic changes mean a redeployment
 and a registry rewrite — a property we keep deliberately, until the
 protocol is mature enough to justify a proxy.</p>
@@ -2199,12 +2306,12 @@ mimics the real model-driven path’s <em>feel</em> without taking the
 model’s time. The shipped trace replay at <code>/app/trace</code> uses
 the same timing budget.</p>
 <p>Per-contract WASM sizes (release profile, <code>opt-level=&quot;z&quot;</code>,
-<code>lto=true</code>, panic=abort) are documented in §5.3. The largest,
-<code>PaymentEscrow</code>, is 9.8 KB; the simplest,
+<code>lto=true</code>, panic=abort) are documented in §5.3. The largest
+deployed, <code>ReputationLedger</code>, is 10.8 KB; the smallest,
 <code>AttestationRegistry</code>, is 5.1 KB. Storage growth per workflow
 is bounded: one <code>Receipt</code> per step, one
-<code>Attestation</code> per workflow, optional <code>Rated</code>
-markers in temporary storage that lapse with the network TTL.</p>
+<code>Attestation</code> per workflow, one <code>Rated</code> marker per
+rating in persistent storage, which does not lapse.</p>
 <h2 id="security">5.5 · Security</h2>
 <p>The shipped surface area is small enough to reason about. We list the
 threats, the mitigations, and — explicitly — what we do <em>not</em>
@@ -2215,14 +2322,18 @@ it; the backend only ever sees signed XDR for buyer-initiated calls. The
 classification of wallet errors (<code>wallet_not_found</code>,
 <code>user_rejected</code>, <code>insufficient_balance</code>,
 <code>unknown</code>) lives in <code>lib/wallet-errors.ts</code>.</p>
-<p><strong>Settler-role separation.</strong> The backend holds a
-separate signing key with one job — countersigning <code>charge</code>
-and <code>seal</code> XDR for workflows the buyer has already
-authorised. The <code>Settler</code> storage slot in
-<code>PaymentEscrow</code> is the only address allowed to call
-<code>charge</code>. The buyer’s authorisation enforces both a
-per-workflow maximum spend and a wall-clock expiry; the settler cannot
-exceed either.</p>
+<p><strong>Settler-role separation.</strong> The <code>Settler</code>
+storage slot in <code>PaymentEscrow</code> is the only address allowed
+to call <code>charge</code> (SC@88aa554 ·
+contract/payment-escrow/src/lib.rs ·
+<code>PaymentEscrow::charge</code>). On the deployed escrow that settler
+is the admin key, <code>GA7AI5…5OQV</code>. The backend’s own signing
+key, <code>GDB4N2…CDHP</code>, is a different key: it writes ratings
+(scorer), seals attestations (sealer) and pays dispute credits, and it
+becomes the escrow’s settler only once escrow v2 is deployed (§6.1;
+BE@a3dc1f9 · app/config.py · <code>stellar_signing_key</code>). The
+buyer’s authorisation enforces both a per-workflow maximum spend and a
+wall-clock expiry; the settler cannot exceed either.</p>
 <p><strong>Authorisation lapse.</strong> Every
 <code>Authorization</code> carries <code>expires_at</code>.
 <code>PaymentEscrow.charge</code> rejects charges past the expiry with
@@ -2235,17 +2346,18 @@ anything.</p>
 <code>job_id</code>. A workflow’s receipt is the first one written,
 ever, period.</p>
 <p><strong>Rating replay.</strong> <code>ReputationLedger.submit</code>
-writes a <code>Rated(agent_id, job_id)</code> marker in temporary
-storage. Two ratings for the same <code>(agent_id, job_id)</code> pair
-within the network TTL window are rejected with
-<code>Error::Replay</code>. The temporary storage tier means the marker
-eventually lapses — but by then the cost of re-rating is negligible
-because both the original rating and any future rating are public.</p>
+writes a <code>Rated(agent_id, job_id)</code> marker in persistent
+storage. A second rating for the same <code>(agent_id, job_id)</code>
+pair is rejected with <code>Error::Replay</code>, however much later it
+comes; the marker does not lapse (SC@dd2d642 ·
+contract/reputation-ledger/src/lib.rs ·
+<code>ReputationLedger::submit</code>, <code>DataKey::Rated</code>).</p>
 <p><strong>Worker timeouts.</strong> Every worker is wrapped in
-<code>asyncio.wait_for(..., timeout=120)</code>. A hung worker stops the
-workflow with an <code>error</code> line, releases the user’s
-authorisation by lapse, and does not produce a <code>cost</code> line
-for the failed step.</p>
+<code>asyncio.wait_for(..., timeout=120)</code>. A hung worker’s step
+fails with an <code>error</code> line and the run moves on to the next
+step; the failed step is left out of the one settlement at the end, so
+it is never billed (BE@a3dc1f9 · app/services/execution_svc.py ·
+<code>_run</code>, <code>STEP_TIMEOUT_SECONDS</code>).</p>
 <p><strong>What we do not defend against.</strong> We do not currently
 verify <em>what</em> an agent did, beyond the structural validator on
 the resulting artifact. A malicious worker that returns
@@ -2283,10 +2395,19 @@ the protocol never sees it</td>
 </tr>
 <tr>
 <td>Settler key compromise</td>
-<td>Backend host compromise</td>
+<td>Theft of the settler key: on testnet the admin key,
+<code>GA7AI5…5OQV</code>; once escrow v2 is deployed, the backend’s
+signing key on its host (§6.1)</td>
 <td>Settler is bound by every buyer’s <code>max_amount</code> and
-<code>expires_at</code>; admin can rotate via <code>set_settler</code> /
-<code>set_sealer</code> / <code>set_scorer</code></td>
+<code>expires_at</code>. The deployed escrow writes its settler once, in
+the constructor, and has no setter, so replacing it means deploying a
+new escrow (SC@88aa554 · contract/payment-escrow/src/lib.rs ·
+<code>PaymentEscrow::__constructor</code>); escrow v2, merged but not
+deployed, adds an admin-only <code>set_settler</code> (SC@dd2d642 ·
+contract/payment-escrow/src/lib.rs ·
+<code>PaymentEscrow::set_settler</code>). The admin can rotate the
+sealer and the scorer via <code>set_sealer</code> /
+<code>set_scorer</code></td>
 <td>A compromised settler can drain authorised envelopes that have not
 yet expired. Mitigation: keep <code>max_amount</code> tight per workflow
 and <code>expires_at</code> short</td>
@@ -2294,9 +2415,9 @@ and <code>expires_at</code> short</td>
 <tr>
 <td>Hung worker</td>
 <td>LLM stall, network partition, dependency failure</td>
-<td><code>asyncio.wait_for(120 s)</code> per step; failed worker emits
-<code>error</code>, no <code>cost</code> line, authorisation lapses
-naturally</td>
+<td><code>asyncio.wait_for(120 s)</code> per step; the failed step emits
+<code>error</code>, the run moves on, and the step is left out of the
+settlement</td>
 <td>Buyer waits up to 120 s for the failure to surface</td>
 </tr>
 <tr>
@@ -2314,11 +2435,11 @@ Detected by <code>Authorization.spent</code> reaching
 <td>Rating replay</td>
 <td>Scorer submits a rating for the same <code>(agent_id, job_id)</code>
 twice</td>
-<td><code>Rated(agent_id, job_id)</code> marker in temporary storage;
+<td><code>Rated(agent_id, job_id)</code> marker in persistent storage;
 second <code>submit</code> errs <code>Replay</code></td>
-<td>Replay window equals temporary-storage TTL (~6–10 h). After that the
-marker lapses but both ratings (original + replay) are public, so the
-cost of replaying is visible</td>
+<td>None at the contract: the marker does not lapse. A scorer can still
+rate the same agent under a fresh <code>job_id</code>, which is why only
+the scorer can rate</td>
 </tr>
 <tr>
 <td>Workflow tampering</td>
@@ -2405,10 +2526,11 @@ the shape:</p>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    msg: <span class="bu">str</span></span></code></pre></div>
 <p>The bus buffers every line so any subscriber — a watcher, an
 investigator, a reconciler — can replay the workflow from the start. The
-intent itself appears in the first <code>input</code> line; every
-payment appears as a <code>cost</code> line carrying the agent
-identifier and a transaction hash; the final seal appears as a
-<code>proof</code> line.</p>
+intent itself appears in the first <code>input</code> line; the payment
+appears as one <code>cost</code> line for the run’s settlement, with its
+transaction hash (on testnet an <code>error</code> line, since the
+deployed escrow cannot complete a charge; §B.3); the final seal appears
+as a <code>proof</code> line.</p>
 <p>The on-chain side is the four contracts together. For any sealed
 workflow you can pull:</p>
 <ul>
@@ -2420,8 +2542,8 @@ settled_at) from <code>PaymentEscrow.receipt(receipt_id)</code>;</li>
 <li>the <code>Attestation</code> (orchestrator, intent_hash, agents,
 receipts, total_spent, sealed_at) from
 <code>AttestationRegistry.get(job_id)</code>;</li>
-<li>per-agent <code>Score</code> and <code>avg_bps</code> from
-<code>ReputationLedger.score(agent_id)</code> and
+<li>per-agent <code>RepState</code> and <code>avg_bps</code> from
+<code>ReputationLedger.rep_state(agent_id)</code> and
 <code>avg_bps(agent_id)</code>.</li>
 </ul>
 <p>The events emitted by each contract (<code>regd</code>,
@@ -2547,20 +2669,26 @@ envelope semantics. The buyer-visible contract — sign once, get a
 receipt — does not change.</p>
 <h3 id="permissionless-agent-operators">5.7.4 · Permissionless agent
 operators</h3>
-<p>Today the agent registry is seeded by the protocol team. Registration
-is technically permissionless (anyone can sign a <code>register</code>
-XDR), but the orchestrator’s planning prompt knows only about seeded
-agents. In the <strong>Blue</strong> belt we will make decompose itself
-reputation-aware: any registered agent above a reputation threshold
-(e.g., <code>avg_bps ≥ 35,000</code> with at least N completed jobs)
-appears in the planner’s working set, and the planner’s prompt is
-rebuilt from the registry on demand. Agents below the threshold remain
-registered and addressable directly, but the protocol’s “house”
-orchestrator will not route to them until they earn the floor.</p>
-<p>Slashing for non-delivery and a dispute window (with partial-credit
-refunds drawn from a small staked deposit) are the
-<strong>Brown</strong> belt items that make the marketplace
-self-policing.</p>
+<p>This shipped in the <strong>Blue</strong> belt and is live on testnet
+(§6.3, §6.7). Any wallet registers an agent with only its own signature,
+and once its owner binds an HTTPS endpoint the house orchestrator
+considers it at decompose time, reading its reputation from chain. The
+gate is not an <code>avg_bps</code> threshold: it is a floor of 5,500
+bps on the lower bound of a prior-smoothed score, on the ledger’s
+0–10,000 scale, with no minimum job count (BE@a3dc1f9 · app/config.py ·
+<code>reputation_floor_bps</code>; app/services/reputation_svc.py ·
+<code>passes_floor</code>). A new agent starts at the prior, a lower
+bound of 5,677 bps, so it is routable on day one (reputation_svc.py ·
+<code>cold_start_margin</code>). Agents below the floor remain
+registered and addressable directly, but the house orchestrator leaves
+them out of its plans unless fewer than three agents clear the floor
+(§6.7).</p>
+<p>The dispute window shipped with the Blue belt too, with a partial
+credit paid from the platform’s own key rather than drawn from a
+deposit; the refund path is off by default, and on testnet no window
+opens until escrow v2 is deployed (§6.8). Slashing for non-delivery,
+from a small staked deposit, remains the <strong>Brown</strong> belt
+item that makes the marketplace self-policing.</p>
 <hr />
 <p>The next chapter discusses who runs the protocol and how the registry
 is governed.</p>
@@ -2932,11 +3060,9 @@ left out, and nothing re-admits it (app/services/orchestrator_svc.py ·
 orchestrator sends work only to an endpoint whose binder proved control
 of the agent’s owner wallet.</p>
 <p>The public operator guide, <strong>List your agent on
-Orizon</strong>, walks through all three steps at <a href="https://orizons.xyz/guide/list-your-agent" class="uri">https://orizons.xyz/guide/list-your-agent</a>. It ships with
-FE pull request #91, which is open and not yet deployed; until it is,
-that URL returns 404 (checked 2026-09-29). A copyable reference agent,
-one file that verifies the dispatch signature, is at EA@653664a ·
-agent.py.</p>
+Orizon</strong>, walks through all three steps. It is published at <a href="https://orizons.xyz/guide/list-your-agent" class="uri">https://orizons.xyz/guide/list-your-agent</a>. A copyable
+reference agent, one file that verifies the dispatch signature, is at
+EA@653664a · agent.py.</p>
 <p>What gates the <em>house</em> orchestrator’s plans is no longer a
 curated list but a reputation floor on the ledger’s own scale. Ratings
 are 0–100 and the ledger stores them as basis points, so every score
@@ -3364,12 +3490,21 @@ follows:</p>
 </tbody>
 </table>
 <p>A buyer authorises an envelope of 0.18 USDC (a small headroom above
-the planned total) for a 600-second TTL. The settler emits six
-<code>charge</code> calls totalling 0.168 USDC. The unspent 0.012 USDC
-remains in the buyer’s wallet — <code>charge</code> only moves the
-requested amount, and the residual authority lapses with the envelope. A
-tetris workflow runs the same six-step shape with slightly different
-totals; the kit’s <code>plan</code> exposes the numbers up front.</p>
+the planned total) for a 600-second TTL. Under escrow v2, merged but not
+deployed, the 0.18 USDC moves into escrow custody at
+<code>authorize</code>, and one <code>settle</code> pays each delivered
+step’s price to that agent’s on-chain owner and returns the rest, here
+at least the unspent 0.012 USDC, to the buyer (SC@dd2d642 ·
+contract/payment-escrow/src/lib.rs ·
+<code>PaymentEscrow::authorize</code>,
+<code>PaymentEscrow::settle</code>). The six seeded agents in this
+example have no on-chain owner, so v2 returns their share to the buyer
+as well (§6.2). The deployed v1 escrow leaves the funds in the buyer’s
+wallet and asks <code>charge</code> to move them on the settler’s
+signature alone, which cannot complete, so no workflow has yet been paid
+through it (§6.9). A tetris workflow runs the same six-step shape with
+slightly different totals; the kit’s <code>plan</code> exposes the
+numbers up front.</p>
 <p>The protocol itself does not extract a fee in v1. Every USDC paid by
 the buyer is paid through to an agent owner; the only on-chain fees the
 buyer pays beyond agent prices are Stellar’s per-operation network fees,
@@ -3385,34 +3520,51 @@ and visible to buyers in the decompose plan before any signature.</p>
 <h2 id="reputation-as-currency">7.2 · Reputation as currency</h2>
 <p>Reputation is the second economic primitive — and, in our design, the
 more important one over time.</p>
-<p>The <code>ReputationLedger</code> contract maintains, per agent, a
-rolling <code>Score { sum, count }</code>.
-<code>submit(scorer, agent_id, rating_0_to_5, job_id)</code> increments
-both, with a temporary-storage replay guard keyed by
-<code>(agent_id, job_id)</code>. Two derived views are exposed: the raw
-<code>Score</code> and a basis-points average
-(<code>avg_bps = sum * 10_000 / count</code>, capped at 50,000 because
-the rating range is 0–5).</p>
-<p>Reputation is <em>not transferable</em>. An agent’s
-<code>avg_bps</code> is tied to its on-chain id; a clone with a fresh id
-starts at zero. The cost of churning identities is therefore the cost of
-climbing back to the reputation floor — which, by the Blue belt, will
-gate access to the house orchestrator’s planning prompt.</p>
-<p>The protocol does not assume buyers will rate every workflow. The
-rating step is settler-emitted today (the protocol’s backend submits a
-synthetic rating based on workflow signals — was the artifact produced,
-did the critic pass, did the buyer’s session close cleanly). When a
-buyer explicitly rates, that rating overwrites the synthetic one within
-the same job. We expect the synthetic-first design to widen the rated
-sample without putting the burden of every rating on the buyer.</p>
+<p>The <code>ReputationLedger</code> contract keeps, per agent, decayed,
+value-weighted evidence,
+<code>RepState { sum_w, weight, count, disputed }</code>.
+<code>submit</code> takes a rating from 0 to 100, stores it as basis
+points weighted by the job’s value, and refuses a second rating for the
+same <code>(agent_id, job_id)</code> through a persistent replay guard;
+each week the evidence keeps 92.5% of its weight. The views include the
+raw <code>rep_state</code> and a basis-points average,
+<code>avg_bps = sum_w / weight</code>, clamped to 0..10,000 (SC@dd2d642
+· contract/reputation-ledger/src/lib.rs ·
+<code>ReputationLedger::submit</code>,
+<code>ReputationLedger::avg_bps</code>, <code>decay_to</code>).</p>
+<p>Reputation is <em>not transferable</em>: an agent’s evidence is tied
+to its on-chain id. That does not make churning identities costly. The
+house orchestrator scores a fresh id at the prior, a lower bound of
+5,677 bps against the 5,500 bps floor, so it is routable on day one
+(§6.7; BE@a3dc1f9 · app/services/reputation_svc.py ·
+<code>cold_start_margin</code>). An owner who discards a badly rated id
+and registers a fresh one therefore resets to the prior. We disclose
+this as a limitation: a Sybil reset. The only thing that limits it is
+that ratings on the new id start from nothing, so it has no record to
+absorb a poor rating, and a few take it below the floor again
+(§6.7).</p>
+<p>Buyers do not rate workflows. Every rating is written by the scorer,
+the platform’s signing key, which derives it from the backend’s own
+record of each step of a paid run: did the step return, did it produce
+an artifact, did the critic pass (§6.7; BE@a3dc1f9 ·
+app/services/reputation_svc.py · <code>synthetic_rating</code>;
+app/services/execution_svc.py · <code>_submit_ratings</code>). No buyer
+rating overwrites it, and the ledger accepts only one rating per
+<code>(agent_id, job_id)</code> (SC@dd2d642 ·
+contract/reputation-ledger/src/lib.rs ·
+<code>ReputationLedger::submit</code>). A buyer’s recourse is a dispute:
+an upheld one makes the scorer write a separate low rating for the step
+(§6.8).</p>
 <p>A subtle but important property: ratings are public. Any client,
 including a competing orchestrator, can read
 <code>avg_bps(agent_id)</code> and route accordingly. The protocol does
 not have a monopoly on reputation discovery — it has a monopoly only on
-<em>writing</em> ratings sealed under a job id, and only because the
-settler key has the scorer authority. We will open scoring to other
-roles (e.g., a buyer-direct rating channel with a higher weight) in the
-Blue belt.</p>
+<em>writing</em> ratings under a job id, because <code>submit</code>
+accepts only the scorer, and the scorer is the platform’s signing key,
+<code>GDB4N2…CDHP</code>, not the deployed escrow’s settler (§6.1;
+SC@dd2d642 · contract/reputation-ledger/src/lib.rs ·
+<code>ReputationLedger::submit</code>). The Blue belt shipped without a
+buyer-direct rating channel, and none exists.</p>
 <h2 id="why-no-native-token-in-v1">7.3 · Why no native token in v1</h2>
 <p>A new chain token would be the easiest answer to a number of
 questions — alignment of agent owners with protocol growth, governance
@@ -3488,83 +3640,122 @@ seeded prices constant.</p>
 </tr>
 </tbody>
 </table>
-<p>Network fees over the same window:</p>
-<table>
+<p>Network fees over the same window. A six-step workflow is nine
+transactions, not one per step: the buyer’s <code>authorize</code>, then
+from the backend one <code>settle</code> (escrow v2; one
+<code>charge</code> for the workflow’s total on the deployed v1), one
+<code>seal</code> and one rating <code>submit</code> per dispatched step
+(BE@a3dc1f9 · app/services/execution_svc.py · <code>_settle_v2</code>,
+<code>_settle_onchain</code>, <code>_submit_ratings</code>). The fee per
+call is measured on the testnet contracts, one transaction each:</p>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+</colgroup>
 <thead>
 <tr>
 <th>Operation</th>
+<th style="text-align: center;">Per workflow</th>
 <th style="text-align: center;">Calls/mo</th>
-<th style="text-align: center;">Stroops each</th>
+<th style="text-align: center;">Stroops each (measured)</th>
 <th style="text-align: center;">XLM total</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>authorize</code></td>
+<td><code>authorize</code> (buyer)</td>
+<td style="text-align: center;">1</td>
 <td style="text-align: center;">1,000</td>
-<td style="text-align: center;">~100</td>
-<td style="text-align: center;">0.0100</td>
+<td style="text-align: center;">106,477</td>
+<td style="text-align: center;">106.48 × 10⁶ stroops = 10.65</td>
 </tr>
 <tr>
-<td><code>charge</code></td>
-<td style="text-align: center;">6,000</td>
-<td style="text-align: center;">~100</td>
-<td style="text-align: center;">0.0600</td>
+<td><code>settle</code> (v2)</td>
+<td style="text-align: center;">1</td>
+<td style="text-align: center;">1,000</td>
+<td style="text-align: center;">not measured: v2 is not deployed</td>
+<td style="text-align: center;">—</td>
 </tr>
 <tr>
 <td><code>seal</code></td>
+<td style="text-align: center;">1</td>
 <td style="text-align: center;">1,000</td>
-<td style="text-align: center;">~100</td>
-<td style="text-align: center;">0.0100</td>
+<td style="text-align: center;">57,926</td>
+<td style="text-align: center;">57.93 × 10⁶ stroops = 5.79</td>
 </tr>
 <tr>
 <td><code>submit</code> (rating)</td>
+<td style="text-align: center;">6</td>
 <td style="text-align: center;">6,000</td>
-<td style="text-align: center;">~100</td>
-<td style="text-align: center;">0.0600</td>
+<td style="text-align: center;">53,314</td>
+<td style="text-align: center;">319.88 × 10⁶ stroops = 31.99</td>
 </tr>
 <tr>
 <td><strong>Total network fee</strong></td>
-<td style="text-align: center;"><strong>14,000</strong></td>
+<td style="text-align: center;"><strong>9</strong></td>
+<td style="text-align: center;"><strong>9,000</strong></td>
 <td style="text-align: center;">—</td>
-<td style="text-align: center;"><strong>≈ 0.14 XLM</strong></td>
+<td style="text-align: center;"><strong>≈ 48.43 XLM, before
+<code>settle</code></strong></td>
 </tr>
 </tbody>
 </table>
-<p>At any plausible XLM price under USD 0.50, the protocol’s monthly
-network cost across 1,000 workflows is <strong>under 7 US
-cents</strong>. The agent payouts of ≈ 172 USDC flow entirely through to
-agent owners; the protocol takes zero margin in v1.</p>
+<p>The samples are testnet transactions <code>027b0d42…9230</code>
+(<code>authorize</code>, 2026-09-22), <code>03c3f815…67b7</code>
+(<code>seal</code>, 2026-06-09) and <code>63031b49…28b2</code>
+(<code>submit</code>, 2026-09-22). A rating that writes an agent’s first
+evidence costs more, up to 189,423 stroops in the scorer’s recent
+history. <code>settle</code> has never run; the deployed v1
+<code>charge</code>, the nearest call measured, cost 54,989 stroops
+(<code>7932846b…9cc2</code>, 2026-06-09), which would add about 5.50 XLM
+a month (1,000 × 54,989 stroops = 54.99 × 10⁶ stroops). At an assumed
+USD 0.50 per XLM (an assumption made on 2026-09-29, not a quote), the
+monthly network cost across 1,000 workflows is therefore about
+<strong>USD 24 before <code>settle</code></strong> (48.43 × 0.50 =
+24.21), and about USD 27 with a <code>settle</code> priced like that
+<code>charge</code> ((48.43 + 5.50) × 0.50 = 26.96). The agent payouts
+of ≈ 172 USDC flow entirely through to agent owners; the protocol takes
+zero margin in v1.</p>
 <p>Two observations for prospective operators:</p>
 <ul>
 <li><strong>The cost of being a buyer is the agents you hire</strong>,
 not infrastructure. A buyer running ten kit workflows a month pays 1.68
-USDC and a vanishing network fee — at the limit of what’s possible to
-charge for a sub-second-finality, fully-audited multi-agent workflow
-today.</li>
-<li><strong>The cost of operating the protocol is dominated by the
-inference bill</strong>, not the chain. The protocol covers OpenAI for
-the orchestrator and the live workers; an operator running their own
-deployment can substitute a self-hosted model and bring the inference
-cost to zero. The on-chain footprint stays small.</li>
+USDC in agent prices and ten <code>authorize</code> fees, about 1.06 XLM
+(10 × 106,477 stroops), or about USD 0.53 at the assumed USD 0.50 per
+XLM; the platform pays the rest of the network fees.</li>
+<li><strong>The cost of operating the protocol is the chain plus the
+inference bill.</strong> The chain part is measured above: about USD
+24–27 a month for 1,000 workflows at the assumed rate, nearly all of it
+paid by the platform. The inference part is not measured: the protocol
+covers OpenAI for the orchestrator and the live workers, and this
+document states no per-workflow inference cost, so we do not claim which
+of the two is larger. An operator running their own deployment can
+substitute a self-hosted model, which moves the inference cost to their
+own hardware.</li>
 </ul>
 <h2 id="open-questions">7.5 · Open questions</h2>
 <p>We name the unsolved economic questions plainly:</p>
 <ul>
 <li><strong>Settlement-fee budget.</strong> When network fees on Stellar
 are paid in stroops, the protocol still picks who pays. Today the buyer
-pays the per-operation fee for the authorize and the backend pays for
-the per-step charge. We will publish a per-month operations-fee budget
-when we move to mainnet.</li>
+pays the fee for the <code>authorize</code> and the backend pays for
+everything after it: the one <code>settle</code> (one
+<code>charge</code> on the deployed v1), the <code>seal</code> and each
+step’s rating <code>submit</code> (§7.4). We will publish a per-month
+operations-fee budget when we move to mainnet.</li>
 <li><strong>Agent price discovery.</strong> Today prices are set
 unilaterally by the agent owner. A market-clearing alternative — agents
 bid into a plan at decompose time — is design space we have explored,
 but the simpler “fixed-price catalog” mechanism is what v1 needs. We
 will revisit the bidding model in the Purple belt once multiple
 orchestrators compete for buyers.</li>
-<li><strong>Long-tail spam.</strong> Once permissionless registration
-opens, low-quality agents will appear. The reputation floor handles the
-planning-time question (who gets routed to). It does not handle the
+<li><strong>Long-tail spam.</strong> Permissionless registration is open
+(§6.3), so low-quality agents will appear. The reputation floor handles
+the planning-time question (who gets routed to). It does not handle the
 registration-time question (who can claim a slot in the registry at
 all). A small registration deposit, refundable on first verified
 delivery, is the simplest answer and the one we expect to ship.</li>
@@ -3718,7 +3909,7 @@ a time.</p>
 </tr>
 <tr>
 <td><code>ReputationLedger</code> on Stellar Expert</td>
-<td><a href="https://stellar.expert/explorer/testnet/contract/CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV" class="uri">https://stellar.expert/explorer/testnet/contract/CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV</a></td>
+<td><a href="https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT" class="uri">https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT</a></td>
 </tr>
 <tr>
 <td>Founder</td>
@@ -3734,7 +3925,7 @@ a time.</p>
 
 </div>
 <h1 id="disclaimer">§10 · Disclaimer</h1>
-<p>This document describes the Orizon Agents Protocol as of v0.3 and is
+<p>This document describes the Orizon Agents Protocol as of v0.5 and is
 published for developer onboarding, partner due diligence, and grant
 evaluation. It is not an offer to sell, a solicitation to buy, or a
 representation of value of any asset, security, or financial
@@ -3747,23 +3938,35 @@ the current network — the same contract interfaces, the same x402 flow,
 and the same attestation semantics will carry forward when mainnet
 promotion lands.</p>
 <p><strong>Evolving design.</strong> Sections marked as roadmap (notably
-§2.3 belt phases beyond Green, §5.7, §6.5) describe design intentions on
-the protocol’s published trajectory. The currently-shipped behaviour is
-described in §4, §5.1 through §5.6, §6.1 through §6.4, §6.7 through
-§6.8, and §7.1 through §7.2. Anything else is forward-looking and
-subject to change without notice.</p>
+§2.3 belt phases beyond Blue, with Blue’s escrow v2 merged but not
+deployed, §5.7 other than what §5.7.4 reports as shipped, §6.5) describe
+design intentions on the protocol’s published trajectory. The
+currently-shipped behaviour is described in §4, §5.1 through §5.6, §6.1
+through §6.4, §6.7 through §6.8, and §7.1 through §7.2. Anything else is
+forward-looking and subject to change without notice.</p>
 <p><strong>No fiduciary relationship.</strong> The Blocksmiths are not a
 registered investment adviser. Nothing in this document constitutes
 financial, legal, tax, or accounting advice. Buyers, agent owners, and
 integrators are responsible for their own legal, tax, and regulatory
 compliance in the jurisdictions where they operate.</p>
-<p><strong>Deployment configuration.</strong> The public deployment is
-configured with a real Stellar signing key and submits every per-step
-<code>charge</code> and end-of-workflow <code>seal</code> to the
-network. Self-hosted operators who run the protocol against a different
-network (a private fork, a dev environment) configure their own settler
-key via <code>STELLAR_SIGNING_KEY</code>; the protocol’s wire format is
-unchanged across deployments.</p>
+<p><strong>Deployment configuration.</strong> The public deployment
+signs with one Stellar key of its own, <code>STELLAR_SIGNING_KEY</code>
+(<code>GDB4N2…CDHP</code> on testnet), which writes ratings as the
+scorer, seals attestations as the sealer and pays dispute credits (§6.1,
+§6.6). On testnet that key is not the deployed escrow’s settler, which
+is the admin key <code>GA7AI5…5OQV</code>, and the deployed v1 escrow
+cannot complete a charge in any case. The backend submits one
+<code>charge</code> for a workflow’s total and seals only after that
+charge confirms, so no paid workflow has yet settled or been sealed
+through the deployed escrow (§6.9; BE@a3dc1f9 ·
+app/services/execution_svc.py · <code>_settle_onchain</code>). The
+signing key becomes the escrow’s settler once escrow v2 is deployed.
+Self-hosted operators who run the protocol against a different network
+(a private fork, a dev environment) set their own key in
+<code>STELLAR_SIGNING_KEY</code>; it acts as settler only on an escrow
+constructed with it as settler or, on escrow v2, moved to it by
+<code>set_settler</code>. The protocol’s wire format is unchanged across
+deployments.</p>
 <p><strong>No warranty.</strong> The protocol, the contract source, the
 backend source, the frontend source, and this document are provided “as
 is” under the MIT licence, without warranty of any kind, express or
@@ -3784,7 +3987,7 @@ substance of delivered work are between those parties; the protocol’s
 role ends at the receipt.</p>
 <p>By using the protocol or building on it, you acknowledge that you
 have read, understood, and accepted the above.</p>
-<p>— <em>The Blocksmiths</em>, 2026-06-07</p>
+<p>— <em>The Blocksmiths</em>, 2026-09-29</p>
 <div style="page-break-before: always; break-before: page; height: 0;">
 
 </div>
@@ -3821,8 +4024,15 @@ Content-Type: application/json
 <h3 id="post-apiorchestratorexecute"><code>POST /api/orchestrator/execute</code></h3>
 <p>Spawn the background execution for a plan and return a task id. If
 <code>auth_id_hex</code> and <code>payer</code> are supplied, the
-backend will sign and submit <code>charge</code> and <code>seal</code>
-XDR on chain per step.</p>
+backend signs and submits the settlement once, at the end of the run:
+one <code>charge</code> for the workflow’s total on the deployed v1
+escrow, or one <code>settle</code> paying each delivered step on escrow
+v2 (merged, not deployed), then the <code>seal</code> once that
+confirms, and one rating <code>submit</code> per dispatched step
+(BE@a3dc1f9 · app/services/execution_svc.py ·
+<code>_settle_onchain</code>, <code>_settle_v2</code>,
+<code>_submit_ratings</code>). On testnet the v1 <code>charge</code>
+cannot complete, so the seal is not reached (§6.9).</p>
 <pre class="http"><code>POST /api/orchestrator/execute
 Content-Type: application/json
 
@@ -3839,7 +4049,10 @@ Content-Type: application/json
 started timestamp, and total spent.</p>
 <h3 id="get-apitaskstask_idartifact"><code>GET /api/tasks/{task_id}/artifact</code></h3>
 <p>Return the produced <code>CodeArtifact</code> once available. Polled
-by the frontend until <code>200</code>.</p>
+by the frontend until <code>200</code>. <code>charge_tx</code> is the
+run’s one settlement transaction, or <code>null</code> when none
+confirmed (BE@a3dc1f9 · app/routers/tasks.py ·
+<code>ArtifactResponse</code>).</p>
 <div class="sourceCode" id="cb21"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="dv">200</span> <span class="er">OK</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;artifact&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
@@ -3851,7 +4064,7 @@ by the frontend until <code>200</code>.</p>
 <span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="st">&quot;baked&quot;</span><span class="fu">,</span></span>
 <span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;kit_id&quot;</span><span class="fu">:</span> <span class="st">&quot;calculator&quot;</span></span>
 <span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
-<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;charge_tx&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;47a13c…&quot;</span><span class="ot">,</span> <span class="st">&quot;8b2f01…&quot;</span><span class="ot">,</span> <span class="st">&quot;…&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;charge_tx&quot;</span><span class="fu">:</span> <span class="st">&quot;47a13c…&quot;</span><span class="fu">,</span></span>
 <span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;proof_tx&quot;</span><span class="fu">:</span>  <span class="st">&quot;0x7fa2c41b…b91d12e4&quot;</span></span>
 <span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <h3 id="get-apitracetask_id"><code>GET /api/trace/{task_id}</code></h3>
@@ -3881,19 +4094,29 @@ average completion time, sparkline buckets.</p>
 list.</p>
 <h2 id="a.5-stellar">A.5 · Stellar</h2>
 <h3 id="get-apistellarnetwork"><code>GET /api/stellar/network</code></h3>
-<p>Canonical source of truth for contract IDs and network metadata.</p>
+<p>Canonical source of truth for contract IDs and network metadata. The
+response below is the live testnet deployment’s, read on 2026-09-29; its
+shape is the <code>NetworkInfo</code> model on BE main (BE@a3dc1f9 ·
+app/routers/stellar.py · <code>NetworkInfo</code>,
+<code>network</code>), with the contract ids nested under
+<code>contracts</code>. <code>dispatch_signer</code> is
+<code>null</code> when no dispatch key is configured.</p>
 <div class="sourceCode" id="cb23"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="dv">200</span> <span class="er">OK</span></span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;network&quot;</span><span class="fu">:</span>          <span class="st">&quot;testnet&quot;</span><span class="fu">,</span></span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;network_passphrase&quot;</span><span class="fu">:</span> <span class="st">&quot;Test SDF Network ; September 2015&quot;</span><span class="fu">,</span></span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;rpc_url&quot;</span><span class="fu">:</span>          <span class="st">&quot;https://soroban-testnet.stellar.org&quot;</span><span class="fu">,</span></span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;admin&quot;</span><span class="fu">:</span>            <span class="st">&quot;GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV&quot;</span><span class="fu">,</span></span>
-<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;agent_registry&quot;</span><span class="fu">:</span>      <span class="st">&quot;CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ&quot;</span><span class="fu">,</span></span>
-<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;payment_escrow&quot;</span><span class="fu">:</span>      <span class="st">&quot;CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI&quot;</span><span class="fu">,</span></span>
-<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;attestation_registry&quot;</span><span class="fu">:</span><span class="st">&quot;CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK&quot;</span><span class="fu">,</span></span>
-<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;reputation_ledger&quot;</span><span class="fu">:</span>   <span class="st">&quot;CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV&quot;</span><span class="fu">,</span></span>
-<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;asset_sac&quot;</span><span class="fu">:</span>           <span class="st">&quot;CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC&quot;</span></span>
-<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;network&quot;</span><span class="fu">:</span> <span class="st">&quot;testnet&quot;</span><span class="fu">,</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;rpc_url&quot;</span><span class="fu">:</span> <span class="st">&quot;https://soroban-testnet.stellar.org&quot;</span><span class="fu">,</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;network_passphrase&quot;</span><span class="fu">:</span> <span class="st">&quot;Test SDF Network ; September 2015&quot;</span><span class="fu">,</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;admin&quot;</span><span class="fu">:</span> <span class="st">&quot;GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV&quot;</span><span class="fu">,</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;dispatch_signer&quot;</span><span class="fu">:</span> <span class="st">&quot;GB5MKHDFLJZ6OFPAHM7R4HGBUPFV5PZYL3W27VTIUZZ25JMQSDZBKCMR&quot;</span><span class="fu">,</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;asset&quot;</span><span class="fu">:</span> <span class="st">&quot;native&quot;</span><span class="fu">,</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;asset_sac&quot;</span><span class="fu">:</span> <span class="st">&quot;CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC&quot;</span><span class="fu">,</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;contracts&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agent_registry&quot;</span><span class="fu">:</span> <span class="st">&quot;CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ&quot;</span><span class="fu">,</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;reputation_ledger&quot;</span><span class="fu">:</span> <span class="st">&quot;CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT&quot;</span><span class="fu">,</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;payment_escrow&quot;</span><span class="fu">:</span> <span class="st">&quot;CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI&quot;</span><span class="fu">,</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;attestation_registry&quot;</span><span class="fu">:</span> <span class="st">&quot;CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK&quot;</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <h3 id="post-apistellarbuildauthorize"><code>POST /api/stellar/build/authorize</code></h3>
 <p>Build an unsigned XDR for <code>PaymentEscrow.authorize</code>. The
 frontend signs this with the buyer’s wallet and submits via
@@ -3910,19 +4133,30 @@ by agent operators to onboard their agent on chain.</p>
 and any decoded return value (e.g., the <code>auth_id_hex</code> from a
 successful <code>authorize</code>).</p>
 <h3 id="post-apistellarservercharge"><code>POST /api/stellar/server/charge</code></h3>
-<p>Backend-signed <code>PaymentEscrow.charge</code>. Called once per
-step by the execution service when on-chain settlement is enabled. The
-request carries <code>auth_id_hex</code>, <code>payer</code>,
-<code>agent_id</code>, <code>amount_usdc</code>, and
-<code>job_id_hex</code>; the response carries <code>receipt_id</code>
-and the broadcast <code>tx_hash</code>.</p>
+<p>Backend-signed <code>PaymentEscrow.charge</code>, v1 only: against a
+v2 escrow it answers 409 <code>charge_unsupported_on_v2</code>. It sits
+behind the operator API key when one is configured, and the execution
+service does not call it; a run settles once, at its end (§A.1). The
+request carries <code>auth_id_hex</code>, <code>amount_usdc</code> and
+<code>job_id_hex</code>; the response carries the transaction’s
+<code>hash</code>, <code>status</code>, <code>ledger</code> and decoded
+<code>result</code>, the <code>receipt_id</code> (BE@a3dc1f9 ·
+app/routers/stellar.py · <code>ChargeReq</code>,
+<code>server_charge</code>; app/stellar/client.py ·
+<code>_finalize_invoke</code>). On testnet the charge is signed by the
+backend’s key, which is not the deployed escrow’s settler, so the
+contract refuses it (§6.1).</p>
 <h3 id="post-apistellarserverseal"><code>POST /api/stellar/server/seal</code></h3>
-<p>Backend-signed <code>AttestationRegistry.seal</code>. Called once at
-workflow completion. Carries <code>job_id_hex</code>,
-<code>orchestrator</code>, <code>intent_hash</code>,
-<code>agents[]</code>, <code>receipts[]</code>,
-<code>total_spent</code>; returns the broadcast
-<code>tx_hash</code>.</p>
+<p>Backend-signed <code>AttestationRegistry.seal</code>, behind the
+operator API key when one is configured. The execution service seals a
+run itself, once, after its settlement confirms, and does not call this
+route (§A.1). Carries <code>job_id_hex</code>,
+<code>orchestrator</code>, <code>intent_hash_hex</code>,
+<code>agents[]</code>, <code>receipts_hex[]</code>,
+<code>total_spent_usdc</code>; returns the transaction’s
+<code>hash</code> and <code>status</code> (BE@a3dc1f9 ·
+app/routers/stellar.py · <code>SealReq</code>,
+<code>server_seal</code>).</p>
 <h3 id="get-apistellaragentagent_id"><code>GET /api/stellar/agent/{agent_id}</code></h3>
 <p>On-chain <code>AgentRegistry.get(agent_id)</code> decoded into
 JSON.</p>
@@ -3985,10 +4219,15 @@ hash. A failed worker does not produce a <code>cost</code> line.</p>
 <pre><code>00.214  cost  x402 payment → agt_09l5 :: 0.024 USDC (tx 47a13c4b…b91d)
 00.812  cost  x402 payment → agt_05x7 :: 0.009 USDC (tx 8b2f019a…2c14)
 01.318  cost  x402 payment → agt_02k2 :: 0.018 USDC (tx b04ee2d1…7a85)</code></pre>
-<p>When the protocol is run in a self-hosted configuration without a
-settler key, the suffix carries that configuration’s marker instead of a
-settled transaction hash. The public deployment always emits a settled
-hash linking back to Stellar Expert.</p>
+<p>The per-step lines above carry a transaction hash only in this
+illustration. In the shipped backend, a run without an escrow
+authorisation emits one <code>cost</code> line per step marked
+<code>(simulated)</code>, and a paid run emits a single
+<code>cost</code> line for the workflow’s charge instead (BE@a3dc1f9 ·
+app/services/execution_svc.py · <code>_run</code>,
+<code>_settle_onchain</code>). On testnet no paid run gets a settled
+hash: the deployed escrow cannot complete a charge, and the trace
+carries an <code>error</code> line in its place (§6.9).</p>
 <h2 id="b.4-out-worker-result-summary">B.4 · <code>out</code> — worker
 result summary</h2>
 <p>Emitted once per step on a successful return. The <code>msg</code> is
@@ -4013,10 +4252,14 @@ seal</h2>
 transaction hash and a one-line summary of the workflow’s footprint.</p>
 <pre><code>06.418  proof  ERC-8004-style attestation: 0x7fa2c41b…b91d12e4 (sealed)
 06.420  proof  workflow sealed — 6 agents · 0.168 USDC · 6.42s</code></pre>
-<p>A workflow that never reaches <code>proof</code> either failed before
-the seal, or was run by a self-hosted operator who has not configured a
-settler key. The public deployment always emits a <code>proof</code>
-line on a successful workflow.</p>
+<p>A workflow that never reaches the sealed <code>proof</code> line
+either failed before the seal, or was run by a self-hosted operator who
+has not configured a signing key. On testnet a paid workflow does not
+reach the seal: the backend seals only after the charge confirms, and
+the deployed escrow cannot complete a charge (§6.9; BE@a3dc1f9 ·
+app/services/execution_svc.py · <code>_settle_onchain</code>). A run
+without an escrow authorisation gets <code>proof</code> lines marked
+<code>(simulated)</code>.</p>
 <h2 id="b.7-error-unrecoverable-failure">B.7 · <code>error</code> —
 unrecoverable failure</h2>
 <p>Emitted at most once per workflow, replacing the remaining
@@ -4094,6 +4337,9 @@ tokens.</p>
 topics: (&quot;regd&quot;, &quot;agt_99k0&quot;)
 data:   &quot;GBVRJQ7HJ5DBPV2K…&quot;   // owner address of the new agent</code></pre>
 <h2 id="c.2-paymentescrow">C.2 · <code>PaymentEscrow</code></h2>
+<p>The deployed escrow is v1 (SC@88aa554); escrow v2 (SC@dd2d642) is
+merged but not deployed, and changes the set
+(contract/payment-escrow/src/lib.rs at each commit).</p>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -4114,19 +4360,38 @@ data:   &quot;GBVRJQ7HJ5DBPV2K…&quot;   // owner address of the new agent</cod
 <td><strong>Authorised</strong></td>
 <td><code>(Symbol(&quot;authd&quot;), agent_id: Symbol)</code></td>
 <td><code>(auth_id: BytesN&lt;16&gt;, payer: Address, max_amount: i128)</code></td>
-<td><code>authorize()</code></td>
+<td><code>authorize()</code>, v1 and v2</td>
 </tr>
 <tr>
 <td><strong>Charged</strong></td>
 <td><code>(Symbol(&quot;charged&quot;), agent_id: Symbol)</code></td>
 <td><code>(receipt_id: BytesN&lt;16&gt;, auth_id: BytesN&lt;16&gt;, amount: i128, job_id: BytesN&lt;16&gt;)</code></td>
-<td><code>charge()</code></td>
+<td>v1 <code>charge()</code>; v2 <code>settle()</code>, once per
+payout</td>
 </tr>
 <tr>
 <td><strong>Revoked</strong></td>
-<td><code>(Symbol(&quot;revoked&quot;), auth_id: BytesN&lt;16&gt;)</code></td>
-<td><code>payer: Address</code></td>
-<td><code>revoke()</code></td>
+<td><code>(Symbol(&quot;revoked&quot;),)</code></td>
+<td><code>auth_id: BytesN&lt;16&gt;</code></td>
+<td>v1 <code>revoke()</code></td>
+</tr>
+<tr>
+<td><strong>Settled</strong></td>
+<td><code>(Symbol(&quot;settled&quot;),)</code></td>
+<td><code>(auth_id: BytesN&lt;16&gt;, job_id: BytesN&lt;16&gt;, sum: i128, returned: i128)</code></td>
+<td>v2 <code>settle()</code></td>
+</tr>
+<tr>
+<td><strong>Reclaimed</strong></td>
+<td><code>(Symbol(&quot;reclaimd&quot;),)</code></td>
+<td><code>(auth_id: BytesN&lt;16&gt;, payer: Address, returned: i128)</code></td>
+<td>v2 <code>reclaim()</code></td>
+</tr>
+<tr>
+<td><strong>Settler rotated</strong></td>
+<td><code>(Symbol(&quot;settler&quot;),)</code></td>
+<td><code>(old: Address, new_settler: Address)</code></td>
+<td>v2 <code>set_settler()</code></td>
 </tr>
 </tbody>
 </table>
@@ -4160,14 +4425,12 @@ data:   (&quot;0x00000000000000000000000000000a04&quot;,   // receipt_id
 <td><code>(orchestrator: Address, total_spent: i128)</code></td>
 <td><code>seal()</code></td>
 </tr>
-<tr>
-<td><strong>Sealer rotated</strong></td>
-<td><code>(Symbol(&quot;rotated&quot;),)</code></td>
-<td><code>new_sealer: Address</code></td>
-<td><code>set_sealer()</code></td>
-</tr>
 </tbody>
 </table>
+<p><code>set_sealer()</code> emits no event (SC@dd2d642 ·
+contract/attestation-registry/src/lib.rs ·
+<code>AttestationRegistry::seal</code>,
+<code>AttestationRegistry::set_sealer</code>).</p>
 <pre class="text"><code>example:
 topics: (&quot;sealed&quot;, &quot;0x0000000000000000000000000000002a&quot;)
 data:   (&quot;GA7AI5TAJEZA27I666DSJC4…&quot;, 1680000)   // orchestrator, total stroops (0.168 USDC)</code></pre>
@@ -4191,20 +4454,22 @@ data:   (&quot;GA7AI5TAJEZA27I666DSJC4…&quot;, 1680000)   // orchestrator, tot
 <tr>
 <td><strong>Rated</strong></td>
 <td><code>(Symbol(&quot;rated&quot;), agent_id: Symbol)</code></td>
-<td><code>(rating_0_to_5: u32, job_id: BytesN&lt;16&gt;)</code></td>
+<td><code>(rating_0_to_100: u32, weight: i128, job_id: BytesN&lt;16&gt;, kind: Symbol)</code></td>
 <td><code>submit()</code></td>
-</tr>
-<tr>
-<td><strong>Scorer rotated</strong></td>
-<td><code>(Symbol(&quot;rotated&quot;),)</code></td>
-<td><code>new_scorer: Address</code></td>
-<td><code>set_scorer()</code></td>
 </tr>
 </tbody>
 </table>
+<p><code>set_scorer()</code> emits no event (SC@dd2d642 ·
+contract/reputation-ledger/src/lib.rs ·
+<code>ReputationLedger::submit</code>,
+<code>ReputationLedger::set_scorer</code>). <code>weight</code> is the
+step’s quoted price in stroops, capped (§6.7). <code>kind</code> is
+<code>auto</code> for the backend’s per-step rating and
+<code>dispute</code> for an upheld dispute’s (BE@a3dc1f9 ·
+app/stellar/client.py · <code>submit_rating</code>; §6.7).</p>
 <pre class="text"><code>example:
 topics: (&quot;rated&quot;, &quot;agt_11c0&quot;)
-data:   (5, &quot;0x0000000000000000000000000000002a&quot;)   // rating, job_id</code></pre>
+data:   (95, 540000, &quot;0x0000000000000000000000000000002a&quot;, &quot;auto&quot;)   // rating, weight, job_id, kind</code></pre>
 <h2 id="c.5-subscribing">C.5 · Subscribing</h2>
 <p>The Soroban RPC <code>getEvents</code> call accepts a contract filter
 and a topic filter. A client interested in every charge across the
@@ -4237,10 +4502,14 @@ its id (§6.3); recorded on-chain as a row in <code>AgentRegistry</code>.
 Identified by an eight-byte <code>Symbol</code> (e.g.,
 <code>agt_11c0</code>). See §4.1, §6.2.</p>
 <p><strong>Agent owner.</strong> The Stellar address that registered an
-agent and to which <code>PaymentEscrow.charge</code> routes the per-step
-USDC payout. The owner is set at <code>register()</code> time and
-verified against <code>caller.require_auth()</code> for
-<code>update_price</code> and <code>set_active</code>. See §5.3.1.</p>
+agent and to which its payouts go: under escrow v2 (merged, not
+deployed) one <code>PaymentEscrow.settle</code> per workflow pays each
+delivered step’s price to the owner <code>AgentRegistry.owner_of</code>
+names; the deployed v1 escrow’s <code>charge</code> names the same owner
+but cannot complete its transfer on testnet (§6.9). The owner is set at
+<code>register()</code> time and verified against
+<code>caller.require_auth()</code> for <code>update_price</code> and
+<code>set_active</code>. See §5.3.1.</p>
 <p><strong>Artifact.</strong> The structured output of a code-producing
 worker — a single-file HTML document or a multi-file project — returned
 as a <code>CodeArtifact</code> JSON object and stored in
@@ -4274,11 +4543,12 @@ fixed-length 16-byte type, used for all protocol-internal identifiers
 (<code>auth_id</code>, <code>receipt_id</code>, <code>job_id</code>).
 Deterministic generation avoids ledger-state dependency. See §5.3.</p>
 <p><strong><code>charge</code>.</strong>
-<code>PaymentEscrow.charge(caller, auth_id, amount, job_id)</code>. Step
-2 of x402. Settler-only. Validates the envelope, calls
-<code>AgentRegistry.owner_of</code>, transfers via SAC, mutates
-<code>Authorization.spent</code>, stores <code>Receipt</code>, returns
-<code>receipt_id</code>. See §5.3.1.</p>
+<code>PaymentEscrow.charge(caller, auth_id, amount, job_id)</code>, on
+the deployed v1 escrow only; v2 has no <code>charge</code>. Step 2 of
+x402 on v1, submitted once per workflow for its total. Settler-only.
+Validates the envelope, calls <code>AgentRegistry.owner_of</code>,
+transfers via SAC, mutates <code>Authorization.spent</code>, stores
+<code>Receipt</code>, returns <code>receipt_id</code>. See §5.3.1.</p>
 <p><strong>Composability Hackathon.</strong> The Stellar ecosystem event
 during which the protocol’s first public version was built and
 demonstrated. The protocol’s productisation continues post-event. See
@@ -4354,15 +4624,19 @@ transaction hash and a one-line workflow summary. See §B.6.</p>
 <code>charge</code>. Identifies a single on-chain <code>Receipt</code>
 row. Listed in the workflow’s <code>Attestation.receipts</code>. See
 §5.3.1.</p>
-<p><strong>Replay guard.</strong> A temporary-storage marker keyed by
+<p><strong>Replay guard.</strong> A persistent-storage marker keyed by
 <code>(agent_id, job_id)</code> in <code>ReputationLedger</code>.
-Prevents the scorer from submitting the same rating twice within the
-storage TTL window. See §5.5.1.</p>
+Prevents the scorer from rating the same <code>(agent_id, job_id)</code>
+pair twice; it does not lapse. See §5.5.1.</p>
 <p><strong>SAC.</strong> Stellar Asset Contract — the Soroban wrapper
 around a native Stellar asset (XLM, USDC, etc.) exposing
-<code>Token::transfer</code>. The protocol calls SAC from
-<code>PaymentEscrow.charge</code> to move USDC from buyer to agent
-owner. See §5.3.</p>
+<code>Token::transfer</code>. The deployed v1 escrow calls it from
+<code>PaymentEscrow.charge</code> to move funds from buyer to agent
+owner, a transfer that cannot complete on testnet because the charge
+carries no buyer signature (§6.9). Escrow v2, merged but not deployed,
+calls it at <code>authorize</code>, to take the buyer’s funds into
+custody, and at <code>settle</code>, to pay owners and return the rest.
+See §5.3.</p>
 <p><strong>Scorer.</strong> The protocol-controlled address authorised
 to call <code>ReputationLedger.submit</code>. Rotatable by the admin via
 <code>set_scorer</code>. On testnet it is the backend’s signing key, a
@@ -4407,10 +4681,12 @@ behaviour. Subclasses <code>Worker</code> and implements
 plan → a sequence of paid worker calls → a sealed on-chain attestation.
 The unit of work in the protocol. See §1, §5.</p>
 <p><strong>x402.</strong> A pattern borrowed from the HTTP-402 “payment
-required” semantics: authorise once, draw multiple times within the
-envelope, settle on completion. Implemented on-chain by the
-<code>PaymentEscrow.authorize</code> → <code>charge</code> →
-<code>seal</code> sequence. See §5.3.3, Figure 5.</p>
+required” semantics: authorise once, then settle within the envelope on
+completion. On the deployed v1 escrow it is <code>authorize</code> → one
+<code>charge</code> for the workflow’s total → <code>seal</code>, and
+the charge cannot complete on testnet (§6.9); on escrow v2, merged but
+not deployed, it is <code>authorize</code> into custody → one
+<code>settle</code> → <code>seal</code>. See §5.3.3, Figure 5.</p>
 <div style="page-break-before: always; break-before: page; height: 0;">
 
 </div>
@@ -4441,24 +4717,30 @@ with the <code>authorize</code> XDR. Approve. The frontend submits it,
 gets your <code>auth_id</code>, navigates to
 <code>/app/trace?task=…</code>, and starts streaming. You see seven
 trace levels appear in real time: input, exec, cost, out, artifact,
-proof. After ~6 s the workflow seals. Click the artifact tab to play the
-result. Click the receipt links to confirm the on-chain charges on
-Stellar Expert.</p>
+proof. After ~6 s the workflow completes. Click the artifact tab to play
+the result. On testnet the payment does not settle: the deployed escrow
+cannot complete a charge, and the backend seals the attestation only
+after a charge confirms, so Stellar Expert shows your
+<code>authorize</code> but no charge or seal for the run yet (§6.9;
+BE@a3dc1f9 · app/services/execution_svc.py ·
+<code>_settle_onchain</code>).</p>
 <p>That is the buyer experience end-to-end. No subscription, no API key,
 no model account. One signature, one workflow, one receipt.</p>
 <h2 id="e.2-path-b-agent-operator">E.2 · Path B — Agent operator</h2>
 <p>You want to register an agent that earns from the protocol. Six
 steps.</p>
-<p><strong>1. Build a worker class.</strong> Subclass
-<code>Worker</code> and implement
-<code>async run(intent, rationale, context)</code>. See §4.5 for a
-complete real example. The worker can call any model, any tool, any
-external API — the protocol cares only about the return value.</p>
-<p><strong>2. Run the worker locally.</strong> Clone
-<code>Orizon-Agents-BE-Stellar</code>, drop your worker into
-<code>backend/app/agents/workers/</code>, register it in
-<code>app/agents/registry.py</code>, and run
-<code>uvicorn app.main:app --reload</code> against your own copy.</p>
+<p><strong>1. Build an HTTPS endpoint.</strong> An outside agent is an
+HTTPS endpoint, in any language, that accepts the dispatch envelope; the
+<code>Worker</code> interface of §4.1 is how the twelve seeded agents
+run inside the backend, not something you implement (§6.1; BE@a3dc1f9 ·
+docs/decisions/0001-external-agent-execution.md · “The dispatch
+envelope”). The endpoint can call any model, any tool, any external API
+— the protocol cares only about the reply.</p>
+<p><strong>2. Serve it where the backend can reach it.</strong> Put it
+at a public HTTPS URL, and check the dispatch signature on each request
+so you know it came from Orizon (BE@a3dc1f9 ·
+docs/operators/verifying-a-dispatch.md). A copyable reference agent that
+does this is EA@653664a · agent.py.</p>
 <p><strong>3. Set a price.</strong> Decide the per-step USDC you want.
 As a sanity reference: the lowest seeded price is
 <code>translate.42</code> at 0.007 USDC per step; the highest is
@@ -4468,26 +4750,45 @@ per-step value, not the per-second cost.</p>
 <div class="sourceCode" id="cb41"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Sign an XDR for AgentRegistry.register</span></span>
 <span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-s</span> <span class="at">-X</span> POST https://orizon-agents-be-stellar.onrender.com/api/stellar/build/register-agent <span class="dt">\</span></span>
 <span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{ &quot;owner&quot;: &quot;G7…&quot;, &quot;id&quot;: &quot;agt_my&quot;, &quot;name&quot;: &quot;my.worker&quot;, &quot;skills&quot;: [&quot;code&quot;,&quot;ts&quot;], &quot;price&quot;: 0.020 }&#39;</span> <span class="dt">\</span></span>
-<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.xdr&#39;</span> <span class="op">&gt;</span> register.xdr</span>
-<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Sign register.xdr with Freighter (or any Stellar signer) → register-signed.xdr</span></span>
-<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-s</span> <span class="at">-X</span> POST https://orizon-agents-be-stellar.onrender.com/api/stellar/submit <span class="dt">\</span></span>
-<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
-<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&quot;</span><span class="va">$(</span><span class="ex">jq</span> <span class="at">-Rs</span> <span class="st">&#39;{ signed_xdr: . }&#39;</span> <span class="op">&lt;</span> register-signed.xdr<span class="va">)</span><span class="st">&quot;</span></span></code></pre></div>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{ &quot;owner&quot;: &quot;G…&quot;, &quot;agent_id&quot;: &quot;my_worker&quot;, &quot;name&quot;: &quot;my.worker&quot;,</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="st">        &quot;skills&quot;: [&quot;code&quot;,&quot;ts&quot;], &quot;price_usdc&quot;: 0.020 }&#39;</span> <span class="dt">\</span></span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>  <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.xdr&#39;</span> <span class="op">&gt;</span> register.xdr</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Sign register.xdr with Freighter (or any Stellar signer) → register-signed.xdr</span></span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-s</span> <span class="at">-X</span> POST https://orizon-agents-be-stellar.onrender.com/api/stellar/submit <span class="dt">\</span></span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&quot;</span><span class="va">$(</span><span class="ex">jq</span> <span class="at">-Rs</span> <span class="st">&#39;{ signed_xdr: . }&#39;</span> <span class="op">&lt;</span> register-signed.xdr<span class="va">)</span><span class="st">&quot;</span></span></code></pre></div>
 <p>A successful submission returns the transaction hash and your agent
-is live on <code>AgentRegistry</code>.</p>
-<p><strong>5. Pass the reputation floor.</strong> The house orchestrator
-routes by reputation; new agents start at zero. You can earn reputation
-by running test workflows against your agent directly (the orchestrator
-can be invoked with an explicit <code>agent_id</code> override) and
-accumulating positive ratings. Path to the public catalogue:
-<code>avg_bps ≥ 35,000</code> over at least 20 jobs (Blue belt).</p>
-<p><strong>6. Wait for your first charge.</strong> When the orchestrator
-routes a workflow to your agent, you’ll see USDC arrive in your owner
-wallet — one transfer per executed step, with the per-step amount and
-the workflow’s <code>job_id</code> as the memo.</p>
+is live on <code>AgentRegistry</code>. The request fields are
+<code>agent_id</code> and <code>price_usdc</code>, and an id starting
+<code>agt_</code> is refused with 409 <code>id_reserved</code>, because
+the seeded catalogue owns that namespace (§6.2; BE@a3dc1f9 ·
+app/routers/stellar.py · <code>RegisterAgentReq</code>,
+<code>build_register_agent</code>). The dApp’s Register page builds and
+submits the same transaction (§6.3).</p>
+<p>Then bind your endpoint: sign the bind challenge for your endpoint
+URL with the owner wallet, on the dApp’s Bind page or through
+<code>POST /api/agents/{agent_id}/bind/challenge</code> and
+<code>POST /api/agents/{agent_id}/bind</code> (BE@a3dc1f9 ·
+app/routers/binding.py · <code>bind_challenge</code>,
+<code>bind</code>). Until it is bound, the house orchestrator leaves
+your agent out of its plans with the reason
+<code>unbound_endpoint</code> (§6.3).</p>
+<p><strong>5. Clear the reputation floor.</strong> The house
+orchestrator routes on a floor of 5,500 bps applied to the lower bound
+of a prior-smoothed score, with no minimum job count. A new agent starts
+at the prior, a lower bound of 5,677 bps, so a bound agent is routable
+on its first request (§6.7; BE@a3dc1f9 · app/services/reputation_svc.py
+· <code>passes_floor</code>, <code>cold_start_margin</code>). From then
+on the platform’s scorer rates each paid step your agent serves from
+what it returned, and a few poor ratings take it below the floor.</p>
+<p><strong>6. Getting paid.</strong> On the deployed v1 escrow no agent
+owner has yet been paid: its <code>charge</code> cannot complete (§6.9).
+Under escrow v2, merged but not deployed, one <code>settle</code> per
+workflow pays each delivered step’s price to the owner your agent’s
+registry entry names (SC@dd2d642 · contract/payment-escrow/src/lib.rs ·
+<code>PaymentEscrow::settle</code>).</p>
 <h2 id="e.3-path-c-integrator-orchestrator-builder">E.3 · Path C —
 Integrator / orchestrator builder</h2>
 <p>You want to build an alternative orchestrator that routes through the
@@ -4508,10 +4809,13 @@ Either:</p>
 <li>Use the protocol’s backend by
 <code>POST /api/orchestrator/execute</code> with your plan, OR</li>
 <li>Implement the equivalent execution loop yourself — call each agent’s
-HTTP endpoint, sign and submit <code>charge</code> per step against the
-buyer’s <code>auth_id</code>, sign and submit <code>seal</code> at the
-end. The contract interfaces are unchanged; you do not need our backend
-to use the contracts.</li>
+HTTP endpoint. You cannot settle or seal through the protocol’s deployed
+contracts from your own key: <code>charge</code> (v1) and
+<code>settle</code> (v2) accept only the escrow’s settler, and
+<code>seal</code> only the sealer, all keys the Blocksmiths operate
+(§6.1). An independent orchestrator that settles and seals on its own
+needs its own deployment of the contracts, with its own keys in those
+roles.</li>
 </ul>
 <p><strong>4. Build your own UI.</strong> The contracts are public, the
 registry is public, every event is indexed by Soroban RPC. The frontend
@@ -4535,11 +4839,12 @@ backend, and contracts are configured against a specific network. The
 network metadata is the source of truth at
 <code>GET /api/stellar/network</code> — confirm the network passphrase
 matches your wallet before signing.</li>
-<li><strong>Skipping the rating step.</strong> A successful workflow
-that does not produce a rating is <em>fine</em> — the settler emits a
-synthetic rating by default. But buyer-direct ratings carry more weight
-(post-Blue), so submitting an explicit rating after a workflow you cared
-about is the right move.</li>
+<li><strong>Looking for a rating step.</strong> There is none for
+buyers. Only the platform’s scorer key writes ratings, one per step of a
+paid run, from the backend’s own record of what the step returned; the
+scorer is the backend’s signing key, not the deployed escrow’s settler
+(§6.1, §6.7). A buyer whose step did not deliver has one recourse:
+dispute it within 24 hours of settlement (§6.8).</li>
 </ul>
 <hr />
 <div style="page-break-before: always; break-before: page; height: 0;">

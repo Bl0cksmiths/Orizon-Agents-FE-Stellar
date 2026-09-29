@@ -5,7 +5,8 @@
               sections/06-*.md byte for byte (catches a hand-edited book);
               the -docx.md and figures/*.mmd equal what the book derives.
   2. formats: §6 (from the `§6 · …` heading to the `§7 · …` heading) carries
-              the same text in the book .md, the .html, the .pdf and the .docx.
+              the same text in the book .md, the .html, the .pdf and the .docx;
+              so does each other --section, without the .pdf for a --no-pdf one.
   3. figures: every figure PNG has white margin on all sides (not clipped).
   4. seed:    the §6.2 Genesis-agents table agrees row for row with the
               backend's app/seed.py (read from git, parsed with ast).
@@ -29,6 +30,7 @@ from common import BOOK, DOCX, DOCX_MD, HTML, PDF, ROOT, docx_markdown, figure_b
 
 PAGEBREAK = "\n<!-- pagebreak -->"
 MD_FROM = "markdown+raw_html+definition_lists+pipe_tables+fenced_code_attributes"
+PRIVATE_USE = re.compile("[\ue000-\uf8ff]")
 
 
 # ---------------------------------------------------------------- markdown --
@@ -201,27 +203,43 @@ def pdf_text(path: Path) -> str:
     # Content-stream order. Known limit: Chrome paints the odd code block out
     # of order (§A.1's "202 Accepted" is extracted after §A.2's first
     # paragraphs, in v0.4 too). Layout mode fixes that but interleaves
-    # multi-line table cells, which §6 has plenty of.
-    return "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
+    # multi-line table cells, which §6 has plenty of. Chrome also leaves
+    # private-use code points (U+E000–U+F8FF) at the top of some pages; they
+    # stand for no text, so they are dropped.
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(str(path)).pages)
+    return PRIVATE_USE.sub("", text)
 
 
-def format_texts(out: Path, pandoc_bin: str, chapter_md: str) -> dict[str, tuple[str, str]]:
-    """{format: (reference text from the book, text read from the format)}."""
-    ref_html = pandoc(pandoc_bin, [f"--from={MD_FROM}", "--to=html5"], chapter_md.encode())
+def format_texts(out: Path, pandoc_bin: str, chapter_md: str, docx_chapter_md: str,
+                 pdf: bool = True) -> dict[str, tuple[str, str]]:
+    """{format: (reference text from the book, text read from the format)}.
+
+    The .docx is compared with the chapter as the -docx.md carries it, where
+    each Mermaid block is already its figure's PNG (check_source ties that
+    file to the book), so a chapter with figures compares cleanly."""
+    def md_html(md: str) -> str:
+        return pandoc(pandoc_bin, [f"--from={MD_FROM}", "--to=html5"], md.encode())
+
+    ref_html = md_html(chapter_md)
     ref, ref_printed = html_text(ref_html), html_text(ref_html, printed=True)
     texts = {}
     texts["html"] = (ref, html_text((out / HTML).read_text(encoding="utf-8")))
-    texts["pdf"] = (ref_printed, pdf_text(out / PDF))
-    texts["docx"] = (ref, html_text(pandoc(pandoc_bin, ["--from=docx", "--to=html5", str(out / DOCX)])))
+    if pdf:
+        texts["pdf"] = (ref_printed, pdf_text(out / PDF))
+    texts["docx"] = (html_text(md_html(docx_chapter_md)),
+                     html_text(pandoc(pandoc_bin, ["--from=docx", "--to=html5", str(out / DOCX)])))
     return texts
 
 
-def check_formats(out: Path, pandoc_bin: str, num: str = "6") -> list[str]:
+def check_formats(out: Path, pandoc_bin: str, num: str = "6", pdf: bool = True) -> list[str]:
     book = (out / BOOK).read_text(encoding="utf-8")
     chapter_md, title, next_title = book_chapter(book, num)
+    docx_chapter_md = book_chapter((out / DOCX_MD).read_text(encoding="utf-8"), num)[0]
     start, end = words(title), words(next_title)
     failures = []
-    for fmt, (ref_text, got_text) in format_texts(out, pandoc_bin, chapter_md).items():
+    if not pdf:
+        print(f"SKIP  pdf: §{num} (NO_PDF: pypdf does not read its text in order)")
+    for fmt, (ref_text, got_text) in format_texts(out, pandoc_bin, chapter_md, docx_chapter_md, pdf).items():
         ref = section_slice(words(ref_text), start, [])
         got = section_slice(words(got_text), start, end)
         if got is None:
@@ -390,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--sections", type=Path, default=ROOT / "sections")
     ap.add_argument("--pandoc", default="pandoc")
     ap.add_argument("--section", action="append", help="chapter to compare across formats (repeatable; default 6)")
+    ap.add_argument("--no-pdf", action="append", default=[],
+                    help="chapter compared in the md, html and docx only (repeatable)")
     ap.add_argument("--seed-repo", default=str(Path.home() / "Websites-Services-2026/orizon-agents-BE-Stellar"))
     ap.add_argument("--seed-ref", default="origin/main")
     ap.add_argument("--seed-path", default="app/seed.py")
@@ -400,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
     failures = []
     for i, num in enumerate(chapters):
         failures += check_source(args.out, args.sections, num, full=(i == 0))
-        failures += check_formats(args.out, args.pandoc, num)
+        failures += check_formats(args.out, args.pandoc, num, pdf=num not in args.no_pdf)
     failures += check_figures(args.out)
     source, where = seed_source(args)
     if source is None:

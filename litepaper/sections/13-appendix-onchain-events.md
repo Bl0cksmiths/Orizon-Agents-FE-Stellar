@@ -20,11 +20,16 @@ data:   "GBVRJQ7HJ5DBPV2K…"   // owner address of the new agent
 
 ## C.2 · `PaymentEscrow`
 
+The deployed escrow is v1 (SC@88aa554); escrow v2 (SC@dd2d642) is merged but not deployed, and changes the set (contract/payment-escrow/src/lib.rs at each commit).
+
 | Event | Topics | Data | Triggered by |
 | --- | --- | --- | --- |
-| **Authorised** | `(Symbol("authd"), agent_id: Symbol)` | `(auth_id: BytesN<16>, payer: Address, max_amount: i128)` | `authorize()` |
-| **Charged** | `(Symbol("charged"), agent_id: Symbol)` | `(receipt_id: BytesN<16>, auth_id: BytesN<16>, amount: i128, job_id: BytesN<16>)` | `charge()` |
-| **Revoked** | `(Symbol("revoked"), auth_id: BytesN<16>)` | `payer: Address` | `revoke()` |
+| **Authorised** | `(Symbol("authd"), agent_id: Symbol)` | `(auth_id: BytesN<16>, payer: Address, max_amount: i128)` | `authorize()`, v1 and v2 |
+| **Charged** | `(Symbol("charged"), agent_id: Symbol)` | `(receipt_id: BytesN<16>, auth_id: BytesN<16>, amount: i128, job_id: BytesN<16>)` | v1 `charge()`; v2 `settle()`, once per payout |
+| **Revoked** | `(Symbol("revoked"),)` | `auth_id: BytesN<16>` | v1 `revoke()` |
+| **Settled** | `(Symbol("settled"),)` | `(auth_id: BytesN<16>, job_id: BytesN<16>, sum: i128, returned: i128)` | v2 `settle()` |
+| **Reclaimed** | `(Symbol("reclaimd"),)` | `(auth_id: BytesN<16>, payer: Address, returned: i128)` | v2 `reclaim()` |
+| **Settler rotated** | `(Symbol("settler"),)` | `(old: Address, new_settler: Address)` | v2 `set_settler()` |
 
 ```text
 example:
@@ -40,7 +45,8 @@ data:   ("0x00000000000000000000000000000a04",   // receipt_id
 | Event | Topics | Data | Triggered by |
 | --- | --- | --- | --- |
 | **Sealed** | `(Symbol("sealed"), job_id: BytesN<16>)` | `(orchestrator: Address, total_spent: i128)` | `seal()` |
-| **Sealer rotated** | `(Symbol("rotated"),)` | `new_sealer: Address` | `set_sealer()` |
+
+`set_sealer()` emits no event (SC@dd2d642 · contract/attestation-registry/src/lib.rs · `AttestationRegistry::seal`, `AttestationRegistry::set_sealer`).
 
 ```text
 example:
@@ -52,13 +58,14 @@ data:   ("GA7AI5TAJEZA27I666DSJC4…", 1680000)   // orchestrator, total stroops
 
 | Event | Topics | Data | Triggered by |
 | --- | --- | --- | --- |
-| **Rated** | `(Symbol("rated"), agent_id: Symbol)` | `(rating_0_to_5: u32, job_id: BytesN<16>)` | `submit()` |
-| **Scorer rotated** | `(Symbol("rotated"),)` | `new_scorer: Address` | `set_scorer()` |
+| **Rated** | `(Symbol("rated"), agent_id: Symbol)` | `(rating_0_to_100: u32, weight: i128, job_id: BytesN<16>, kind: Symbol)` | `submit()` |
+
+`set_scorer()` emits no event (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`, `ReputationLedger::set_scorer`). `weight` is the step's quoted price in stroops, capped (§6.7). `kind` is `auto` for the backend's per-step rating and `dispute` for an upheld dispute's (BE@a3dc1f9 · app/stellar/client.py · `submit_rating`; §6.7).
 
 ```text
 example:
 topics: ("rated", "agt_11c0")
-data:   (5, "0x0000000000000000000000000000002a")   // rating, job_id
+data:   (95, 540000, "0x0000000000000000000000000000002a", "auto")   // rating, weight, job_id, kind
 ```
 
 ## C.5 · Subscribing

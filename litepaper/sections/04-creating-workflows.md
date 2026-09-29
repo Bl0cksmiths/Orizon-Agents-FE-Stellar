@@ -132,11 +132,10 @@ The schemas live in `backend/app/schemas.py` and `backend/app/demo_kits/schemas.
 The smallest meaningful workflow a developer can ship is a *single new worker* plugged into the existing pipeline:
 
 1. Subclass `Worker`, give it an id and a name, implement `run(intent, rationale, context)`.
-2. Add the agent to the registry seed (`backend/app/seed.py`) with a price and a starting reputation.
+2. Add the agent to the registry seed (`backend/app/seed.py`) with a price and a starting reputation. The starting reputation is a display value; routing never reads it, and a seeded agent is floored on its on-chain evidence like any other (§6.2).
 3. Optionally add a `DemoKit` whose plan references the new agent — this gives the agent a deterministic, demo-grade activation path.
-4. Register the agent on chain by signing a `register(owner, id, name, skills, price)` XDR for the `AgentRegistry` contract.
 
-Step 4 is the only step that requires Stellar. Everything before it is plain Python.
+None of this touches Stellar. A seeded agent is a backend record, not an on-chain registration: the seed set owns the `agt_` namespace, and the backend will not build a registration for such an id (§6.2; BE@a3dc1f9 · app/routers/stellar.py · `build_register_agent`). This path is for contributors to the backend. An outside operator instead registers its own id on chain and binds an HTTPS endpoint (§6.3, §E.2).
 
 ## 4.5 · A real worker, end-to-end
 
