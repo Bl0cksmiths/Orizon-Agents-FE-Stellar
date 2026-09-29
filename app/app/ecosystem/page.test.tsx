@@ -331,6 +331,33 @@ describe("AdoptionView — external operators", () => {
     expect(text(row)).not.toContain("team-funded");
   });
 
+  it("names each explorer link in full and says it opens a new tab", () => {
+    const a = withOperator([BUYER]);
+    a.operators[0].owner_explorer = `https://stellar.expert/explorer/testnet/account/${OUTSIDER}`;
+    render(<AdoptionView adoption={a} />);
+    // jsdom drops the space where the visible and hidden text meet; the e2e
+    // spec checks the exact names in a real browser.
+    const wallet = screen.getByRole("link", {
+      name: new RegExp(
+        `^GBOU…XXXX ?— ${OUTSIDER}, on Stellar Expert \\(opens in a new tab\\)$`,
+      ),
+    });
+    expect(wallet.getAttribute("target")).toBe("_blank");
+    const tx = screen.getByRole("link", {
+      name: /^tx cdcdcdcd… ?on Stellar Expert \(opens in a new tab\)$/,
+    });
+    expect(tx.getAttribute("target")).toBe("_blank");
+    // Every link that leaves in a new tab says so — the payer and the excluded
+    // wallets included.
+    const away = screen
+      .getAllByRole("link")
+      .filter((l) => l.getAttribute("target") === "_blank");
+    expect(away.length).toBeGreaterThanOrEqual(4);
+    for (const link of away) {
+      expect(text(link)).toMatch(/\(opens in a new tab\)$/);
+    }
+  });
+
   it("labels a team payer with the role the backend sends", () => {
     const a = withOperator([BUYER, BUYER]);
     const [outside, team] = a.operators[0].agents[0].settled_workflows;
