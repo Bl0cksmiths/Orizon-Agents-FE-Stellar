@@ -1021,8 +1021,8 @@
       "target": "Yes",
       "achieved": "Partly: the dispute routes are deployed, but no dispute window can open until a payment settles, which needs escrow v2, and refunds are switched off.",
       "status": "not_met",
-      "reason": "The dispute routes are deployed, but a buyer's 24-hour dispute window opens only when a payment settles, and none has: settling a payment needs escrow v2, which is merged but not deployed. The live backend does not report refunds as switched on (its readiness report predates the refund switch), and no dispute has been refunded on-chain (see the dispute refund row).",
-      "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject), that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on), and that at least one dispute has been refunded on-chain (the dispute refund row above).",
+      "reason": "No dispute window can open until a payment settles, which needs escrow v2, and refunds are switched off.",
+      "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject); that a dispute window can open at all, which needs a settled payment, and so the escrow v2 contract live; that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on); and that at least one dispute has been refunded on-chain (the dispute refund row above). Yes when all hold, Partly when the routes are deployed but the rest does not, and No when the routes are not.",
       "links": [
         {
           "label": "Live backend route list",
