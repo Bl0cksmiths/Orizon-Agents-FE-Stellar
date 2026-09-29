@@ -40,8 +40,8 @@ Contact (general): `algorexph@gmail.com`.
 
 ## How to read this document
 
-- **Operators and grant reviewers**: start at §1 and read straight through. Total ~25 pages.
-- **Developers building agents**: §4 and §5 are written for you. The Worker code example in §4 is the smallest thing that runs.
+- **Operators and grant reviewers**: start at §1 and read straight through. The PDF runs to about a hundred pages.
+- **Developers building agents**: an agent of your own is an HTTPS endpoint you register on chain and bind (§6.3, §E.2). §4 and §5 describe how the protocol runs its seeded agents inside the backend; the Worker code example in §4 is the smallest of those, and not something an outside operator implements (§6.1).
 - **Investors and ecosystem partners**: §2.2 (competitive matrix), §6 (governance), §7 (economics).
 - **Skeptics**: §5.5 (security), §5.7 (future improvements — what is *not* yet built), and §10 (disclaimer).
 
@@ -218,7 +218,7 @@ The single most important property of this roadmap, from a buyer's standpoint, i
 We were asked, many times, why an agent-commerce protocol settles on Stellar rather than Ethereum, Solana, or a purpose-built L2. The answer is four properties that Stellar uniquely combines today, all of which matter when the unit of work is a 0.01-USDC step:
 
 - **Settlement is sub-second.** Stellar's consensus produces finality in ~5 s. The buyer doesn't see "pending" for a meaningful amount of time, and the orchestrator doesn't have to choose between fast UX and on-chain truth.
-- **Per-operation fees are denominated in stroops.** A six-step workflow today pays the network roughly **0.0006 XLM** in fees across `authorize`, six `charge` calls, and `seal` — well under a tenth of a US cent at any plausible XLM price. The protocol can take zero margin on a 0.012 USDC translation step and not lose money. That property is what made per-call agent commerce *economically* possible in the first place.
+- **Per-operation fees are denominated in stroops.** A six-step workflow is nine transactions, not one per step: the buyer's `authorize`, then from the backend one `settle` under escrow v2 (one `charge` for the workflow's total on the deployed v1), one `seal` and six rating `submit`s (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`, `_submit_ratings`). Soroban calls cost far more than a classic payment's 100 stroops: measured on testnet, about **0.048 XLM** for the eight of those nine whose cost has been observed, before `settle`, which has never run because v2 is not deployed (§7.4). That is about 2.4 US cents at USD 0.50 per XLM. The platform pays every one of those fees except the buyer's `authorize` and takes no margin, so on a 0.012 USDC step it runs at a loss today.
 - **Stablecoin native.** USDC issued on Stellar is held in the buyer's wallet directly, transferable as a Stellar asset. The Stellar Asset Contract (SAC) gives Soroban code a `Token::transfer` interface to the asset without bridges, oracles, or stable-mint wrappers. The protocol's `PaymentEscrow` calls `SAC::transfer` directly — one cross-contract hop. In the deployed v1 escrow that call sits in `charge` and cannot complete, because the transfer needs the buyer's signature and the charge transaction carries only the settler's; escrow v2, merged but not deployed, makes the transfer inside the buyer-signed `authorize`, into custody, and pays out from there at `settle` (§6.9; SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::charge`; SC@dd2d642 · same file · `PaymentEscrow::authorize`, `PaymentEscrow::settle`).
 - **Soroban gives us composability without rewriting the language.** The four contracts compile to ~26 KB of WASM total. Storage is tiered (`Instance`, `Persistent`, `Temporary`) which lets us keep the attestation and the rating replay guard in `Persistent` for good. The first ledger kept the replay guard in `Temporary`, where it expired and re-opened the replay window; the deployed ledger keeps it in `Persistent` (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `DataKey::Rated`). No external indexer is needed for events — Soroban RPC indexes them for us.
 
@@ -568,7 +568,7 @@ body: { plan_id, auth_id_hex?, payer? }
 
 The handler spawns `asyncio.create_task(_run(plan, task_id, auth_id_hex, payer))` and returns the task id immediately. The frontend opens an `EventSource` to `/api/trace/{task_id}/stream` and watches the workflow unfold.
 
-Inside `_run()`, the loop is (verbatim from `backend/app/services/execution_svc.py`, lightly abridged for prose):
+Inside `_run()`, the loop is (abridged from BE@a3dc1f9 · app/services/execution_svc.py · `_run`; the real function also resolves external endpoints, tracks failures and records the settlement):
 
 ```python
 async def _run(plan: Plan, task_id: str, auth_id_hex: str | None, payer: str | None):
@@ -579,39 +579,29 @@ async def _run(plan: Plan, task_id: str, auth_id_hex: str | None, payer: str | N
 
     await _emit(task_id, start, "input", f"intent received → {plan.intent!r}")
 
-    receipts: list[str] = []
-    for step in plan.steps:
+    delivered: dict[int, Any] = {}
+    spent = 0.0
+    for step_index, step in enumerate(plan.steps):
         await _emit(task_id, start, "exec",
                     f"match agent: {step.name} ({step.agent_id}) — {step.rationale}")
-        worker = workers_by_id(step.agent_id)
+        worker = get_worker(step.agent_id)
         if worker is None:
             await _emit(task_id, start, "error",
                         f"unknown agent {step.agent_id}")
-            return
+            continue                      # the step fails; the run goes on
 
         try:
             result = await asyncio.wait_for(
                 worker.run(plan.intent, step.rationale, context=context),
-                timeout=120.0,
+                timeout=STEP_TIMEOUT_SECONDS,   # 120 s
             )
         except asyncio.TimeoutError:
-            await _emit(task_id, start, "error",
-                        f"{step.name} timed out after 120s")
-            return
+            await _emit(task_id, start, "error", f"{worker.name} timed out")
+            continue
 
-        # Charge — happens only after a successful return.
-        if auth_id_hex and payer:
-            receipt_id, charge_tx = await stellar.charge(
-                auth_id_hex=auth_id_hex,
-                payer=payer,
-                agent_id=step.agent_id,
-                amount_usdc=step.price_usdc,
-                job_id_hex=task_id,
-            )
-            receipts.append(receipt_id)
-            await _emit(task_id, start, "cost",
-                        f"x402 payment → {step.agent_id} :: "
-                        f"{step.price_usdc} USDC ({charge_tx})")
+        # Nothing is paid inside the loop: a delivered step is only noted.
+        delivered[step_index] = result
+        spent += step.est_price_usdc
 
         # Emit summary + (optional) artifact.
         await _emit(task_id, start, "out",
@@ -623,29 +613,33 @@ async def _run(plan: Plan, task_id: str, auth_id_hex: str | None, payer: str | N
 
         context[step.name] = result  # plumb forward
 
-    # Seal — write-once attestation on chain.
+    # Settle once, at the end, for the delivered steps; seal after it confirms.
+    job_id = None
+    if auth_id_hex and payer and delivered:
+        if await _escrow_version() >= 2:
+            # v2: one `settle` pays each delivered step's owner from custody
+            # and returns the rest to the buyer, then the seal.
+            settle_tx, proof_tx, job_id = await _settle_v2(
+                task_id, start, plan, payer=payer, auth_id_hex=auth_id_hex,
+                delivered_steps=frozenset(delivered))
+        else:
+            # v1 (deployed): one `charge` for the workflow's total, then the seal.
+            charge_tx, proof_tx, job_id = await _settle_onchain(
+                task_id, start, plan, payer=payer, auth_id_hex=auth_id_hex,
+                total_usdc=spent)
+    # One rating per dispatched step, whether or not the money moved.
     if auth_id_hex and payer:
-        seal_tx = await stellar.seal(
-            job_id_hex=task_id,
-            orchestrator=payer,
-            intent_hash=hash_intent(plan.intent),
-            agents=[s.agent_id for s in plan.steps],
-            receipts=receipts,
-            total_spent=sum(s.price_usdc for s in plan.steps),
-        )
-        await _emit(task_id, start, "proof",
-                    f"workflow sealed — {len(plan.steps)} agents · "
-                    f"{sum(s.price_usdc for s in plan.steps)} USDC · "
-                    f"tx {seal_tx}")
+        await _submit_ratings(task_id, start, plan, delivered, payer=payer,
+                              job_id=job_id or unsettled_job_id(task_id))
 ```
 
 Three properties of this loop are worth highlighting.
 
 **Context is monotonic.** Every result is keyed by the worker's `name` (`code.gen`, `code.critic`, `seo.brief`, …) so later steps can read prior outputs by name. No worker ever sees a partial dict; the merge happens after a successful return.
 
-**Timeouts are enforced.** A worker has 120 seconds to return. If it does not, the wrapper emits an `error` line, the workflow stops, the buyer's authorisation lapses on its own TTL, and no further charges are emitted. We never attempt to "kill" a worker; we just stop waiting.
+**Timeouts are enforced.** A worker has 120 seconds to return. If it does not, the wrapper emits an `error` line and the run moves on to the next step; the step that timed out is not billed. We never attempt to "kill" a worker; we just stop waiting.
 
-**Charges happen out-of-loop relative to the result.** The charge is emitted *after* the worker returns successfully. A failed worker never produces a charge. This means a buyer pays for value that arrived, never for value that didn't.
+**Settlement happens once, after the loop.** Nothing is paid per step. At the end of the run the backend submits one settlement for the delivered steps only: one `settle` under escrow v2, one `charge` for the workflow's total on the deployed v1, which cannot complete on testnet (§6.9). A failed step is never billed, so a buyer pays for value that arrived, never for value that didn't (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_settle_v2`, `_settle_onchain`).
 
 The `code.critic` worker uses a parallel short-circuit: when the prior step's result carries `source: "baked"`, the critic runs the structural validator (`code_validator.validate_html`), reports the kit's `critic_checklist` as pre-satisfied, sleeps for a believable 0.4–1.0 s, and returns. No model call is incurred.
 
@@ -725,43 +719,44 @@ The **contracts** are four lean Rust Soroban modules.
 | `AgentRegistry` | `CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ` | 7.2 KB | Identity, skills, price catalog; resolves agent owner for payout |
 | `PaymentEscrow` | `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI` | 9.8 KB | x402 authorize → charge → receipt flow; calls registry + SAC |
 | `AttestationRegistry` | `CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK` | 5.1 KB | Write-once workflow receipt under a job id |
-| `ReputationLedger` | `CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV` | 5.1 KB | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
+| `ReputationLedger` | `CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT` | 5.1 KB | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
 | Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | n/a | Settlement asset |
 
-The contracts share a small types crate (`contract/shared`) exporting `Agent`, `Authorization`, `Receipt`, `Attestation`, and `Score`. Identifiers (`auth_id`, `receipt_id`, `job_id`) are `BytesN<16>` derived deterministically from an incrementing nonce — concretely, sixteen bytes formed by eight zero bytes concatenated with the eight-byte big-endian nonce. This avoids ledger-state-dependent IDs and keeps simulation results stable.
+The contracts share a small types crate (`contract/shared`) exporting `Agent`, `Authorization`, `Receipt` and `Attestation`; the ledger's `RepState` lives in the ledger itself (SC@dd2d642 · contract/shared/src/lib.rs; contract/reputation-ledger/src/lib.rs · `RepState`). Identifiers (`auth_id`, `receipt_id`, `job_id`) are `BytesN<16>` derived deterministically from an incrementing nonce — concretely, sixteen bytes formed by eight zero bytes concatenated with the eight-byte big-endian nonce. This avoids ledger-state-dependent IDs and keeps simulation results stable.
 
 ```mermaid
 flowchart LR
     Buyer["Buyer wallet"]
-    Settler["Protocol settler key"]
+    Settler["Settler<br/>deployed v1: admin key<br/>v2: backend signing key"]
+    Backend["Backend signing key<br/>scorer · sealer"]
     Owner["Agent owner wallet"]
     Reader["Buyer · auditor<br/>· other orchestrator"]
 
     Buyer -- "authorize(payer, agent_id,<br/>max_amount, expires_at)" --> PE["PaymentEscrow"]
-    Settler -- "charge(auth_id, amount, job_id)" --> PE
+    Settler -- "v1: charge(auth_id, total, job_id)<br/>v2: settle(auth_id, job_id, payouts)" --> PE
     PE -- "owner_of(agent_id)" --> AR["AgentRegistry"]
     PE -- "Token::transfer" --> SAC["Native XLM SAC"]
-    SAC -- "USDC payout" --> Owner
+    SAC -- "payout" --> Owner
 
-    Settler -- "seal(job_id, agents,<br/>receipts, total_spent)" --> AT["AttestationRegistry"]
-    Settler -- "submit(agent_id, rating, job_id)" --> RL["ReputationLedger"]
+    Backend -- "seal(job_id, agents,<br/>receipts, total_spent)" --> AT["AttestationRegistry"]
+    Backend -- "submit(agent_id, job_id,<br/>rating_0_to_100, weight, payer, kind)" --> RL["ReputationLedger"]
 
     AT -. "get(job_id)" .-> Reader
-    RL -. "avg_bps(agent_id)" .-> Reader
+    RL -. "rep_state · avg_bps(agent_id)" .-> Reader
 
     classDef wallet fill:#FFFFFF,stroke:#5A2EFF,stroke-width:1.5px,color:#14131A
     classDef contract fill:#F4F2F8,stroke:#14131A,stroke-width:1px,color:#14131A
-    class Buyer,Settler,Owner,Reader wallet
+    class Buyer,Settler,Backend,Owner,Reader wallet
     class PE,AR,AT,RL,SAC contract
 ```
 
-**Figure 3.** Soroban contract topology — `PaymentEscrow` resolves agent ownership through `AgentRegistry` and routes settlement through the native XLM SAC; `AttestationRegistry` and `ReputationLedger` are write paths for the sealer and the scorer and public read paths for everyone else. The diagram draws one protocol key; on testnet the sealer and the scorer are the backend's signing key, and the deployed escrow's settler is the admin key (§6.1).
+**Figure 3.** Soroban contract topology — `PaymentEscrow` resolves agent ownership through `AgentRegistry` and routes settlement through the native XLM SAC; `AttestationRegistry` and `ReputationLedger` are write paths for the sealer and the scorer and public read paths for everyone else. On testnet the sealer and the scorer are the backend's signing key, `GDB4N2…CDHP`, and the deployed escrow's settler is the admin key, `GA7AI5…5OQV`; the backend key becomes the settler once escrow v2 is deployed (§6.1).
 
 The on-chain x402 flow is four steps. A buyer calls `authorize(payer, agent_id, max_amount, expires_at)` once and receives an `auth_id`. The settler calls `charge(caller, auth_id, amount, job_id)`, which validates the authorisation, looks up the agent owner via `AgentRegistry.owner_of(agent_id)`, and transfers USDC from the buyer to the owner via the asset's `Token::transfer`. On the deployed escrow the settler is the admin key, not the backend's, and that transfer cannot complete, because it needs the buyer's signature, which the charge transaction does not carry (§6.1, §6.9; SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::charge`). The backend submits one `charge` for the workflow's total (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`). The sealer calls `seal(caller, job_id, orchestrator, intent_hash, agents, receipts, total_spent)` on `AttestationRegistry` once at the end — write-once, second seal of the same `job_id` returns `AlreadyExists`. The scorer calls `submit(caller, agent_id, job_id, rating_0_to_100, weight, payer, kind)` on `ReputationLedger`, with a `Rated(agent_id, job_id)` persistent-storage key guarding against replay. The sealer and the scorer are the backend's signing key on testnet (§6.1).
 
 ### 5.3.1 · Contract APIs — verbatim
 
-The four contracts share a small types crate exporting `Agent`, `Authorization`, `Receipt`, `Attestation`, and `Score`. Below, every public entry point is listed with its exact signature from `contract/*/src/lib.rs`.
+The four contracts share a small types crate exporting `Agent`, `Authorization`, `Receipt` and `Attestation`. Below, every public entry point is listed with its exact signature from `contract/*/src/lib.rs`.
 
 **`AgentRegistry`** — agent identity, skills, price catalog. Storage keyed by `Agent(Symbol)`.
 
@@ -825,7 +820,7 @@ Every error from the protocol's contracts is enumerated in the shared `codes` mo
 | 6 | `Revoked` | `PaymentEscrow.charge` — buyer revoked |
 | 7 | `Replay` | `ReputationLedger.submit` — duplicate `(agent_id, job_id)` |
 | 8 | `Inactive` | `AgentRegistry.get`/lookup — agent toggled off |
-| 100 | `OutOfRange` | `ReputationLedger.submit` — rating > 5 |
+| 100 | `OutOfRange` | `ReputationLedger.submit` — rating > 100, or weight outside 0 < weight ≤ 100 USDC |
 | 101 | `BadAmount` | `PaymentEscrow.charge` — amount ≤ 0 |
 
 ### 5.3.3 · The x402 flow as a sequence
@@ -834,7 +829,8 @@ Every error from the protocol's contracts is enumerated in the shared `codes` mo
 sequenceDiagram
     autonumber
     participant Buyer as Buyer wallet
-    participant Setl as Protocol settler
+    participant Setl as Settler (v1: admin key)
+    participant Key as Backend key (sealer · scorer)
     participant PE as PaymentEscrow
     participant AR as AgentRegistry
     participant SAC as Native XLM SAC
@@ -844,27 +840,28 @@ sequenceDiagram
     Buyer->>PE: authorize(payer, agent_id, max_amount, expires_at)
     PE-->>Buyer: auth_id : BytesN<16>
 
-    loop For each step
-        Setl->>PE: charge(caller=settler, auth_id, amount, job_id)
-        PE->>PE: assert !revoked & not expired<br/>assert spent + amount ≤ max
-        PE->>AR: owner_of(agent_id)
-        AR-->>PE: agent_owner : Address
-        PE->>SAC: Token::transfer(payer → owner, amount)
-        SAC-->>PE: ok
-        PE->>PE: spent += amount<br/>store Receipt
-        PE-->>Setl: receipt_id : BytesN<16>
-    end
+    Note over Setl,PE: once per workflow, after the last step
+    Setl->>PE: charge(caller=settler, auth_id, total, job_id)
+    PE->>PE: assert !revoked & not expired<br/>assert spent + total ≤ max
+    PE->>AR: owner_of(agent_id)
+    AR-->>PE: agent_owner : Address
+    PE->>SAC: Token::transfer(payer → owner, total)
+    SAC-->>PE: needs the payer's signature, so fails on testnet
+    PE->>PE: spent += total<br/>store Receipt
+    PE-->>Setl: receipt_id : BytesN<16>
 
-    Setl->>AT: seal(caller=settler, job_id, orchestrator,<br/>intent_hash, agents[], receipts[], total_spent)
+    Key->>AT: seal(caller=sealer, job_id, orchestrator,<br/>intent_hash, agents[], receipts[], total_spent)
     AT->>AT: assert !exists(job_id)<br/>store Attestation
-    AT-->>Setl: ok
+    AT-->>Key: ok
 
-    Setl->>RL: submit(caller=scorer, agent_id, rating, job_id)
-    RL->>RL: assert !Rated(agent_id, job_id)<br/>sum += rating, count += 1
-    RL-->>Setl: ok
+    loop For each dispatched step
+        Key->>RL: submit(caller=scorer, agent_id, job_id,<br/>rating_0_to_100, weight, payer, kind)
+        RL->>RL: assert !Rated(agent_id, job_id)<br/>decay, then sum_w += rating × 100 × weight<br/>weight += weight, count += 1
+        RL-->>Key: ok
+    end
 ```
 
-**Figure 5.** The x402 flow as the deployed v1 contracts are written, across the four contracts and the asset SAC. On testnet the `Token::transfer` step fails, because the buyer's signature is not in the charge transaction, so no charge has completed through the deployed escrow; escrow v2, merged but not deployed, takes custody at `authorize` and pays out in one `settle` (§6.8, §6.9).
+**Figure 5.** The x402 flow on the deployed v1 contracts as the backend drives it: one `charge` for the workflow's total, the seal once it confirms, and one rating per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`, `_submit_ratings`; SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`). On testnet the `Token::transfer` step fails, because the buyer's signature is not in the charge transaction, so no charge has completed and the seal is not reached; the ratings are written regardless. Escrow v2, merged but not deployed, takes custody at `authorize` and replaces the `charge` with one `settle` that pays each delivered step's owner and returns the rest (§6.8, §6.9).
 
 The contracts are non-upgradable. Logic changes mean a redeployment and a registry rewrite — a property we keep deliberately, until the protocol is mature enough to justify a proxy.
 
@@ -896,7 +893,7 @@ The shipped surface area is small enough to reason about. We list the threats, t
 
 **Rating replay.** `ReputationLedger.submit` writes a `Rated(agent_id, job_id)` marker in persistent storage. A second rating for the same `(agent_id, job_id)` pair is rejected with `Error::Replay`, however much later it comes; the marker does not lapse (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`, `DataKey::Rated`).
 
-**Worker timeouts.** Every worker is wrapped in `asyncio.wait_for(..., timeout=120)`. A hung worker stops the workflow with an `error` line, releases the user's authorisation by lapse, and does not produce a `cost` line for the failed step.
+**Worker timeouts.** Every worker is wrapped in `asyncio.wait_for(..., timeout=120)`. A hung worker's step fails with an `error` line and the run moves on to the next step; the failed step is left out of the one settlement at the end, so it is never billed (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `STEP_TIMEOUT_SECONDS`).
 
 **What we do not defend against.** We do not currently verify *what* an agent did, beyond the structural validator on the resulting artifact. A malicious worker that returns plausible-looking garbage *will* be paid, and reputation will only catch it on the next workflow. We do not encrypt the intent — a buyer who needs confidentiality should not, today, use the protocol for sensitive inputs. We discuss the research direction for both in §5.7.
 
@@ -908,7 +905,7 @@ The full enumeration. Each row gives a concrete threat, the vector that would re
 | --- | --- | --- | --- |
 | Buyer key compromise | Stolen seed phrase, phishing, malicious extension | Freighter (or any StellarWalletsKit-supported wallet) holds the key; the protocol never sees it | Wallet-side — protocol cannot prevent |
 | Settler key compromise | Theft of the settler key: on testnet the admin key, `GA7AI5…5OQV`; once escrow v2 is deployed, the backend's signing key on its host (§6.1) | Settler is bound by every buyer's `max_amount` and `expires_at`. The deployed escrow writes its settler once, in the constructor, and has no setter, so replacing it means deploying a new escrow (SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::__constructor`); escrow v2, merged but not deployed, adds an admin-only `set_settler` (SC@dd2d642 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::set_settler`). The admin can rotate the sealer and the scorer via `set_sealer` / `set_scorer` | A compromised settler can drain authorised envelopes that have not yet expired. Mitigation: keep `max_amount` tight per workflow and `expires_at` short |
-| Hung worker | LLM stall, network partition, dependency failure | `asyncio.wait_for(120 s)` per step; failed worker emits `error`, no `cost` line, authorisation lapses naturally | Buyer waits up to 120 s for the failure to surface |
+| Hung worker | LLM stall, network partition, dependency failure | `asyncio.wait_for(120 s)` per step; the failed step emits `error`, the run moves on, and the step is left out of the settlement | Buyer waits up to 120 s for the failure to surface |
 | Charge replay | Settler submits the same `charge` twice | Each `charge` produces a fresh `receipt_id` (deterministic nonce) and decrements the same `Authorization.spent`. Double-charging exhausts the cap legitimately | Settler cannot extract "double" funds, only burn the buyer's cap. Detected by `Authorization.spent` reaching `max_amount` faster than expected |
 | Rating replay | Scorer submits a rating for the same `(agent_id, job_id)` twice | `Rated(agent_id, job_id)` marker in persistent storage; second `submit` errs `Replay` | None at the contract: the marker does not lapse. A scorer can still rate the same agent under a fresh `job_id`, which is why only the scorer can rate |
 | Workflow tampering | Modified worker output | Sealed `Attestation` records the orchestrator, `intent_hash`, agent list, receipts, and total spent — immutably | Off-chain artifact mutability — buyer must hash-verify the returned artifact against `intent_hash`/job metadata |
@@ -935,14 +932,14 @@ class TraceLine(BaseModel):
     msg: str
 ```
 
-The bus buffers every line so any subscriber — a watcher, an investigator, a reconciler — can replay the workflow from the start. The intent itself appears in the first `input` line; every payment appears as a `cost` line carrying the agent identifier and a transaction hash; the final seal appears as a `proof` line.
+The bus buffers every line so any subscriber — a watcher, an investigator, a reconciler — can replay the workflow from the start. The intent itself appears in the first `input` line; the payment appears as one `cost` line for the run's settlement, with its transaction hash (on testnet an `error` line, since the deployed escrow cannot complete a charge; §B.3); the final seal appears as a `proof` line.
 
 The on-chain side is the four contracts together. For any sealed workflow you can pull:
 
 - the buyer's `Authorization` (payer, agent target, max, expires_at, spent) from `PaymentEscrow.authorization(auth_id)`;
 - every `Receipt` (auth_id, agent_id, amount, job_id, settled_at) from `PaymentEscrow.receipt(receipt_id)`;
 - the `Attestation` (orchestrator, intent_hash, agents, receipts, total_spent, sealed_at) from `AttestationRegistry.get(job_id)`;
-- per-agent `Score` and `avg_bps` from `ReputationLedger.score(agent_id)` and `avg_bps(agent_id)`.
+- per-agent `RepState` and `avg_bps` from `ReputationLedger.rep_state(agent_id)` and `avg_bps(agent_id)`.
 
 The events emitted by each contract (`regd`, `authd`, `charged`, `sealed`, `rated`) are indexed by Soroban RPC, so any external observer can subscribe and replay.
 
@@ -1253,17 +1250,17 @@ A concrete picture of the economics for a small operator running, say, **1,000 b
 | Translation / OCR / Ads | 20 | 0.043 | 0.86 |
 | **Total agent payouts** | **1,000** | — | **≈ 171.66** |
 
-Network fees over the same window:
+Network fees over the same window. A six-step workflow is nine transactions, not one per step: the buyer's `authorize`, then from the backend one `settle` (escrow v2; one `charge` for the workflow's total on the deployed v1), one `seal` and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`, `_submit_ratings`). The fee per call is measured on the testnet contracts, one transaction each:
 
-| Operation | Calls/mo | Stroops each | XLM total |
-| --- | :---: | :---: | :---: |
-| `authorize` | 1,000 | ~100 | 0.0100 |
-| `charge` | 6,000 | ~100 | 0.0600 |
-| `seal` | 1,000 | ~100 | 0.0100 |
-| `submit` (rating) | 6,000 | ~100 | 0.0600 |
-| **Total network fee** | **14,000** | — | **≈ 0.14 XLM** |
+| Operation | Per workflow | Calls/mo | Stroops each (measured) | XLM total |
+| --- | :---: | :---: | :---: | :---: |
+| `authorize` (buyer) | 1 | 1,000 | 106,477 | 106.48 × 10⁶ stroops = 10.65 |
+| `settle` (v2) | 1 | 1,000 | not measured: v2 is not deployed | — |
+| `seal` | 1 | 1,000 | 57,926 | 57.93 × 10⁶ stroops = 5.79 |
+| `submit` (rating) | 6 | 6,000 | 53,314 | 319.88 × 10⁶ stroops = 31.99 |
+| **Total network fee** | **9** | **9,000** | — | **≈ 48.43 XLM, before `settle`** |
 
-At any plausible XLM price under USD 0.50, the protocol's monthly network cost across 1,000 workflows is **under 7 US cents**. The agent payouts of ≈ 172 USDC flow entirely through to agent owners; the protocol takes zero margin in v1.
+The samples are testnet transactions `027b0d42…9230` (`authorize`, 2026-09-22), `03c3f815…67b7` (`seal`, 2026-06-09) and `63031b49…28b2` (`submit`, 2026-09-22). A rating that writes an agent's first evidence costs more, up to 189,423 stroops in the scorer's recent history. `settle` has never run; the deployed v1 `charge`, the nearest call measured, cost 54,989 stroops (`7932846b…9cc2`, 2026-06-09), which would add about 5.50 XLM a month (1,000 × 54,989 stroops = 54.99 × 10⁶ stroops). At USD 0.50 per XLM, the monthly network cost across 1,000 workflows is therefore about **USD 24 before `settle`**, and about USD 27 with a `settle` priced like that `charge`. The agent payouts of ≈ 172 USDC flow entirely through to agent owners; the protocol takes zero margin in v1.
 
 Two observations for prospective operators:
 
@@ -1274,7 +1271,7 @@ Two observations for prospective operators:
 
 We name the unsolved economic questions plainly:
 
-- **Settlement-fee budget.** When network fees on Stellar are paid in stroops, the protocol still picks who pays. Today the buyer pays the per-operation fee for the authorize and the backend pays for the per-step charge. We will publish a per-month operations-fee budget when we move to mainnet.
+- **Settlement-fee budget.** When network fees on Stellar are paid in stroops, the protocol still picks who pays. Today the buyer pays the fee for the `authorize` and the backend pays for everything after it: the one `settle` (one `charge` on the deployed v1), the `seal` and each step's rating `submit` (§7.4). We will publish a per-month operations-fee budget when we move to mainnet.
 - **Agent price discovery.** Today prices are set unilaterally by the agent owner. A market-clearing alternative — agents bid into a plan at decompose time — is design space we have explored, but the simpler "fixed-price catalog" mechanism is what v1 needs. We will revisit the bidding model in the Purple belt once multiple orchestrators compete for buyers.
 - **Long-tail spam.** Permissionless registration is open (§6.3), so low-quality agents will appear. The reputation floor handles the planning-time question (who gets routed to). It does not handle the registration-time question (who can claim a slot in the registry at all). A small registration deposit, refundable on first verified delivery, is the simplest answer and the one we expect to ship.
 
@@ -1338,7 +1335,7 @@ The next chapter is the link index.
 | `AgentRegistry` on Stellar Expert | <https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ> |
 | `PaymentEscrow` on Stellar Expert | <https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI> |
 | `AttestationRegistry` on Stellar Expert | <https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK> |
-| `ReputationLedger` on Stellar Expert | <https://stellar.expert/explorer/testnet/contract/CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV> |
+| `ReputationLedger` on Stellar Expert | <https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT> |
 | Founder | <https://github.com/ALGOREX-PH> |
 | Email | `algorexph@gmail.com` |
 
@@ -1407,7 +1404,7 @@ Content-Type: application/json
 
 ### `POST /api/orchestrator/execute`
 
-Spawn the background execution for a plan and return a task id. If `auth_id_hex` and `payer` are supplied, the backend will sign and submit `charge` and `seal` XDR on chain per step.
+Spawn the background execution for a plan and return a task id. If `auth_id_hex` and `payer` are supplied, the backend signs and submits the settlement once, at the end of the run: one `charge` for the workflow's total on the deployed v1 escrow, or one `settle` paying each delivered step on escrow v2 (merged, not deployed), then the `seal` once that confirms, and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`, `_settle_v2`, `_submit_ratings`). On testnet the v1 `charge` cannot complete, so the seal is not reached (§6.9).
 
 ```http
 POST /api/orchestrator/execute
@@ -1435,7 +1432,7 @@ Single-task snapshot. Returns id, intent, agents involved, status, started times
 
 ### `GET /api/tasks/{task_id}/artifact`
 
-Return the produced `CodeArtifact` once available. Polled by the frontend until `200`.
+Return the produced `CodeArtifact` once available. Polled by the frontend until `200`. `charge_tx` is the run's one settlement transaction, or `null` when none confirmed (BE@a3dc1f9 · app/routers/tasks.py · `ArtifactResponse`).
 
 ```json
 200 OK
@@ -1449,7 +1446,7 @@ Return the produced `CodeArtifact` once available. Polled by the frontend until 
     "source": "baked",
     "kit_id": "calculator"
   },
-  "charge_tx": ["47a13c…", "8b2f01…", "…"],
+  "charge_tx": "47a13c…",
   "proof_tx":  "0x7fa2c41b…b91d12e4"
 }
 ```
@@ -1505,7 +1502,7 @@ Canonical source of truth for contract IDs and network metadata.
   "agent_registry":      "CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
   "payment_escrow":      "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
   "attestation_registry":"CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
-  "reputation_ledger":   "CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV",
+  "reputation_ledger":   "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
   "asset_sac":           "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
 }
 ```
@@ -1534,11 +1531,11 @@ Broadcast a signed XDR to Soroban RPC. Returns the transaction hash and any deco
 
 ### `POST /api/stellar/server/charge`
 
-Backend-signed `PaymentEscrow.charge`. Called once per step by the execution service when on-chain settlement is enabled. The request carries `auth_id_hex`, `payer`, `agent_id`, `amount_usdc`, and `job_id_hex`; the response carries `receipt_id` and the broadcast `tx_hash`.
+Backend-signed `PaymentEscrow.charge`, v1 only: against a v2 escrow it answers 409 `charge_unsupported_on_v2`. It sits behind the operator API key when one is configured, and the execution service does not call it; a run settles once, at its end (§A.1). The request carries `auth_id_hex`, `amount_usdc` and `job_id_hex`; the response carries the transaction's `hash`, `status`, `ledger` and decoded `result`, the `receipt_id` (BE@a3dc1f9 · app/routers/stellar.py · `ChargeReq`, `server_charge`; app/stellar/client.py · `_finalize_invoke`). On testnet the charge is signed by the backend's key, which is not the deployed escrow's settler, so the contract refuses it (§6.1).
 
 ### `POST /api/stellar/server/seal`
 
-Backend-signed `AttestationRegistry.seal`. Called once at workflow completion. Carries `job_id_hex`, `orchestrator`, `intent_hash`, `agents[]`, `receipts[]`, `total_spent`; returns the broadcast `tx_hash`.
+Backend-signed `AttestationRegistry.seal`, behind the operator API key when one is configured. The execution service seals a run itself, once, after its settlement confirms, and does not call this route (§A.1). Carries `job_id_hex`, `orchestrator`, `intent_hash_hex`, `agents[]`, `receipts_hex[]`, `total_spent_usdc`; returns the transaction's `hash` and `status` (BE@a3dc1f9 · app/routers/stellar.py · `SealReq`, `server_seal`).
 
 ### `GET /api/stellar/agent/{agent_id}`
 
@@ -1702,11 +1699,16 @@ data:   "GBVRJQ7HJ5DBPV2K…"   // owner address of the new agent
 
 ## C.2 · `PaymentEscrow`
 
+The deployed escrow is v1 (SC@88aa554); escrow v2 (SC@dd2d642) is merged but not deployed, and changes the set (contract/payment-escrow/src/lib.rs at each commit).
+
 | Event | Topics | Data | Triggered by |
 | --- | --- | --- | --- |
-| **Authorised** | `(Symbol("authd"), agent_id: Symbol)` | `(auth_id: BytesN<16>, payer: Address, max_amount: i128)` | `authorize()` |
-| **Charged** | `(Symbol("charged"), agent_id: Symbol)` | `(receipt_id: BytesN<16>, auth_id: BytesN<16>, amount: i128, job_id: BytesN<16>)` | `charge()` |
-| **Revoked** | `(Symbol("revoked"), auth_id: BytesN<16>)` | `payer: Address` | `revoke()` |
+| **Authorised** | `(Symbol("authd"), agent_id: Symbol)` | `(auth_id: BytesN<16>, payer: Address, max_amount: i128)` | `authorize()`, v1 and v2 |
+| **Charged** | `(Symbol("charged"), agent_id: Symbol)` | `(receipt_id: BytesN<16>, auth_id: BytesN<16>, amount: i128, job_id: BytesN<16>)` | v1 `charge()`; v2 `settle()`, once per payout |
+| **Revoked** | `(Symbol("revoked"),)` | `auth_id: BytesN<16>` | v1 `revoke()` |
+| **Settled** | `(Symbol("settled"),)` | `(auth_id: BytesN<16>, job_id: BytesN<16>, sum: i128, returned: i128)` | v2 `settle()` |
+| **Reclaimed** | `(Symbol("reclaimd"),)` | `(auth_id: BytesN<16>, payer: Address, returned: i128)` | v2 `reclaim()` |
+| **Settler rotated** | `(Symbol("settler"),)` | `(old: Address, new_settler: Address)` | v2 `set_settler()` |
 
 ```text
 example:
@@ -1722,7 +1724,8 @@ data:   ("0x00000000000000000000000000000a04",   // receipt_id
 | Event | Topics | Data | Triggered by |
 | --- | --- | --- | --- |
 | **Sealed** | `(Symbol("sealed"), job_id: BytesN<16>)` | `(orchestrator: Address, total_spent: i128)` | `seal()` |
-| **Sealer rotated** | `(Symbol("rotated"),)` | `new_sealer: Address` | `set_sealer()` |
+
+`set_sealer()` emits no event (SC@dd2d642 · contract/attestation-registry/src/lib.rs · `AttestationRegistry::seal`, `AttestationRegistry::set_sealer`).
 
 ```text
 example:
@@ -1772,7 +1775,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Agent.** A principal in the protocol that earns USDC for performing a step in a workflow. Run off-chain either as one of the backend's seeded workers or behind an HTTPS endpoint its owner binds to its id (§6.3); recorded on-chain as a row in `AgentRegistry`. Identified by an eight-byte `Symbol` (e.g., `agt_11c0`). See §4.1, §6.2.
 
-**Agent owner.** The Stellar address that registered an agent and to which `PaymentEscrow.charge` routes the per-step USDC payout. The owner is set at `register()` time and verified against `caller.require_auth()` for `update_price` and `set_active`. See §5.3.1.
+**Agent owner.** The Stellar address that registered an agent and to which its payouts go: under escrow v2 (merged, not deployed) one `PaymentEscrow.settle` per workflow pays each delivered step's price to the owner `AgentRegistry.owner_of` names; the deployed v1 escrow's `charge` names the same owner but cannot complete its transfer on testnet (§6.9). The owner is set at `register()` time and verified against `caller.require_auth()` for `update_price` and `set_active`. See §5.3.1.
 
 **Artifact.** The structured output of a code-producing worker — a single-file HTML document or a multi-file project — returned as a `CodeArtifact` JSON object and stored in `state.artifacts[task_id]`. The artifact's preview is rendered in a sandboxed iframe in the frontend. See §4.3.
 
@@ -1788,7 +1791,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **`BytesN<16>`.** Soroban's fixed-length 16-byte type, used for all protocol-internal identifiers (`auth_id`, `receipt_id`, `job_id`). Deterministic generation avoids ledger-state dependency. See §5.3.
 
-**`charge`.** `PaymentEscrow.charge(caller, auth_id, amount, job_id)`. Step 2 of x402. Settler-only. Validates the envelope, calls `AgentRegistry.owner_of`, transfers via SAC, mutates `Authorization.spent`, stores `Receipt`, returns `receipt_id`. See §5.3.1.
+**`charge`.** `PaymentEscrow.charge(caller, auth_id, amount, job_id)`, on the deployed v1 escrow only; v2 has no `charge`. Step 2 of x402 on v1, submitted once per workflow for its total. Settler-only. Validates the envelope, calls `AgentRegistry.owner_of`, transfers via SAC, mutates `Authorization.spent`, stores `Receipt`, returns `receipt_id`. See §5.3.1.
 
 **Composability Hackathon.** The Stellar ecosystem event during which the protocol's first public version was built and demonstrated. The protocol's productisation continues post-event. See §8.3.
 
@@ -1832,7 +1835,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Replay guard.** A persistent-storage marker keyed by `(agent_id, job_id)` in `ReputationLedger`. Prevents the scorer from rating the same `(agent_id, job_id)` pair twice; it does not lapse. See §5.5.1.
 
-**SAC.** Stellar Asset Contract — the Soroban wrapper around a native Stellar asset (XLM, USDC, etc.) exposing `Token::transfer`. The protocol calls SAC from `PaymentEscrow.charge` to move USDC from buyer to agent owner. See §5.3.
+**SAC.** Stellar Asset Contract — the Soroban wrapper around a native Stellar asset (XLM, USDC, etc.) exposing `Token::transfer`. The deployed v1 escrow calls it from `PaymentEscrow.charge` to move funds from buyer to agent owner, a transfer that cannot complete on testnet because the charge carries no buyer signature (§6.9). Escrow v2, merged but not deployed, calls it at `authorize`, to take the buyer's funds into custody, and at `settle`, to pay owners and return the rest. See §5.3.
 
 **Scorer.** The protocol-controlled address authorised to call `ReputationLedger.submit`. Rotatable by the admin via `set_scorer`. On testnet it is the backend's signing key, a different key from the deployed escrow's settler since 2026-09-19. See §6.1.
 
@@ -1856,7 +1859,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Workflow.** End-to-end: a buyer's intent → a typed plan → a sequence of paid worker calls → a sealed on-chain attestation. The unit of work in the protocol. See §1, §5.
 
-**x402.** A pattern borrowed from the HTTP-402 "payment required" semantics: authorise once, draw multiple times within the envelope, settle on completion. Implemented on-chain by the `PaymentEscrow.authorize` → `charge` → `seal` sequence. See §5.3.3, Figure 5.
+**x402.** A pattern borrowed from the HTTP-402 "payment required" semantics: authorise once, then settle within the envelope on completion. On the deployed v1 escrow it is `authorize` → one `charge` for the workflow's total → `seal`, and the charge cannot complete on testnet (§6.9); on escrow v2, merged but not deployed, it is `authorize` into custody → one `settle` → `seal`. See §5.3.3, Figure 5.
 
 <!-- pagebreak -->
 
