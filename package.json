@@ -20,6 +20,7 @@
     "guide:check": "node scripts/guide-samples/cli.mjs --static",
     "guide:live": "node scripts/guide-samples/cli.mjs --live",
     "guide:offline": "node scripts/guide-samples/cli.mjs --offline",
+    "demo:check": "node scripts/demo-check.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
