@@ -6,6 +6,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { EVIDENCE_PATH } from "@/lib/evidence/display";
 import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
+import { LITEPAPER_PATH } from "@/lib/litepaper/paths.mjs";
 import { cn } from "@/lib/utils";
 
 // Section links are rooted at "/" so they also work from the guide pages,
@@ -18,6 +19,7 @@ const links = [
   { href: "/#roadmap", label: "Roadmap" },
   { href: LIST_YOUR_AGENT_PATH, label: "Guide" },
   { href: EVIDENCE_PATH, label: "Evidence" },
+  { href: LITEPAPER_PATH, label: "Litepaper" },
 ];
 
 export function Nav() {
