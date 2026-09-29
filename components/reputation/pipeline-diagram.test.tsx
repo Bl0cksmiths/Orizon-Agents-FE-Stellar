@@ -41,6 +41,20 @@ describe("PipelineDiagram · the prior's weight", () => {
   });
 });
 
+describe("PipelineDiagram · its unit", () => {
+  // No figure or sentence names USDC: amounts are in the escrow's asset.
+  it("starts every rating at a settled payment, and never says USDC", () => {
+    for (const generation of ["v1", "v2", "unknown"] as const) {
+      render(<PipelineDiagram generation={generation} />);
+      expect(text()).toContain(
+        "Every rating starts as a settled payment and ends as a conservative routing score.",
+      );
+      expect(text()).not.toMatch(/\bUSDC\b/);
+      cleanup();
+    }
+  });
+});
+
 describe("PipelineDiagram · the Settle stage", () => {
   const settle = () => document.querySelector("li")?.textContent ?? "";
 

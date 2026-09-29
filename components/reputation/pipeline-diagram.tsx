@@ -98,8 +98,8 @@ export function PipelineDiagram({
           How a score is born
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Every rating starts as settled USDC and ends as a conservative routing
-          score.
+          Every rating starts as a settled payment and ends as a conservative
+          routing score.
         </p>
       </div>
       <ol className="grid gap-4 md:grid-cols-3">
