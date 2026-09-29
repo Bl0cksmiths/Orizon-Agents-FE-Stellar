@@ -60,7 +60,7 @@ body: { plan_id, auth_id_hex?, payer? }
 
 The handler spawns `asyncio.create_task(_run(plan, task_id, auth_id_hex, payer))` and returns the task id immediately. The frontend opens an `EventSource` to `/api/trace/{task_id}/stream` and watches the workflow unfold.
 
-Inside `_run()`, the loop is (verbatim from `backend/app/services/execution_svc.py`, lightly abridged for prose):
+Inside `_run()`, the loop is (abridged from BE@a3dc1f9 · app/services/execution_svc.py · `_run`; the real function also resolves external endpoints, tracks failures and records the settlement):
 
 ```python
 async def _run(plan: Plan, task_id: str, auth_id_hex: str | None, payer: str | None):
@@ -71,39 +71,29 @@ async def _run(plan: Plan, task_id: str, auth_id_hex: str | None, payer: str | N
 
     await _emit(task_id, start, "input", f"intent received → {plan.intent!r}")
 
-    receipts: list[str] = []
-    for step in plan.steps:
+    delivered: dict[int, Any] = {}
+    spent = 0.0
+    for step_index, step in enumerate(plan.steps):
         await _emit(task_id, start, "exec",
                     f"match agent: {step.name} ({step.agent_id}) — {step.rationale}")
-        worker = workers_by_id(step.agent_id)
+        worker = get_worker(step.agent_id)
         if worker is None:
             await _emit(task_id, start, "error",
                         f"unknown agent {step.agent_id}")
-            return
+            continue                      # the step fails; the run goes on
 
         try:
             result = await asyncio.wait_for(
                 worker.run(plan.intent, step.rationale, context=context),
-                timeout=120.0,
+                timeout=STEP_TIMEOUT_SECONDS,   # 120 s
             )
         except asyncio.TimeoutError:
-            await _emit(task_id, start, "error",
-                        f"{step.name} timed out after 120s")
-            return
+            await _emit(task_id, start, "error", f"{worker.name} timed out")
+            continue
 
-        # Charge — happens only after a successful return.
-        if auth_id_hex and payer:
-            receipt_id, charge_tx = await stellar.charge(
-                auth_id_hex=auth_id_hex,
-                payer=payer,
-                agent_id=step.agent_id,
-                amount_usdc=step.price_usdc,
-                job_id_hex=task_id,
-            )
-            receipts.append(receipt_id)
-            await _emit(task_id, start, "cost",
-                        f"x402 payment → {step.agent_id} :: "
-                        f"{step.price_usdc} USDC ({charge_tx})")
+        # Nothing is paid inside the loop: a delivered step is only noted.
+        delivered[step_index] = result
+        spent += step.est_price_usdc
 
         # Emit summary + (optional) artifact.
         await _emit(task_id, start, "out",
@@ -115,29 +105,33 @@ async def _run(plan: Plan, task_id: str, auth_id_hex: str | None, payer: str | N
 
         context[step.name] = result  # plumb forward
 
-    # Seal — write-once attestation on chain.
+    # Settle once, at the end, for the delivered steps; seal after it confirms.
+    job_id = None
+    if auth_id_hex and payer and delivered:
+        if await _escrow_version() >= 2:
+            # v2: one `settle` pays each delivered step's owner from custody
+            # and returns the rest to the buyer, then the seal.
+            settle_tx, proof_tx, job_id = await _settle_v2(
+                task_id, start, plan, payer=payer, auth_id_hex=auth_id_hex,
+                delivered_steps=frozenset(delivered))
+        else:
+            # v1 (deployed): one `charge` for the workflow's total, then the seal.
+            charge_tx, proof_tx, job_id = await _settle_onchain(
+                task_id, start, plan, payer=payer, auth_id_hex=auth_id_hex,
+                total_usdc=spent)
+    # One rating per dispatched step, whether or not the money moved.
     if auth_id_hex and payer:
-        seal_tx = await stellar.seal(
-            job_id_hex=task_id,
-            orchestrator=payer,
-            intent_hash=hash_intent(plan.intent),
-            agents=[s.agent_id for s in plan.steps],
-            receipts=receipts,
-            total_spent=sum(s.price_usdc for s in plan.steps),
-        )
-        await _emit(task_id, start, "proof",
-                    f"workflow sealed — {len(plan.steps)} agents · "
-                    f"{sum(s.price_usdc for s in plan.steps)} USDC · "
-                    f"tx {seal_tx}")
+        await _submit_ratings(task_id, start, plan, delivered, payer=payer,
+                              job_id=job_id or unsettled_job_id(task_id))
 ```
 
 Three properties of this loop are worth highlighting.
 
 **Context is monotonic.** Every result is keyed by the worker's `name` (`code.gen`, `code.critic`, `seo.brief`, …) so later steps can read prior outputs by name. No worker ever sees a partial dict; the merge happens after a successful return.
 
-**Timeouts are enforced.** A worker has 120 seconds to return. If it does not, the wrapper emits an `error` line, the workflow stops, the buyer's authorisation lapses on its own TTL, and no further charges are emitted. We never attempt to "kill" a worker; we just stop waiting.
+**Timeouts are enforced.** A worker has 120 seconds to return. If it does not, the wrapper emits an `error` line and the run moves on to the next step; the step that timed out is not billed. We never attempt to "kill" a worker; we just stop waiting.
 
-**Charges happen out-of-loop relative to the result.** The charge is emitted *after* the worker returns successfully. A failed worker never produces a charge. This means a buyer pays for value that arrived, never for value that didn't.
+**Settlement happens once, after the loop.** Nothing is paid per step. At the end of the run the backend submits one settlement for the delivered steps only: one `settle` under escrow v2, one `charge` for the workflow's total on the deployed v1, which cannot complete on testnet (§6.9). A failed step is never billed, so a buyer pays for value that arrived, never for value that didn't (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_settle_v2`, `_settle_onchain`).
 
 The `code.critic` worker uses a parallel short-circuit: when the prior step's result carries `source: "baked"`, the critic runs the structural validator (`code_validator.validate_html`), reports the kit's `critic_checklist` as pre-satisfied, sleeps for a believable 0.4–1.0 s, and returns. No model call is incurred.
 
