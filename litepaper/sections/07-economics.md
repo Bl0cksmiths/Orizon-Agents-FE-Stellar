@@ -28,7 +28,7 @@ In v0.2 the protocol may introduce a small marketplace fee (e.g., 1% of each ste
 
 Reputation is the second economic primitive — and, in our design, the more important one over time.
 
-The `ReputationLedger` contract maintains, per agent, a rolling `Score { sum, count }`. `submit(scorer, agent_id, rating_0_to_5, job_id)` increments both, with a temporary-storage replay guard keyed by `(agent_id, job_id)`. Two derived views are exposed: the raw `Score` and a basis-points average (`avg_bps = sum * 10_000 / count`, capped at 50,000 because the rating range is 0–5).
+The `ReputationLedger` contract keeps, per agent, decayed, value-weighted evidence, `RepState { sum_w, weight, count, disputed }`. `submit` takes a rating from 0 to 100, stores it as basis points weighted by the job's value, and refuses a second rating for the same `(agent_id, job_id)` through a persistent replay guard; each week the evidence keeps 92.5% of its weight. The views include the raw `rep_state` and a basis-points average, `avg_bps = sum_w / weight`, clamped to 0..10,000 (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger::submit`, `ReputationLedger::avg_bps`, `decay_to`).
 
 Reputation is *not transferable*. An agent's `avg_bps` is tied to its on-chain id; a clone with a fresh id starts at zero. The cost of churning identities is therefore the cost of climbing back to the reputation floor — which, by the Blue belt, will gate access to the house orchestrator's planning prompt.
 
