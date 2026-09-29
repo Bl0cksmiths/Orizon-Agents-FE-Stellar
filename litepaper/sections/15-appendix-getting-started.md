@@ -63,7 +63,7 @@ You want to build an alternative orchestrator that routes through the same agent
 **3. Call the protocol's execution service.** Either:
 
 - Use the protocol's backend by `POST /api/orchestrator/execute` with your plan, OR
-- Implement the equivalent execution loop yourself — call each agent's HTTP endpoint, sign and submit `charge` per step against the buyer's `auth_id`, sign and submit `seal` at the end. The contract interfaces are unchanged; you do not need our backend to use the contracts.
+- Implement the equivalent execution loop yourself — call each agent's HTTP endpoint. You cannot settle or seal through the protocol's deployed contracts from your own key: `charge` (v1) and `settle` (v2) accept only the escrow's settler, and `seal` only the sealer, all keys the Blocksmiths operate (§6.1). An independent orchestrator that settles and seals on its own needs its own deployment of the contracts, with its own keys in those roles.
 
 **4. Build your own UI.** The contracts are public, the registry is public, every event is indexed by Soroban RPC. The frontend at `app/orchestrator-fe-stellar.vercel.app` is one client; yours can be another.
 
