@@ -260,7 +260,7 @@ Limitations (as stated in the video)
 - This is testnet only, and it settles native test XLM while the marketing copy names USDC.
 - The platform funds every dispute credit and decides every dispute.
 - Endpoint binding is off-chain: the platform stores the URL you signed.
-- One platform key is the settler, the scorer and the sealer.
+- One platform signing key is the settler, scorer and sealer, and it pays dispute credits.
 Also: escrow v2 is a new contract id beside the four published in SOW §6.1;
 there is no on-chain arbitration and no appeal; a dispute rating is added beside
 the step's automatic rating and does not replace it; the free-tier backend
