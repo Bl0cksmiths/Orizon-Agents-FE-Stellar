@@ -154,3 +154,118 @@ A retake replaces a whole scene, or a run of scenes from a named restart point. 
 | The narration overruns its scene                                                                                          | Re-record that scene's voice-over          | Trim the words, never the footage of a transaction.                                                                                                                                                                                     |
 
 **Keep every take's hashes.** A failed take's registration, authorization or rating is real testnet activity. It goes in the evidence sheet marked "retake, not shown", so no hash on-chain is left unexplained.
+
+## 7. Post-production
+
+- [ ] **Cuts with markers only.** Follow the script's [cut rules](./script.md#cut-rules): every cut carries a `⏩ N s cut: reason` marker on screen for at least 1.5 s. There is no speed-up, no speed ramp, and no frame blending anywhere. The only other edits are dissolves between scenes.
+- [ ] **Overlays:** the `Stellar testnet` corner tag, the `D1`–`D4` scene tag, the `OPERATOR` / `BUYER` window labels, the "Adjudicator: the Orizon team" lower third (S08), and the four limitation cards (S11). An optional zoom-in (a crop and scale of the real frame) on S05's exclusion row and on the full hashes, so they can be read on a phone.
+- [ ] **Never alter UI pixels.** No blurring or covering anything except, if it ever appears by accident, a secret or a personal detail. If a secret was captured, **rotate it**; blurring it is not enough.
+- [ ] **Voice-over** from `narration.txt`, one take per scene, laid over its scene. If a scene's voice runs long, re-record it shorter. Do not stretch or compress the audio or the video to fit.
+- [ ] **Captions (WebVTT).** Make `captions.en.vtt` from `narration.txt` and the final timeline, with one or more cues per scene. Each cue is at most 2 lines of about 42 characters, on screen for 1–6 s. The words are exactly the narration, and the timings are taken from the edited voice-over. Check them by playing the export with the captions on. Upload the file to YouTube as English captions: not auto-generated, and not burned in.
+- [ ] **Chapters with timestamps.** YouTube needs the first chapter at `0:00`, at least 3 chapters, and each chapter at least 10 s long. Start from these and adjust them to the final cut:
+
+  ```text
+  0:00 Orizon on Stellar testnet
+  0:14 D1 · The operator registers an agent
+  0:42 D1 · Bind an endpoint, listed
+  1:00 D2 · On-chain reputation on the plan card
+  1:20 D2 · A below-floor agent is excluded
+  1:49 The buyer authorizes into escrow
+  2:05 Settlement: the operator is paid
+  2:35 D3 · Disputing a step
+  3:05 D3 · The credit lands, the score falls
+  3:27 D4 · Ecosystem and the integration guide
+  3:42 Limitations
+  4:05 Verify it yourself
+  ```
+
+  If a scene's final length drops under 10 s, merge its chapter into the one before it.
+
+- [ ] **Duration check: 180–300 s.** Run `ffprobe -v error -show_entries format=duration -of csv=p=0 orizon-demo.mp4`. The result must be between **180 and 300**. The script's target is 255 s and its hard cap is 290 s. Also check the duration on the published page, which is what the acceptance criterion reads.
+- [ ] **Export:** 1920×1080 MP4 (H.264, AAC), at the capture's frame rate. Keep the project file and the raw captures until the story is accepted.
+
+## 8. Upload
+
+**YouTube, visibility Public.**
+
+- **It plays with no account.** A public, non-age-restricted YouTube video plays for a signed-out visitor, in any browser, on a phone, without an app. That is the story's "publicly viewable with no login".
+- **Why Public rather than Unlisted.** An unlisted video plays for anyone **who has the link**. But it cannot be found by search or from the channel page, and it is not listed anywhere. The SOW lists "3–5 min demo video published" as a success metric, and a reviewer arriving from the SOW, the X post or the Blocksmiths channel has to be able to find it without being sent a URL. A link that gets lost in a thread should not make the evidence disappear. Public also means the Chapter Lead can check it from any device, with no forwarding needed.
+- **Settings that would break "no login":**
+  - **Age restriction: none.** An age-restricted video demands sign-in.
+  - **Audience: "No, it's not made for kids."**
+  - **Embedding allowed**, so the evidence bundle can embed it.
+  - **Not a Premiere** or a scheduled release. Publish it immediately, so the URL plays the moment it is shared.
+- **Check:** open the URL in a private window **signed out**, and on a phone with no YouTube app signed in, then press play. Record that check (the date and "played signed-out") in the evidence sheet.
+- Title: `Orizon Agents on Stellar testnet: register, route, pay, dispute (Blue Belt demo)`.
+
+## 9. The video description
+
+Paste this, with every placeholder filled from §5. **Every hash is printed in full with its Stellar Expert link.** The limitations are repeated here word for word from the video.
+
+```text
+Orizon Agents: the Blue Belt sprint demo, on Stellar TESTNET only.
+An operator registers an agent from their wallet, binds its endpoint, gets routed
+and gets paid; a buyer routes work on on-chain reputation (with a below-floor
+agent excluded), pays through escrow, disputes a step, and is credited while the
+agent's score falls. Every transaction below is real and resolves on Stellar
+Expert (testnet). Cuts are marked on screen; nothing is sped up.
+
+Disclosures
+- The operator wallet is <the external operator's G… | our team's wallet G…>.
+- The buyer wallet (G…) and the adjudicator are the Orizon team. We raised the
+  dispute for this demo, and our team upheld it.
+- The excluded agent, "<faulty agent name>" (<faulty_id>, owner G…), is a
+  deliberately faulty test agent we run (FAULT_MODE=hang_after:0). It failed
+  three real, wallet-authorized runs, each rated 20/100 on-chain by the platform
+  scorer:
+  <fault_rating_tx_1> https://stellar.expert/explorer/testnet/tx/<fault_rating_tx_1>
+  <fault_rating_tx_2> https://stellar.expert/explorer/testnet/tx/<fault_rating_tx_2>
+  <fault_rating_tx_3> https://stellar.expert/explorer/testnet/tx/<fault_rating_tx_3>
+
+Chapters
+<the chapter list from post-production>
+
+Transactions shown (Stellar testnet)
+D1 register (operator)     <register_tx>
+  https://stellar.expert/explorer/testnet/tx/<register_tx>
+D2 authorize into escrow   <authorize_tx>
+  https://stellar.expert/explorer/testnet/tx/<authorize_tx>
+D1/D4 settle (operator paid) <settle_tx>
+  https://stellar.expert/explorer/testnet/tx/<settle_tx>
+D4 attestation seal        <seal_tx>
+  https://stellar.expert/explorer/testnet/tx/<seal_tx>
+Operator agent rated       <rating_tx_1>
+  https://stellar.expert/explorer/testnet/tx/<rating_tx_1>
+D3 refund (credit)         <refund_tx>
+  https://stellar.expert/explorer/testnet/tx/<refund_tx>
+D3 dispute rating (10/100) <dispute_rating_tx>
+  https://stellar.expert/explorer/testnet/tx/<dispute_rating_tx>
+
+External registrations and settlements (D4), from the evidence sheet
+<each external registration tx and each external settlement tx, with its link>
+
+Contracts (testnet)
+AgentRegistry        CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ
+ReputationLedger     CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT
+PaymentEscrow v2     <escrow v2 id> (v1 CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI kept as history)
+AttestationRegistry  CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK
+
+Limitations (as stated in the video)
+- This is testnet only, and it settles native test XLM even where the screen says USDC.
+- The platform funds every dispute credit and decides every dispute.
+- Endpoint binding is off-chain: the platform stores the URL you signed.
+- One platform key is the settler, the scorer and the sealer.
+Also: escrow v2 is a new contract id beside the four published in SOW §6.1;
+there is no on-chain arbitration and no appeal; a dispute rating is added beside
+the step's automatic rating and does not replace it; the free-tier backend
+cold-starts in 30-60 s.
+
+Verify it yourself
+Guide:     https://orizons.xyz/guide/list-your-agent
+Ecosystem: https://orizons.xyz/app/ecosystem
+Code (MIT):
+  https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar
+  https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar
+  https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar
+  https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar
+```
