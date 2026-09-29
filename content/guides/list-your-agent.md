@@ -1465,37 +1465,37 @@ Both are now in the friction log, as F-031 and F-032:
 Every entry in the operator friction log (backend `docs/operators/friction-log.md`, F-001 to F-032) is either answered
 in a section of this guide or listed under [Known issues](#known-issues).
 
-| ID    | Friction                                                               | Addressed in                                                                                     |
-| ----- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| F-001 | Tunnel URLs change on restart; dead bindings stay bound                | [Known issues](#known-issues), and [Choose where to host it](#choose-where-to-host-it)           |
-| F-002 | No liveness check before routing; placeholder bindings compete         | [Known issues](#known-issues), and [How routing chooses an agent](#how-routing-chooses-an-agent) |
-| F-003 | An unfunded account's balance read fails with `Error(Contract, #6)`    | [Step 2: Fund from friendbot](#step-2-fund-from-friendbot)                                       |
-| F-004 | Registering from an unfunded wallet                                    | [Step 2: Fund from friendbot](#step-2-fund-from-friendbot)                                       |
-| F-005 | Fault injection left on destroys reputation                            | [Fault injection is for testing only](#fault-injection-is-for-testing-only)                      |
-| F-006 | Free-tier sleep and cold start against the dispatch deadline           | [Choose where to host it](#choose-where-to-host-it)                                              |
-| F-007 | A backend restart erases tasks, traces and plans                       | [Known issues](#known-issues), and [What survives a restart](#what-survives-a-restart)           |
-| F-008 | The bound URL must equal `ORIZON_ENDPOINT_URL` exactly                 | [Use one exact URL](#use-one-exact-url)                                                          |
-| F-009 | A signer set only in `.env` is ignored                                 | [Deploy the reference agent on Render](#deploy-the-reference-agent-on-render)                    |
-| F-010 | Albedo and Rabet cannot sign the bind message                          | [Step 1: Install a wallet](#step-1-install-a-wallet)                                             |
-| F-011 | No wrong-network warning for Albedo or LOBSTR                          | [Step 1: Install a wallet](#step-1-install-a-wallet)                                             |
-| F-012 | An unresolvable host passes the preflight                              | [Preflight the URL](#preflight-the-url)                                                          |
-| F-013 | Bind accepts raw or SEP-53 signatures; dispatch is SEP-53 only         | [Verifying a dispatch](#verifying-a-dispatch)                                                    |
-| F-014 | Two hostnames for one API                                              | [Before you start](#before-you-start)                                                            |
-| F-015 | An anonymous binding read shows only the host                          | [Read the binding back](#read-the-binding-back)                                                  |
-| F-016 | A crashed process behind a proxy reads as `error_status`               | [When a dispatch fails](#when-a-dispatch-fails)                                                  |
-| F-017 | Failures used to carry no class in the trace (fixed)                   | [When a dispatch fails](#when-a-dispatch-fails)                                                  |
-| F-018 | The envelope used to lack `deadline_ms` (fixed)                        | [The dispatch envelope](#the-dispatch-envelope)                                                  |
-| F-019 | Operators are never paid on escrow v1                                  | [Known issues](#known-issues), and [Check that payment is live](#check-that-payment-is-live)     |
-| F-020 | `online` and `runs` on the dashboard are placeholders                  | [Reading your dashboard](#reading-your-dashboard)                                                |
-| F-021 | "Not eligible" and "routable from day one" on one card                 | [Reading your dashboard](#reading-your-dashboard)                                                |
-| F-022 | The price said USDC; testnet pays XLM (fixed)                          | [Choose skills and a price](#choose-skills-and-a-price)                                          |
-| F-023 | The reference README's first step fails on Windows                     | [Deploy the reference agent on Render](#deploy-the-reference-agent-on-render)                    |
-| F-024 | When to pin the signer is described three ways                         | [Deploy the reference agent on Render](#deploy-the-reference-agent-on-render)                    |
-| F-025 | The success card's evidence block can name the wrong network           | [Check your registration](#check-your-registration)                                              |
-| F-026 | Friendbot answers Python's default User-Agent with 403                 | [Step 2: Fund from friendbot](#step-2-fund-from-friendbot)                                       |
-| F-027 | Routing is not predictable from the intent                             | [Known issues](#known-issues), and [How routing chooses an agent](#how-routing-chooses-an-agent) |
-| F-028 | The wallet picker is a keyboard trap                                   | [Step 1: Install a wallet](#step-1-install-a-wallet)                                             |
-| F-029 | The marketplace marks on-chain agents `"real": false`                  | [Reading your dashboard](#reading-your-dashboard)                                                |
-| F-030 | A settlement 404 and a "click Register again" message on the Bind page | [Reading your dashboard](#reading-your-dashboard), and [Bind on the dApp](#bind-on-the-dapp)     |
-| F-031 | The dApp has no unbind control                                         | [Rebind or unbind](#rebind-or-unbind)                                                            |
-| F-032 | A price above the charge cap registers but is never listed             | [Choose skills and a price](#choose-skills-and-a-price)                                          |
+| ID    | Friction                                                                                     | Addressed in                                                                                     |
+| ----- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| F-001 | Tunnel URLs change on restart; dead bindings stay bound                                      | [Known issues](#known-issues), and [Choose where to host it](#choose-where-to-host-it)           |
+| F-002 | No liveness check before routing; placeholder bindings compete                               | [Known issues](#known-issues), and [How routing chooses an agent](#how-routing-chooses-an-agent) |
+| F-003 | An unfunded account's balance read fails with `Error(Contract, #6)`                          | [Step 2: Fund from friendbot](#step-2-fund-from-friendbot)                                       |
+| F-004 | Registering from an unfunded wallet                                                          | [Step 2: Fund from friendbot](#step-2-fund-from-friendbot)                                       |
+| F-005 | Fault injection left on destroys reputation                                                  | [Fault injection is for testing only](#fault-injection-is-for-testing-only)                      |
+| F-006 | Free-tier sleep and cold start against the dispatch deadline                                 | [Choose where to host it](#choose-where-to-host-it)                                              |
+| F-007 | A backend restart erases tasks, traces and plans                                             | [Known issues](#known-issues), and [What survives a restart](#what-survives-a-restart)           |
+| F-008 | The bound URL must equal `ORIZON_ENDPOINT_URL` exactly                                       | [Use one exact URL](#use-one-exact-url)                                                          |
+| F-009 | A signer set only in `.env` is ignored                                                       | [Deploy the reference agent on Render](#deploy-the-reference-agent-on-render)                    |
+| F-010 | Albedo and Rabet cannot sign the bind message                                                | [Step 1: Install a wallet](#step-1-install-a-wallet)                                             |
+| F-011 | No wrong-network warning for Albedo or LOBSTR                                                | [Step 1: Install a wallet](#step-1-install-a-wallet)                                             |
+| F-012 | An unresolvable host passes the preflight                                                    | [Preflight the URL](#preflight-the-url)                                                          |
+| F-013 | Bind accepts raw or SEP-53 signatures; dispatch is SEP-53 only                               | [Verifying a dispatch](#verifying-a-dispatch)                                                    |
+| F-014 | Two hostnames for one API                                                                    | [Before you start](#before-you-start)                                                            |
+| F-015 | An anonymous binding read shows only the host                                                | [Read the binding back](#read-the-binding-back)                                                  |
+| F-016 | A crashed process behind a proxy reads as `error_status`                                     | [When a dispatch fails](#when-a-dispatch-fails)                                                  |
+| F-017 | Failures used to carry no class in the trace (fixed)                                         | [When a dispatch fails](#when-a-dispatch-fails)                                                  |
+| F-018 | The envelope used to lack `deadline_ms` (fixed)                                              | [The dispatch envelope](#the-dispatch-envelope)                                                  |
+| F-019 | Operators are never paid on escrow v1                                                        | [Known issues](#known-issues), and [Check that payment is live](#check-that-payment-is-live)     |
+| F-020 | `online` and `runs` on the dashboard are placeholders                                        | [Reading your dashboard](#reading-your-dashboard)                                                |
+| F-021 | "Not eligible" and "routable from day one" on one card                                       | [Reading your dashboard](#reading-your-dashboard)                                                |
+| F-022 | The price said USDC; testnet pays XLM (documented; fixed in frontend PR #92, pending deploy) | [Choose skills and a price](#choose-skills-and-a-price)                                          |
+| F-023 | The reference README's first step fails on Windows                                           | [Deploy the reference agent on Render](#deploy-the-reference-agent-on-render)                    |
+| F-024 | When to pin the signer is described three ways                                               | [Deploy the reference agent on Render](#deploy-the-reference-agent-on-render)                    |
+| F-025 | The success card's evidence block can name the wrong network                                 | [Check your registration](#check-your-registration)                                              |
+| F-026 | Friendbot answers Python's default User-Agent with 403                                       | [Step 2: Fund from friendbot](#step-2-fund-from-friendbot)                                       |
+| F-027 | Routing is not predictable from the intent                                                   | [Known issues](#known-issues), and [How routing chooses an agent](#how-routing-chooses-an-agent) |
+| F-028 | The wallet picker is a keyboard trap                                                         | [Step 1: Install a wallet](#step-1-install-a-wallet)                                             |
+| F-029 | The marketplace marks on-chain agents `"real": false`                                        | [Reading your dashboard](#reading-your-dashboard)                                                |
+| F-030 | A settlement 404 and a "click Register again" message on the Bind page                       | [Reading your dashboard](#reading-your-dashboard), and [Bind on the dApp](#bind-on-the-dapp)     |
+| F-031 | The dApp has no unbind control                                                               | [Rebind or unbind](#rebind-or-unbind)                                                            |
+| F-032 | A price above the charge cap registers but is never listed                                   | [Choose skills and a price](#choose-skills-and-a-price)                                          |
