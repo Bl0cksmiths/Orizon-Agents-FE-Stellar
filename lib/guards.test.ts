@@ -281,6 +281,45 @@ describe("a plan floor notice's awaiting_fresh_read", () => {
   });
 });
 
+describe("a plan floor notice's evidence (count, dispute_rate_bps)", () => {
+  const withNotice = (extra: Record<string, unknown>) =>
+    screenDecomposeResponse({
+      plan_id: "pln_1",
+      intent: "x",
+      steps: [],
+      total_usdc: 0,
+      total_eta: 0,
+      notices: [
+        {
+          kind: "excluded",
+          agent_id: "a",
+          reason: "r",
+          reason_code: "below_floor",
+          ...extra,
+        },
+      ],
+    });
+
+  // The panel words a below-floor row from these two numbers, so they arrive
+  // as numbers, as null (no entry), or not at all (an older backend).
+  it("keeps them numeric, null or absent", () => {
+    const kept = withNotice({ count: 7, dispute_rate_bps: 1428 });
+    expect(kept?.notices?.[0]?.count).toBe(7);
+    expect(kept?.notices?.[0]?.dispute_rate_bps).toBe(1428);
+    expect(
+      withNotice({ count: null, dispute_rate_bps: null })?.notices,
+    ).toHaveLength(1);
+    expect(withNotice({})?.notices).toHaveLength(1);
+  });
+
+  it("drops a notice whose count or dispute rate is not a number", () => {
+    expect(withNotice({ count: "7" })?.notices ?? []).toHaveLength(0);
+    expect(withNotice({ dispute_rate_bps: "0" })?.notices ?? []).toHaveLength(
+      0,
+    );
+  });
+});
+
 describe("isTaskList", () => {
   const task = {
     id: "tsk_01",
