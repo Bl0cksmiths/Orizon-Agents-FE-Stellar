@@ -45,7 +45,7 @@ export function pinnedEscrowId(network: ExplorerNetwork): string | null {
  * - `unknown`: the network read has not landed (or failed). Nothing is
  *   decided on it — the card's own states cover a failed read.
  * - `unpinned`: no v2 id is pinned for this network, so there is nothing to
- *   compare, and the copy describes escrow v1 (`escrowGeneration`).
+ *   compare. Which story the copy tells is `escrowGeneration`'s to decide.
  * - `match` / `mismatch`: compared.
  */
 export type EscrowAgreement =

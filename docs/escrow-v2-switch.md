@@ -15,9 +15,14 @@ true of v1, so every custody sentence and control reads one decision,
 | Pin | Backend reports | Console says |
 |---|---|---|
 | set | the pinned id | **v2**: custody, settle, reclaim |
-| `null` | anything | **v1**: authorizing records an allowance, no funds move, and a paid run's settlement fails with nothing charged (D-039); no reclaim, no held-funds notices |
-| set | another id | neither story, and **Authorize is paused** |
-| any | not read yet, or the read failed | neither story |
+| any | v1's id (`payment_escrow` in `lib/contract-addresses.json`, checked against the address book in CI) | **v1**: authorizing records an allowance, no funds move, and a paid run's settlement fails with nothing charged (D-039); no reclaim, no held-funds notices |
+| `null` | any other id | neither story |
+| set | any other id | neither story, and **Authorize is paused** |
+| any | nothing, or the read has not answered or failed | neither story |
+
+Each story is claimed only on positive evidence, so the console never tells a
+buyer something false whichever of the backend and the frontend is switched
+first. A pinned console facing the v1 backend also pauses Authorize.
 
 The pin is checked three ways.
 
@@ -50,13 +55,14 @@ compared.
 
 ## Switch steps (testnet)
 
-Pin the frontend **before** switching the backend. A pinned console facing the
-v1 backend pauses Authorize and claims neither story, so no buyer is told
-anything false; the reverse order would leave an unpinned console telling v2
-buyers that no funds move. Between the frontend deploy and the backend switch
-on-chain payment is paused and the 6-hourly smoke is red on purpose
-(production is not on the escrow the pin and the address book name), so do
-steps 2–5 in one sitting.
+Pin the frontend **before** switching the backend: that is the recommended
+order, though the copy is honest in either. Pinned first, the console facing
+the v1 backend pauses Authorize while it still tells v1's story. Switched the
+other way, an unpinned console facing v2 claims neither story until the pin
+deploys, so buyers read less than they should but nothing false. Between the
+frontend deploy and the backend switch on-chain payment is paused and the
+6-hourly smoke is red on purpose (production is not on the escrow the pin and
+the address book name), so do steps 2–5 in one sitting.
 
 1. **Deploy v2** (contracts repo, `Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar`):
 
@@ -88,8 +94,9 @@ steps 2–5 in one sitting.
    link against the address book, which now holds both ids.
 
 4. **Merge and deploy the frontend** (Vercel deploys `main`). Open
-   `/app/orchestrator`: the pay panel shows "On-chain payment is paused",
-   Authorize is disabled, and no sentence claims either escrow's story.
+   `/app/orchestrator`: the pay panel shows "On-chain payment is paused" and
+   Authorize is disabled; the copy still describes v1, which the backend
+   still reports.
 
 5. **Point the backend at it.** In the Render dashboard (it overrides
    `render.yaml`), set `STELLAR_PAYMENT_ESCROW` to the `payment_escrow_v2` id,
@@ -109,9 +116,9 @@ steps 2–5 in one sitting.
 
 ## Rolling back
 
-Point `STELLAR_PAYMENT_ESCROW` back at v1 first — the pinned console then
-pauses Authorize rather than describing v2 — and then set the pin back to
-`null` and deploy the frontend, which returns it to v1's wording. The checks
+Point `STELLAR_PAYMENT_ESCROW` back at v1 — the pinned console then pauses
+Authorize and returns to v1's wording — and then set the pin back to `null`
+and deploy the frontend, which lifts the pause. The checks
 then report the pin as pending again. Funds already in v2 custody stay
 reclaimable by their payers after expiry regardless.
 
