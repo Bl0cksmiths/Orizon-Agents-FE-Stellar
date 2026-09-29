@@ -219,29 +219,30 @@ The contracts share a small types crate (`contract/shared`) exporting `Agent`, `
 ```mermaid
 flowchart LR
     Buyer["Buyer wallet"]
-    Settler["Protocol settler key"]
+    Settler["Settler<br/>deployed v1: admin key<br/>v2: backend signing key"]
+    Backend["Backend signing key<br/>scorer · sealer"]
     Owner["Agent owner wallet"]
     Reader["Buyer · auditor<br/>· other orchestrator"]
 
     Buyer -- "authorize(payer, agent_id,<br/>max_amount, expires_at)" --> PE["PaymentEscrow"]
-    Settler -- "charge(auth_id, amount, job_id)" --> PE
+    Settler -- "v1: charge(auth_id, total, job_id)<br/>v2: settle(auth_id, job_id, payouts)" --> PE
     PE -- "owner_of(agent_id)" --> AR["AgentRegistry"]
     PE -- "Token::transfer" --> SAC["Native XLM SAC"]
-    SAC -- "USDC payout" --> Owner
+    SAC -- "payout" --> Owner
 
-    Settler -- "seal(job_id, agents,<br/>receipts, total_spent)" --> AT["AttestationRegistry"]
-    Settler -- "submit(agent_id, rating, job_id)" --> RL["ReputationLedger"]
+    Backend -- "seal(job_id, agents,<br/>receipts, total_spent)" --> AT["AttestationRegistry"]
+    Backend -- "submit(agent_id, job_id,<br/>rating_0_to_100, weight, payer, kind)" --> RL["ReputationLedger"]
 
     AT -. "get(job_id)" .-> Reader
-    RL -. "avg_bps(agent_id)" .-> Reader
+    RL -. "rep_state · avg_bps(agent_id)" .-> Reader
 
     classDef wallet fill:#FFFFFF,stroke:#5A2EFF,stroke-width:1.5px,color:#14131A
     classDef contract fill:#F4F2F8,stroke:#14131A,stroke-width:1px,color:#14131A
-    class Buyer,Settler,Owner,Reader wallet
+    class Buyer,Settler,Backend,Owner,Reader wallet
     class PE,AR,AT,RL,SAC contract
 ```
 
-**Figure 3.** Soroban contract topology — `PaymentEscrow` resolves agent ownership through `AgentRegistry` and routes settlement through the native XLM SAC; `AttestationRegistry` and `ReputationLedger` are write paths for the sealer and the scorer and public read paths for everyone else. The diagram draws one protocol key; on testnet the sealer and the scorer are the backend's signing key, and the deployed escrow's settler is the admin key (§6.1).
+**Figure 3.** Soroban contract topology — `PaymentEscrow` resolves agent ownership through `AgentRegistry` and routes settlement through the native XLM SAC; `AttestationRegistry` and `ReputationLedger` are write paths for the sealer and the scorer and public read paths for everyone else. On testnet the sealer and the scorer are the backend's signing key, `GDB4N2…CDHP`, and the deployed escrow's settler is the admin key, `GA7AI5…5OQV`; the backend key becomes the settler once escrow v2 is deployed (§6.1).
 
 The on-chain x402 flow is four steps. A buyer calls `authorize(payer, agent_id, max_amount, expires_at)` once and receives an `auth_id`. The settler calls `charge(caller, auth_id, amount, job_id)`, which validates the authorisation, looks up the agent owner via `AgentRegistry.owner_of(agent_id)`, and transfers USDC from the buyer to the owner via the asset's `Token::transfer`. On the deployed escrow the settler is the admin key, not the backend's, and that transfer cannot complete, because it needs the buyer's signature, which the charge transaction does not carry (§6.1, §6.9; SC@88aa554 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::charge`). The backend submits one `charge` for the workflow's total (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`). The sealer calls `seal(caller, job_id, orchestrator, intent_hash, agents, receipts, total_spent)` on `AttestationRegistry` once at the end — write-once, second seal of the same `job_id` returns `AlreadyExists`. The scorer calls `submit(caller, agent_id, job_id, rating_0_to_100, weight, payer, kind)` on `ReputationLedger`, with a `Rated(agent_id, job_id)` persistent-storage key guarding against replay. The sealer and the scorer are the backend's signing key on testnet (§6.1).
 
