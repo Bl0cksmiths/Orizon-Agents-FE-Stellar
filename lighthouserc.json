@@ -6,7 +6,8 @@
       "url": [
         "http://localhost:3000/",
         "http://localhost:3000/guide/list-your-agent",
-        "http://localhost:3000/demo"
+        "http://localhost:3000/demo",
+        "http://localhost:3000/evidence"
       ],
       "numberOfRuns": 3,
       "settings": {
