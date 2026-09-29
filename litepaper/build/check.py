@@ -5,7 +5,8 @@
               sections/06-*.md byte for byte (catches a hand-edited book);
               the -docx.md and figures/*.mmd equal what the book derives.
   2. formats: §6 (from the `§6 · …` heading to the `§7 · …` heading) carries
-              the same text in the book .md, the .html, the .pdf and the .docx.
+              the same text in the book .md, the .html, the .pdf and the .docx;
+              so does each other --section, without the .pdf for a --no-pdf one.
   3. figures: every figure PNG has white margin on all sides (not clipped).
   4. seed:    the §6.2 Genesis-agents table agrees row for row with the
               backend's app/seed.py (read from git, parsed with ast).
@@ -407,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--sections", type=Path, default=ROOT / "sections")
     ap.add_argument("--pandoc", default="pandoc")
     ap.add_argument("--section", action="append", help="chapter to compare across formats (repeatable; default 6)")
+    ap.add_argument("--no-pdf", action="append", default=[],
+                    help="chapter compared in the md, html and docx only (repeatable)")
     ap.add_argument("--seed-repo", default=str(Path.home() / "Websites-Services-2026/orizon-agents-BE-Stellar"))
     ap.add_argument("--seed-ref", default="origin/main")
     ap.add_argument("--seed-path", default="app/seed.py")
@@ -417,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
     failures = []
     for i, num in enumerate(chapters):
         failures += check_source(args.out, args.sections, num, full=(i == 0))
-        failures += check_formats(args.out, args.pandoc, num)
+        failures += check_formats(args.out, args.pandoc, num, pdf=num not in args.no_pdf)
     failures += check_figures(args.out)
     source, where = seed_source(args)
     if source is None:
