@@ -13,7 +13,8 @@ next-env.d.ts
 .turbo
 
 
-# Internal docs — litepaper & Instawards SOW/budget (kept local, not published)
+# Internal docs — Instawards SOW/budget and working files (kept local, not
+# published). The public litepaper lives in litepaper/, tracked.
 whitepaper/
 tsconfig.tsbuildinfo
 coverage
