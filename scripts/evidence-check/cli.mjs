@@ -23,8 +23,9 @@
  *   --interval-ms <n>     minimum gap between requests to one host (default 750)
  *   --retries <n>         retries on no answer / 429 / 5xx (default 2)
  *
- * Exit: 0 every check passed · 1 anything failed · 2 bad usage, or the run was
- * refused as not testnet · 3 nothing failed but a link could not be checked
+ * Exit: 0 every check passed · 1 anything failed · 2 bad usage, the run was
+ * refused as not testnet, or the checker could not run (--live cannot import
+ * @stellar/stellar-sdk; no link is judged) · 3 nothing failed but a link could not be checked
  * (unverified, e.g. a network error) — never a pass.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -49,8 +50,8 @@ function integer(value, flag, min) {
 
 /**
  * @param {string[]} argv
- * @param {{ log?: (s: string) => void, error?: (s: string) => void, loadValidator?: import("./run.mjs").RunOptions["loadValidator"] }} [io]
- *   output sinks, and a validator loader for tests
+ * @param {{ log?: (s: string) => void, error?: (s: string) => void, loadValidator?: import("./run.mjs").RunOptions["loadValidator"], importSdk?: import("./run.mjs").RunOptions["importSdk"] }} [io]
+ *   output sinks, a validator loader and an SDK importer for tests
  */
 export async function main(argv, io = {}) {
   const log = io.log ?? console.log;
@@ -123,6 +124,7 @@ export async function main(argv, io = {}) {
     mode: args.live ? "live" : "static",
     clientOptions,
     loadValidator: io.loadValidator,
+    importSdk: io.importSdk,
     endpoints,
   });
 
@@ -136,6 +138,7 @@ export async function main(argv, io = {}) {
   writeFileSync(join(dir, "evidence-report.json"), toJson(report));
   log(`report: ${join(dir, "evidence-report.md")} and evidence-report.json`);
   const code = exitCodeOf(report);
+  if (report.harness_error) error(report.harness_error);
   if (code === 3)
     error("some links could not be checked (unverified): exit 3, not a pass");
   return code;

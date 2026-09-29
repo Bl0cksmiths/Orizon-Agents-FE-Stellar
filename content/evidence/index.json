@@ -280,7 +280,7 @@
           "note": "Missing. No refund has been paid on the live deployment. There is nothing to refund yet, because no payment has settled, and refunds ship switched off until one does. A refund is a credit the platform sends from its own balance (see the disclosures). The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
           "links": [
             {
-              "label": "Backend pull request #62: the partial-credit refund, paid by the platform's settler key (merged)",
+              "label": "Backend pull request #62: the partial-credit refund, paid by the platform's signing key (merged)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62",
               "kind": "pr",
               "date": "2026-09-21"
@@ -427,12 +427,22 @@
           "id": "6.1-D4-e",
           "claim": "The protocol litepaper, with its §6 updated for open registration, public on orizons.xyz (SOW §5.1, Week 4 output).",
           "status": "partial",
-          "note": "Partial. Version 0.5 of the litepaper is written, with §6 updated for open registration, reputation-gated routing and the dispute window, and every format is regenerated from its source. Its public page, orizons.xyz/litepaper, is in frontend pull request #95, which is open, so the page shows 'not found' today. It goes live when that pull request merges to main and Vercel redeploys the site. The page offers the litepaper as a PDF, a web page, a Word document and Markdown, with no account needed.",
+          "note": "Partial. Version 0.5 of the litepaper is written, with §6 updated for open registration, reputation-gated routing and the dispute window, and every format is regenerated from its source. Its public page, orizons.xyz/litepaper, is in frontend pull request #95, which is open, so the page shows 'not found' today. It goes live when that pull request merges to main and Vercel redeploys the site. Until then, the PDF and the updated §6 are linked here on GitHub. The page offers the litepaper as a PDF, a web page, a Word document and Markdown, with no account needed.",
           "links": [
             {
               "label": "Frontend pull request #95: the litepaper, its §6 update and its public page",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/95",
               "kind": "pr"
+            },
+            {
+              "label": "The litepaper (v0.5) as a PDF on GitHub, fixed at commit f2afa51",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/f2afa5193aaa7e83445dbc7a4431b9562d1c32ff/litepaper/Orizon-Agents-Litepaper.pdf",
+              "kind": "doc"
+            },
+            {
+              "label": "The litepaper's updated §6 (operations and governance) source on GitHub, fixed at commit f2afa51",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/f2afa5193aaa7e83445dbc7a4431b9562d1c32ff/litepaper/sections/06-operations-governance.md",
+              "kind": "doc"
             }
           ]
         }
@@ -957,9 +967,9 @@
       "category": "Technical milestones",
       "metric": "Automated dispute window + partial-credit refund live",
       "target": "Yes",
-      "achieved": "Partly: the 24-hour dispute window is live; the refund has never run",
+      "achieved": "Partly: the dispute routes are deployed, but no dispute window can open until a payment settles, which needs escrow v2, and refunds are switched off.",
       "status": "not_met",
-      "reason": "The dispute window is live, but the live backend does not report refunds as switched on (its readiness report predates the refund switch) and no dispute has been refunded on-chain yet (see the dispute refund row).",
+      "reason": "The dispute routes are deployed, but a buyer's 24-hour dispute window opens only when a payment settles, and none has: settling a payment needs escrow v2, which is merged but not deployed. The live backend does not report refunds as switched on (its readiness report predates the refund switch), and no dispute has been refunded on-chain (see the dispute refund row).",
       "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject), that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on), and that at least one dispute has been refunded on-chain (the dispute refund row above).",
       "links": [
         {
@@ -1079,7 +1089,7 @@
       "title": "Payments are released by a single platform key",
       "text": "SOW §3.8: \"the settler is not permissionless. The settler (the role that executes charge and will operate this sprint's dispute/partial-credit path) is a single platform-held backend key, fixed at contract deployment; the contract exposes no settler-rotation function.\" This is still true of the live escrow: one team-held key releases payments, with no multi-signature or threshold control.",
       "sow_ref": "§3.8",
-      "changed_since_sow": "Two changes. First, the SOW says one keypair also holds the admin, scorer and sealer roles. On 2026-09-19 the rating (scorer) and sealing (sealer) roles moved from the admin wallet GA7AI…5OQV to a separate production key, GDB4N…CDHP; the two transactions are linked under Repositories & Deployments. The admin wallet still holds the admin role and settles on the live escrow. Both keys are held by the team. Second, escrow v2 adds a set_settler function, so the settler can be replaced. v2 is merged (contracts pull request #4, 2026-09-28) but not deployed to testnet, so the live escrow still cannot rotate its settler."
+      "changed_since_sow": "Two changes. First, the SOW says one keypair also holds the admin, scorer and sealer roles. On 2026-09-19 the rating (scorer) and sealing (sealer) roles moved from the admin wallet GA7AI…5OQV to a separate production key, GDB4N…CDHP; the two transactions are linked under Repositories & Deployments. The admin wallet still holds the admin role and is the settler on the live (v1) escrow. The dispute credit is not paid by that settler: the production key GDB4N…CDHP pays it, and that key becomes the escrow's settler once escrow v2 is deployed. Both keys are held by the team. Second, escrow v2 adds a set_settler function, so the settler can be replaced. v2 is merged (contracts pull request #4, 2026-09-28) but not deployed to testnet, so the live escrow still cannot rotate its settler."
     },
     {
       "id": "escrow_custody",
@@ -1091,7 +1101,7 @@
     {
       "id": "platform_credits",
       "title": "Refunds are credits paid from the platform's own funds",
-      "text": "When a dispute is upheld, the platform's settler key sends the buyer a credit from the platform's own balance. It is not taken back from the agent's owner, and it is not drawn from the buyer's authorization. The credit is the price of the disputed step, capped by what the payment actually moved and by a per-refund ceiling. Refunds ship switched off, and none has been paid on the live deployment.",
+      "text": "When a dispute is upheld, the platform sends the buyer a credit from its own balance. It is not taken back from the agent's owner, and it is not drawn from the buyer's authorization. The platform's signing key (GDB4N…CDHP) pays dispute credits, writes ratings and seals attestations, and it becomes the escrow's settler once escrow v2 is deployed. The deployed v1 escrow's settler is the admin key (GA7AI…5OQV). The credit is the price of the disputed step, capped by what the payment actually moved. A credit above the per-refund ceiling (MAX_REFUND_USDC) is refused outright, not reduced to the ceiling, and nothing is paid. Refunds ship switched off, and none has been paid on the live deployment.",
       "sow_ref": "§3.8, §4.1 (Deliverable 3)",
       "changed_since_sow": "The SOW says the refund is executed by the settler \"within the buyer's envelope\" (§3.8) and \"against the buyer's authorization envelope\" (§4.1). The live escrow has no refund function and never holds funds, so there was nothing inside the envelope to return. The refund became a separate transfer funded by the platform (backend decision records ADR 0002 and ADR 0008)."
     },

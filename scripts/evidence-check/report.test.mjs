@@ -21,6 +21,7 @@ function sample() {
     validator: { source: "lib", ok: true, problems: [] },
     errors: [],
     refused: null,
+    harness_error: null,
     rows: [
       {
         where: "deliverables[0].items[0].links[0]",
