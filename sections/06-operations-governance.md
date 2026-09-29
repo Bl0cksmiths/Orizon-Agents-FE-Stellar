@@ -1,6 +1,6 @@
 # §6 · Operations and Governance
 
-The protocol works only as well as the people who run it. This chapter describes who runs what, who can change what, and how the registry of agents — the most consequential piece of governance — opens up over time.
+The protocol works only as well as the people who run it. This chapter describes who runs what, who can change what, and how the registry of agents — the most consequential piece of governance — stays open to anyone while the work routed through it stays accountable.
 
 ## 6.1 · Roles
 
