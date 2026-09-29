@@ -411,3 +411,45 @@ The story's product rules, and SOW §6.1, map on as well:
 | §6.1 D2: the plan card with on-chain reputation, and a sub-floor agent excluded                     | S04, S05                                                                                                                                                                       |
 | §6.1 D3: a dispute (rating) tx, the partial-refund tx, and the dispute UI on the trace/receipt view | S08, S09                                                                                                                                                                       |
 | §6.1 D4: a 3–5 min video with both perspectives, the integration guide, and the tx-hash lists       | This video; S10 and S12 (the guide); the description (the hash lists).                                                                                                         |
+
+## What must be deployed before recording
+
+What is live was checked on **2026-09-29** against `https://orizon-agents-be-stellar.onrender.com` and `https://orizons.xyz`, with read-only requests. The pre-flight (`python -m scripts.demo_preflight` in the backend repo) must report every row as GO.
+
+| #   | Needs deploy                                                                                                                                                    | Scenes                  | Live on 2026-09-29                                                                                                                                  | GO when                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Escrow v2** on testnet (the contracts repo's `feat/escrow-v2`, `docs/escrow-v2-interface.md`), with `set_settler` set to the deployment signer `GDB4N25…CDHP` | S06, S07, S08, S09      | `/api/stellar/network` still names v1, `CBJPTMAP…25PI`. v1 cannot settle (D-039).                                                                   | `payment_escrow` is the v2 id, its `version()` returns 2, and its `settler()` is the deployment signer.                |
+| 2   | **Backend `feat/5.02-integration`** (`16819ef` or later) on Render. Render does not auto-deploy from this organization, so this is a manual deploy.             | S04, S07, S08, S09, S10 | `openapi.json` declares no security scheme, and has no `/api/ecosystem/adoption`, no `/api/agents/{id}/readiness` and no dispute read-grant routes. | Those routes are listed, and the backend is configured with the escrow v2 id.                                          |
+| 3   | **Refunds on**: `API_KEY` (8+ printable ASCII characters), `DISPUTE_REFUNDS_ENABLED=true`, and `DATABASE_URL` set                                               | S08, S09                | `uphold` answers `503 dispute_refunds_disabled` (D-051).                                                                                            | `uphold` without a key answers 401 `invalid_api_key`, not 503.                                                         |
+| 4   | **Frontend `feat/5.03-integration`** on Vercel, pinning the same escrow v2 id                                                                                   | S02–S12                 | `/guide/list-your-agent` returns 404.                                                                                                               | The guide returns 200, and the plan card shows no "On-chain payment is paused…".                                       |
+| 5   | **The operator's reference agent**: a healthy endpoint that the operator wallet binds in S03                                                                    | S03, S07                | n/a                                                                                                                                                 | `GET <endpoint>/` answers `{"ok": true, …}` with **no** `fault_injection`, and it was warmed within 10 minutes of S07. |
+| 6   | **The faulty test agent**: `FAULT_MODE=hang_after:0`, registered, bound, and run 3 times ([above](#how-the-below-floor-agent-is-made-honestly))                 | S05                     | not yet created                                                                                                                                     | Its reputation reads `lower_bound_bps` 5443 (≤ 5489), `source: onchain`, not stale, and it is bound and listed.        |
+| 7   | **At least 3 routable agents clear the floor**                                                                                                                  | S05                     | 5 on-chain agents are bound (plus the seeded catalogue); their standing was not checked here.                                                       | The pre-flight counts them.                                                                                            |
+| 8   | **`app/data/team_wallets.json`** names the buyer wallet, the faulty agent's owner, and the operator wallet if it is a team wallet                               | S10                     | n/a                                                                                                                                                 | None of them appears under "External operators" on `/app/ecosystem`.                                                   |
+| 9   | **The external operators from 5.02**, registered, bound and settled, for the D4 counts                                                                          | S10                     | 2 bound agents belong to `GBWMD26I…` (`uat605_ext_op`, `uat624_ext_op`). Whether that wallet is external is for the team register to say.           | The Ecosystem tiles are filmed as they read. This row does not block recording; it decides what S10 shows.             |
+
+## Sources
+
+Every UI string, route and behaviour in this script was read from these, and none was written from memory:
+
+- **Frontend** `feat/5.03-integration` at `e19846e`:
+  - `app/app/register/page.tsx`, `app/app/bind/page.tsx` and `lib/binding-status.ts` (register, bind);
+  - `app/app/agents/*` and `components/agents/*` (the marketplace);
+  - `app/app/operator/*` (My Agents: checklist, routing standing, settlement panel);
+  - `app/app/orchestrator/page.tsx` and `_components/{execution-plan,floor-summary,exclusions-panel,floor-notices,degraded-banner,planner-fallback-notice}.tsx` (the plan card);
+  - `components/ui/reputation-badge.tsx`, `lib/reputation-math.ts` and `lib/money.ts`;
+  - `app/app/trace/*`, `components/disputes/*` and `lib/disputes.ts` (the trace, receipt and dispute dialog);
+  - `app/app/ecosystem/*` and `lib/ecosystem.ts`;
+  - `app/app/_components/sidebar.tsx`;
+  - `content/guides/list-your-agent.md` (Trust boundaries, and the **Limitation:** notes).
+- **Backend** `feat/5.02-integration` at `16819ef`:
+  - `app/config.py` (the `REPUTATION_*` and `DISPUTE_*` settings);
+  - `app/services/reputation_svc.py` (smoothing, the lower bound, `synthetic_rating`, the weight cap, `superseded`);
+  - `app/services/orchestrator_svc.py` and `app/services/plan_notices.py` (when and how exclusions are emitted);
+  - `app/services/execution_svc.py` (trace lines, ratings on all-failed runs, the escrow v2 settle);
+  - `app/services/registry_sync.py` (price bounds, and the 0.4481 threshold);
+  - `app/routers/disputes.py` (the synchronous uphold, `X-API-Key`);
+  - `docs/operators/lifecycle-harness.md` (the 5.01 harness).
+- **Contracts:** `docs/escrow-v2-interface.md` on `feat/escrow-v2` (`cfa2ca4`), and `contract/reputation-ledger/src/lib.rs` (decay, replay guard).
+- **Reference agent** `main` (`653664a`): README "Fault injection".
+- **SOW v4** §4.1, §6.1 and §6.3, and **Week 1–3 tranche bundles** `03-deliverable-D1…`, `03-deliverable-D2…` and `03-deliverable-D3…`.
