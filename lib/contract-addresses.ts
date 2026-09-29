@@ -53,3 +53,15 @@ export const FALLBACK_CONTRACT_IDS: Readonly<
 export function fallbackReputationLedgerId(network: ExplorerNetwork): string {
   return addressBook.reputation_ledger[network];
 }
+
+/**
+ * PaymentEscrow v1's id for this build's network: the escrow that takes no
+ * custody and cannot complete a payment (D-039). The console names v1's
+ * story only when the backend reports exactly this id
+ * (`escrowGeneration`). Mirrored from the address book's `payment_escrow`,
+ * which a v2 deploy keeps as v1's history, and checked there in CI like the
+ * ledger id.
+ */
+export function v1EscrowId(network: ExplorerNetwork): string {
+  return addressBook.payment_escrow[network];
+}
