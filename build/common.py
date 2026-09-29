@@ -116,3 +116,34 @@ def local_mermaid(html: str, uri: bool = True) -> str:
     if MERMAID_CDN not in html:
         die(f"expected the Mermaid CDN URL {MERMAID_CDN} to swap for the vendored copy")
     return html.replace(MERMAID_CDN, MERMAID_JS.as_uri() if uri else str(MERMAID_JS))
+
+
+CAPTION_RE = re.compile(r"^\*\*Figure (\d+)\.\*\*", re.M)
+
+
+def figure_blocks(book: str) -> list[tuple[int, str, re.Match]]:
+    """Each Mermaid block with the number of the `**Figure N.**` caption that
+    follows it (before the next block). Files and alt text use that number, so
+    `![Figure 4]` sits above "Figure 4." even where figures are not captioned
+    in document order (§5.2's Figure 4 precedes §5.3's Figures 2 and 3)."""
+    blocks = list(MERMAID_RE.finditer(book))
+    out = []
+    for i, m in enumerate(blocks):
+        end = blocks[i + 1].start() if i + 1 < len(blocks) else len(book)
+        c = CAPTION_RE.search(book, m.end(), end)
+        if not c:
+            die(f"Mermaid block {i + 1} (line {book.count(chr(10), 0, m.start()) + 1}) has no **Figure N.** caption after it")
+        out.append((int(c.group(1)), m.group(1), m))
+    nums = [n for n, _, _ in out]
+    if sorted(nums) != list(range(1, len(nums) + 1)):
+        die(f"figure captions are not 1..N once each: {nums}")
+    return out
+
+
+def docx_markdown(book: str) -> str:
+    """The book with each Mermaid block swapped for its pre-rendered PNG."""
+    out, pos = [], 0
+    for n, _, m in figure_blocks(book):
+        out += [book[pos:m.start()], f"![Figure {n}](figures/figure-{n}.png)"]
+        pos = m.end()
+    return "".join(out) + book[pos:]
