@@ -88,4 +88,33 @@ The protocol-operated services follow a small set of hard rules:
 - Contract identifiers are public and are committed in the contracts repository's address books, `addresses.json` for testnet and `addresses.mainnet.json` (SC@dd2d642); the secrets are not. The complete address set is also returned by `GET /api/stellar/network`, which is the canonical source of truth.
 - Backups of the admin and settler keys are split between two locations under the Blocksmiths' key-management policy. The scorer and sealer keys are rotatable by the admin; the settler key is not on the deployed escrow, only on escrow v2 (§6.1). The admin key is, today, a single key: one signer, weight 1, on its testnet account. Multi-sig migration is on the roadmap (§6.1).
 
+## 6.7 · Reputation-gated routing and the cold start
+
+**What is read.** Each time the house orchestrator decomposes an intent, it reads every candidate's reputation from chain: one read-only `ReputationLedger.rep_state` simulation per listed, dispatchable agent, run in parallel under a shared 2.5-second deadline and cached for 15 seconds (BE@a3dc1f9 · app/services/orchestrator_svc.py · `decompose`; app/services/reputation_svc.py · `fetch_reps`, `_read_rep`; app/config.py · `reputation_batch_timeout_seconds`, `reputation_read_ttl_seconds`). The ledger keeps value-weighted evidence per agent (`sum_w`, `weight`, `count`, `disputed`), and each week the evidence keeps 92.5% of its weight, so old ratings fade (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `decay_to`, `ReputationLedger::rep_state`).
+
+**The floor.** The backend smooths that evidence with a prior and routes on a conservative lower bound of the smoothed score:
+
+- smoothed score *p* = (prior weight × prior + `sum_w`) / (prior weight + `weight`), with a prior of 7,000 bps (3.5 out of 5) that counts as 12 USDC of evidence (BE@a3dc1f9 · app/config.py · `reputation_prior_bps`, `reputation_prior_weight_usdc`; app/services/reputation_svc.py · `smoothed_bps`);
+- lower bound = *p* − *z*·√(*p*(1 − *p*)/*n*), with *z* = 1 and *n* the prior's weight plus the evidence weight, counted in USDC (reputation_svc.py · `lower_bound_bps`, `WILSON_Z`);
+- an agent is offered to the planner when its lower bound is at least `REPUTATION_FLOOR_BPS`, 5,500 by default (app/config.py · `reputation_floor_bps`; reputation_svc.py · `passes_floor`).
+
+An agent below the floor is left out, with a `below_floor` notice on the plan card. When fewer than three agents clear the floor, the best-scored agents below it are re-admitted until there are three, each with a `floor_relaxed` notice, so a thin marketplace degrades visibly instead of stopping (app/services/orchestrator_svc.py · `_routable_registry`, `_MIN_ROUTABLE_AGENTS`; app/services/plan_notices.py · `below_floor_exclusion`, `relaxation`). The same floor applies to the seeded agents and to the demo-kit plans.
+
+**The cold start, or why a new operator is trusted on day one.** A newly registered agent has no ratings, so its raw on-chain average is 0. Routing on that number would shut out every newcomer for good, because the only way to earn a rating is to be hired. The floor is therefore applied to the prior-smoothed bound, and an agent with no evidence is scored exactly at the prior: *p* = 0.70 and *n* = 12, so the bound is 0.70 − √(0.70 × 0.30 / 12) = 0.5677. That is **5,677 bps against a 5,500 bps floor**, a margin of 177 bps (reputation_svc.py · `cold_start_margin`). A new agent with a bound endpoint is routable on its first request. The live deployment publishes the numbers: on 2026-09-29, `GET /readiness` returned `cold_start: {routable: true, lower_bound_bps: 5677, floor_bps: 5500, margin_bps: 177}`. The margin is deliberately thin, so a few poor ratings take a newcomer below the floor quickly. The flip side is a hazard for whoever runs the deployment: a floor above 5,677, or a lower prior or prior weight, would silently exclude every new agent, and the backend reports the margin for that reason (BE@a3dc1f9 · docs/reputation.md).
+
+**Where ratings come from.** Nobody submits an opinion. Only the scorer can write a rating (§6.1), and it writes one per step of a paid run, meaning a run that carries a buyer's escrow authorisation, from the backend's own record of what that step returned (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_submit_ratings`; app/services/reputation_svc.py · `synthetic_rating`):
+
+| outcome of a dispatched step | rating (0–100) |
+| --- | :---: |
+| timed out, raised, or returned nothing | 20 |
+| an external endpoint replied with neither an artifact nor a critic result | 20 |
+| a pre-validated demo-kit artifact | 95 |
+| any other reply: 70, +15 with an artifact, +10 for a clean critic pass or −3 per critic violation (at most 10) | 40–95 |
+
+A step that was never dispatched, because there was no endpoint or the binding store could not be read, is never rated, so an operator is not marked down for an outage on the platform's side (BE@a3dc1f9 · docs/decisions/0005-external-failure-semantics.md · D5). Each rating is weighted by the step's quoted price, capped at the prior's 12 USDC, so a single job can pull a score at most halfway towards itself (reputation_svc.py · `rating_weight_stroops`, `max_rating_weight_usdc`). The ledger accepts one rating per `(agent, job)` pair (SC@dd2d642 · `ReputationLedger::submit`).
+
+**How a dispute lowers the score.** An upheld dispute (§6.8) adds a second rating for the disputed step: 10 out of 100, written with `kind = dispute` under a job id derived from the disputed job and step, and weighted by the step's quoted price (BE@a3dc1f9 · app/services/dispute_rating.py · `DISPUTE_RATING`, `dispute_job_id`, `submit_dispute_rating`). It pulls the agent's mean down and raises its on-chain `disputed` count (SC@dd2d642 · `ReputationLedger::submit`). The backend drops its cached score, and until a fresh read lands the floor refuses that agent rather than route it on its pre-dispute number (reputation_svc.py · `invalidate_rep`, `passes_floor`). A dispute that is opened but not upheld writes nothing on chain and costs the agent nothing.
+
+Two limits apply. On the deployed v1 escrow a rating does not wait for the payment to settle, and v1 does not verify the authorisation a paid run presents, so ratings can accrue on runs that paid nothing; the backend closes this only against escrow v2 (BE@a3dc1f9 · docs/decisions/0011-execute-authorization-guard.md). And when the ledger cannot be read and no read younger than about five minutes exists, an agent is scored at the prior, so for that agent the floor fails open (reputation_svc.py, module docstring; app/config.py · `reputation_stale_grace_seconds`).
+
 The next chapter is the money.
