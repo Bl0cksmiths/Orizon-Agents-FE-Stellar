@@ -427,7 +427,7 @@ class TraceLine(BaseModel):
     msg: str
 ```
 
-The bus buffers every line so any subscriber — a watcher, an investigator, a reconciler — can replay the workflow from the start. The intent itself appears in the first `input` line; every payment appears as a `cost` line carrying the agent identifier and a transaction hash; the final seal appears as a `proof` line.
+The bus buffers every line so any subscriber — a watcher, an investigator, a reconciler — can replay the workflow from the start. The intent itself appears in the first `input` line; the payment appears as one `cost` line for the run's settlement, with its transaction hash (on testnet an `error` line, since the deployed escrow cannot complete a charge; §B.3); the final seal appears as a `proof` line.
 
 The on-chain side is the four contracts together. For any sealed workflow you can pull:
 
