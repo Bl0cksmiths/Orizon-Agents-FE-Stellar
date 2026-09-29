@@ -330,7 +330,7 @@
           "id": "6.1-D4-a",
           "claim": "A 3–5 minute demo video showing both an operator and a buyer.",
           "status": "missing",
-          "note": "Missing. The video has not been recorded. Its script is merged, and the public page that will host it, orizons.xyz/demo, is live but says the video has not been published yet. The video needs a real outside registration and settled payments to show, so it waits for those. The one-minute video in the frontend README predates the sprint and is not this video.",
+          "note": "Missing. The video has not been recorded. Its script is merged, and the public page that will host it, orizons.xyz/demo, is live but says the video has not been published yet. The video needs a working outside agent and settled payments to show, so it waits for those. The one-minute video in the frontend README predates the sprint and is not this video.",
           "links": [
             {
               "label": "The demo page on orizons.xyz, where the video will be published",
