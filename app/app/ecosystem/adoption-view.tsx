@@ -30,6 +30,7 @@ import {
   teamFunding,
   teamFundedLabel,
   missSentence,
+  settledWindowSentence,
   shortAddress,
   targetRows,
   targetsVerdict,
@@ -61,6 +62,7 @@ export function AdoptionView({
   const rows = targetRows(adoption);
   const ours = excludedOwners(adoption);
   const unverified = unverifiedSentence(adoption);
+  const settledWindow = settledWindowSentence(adoption);
   const network = adoption.network;
 
   return (
@@ -99,7 +101,14 @@ export function AdoptionView({
         </div>
         <ul className="grid gap-4 lg:grid-cols-3">
           {rows.map((row) => (
-            <TargetItem key={row.key} row={row} unverified={!!unverified} />
+            <TargetItem
+              key={row.key}
+              row={row}
+              unverified={!!unverified}
+              windowNote={
+                row.key === "settled_external_workflows" ? settledWindow : null
+              }
+            />
           ))}
         </ul>
       </section>
@@ -161,9 +170,13 @@ export function AdoptionView({
 function TargetItem({
   row,
   unverified,
+  windowNote,
 }: {
   row: TargetRow;
   unverified: boolean;
+  /** The ledger window this count covers, when the backend says; null
+   * otherwise, and for the targets it does not bound. */
+  windowNote: string | null;
 }) {
   const copy = TARGET_COPY[row.key];
   return (
@@ -190,6 +203,7 @@ function TargetItem({
         {row.met ? `Met: ${row.current} of ${row.target}.` : missSentence(row)}
       </p>
       <p className={body}>{copy.counts}</p>
+      {windowNote && <p className={body}>{windowNote}</p>}
       {unverified && (
         <p className={body}>
           May be incomplete: some agents could not be verified right now.
