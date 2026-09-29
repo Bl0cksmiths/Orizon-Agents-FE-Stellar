@@ -350,3 +350,39 @@ Evidence decays by a factor of 0.925 per weekly epoch. That scales the weight an
 ### Disclosure
 
 Wherever the agent appears, it is disclosed as **a deliberately faulty test agent the team runs**: in its display name, in the S05 narration, and in the video description. The description lists its owner wallet and its three failure-rating hashes, so a reviewer can check that each 20/100 came from the platform scorer on a real run. Its evidence directories are listed in the evidence sheet.
+
+## Cut rules
+
+The story forbids "sped-up fabrications". So the video either plays at real speed, or skips dead time **visibly**.
+
+1. **No speed-up, anywhere.** No time-lapse, no ramping, no frame dropping, and no 1.5× on any segment, including dead time. A skipped second is cut, and the cut is marked.
+2. **Every cut carries a marker.** It sits bottom-centre, is on screen for at least 1.5 s, and gives the real length removed, rounded to 5 s, and why: for example `⏩ 90 s cut: agents working`. The marker's time counts toward the runtime.
+3. **Only dead time may be cut:**
+   - a backend or agent cold start (Render's free tier takes 30–60 s);
+   - the registry indexing a new agent (up to one 15 s sync; S03);
+   - agents working between "◉ Launching…" and the settle line (S07);
+   - a ~100 s dispatch timeout, if one ever happens on camera (none is scripted);
+   - waiting for a ledger to close **before** a transaction is submitted, or **between** two transactions (S07, the ratings);
+   - the adjudicator's decision time before the uphold is entered (S08);
+   - the receipt's next poll after both dispute transactions have already confirmed on screen (S09).
+4. **Never inside a transaction's own resolution.** From the click (or command) that submits a transaction to the moment it is shown confirmed, in the app **and** on Stellar Expert, the footage is continuous. Specifically, these are never cut:
+   - the register click through to the Stellar Expert page (S02);
+   - Authorize through to the Stellar Expert page (S06);
+   - opening `<settle_tx>` on Stellar Expert (S07);
+   - the uphold command through to its JSON with both hashes (S08);
+   - opening `<refund_tx>` and `<dispute_rating_tx>` (S09).
+
+   If one of these is slow, it plays slow, and the runtime slack absorbs it.
+
+5. **No cut ever joins two different takes of one transaction.** If a take fails partway, the whole scene is retaken (see the shot list), and the hashes in the description come from the take that is shown.
+6. **No re-ordering** that changes what caused what. Scenes play in the order they happened. The one exception is S11's brief cutaway to the trace line and the settlement panel, which is labelled as a cutaway by the S11 cards over it.
+
+### If the cut runs long
+
+Stay under 4:50 by cutting content in this order, never by speeding up:
+
+1. Drop S10's scroll through the guide; S12 still names the guide.
+2. Drop S07's click through to `<settle_tx>` on Stellar Expert, and show the full hash on the operator's settlement entry instead. Keep this if at all possible: it is the operator's "paid, on the explorer" moment. Put `<settle_tx>` first in the description.
+3. Shorten S01 to the title card alone (5 s), and cut its narration down to "This is Orizon, on Stellar testnet: an operator and a buyer, end to end."
+
+Never cut S05, S11, or any Stellar Expert page in S02, S06, S08 or S09.
