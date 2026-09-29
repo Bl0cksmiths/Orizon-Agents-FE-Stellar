@@ -130,4 +130,14 @@ A sealed attestation cannot be undone (§6.4), but a buyer who paid for a step t
 
 **What this means on testnet today.** A dispute window opens only when a charge confirms, because the settlement record the window lives on is written at that moment (BE@a3dc1f9 · app/services/execution_svc.py · `_record_settlement`). The deployed v1 escrow cannot complete a charge: it asks the buyer's token balance to move on the settler's signature alone, and its settler is not the backend's key (§6.1; BE@a3dc1f9 · docs/decisions/0010-escrow-v2-custody-settlement.md, defect D-039). So no dispute window opens through the live testnet path until escrow v2 is deployed. Under v2 the buyer's funds go into escrow custody at `authorize`, and one `settle` pays each delivered step and returns the rest (SC@dd2d642 · contract/payment-escrow/src/lib.rs · `PaymentEscrow::authorize`, `PaymentEscrow::settle`). A paid step stays paid there too, so the credit remains platform-funded.
 
+## 6.9 · Standing disclosures
+
+These hold for everything in this chapter until a later version of this document says otherwise.
+
+- **Testnet only.** Everything above describes the Stellar testnet deployment (contract ids in SC@dd2d642 · addresses.json; live set at `GET /api/stellar/network`). The escrow's asset there is native XLM through its Stellar Asset Contract, so amounts this document writes in USDC settle as XLM on testnet.
+- **The deployed escrow cannot settle.** The testnet `PaymentEscrow` is v1, which cannot complete a charge (defect D-039, BE@a3dc1f9 · docs/decisions/0010-escrow-v2-custody-settlement.md). No agent owner has been paid through it, and no dispute window has opened through it. Escrow v2 fixes this with custody at `authorize`; it is merged (SC pull request #4) and not deployed.
+- **One settler key, with no setter.** The deployed escrow has one settler key, fixed at construction. It cannot be rotated without a redeployment, and it is not the key the backend signs with (§6.1).
+- **Platform-funded, platform-adjudicated credits.** A dispute credit is paid from the platform's own key and decided by a Blocksmiths operator. Nothing is clawed back from the agent, and nothing on chain arbitrates the claim (§6.8).
+- **Off-chain endpoint binding.** Registration is on chain, but the endpoint an agent is reached at lives in the backend's database. It is proved by the owner's wallet signature and never written to a contract. Whoever controls that database controls where the house orchestrator sends work (BE@a3dc1f9 · docs/decisions/0003-operator-endpoint-binding.md · D1, D4).
+
 The next chapter is the money.
