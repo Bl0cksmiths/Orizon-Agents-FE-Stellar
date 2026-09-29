@@ -34,7 +34,8 @@ function run(env: Record<string, string> = {}) {
   const result = spawnSync(process.execPath, [SCRIPT], {
     cwd: root,
     encoding: "utf8",
-    env: { PATH: process.env.PATH ?? "", ...env },
+    // A blank LITEPAPER_DIR is the default, whatever the suite was run with.
+    env: { ...process.env, LITEPAPER_DIR: "", ...env },
   });
   return { code: result.status, out: result.stdout, err: result.stderr };
 }
