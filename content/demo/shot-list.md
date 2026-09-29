@@ -24,7 +24,7 @@ The pre-flight answers **GO** or **NO-GO**. **Record only on GO.** A NO-GO is no
 
 - [ ] Testnet confirmed three ways: the API's `/api/stellar/network`, RPC `getNetwork` and Horizon all read `Test SDF Network ; September 2015`.
 - [ ] Escrow v2: the API names the v2 id, `version()` returns 2, and `settler()` is the deployment signer.
-- [ ] The backend is `feat/5.02-integration` or later: `/api/ecosystem/adoption`, `/api/agents/{id}/readiness` and the dispute read-grant routes are all served.
+- [ ] The backend is `feat/5.02-integration` or later: `/api/ecosystem/adoption`, `/api/agents/{id}/readiness` and the dispute read-grant routes are all served. (Deployed on 2026-09-29 as `main` `44c3411`; all three were served on 2026-09-30.)
 - [ ] Refunds are on: `/readiness` reads `disputes.reconcile.enabled: true` and `disputes.store: "postgres"`. An uphold without a key proves nothing here: it answers 401 whether refunds are on or off.
 - [ ] `/readiness` reads `ratings.writer: scorer`, and `cold_start.routable: true` (`lower_bound_bps` 5677 against `floor_bps` 5500).
 - [ ] Every page the recording visits answers: `/`, `/app/register`, `/app/bind`, `/app/operator`, `/app/orchestrator`, `/app/agents`, `/app/ecosystem` and `/guide/list-your-agent`. So do the pages the S12 card names: `/evidence`, `/demo` and `/litepaper`.
