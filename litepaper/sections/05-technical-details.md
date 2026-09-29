@@ -217,7 +217,7 @@ The **contracts** are four lean Rust Soroban modules.
 | `AgentRegistry` | `CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ` | 7.2 KB | Identity, skills, price catalog; resolves agent owner for payout |
 | `PaymentEscrow` | `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI` | 9.8 KB | x402 authorize → charge → receipt flow; calls registry + SAC |
 | `AttestationRegistry` | `CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK` | 5.1 KB | Write-once workflow receipt under a job id |
-| `ReputationLedger` | `CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV` | 5.1 KB | Rolling-mean rating per agent with replay guard |
+| `ReputationLedger` | `CDHDMVVERSNZWFJIVOBM34CYLXE4A7UACHD3A6ROI63EYJY43J63WXKV` | 5.1 KB | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
 | Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | n/a | Settlement asset |
 
 The contracts share a small types crate (`contract/shared`) exporting `Agent`, `Authorization`, `Receipt`, `Attestation`, and `Score`. Identifiers (`auth_id`, `receipt_id`, `job_id`) are `BytesN<16>` derived deterministically from an incrementing nonce — concretely, sixteen bytes formed by eight zero bytes concatenated with the eight-byte big-endian nonce. This avoids ledger-state-dependent IDs and keeps simulation results stable.
@@ -290,14 +290,17 @@ The four contracts share a small types crate exporting `Agent`, `Authorization`,
 | `exists` | `(env, job_id) → bool` | public | Cheap probe |
 | `set_sealer` | `(env, new_sealer) → Result<(), Error>` | admin only | Rotate the sealer key |
 
-**`ReputationLedger`** — rolling-mean rating per agent. Storage keyed by `Score(Symbol)` for the aggregate and `Rated(Symbol, BytesN<16>)` (temporary tier) for the replay guard.
+**`ReputationLedger`** — decayed, value-weighted rating evidence per agent, on a 0–10,000 basis-point scale. Storage keyed by `Rep(Symbol)` for the aggregate and `Rated(Symbol, BytesN<16>)` (persistent tier) for the replay guard (SC@dd2d642 · contract/reputation-ledger/src/lib.rs · `ReputationLedger`, `DataKey`).
 
 | Function | Signature | Auth | Purpose |
 | --- | --- | --- | --- |
 | `__constructor` | `(env, admin, scorer)` | n/a | Init |
-| `submit` | `(env, caller, agent_id, rating_0_to_5, job_id) → Result<(), Error>` | scorer only | Step 4; errs `Replay` on `(agent_id, job_id)` duplicate, errs `OutOfRange` if rating > 5 |
-| `score` | `(env, agent_id) → Score` | public | Raw `{sum, count}` for the agent |
-| `avg_bps` | `(env, agent_id) → u32` | public | Rolling mean × 10 000 (basis points); 0 if no ratings yet |
+| `submit` | `(env, caller, agent_id, job_id, rating_0_to_100, weight, payer, kind) → Result<(), Error>` | scorer only | Step 4; stores the rating as `rating_0_to_100 × 100` bps, weighted by the job's value; errs `Replay` on `(agent_id, job_id)` duplicate, errs `OutOfRange` if rating > 100 or the weight is outside 0 < weight ≤ 100 USDC |
+| `rep_state` | `(env, agent_id) → RepState` | public | Raw evidence `{sum_w, weight, count, disputed, last_epoch}`, decayed to now |
+| `avg_bps` | `(env, agent_id) → u32` | public | Decayed, weighted mean in basis points, clamped to 0..10,000; 0 if no ratings yet |
+| `rep_bps` | `(env, agent_id, prior_bps, prior_weight) → u32` | public | The mean smoothed by a caller-supplied prior, clamped to 0..10,000 |
+| `dispute_rate_bps` | `(env, agent_id) → u32` | public | Lifetime `disputed × 10,000 / count` |
+| `payer_weight` | `(env, agent_id, payer) → i128` | public | Cumulative weight one payer has contributed to the agent |
 | `set_scorer` | `(env, new_scorer) → Result<(), Error>` | admin only | Rotate the scorer key |
 
 ### 5.3.2 · Error codes — shared
