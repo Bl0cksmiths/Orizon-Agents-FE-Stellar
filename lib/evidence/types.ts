@@ -6,7 +6,7 @@
 
 export type DeliverableId = "D1" | "D2" | "D3" | "D4" | "RD";
 export type ItemStatus = "present" | "partial" | "missing";
-export type MetricStatus = "met" | "not_met" | "descoped";
+export type MetricStatus = "met" | "not_met";
 export type LinkKind =
   "tx" | "contract" | "account" | "page" | "pr" | "repo" | "video" | "doc";
 
@@ -41,19 +41,6 @@ export type EvidenceDeliverable = {
   items: EvidenceItem[];
 };
 
-/**
- * Why a metric left the sprint's requirements: the metric keeps its row, its
- * SOW words and its real achieved value, and says when, by whom and why.
- */
-export type MetricDescoped = {
-  /** YYYY-MM-DD. */
-  date: string;
-  /** Who descoped it, in plain words ("the team lead"), never an id. */
-  by: string;
-  /** Why, in at least two words. */
-  reason: string;
-};
-
 export type EvidenceMetric = {
   id: string;
   category: string;
@@ -62,12 +49,10 @@ export type EvidenceMetric = {
   target: string;
   achieved: string;
   status: MetricStatus;
-  /** Required when not_met or descoped. */
+  /** Required when not_met. */
   reason?: string;
   method: string;
   links: EvidenceLink[];
-  /** Present exactly when status is descoped. */
-  descoped?: MetricDescoped;
 };
 
 export type EvidenceDisclosure = {

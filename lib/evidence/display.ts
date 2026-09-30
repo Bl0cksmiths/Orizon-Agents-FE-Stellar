@@ -26,9 +26,6 @@ export const METRIC_STATUS: Record<
 > = {
   met: { label: "Met", icon: "✓" },
   not_met: { label: "Not met", icon: "✕" },
-  // Out of the sprint's requirements: neither a pass nor a fail, so neither
-  // the tick nor the cross.
-  descoped: { label: "Descoped", icon: "⊘" },
 };
 
 /** "2026-09-29" → "September 29, 2026", the same on every server. */

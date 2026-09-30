@@ -1,11 +1,7 @@
 /**
- * A status, as an icon beside a word: Present, Partial, Missing, Met, Not
- * met or Descoped. The word carries the meaning, so the badge reads the same
- * in greyscale, in print and to a screen reader; the colour only repeats it.
- *
- * Descoped is neither a pass nor a fail: its own icon, its own colour (the
- * readable violet, never the met green) and a dashed border, which survives
- * print, where every badge is black on white.
+ * A status, as an icon beside a word: Present, Partial, Missing, Met or Not
+ * met. The word carries the meaning, so the badge reads the same in greyscale,
+ * in print and to a screen reader; the colour only repeats it.
  */
 
 import { ITEM_STATUS, METRIC_STATUS } from "@/lib/evidence/display";
@@ -20,8 +16,6 @@ const TONE: Record<Status, string> = {
   partial: "border-cyan/50 bg-cyan/10 text-cyan",
   missing: "border-magenta/60 bg-magenta/10 text-magenta",
   not_met: "border-magenta/60 bg-magenta/10 text-magenta",
-  descoped:
-    "border-dashed border-violet-readable/70 bg-violet/10 text-violet-readable",
 };
 
 export function StatusBadge({
@@ -35,7 +29,7 @@ export function StatusBadge({
   className?: string;
 }) {
   const { label, icon } =
-    status === "met" || status === "not_met" || status === "descoped"
+    status === "met" || status === "not_met"
       ? METRIC_STATUS[status]
       : ITEM_STATUS[status];
   return (
