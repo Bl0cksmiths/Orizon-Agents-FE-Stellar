@@ -1521,7 +1521,7 @@
     {
       "id": "mechanism_tests",
       "title": "Test runs are not deliverable evidence",
-      "text": "QA proved the dispute path by running the real backend against a separate drill ReputationLedger (CAFZB…5CRP) and a test asset (CCW66…GUENL), signed by a QA drill key (GA45I…EGZ2), on 2026-09-25 and 2026-09-26. Those transactions are real, but they are a mechanism test on a separate drill ledger, not deliverable evidence, so none is linked here. Likewise, the only frame that shows the reputation floor excluding an agent (QA frame RF-17) used a plan written by the test."
+      "text": "QA proved the dispute path by running the real backend against a separate drill ReputationLedger (CAFZB…5CRP) and a test asset (CCW66…GUENL), signed by a QA drill key (GA45I…EGZ2), on 2026-09-25 and 2026-09-26. Those transactions are real, but they are a mechanism test on a separate drill ledger, not deliverable evidence, so none is linked here. Likewise, QA frame RF-17, which showed the reputation floor excluding an agent, used a plan written by the test; it is not linked, and the live exclusion of 2026-09-30 under Deliverable 2 takes its place."
     },
     {
       "id": "sow_versions",
