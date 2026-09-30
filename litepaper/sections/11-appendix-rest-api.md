@@ -37,7 +37,7 @@ Content-Type: application/json
 
 ### `POST /api/orchestrator/execute`
 
-Spawn the background execution for a plan and return a task id. If `auth_id_hex` and `payer` are supplied, the backend signs and submits the settlement once, at the end of the run: one `charge` for the workflow's total on the deployed v1 escrow, or one `settle` paying each delivered step on escrow v2 (merged, not deployed), then the `seal` once that confirms, and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`, `_settle_v2`, `_submit_ratings`). On testnet the v1 `charge` cannot complete, so the seal is not reached (§6.9).
+Spawn the background execution for a plan and return a task id. If `auth_id_hex` and `payer` are supplied, the backend signs and submits the settlement once, at the end of the run: one `settle` paying each delivered step on escrow v2, the live testnet escrow since 2026-09-30, or one `charge` for the workflow's total on the retired v1 escrow, then the `seal` once that confirms, and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`, `_submit_ratings`). The v1 `charge` cannot complete, so on v1 the seal was never reached (§6.9).
 
 ```http
 POST /api/orchestrator/execute
@@ -168,7 +168,7 @@ Broadcast a signed XDR to Soroban RPC. Returns the transaction hash and any deco
 
 ### `POST /api/stellar/server/charge`
 
-Backend-signed `PaymentEscrow.charge`, v1 only: against a v2 escrow it answers 409 `charge_unsupported_on_v2`. It sits behind the operator API key when one is configured, and the execution service does not call it; a run settles once, at its end (§A.1). The request carries `auth_id_hex`, `amount_usdc` and `job_id_hex`; the response carries the transaction's `hash`, `status`, `ledger` and decoded `result`, the `receipt_id` (BE@a3dc1f9 · app/routers/stellar.py · `ChargeReq`, `server_charge`; app/stellar/client.py · `_finalize_invoke`). On testnet the charge is signed by the backend's key, which is not the deployed escrow's settler, so the contract refuses it (§6.1).
+Backend-signed `PaymentEscrow.charge`, v1 only: against a v2 escrow it answers 409 `charge_unsupported_on_v2`. It sits behind the operator API key when one is configured, and the execution service does not call it; a run settles once, at its end (§A.1). The request carries `auth_id_hex`, `amount_usdc` and `job_id_hex`; the response carries the transaction's `hash`, `status`, `ledger` and decoded `result`, the `receipt_id` (BE@a3dc1f9 · app/routers/stellar.py · `ChargeReq`, `server_charge`; app/stellar/client.py · `_finalize_invoke`). Against the retired v1 escrow the charge is signed by the backend's key, which is not v1's settler, so the contract refuses it; the live escrow is v2, where this route answers 409 (§6.1).
 
 ### `POST /api/stellar/server/seal`
 
