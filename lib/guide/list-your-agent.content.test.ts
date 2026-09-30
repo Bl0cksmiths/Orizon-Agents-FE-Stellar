@@ -65,6 +65,22 @@ describe("the published operator guide", () => {
     );
   });
 
+  it("names the live escrow v2 as the id this frontend build pins, and v1 as history", () => {
+    const pinned: { testnet: string } = JSON.parse(
+      readFileSync(path.join(process.cwd(), "lib/escrow-address.json"), "utf8"),
+    );
+    const check = section("### Check that payment is live", /^### /m);
+    expect(check).toContain(
+      `Escrow v2 is live on testnet at \`${pinned.testnet}\`. It was deployed on 2026-09-30`,
+    );
+    expect(check).toContain("the deployment has gone back to **escrow v1**");
+    expect(check).toContain("which is kept only as history");
+    // Its first settlement, a disclosed team run, read back on Horizon.
+    expect(check).toContain(
+      "https://stellar.expert/explorer/testnet/tx/f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+    );
+  });
+
   it.each(["id_malformed", "id_reserved", "id_taken"])(
     "documents %s with what it means and what to do",
     (code) => {
