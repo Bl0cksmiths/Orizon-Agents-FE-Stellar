@@ -34,15 +34,35 @@ const theme = {
   cdata: { ...oneDark.cdata, color: MUTED },
 };
 
+/**
+ * A declared language → the grammar registered above. The keys are what the
+ * backend's first-party workers declare — `ArtifactFile.language` in
+ * app/agents/workers/code_gen.py documents "html" | "css" | "js" | "tsx" |
+ * "python", and both code workers and the demo kits emit "html" — plus the
+ * long names a model writing that field is as likely to use.
+ */
 const LANG_MAP: Record<string, string> = {
   html: "markup",
+  htm: "markup",
+  markup: "markup",
   js: "javascript",
+  javascript: "javascript",
+  jsx: "tsx",
   ts: "typescript",
+  typescript: "typescript",
   tsx: "tsx",
   css: "css",
   python: "python",
   py: "python",
 };
+
+/** The grammar a file is highlighted with. A language nobody registered is
+ * shown as plain text ("text", the highlighter's no-grammar mode) — colouring
+ * it as markup, as this once did, claimed a grammar the file does not have. */
+export function grammarFor(language: string | null | undefined): string {
+  if (!language) return "text";
+  return LANG_MAP[language.trim().toLowerCase()] ?? "text";
+}
 
 /**
  * `language` is optional because the backend does not always send one: an
@@ -64,9 +84,7 @@ export function CodeViewer({
   label: string;
   maxHeight?: number;
 }) {
-  const lang = language
-    ? (LANG_MAP[language.toLowerCase()] ?? "markup")
-    : "text";
+  const lang = grammarFor(language);
   return (
     <div
       role="region"
