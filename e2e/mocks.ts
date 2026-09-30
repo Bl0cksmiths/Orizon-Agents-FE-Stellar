@@ -992,6 +992,34 @@ export const mockArtifactResponse = {
 } satisfies import("../lib/types").ArtifactResponse;
 
 /**
+ * An artifact from a bound external agent, in the shape production served
+ * for tsk_7e1c369cebaf41b3 (calculatorai, 2026-09-30). The backend rebuilds
+ * an operator's artifact from an allowlist (`_parse_artifact`,
+ * app/agents/workers/external_contract.py): the files keep only `path` and
+ * `content` — no `language` — and there is no `entry` or `summary`. The
+ * guard used to demand a language and turned this into "malformed response".
+ */
+export const mockExternalArtifact = {
+  title: "Add 250 and 750, then multiply the result by 3",
+  files: [
+    {
+      path: "report.html",
+      content:
+        '<!doctype html>\n<html lang="en">\n  <head><meta charset="utf-8"><title>Result</title></head>\n  <body>\n    <p>250 + 750 = 1000</p>\n    <p>1000 × 3 = <strong>3000</strong></p>\n  </body>\n</html>\n',
+    },
+  ],
+  preview_html:
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Result</title></head><body><p>250 + 750 = 1000</p><p>1000 × 3 = <strong>3000</strong></p></body></html>',
+} satisfies import("../lib/types").CodeArtifact;
+
+/** A settled team run whose artifact came from the external agent. */
+export const mockExternalArtifactResponse = {
+  artifact: mockExternalArtifact,
+  charge_tx: mockChargeTx,
+  proof_tx: mockProofTx,
+} satisfies import("../lib/types").ArtifactResponse;
+
+/**
  * What `GET /api/tasks/{id}/artifact` answers by default (`ArtifactResponse`
  * in app/routers/tasks.py): a settled workflow's charge and seal hashes, and
  * no artifact.
