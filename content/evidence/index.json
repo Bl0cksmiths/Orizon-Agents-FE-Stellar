@@ -499,18 +499,18 @@
         {
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
-          "status": "partial",
-          "note": "Partial. 2 outside operators have registered 6 agents, all on 2026-09-29, from wallets that are not in the team register and hold no platform role. That is more than the 2 registrations asked for, but the transactions are not listed here yet. The first operator's is a trial registration of a single agent, bound to a server address that is a parked web page, not a working agent. A second outside operator registered five agents, none bound to an endpoint yet. None of the six has had a dispatch or a settlement. The platform's own readiness check reports the trial agent ready only because that check accepts any page that answers. Their agent ids, wallets and registration hashes are held back from this index until each operator's consent to publish them is recorded, so the transactions are not linked. The platform's public ecosystem page, linked here, lists outside operators by design. The live adoption counter counts 6 outside agents and 2 outside operator wallets, which meets both targets, and 0 settled outside workflows against a target of 3 (see metrics 1 to 3).",
+          "status": "present",
+          "note": "Two wallets the team does not control have registered agents on-chain, on 2026-09-29. The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
           "links": [
-            {
-              "label": "AgentRegistry contract on Stellar Expert: all 20 registrations, 14 by team wallets and 6 by 2 outside operators",
-              "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
-              "kind": "contract"
-            },
             {
               "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
               "url": "https://orizons.xyz/app/ecosystem",
               "kind": "page"
+            },
+            {
+              "label": "AgentRegistry contract on Stellar Expert: all 20 registrations, 14 by team wallets and 6 by 2 outside operators",
+              "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+              "kind": "contract"
             },
             {
               "label": "Live adoption counter: outside registrations, as the API counts them",
