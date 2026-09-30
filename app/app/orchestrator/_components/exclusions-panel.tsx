@@ -256,20 +256,26 @@ function NoticeRow({
           <span aria-hidden="true">{mark.glyph}</span>
           {mark.label}
         </Badge>
-        {/* break-all on the ids alone, not on the whole line: an agent id is
-            one 32-character token with no break opportunity in it and this
-            card has to survive a 390px viewport with the panel open, but the
-            same rule applied to the sentence around it would hyphenate
-            "replaced" down the middle in a narrow column. */}
+        {/* overflow-wrap: anywhere on the names, never word-break: break-all.
+            A name is either words ("Faulty test agent (deliberate,
+            team-run)") or one unbroken id (a 56-character address), and the
+            card has to survive a 360px viewport with the panel open.
+            break-all split the words too — "…(deliberate, tea / m-run)" on
+            orizons.xyz at 390px. `anywhere` wraps at the spaces first and
+            breaks inside a token only when that token alone is wider than
+            the line, and unlike `break-word` it also lets the flex row shrink
+            the name, so an id wraps instead of pushing the row wide. */}
         <span className="min-w-0 break-words text-sm">
-          <b className="break-all text-text">{nameOf(notice)}</b>
+          <b className="text-text [overflow-wrap:anywhere]">{nameOf(notice)}</b>
           {replacement !== null && (
             <>
               {/* Words, not a bare arrow: "⇄" alone leaves the direction of a
                   substitution to the reader and to a screen reader, and the
                   direction is the whole content of the row. */}
               <span className="text-muted"> replaced by </span>
-              <b className="break-all text-text">{replacement}</b>
+              <b className="text-text [overflow-wrap:anywhere]">
+                {replacement}
+              </b>
             </>
           )}
         </span>
