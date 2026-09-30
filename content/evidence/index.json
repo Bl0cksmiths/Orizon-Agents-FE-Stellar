@@ -1112,11 +1112,6 @@
           "kind": "tx",
           "tx_hash": "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
           "date": "2026-09-30"
-        },
-        {
-          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
         }
       ]
     },
