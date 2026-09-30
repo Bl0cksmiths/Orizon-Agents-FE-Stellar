@@ -198,7 +198,9 @@ for (const [name, viewport] of [
       expect(await suggestions(page)).toEqual(EXPECTED_SUGGESTIONS);
 
       const table = metrics(page);
-      await expect(page.locator("[data-met-count]")).toHaveText("7 of 11 met.");
+      await expect(page.locator("[data-met-count]")).toHaveText(
+        "7 of 11 metrics met.",
+      );
       const m03 = table.getByRole("row").nth(3);
       const reason = m03.getByText(M03_REASON);
       await reason.scrollIntoViewIfNeeded();

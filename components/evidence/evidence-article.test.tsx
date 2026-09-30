@@ -275,7 +275,7 @@ describe("the evidence page", () => {
     render(<EvidenceArticle index={fixture()} />);
     const metrics = section("Success metrics (SOW §6.3)");
     expect(text(metrics.querySelector("[data-met-count]"))).toBe(
-      "7 of 11 met.",
+      "7 of 11 metrics met.",
     );
     const rows = within(metrics).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(11);

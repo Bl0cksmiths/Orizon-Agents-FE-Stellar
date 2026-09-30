@@ -84,3 +84,14 @@ export function checklistRows(
 export function metCount(metrics: readonly Pick<EvidenceMetric, "status">[]) {
   return metrics.filter((m) => m.status === "met").length;
 }
+
+/**
+ * "7 of 10 metrics met": the count out of the metrics the table shows. A
+ * metric removed from the sprint's requirements has no row, so it is neither
+ * met nor missed here; the disclosures name it.
+ */
+export function metricsHeadline(
+  metrics: readonly Pick<EvidenceMetric, "status">[],
+): string {
+  return `${metCount(metrics)} of ${metrics.length} metrics met`;
+}

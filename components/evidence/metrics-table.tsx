@@ -7,14 +7,14 @@
  * sees why without doing anything.
  */
 
-import { metCount } from "@/lib/evidence/checklist";
+import { metricsHeadline } from "@/lib/evidence/checklist";
 import type { EvidenceMetric } from "@/lib/evidence/types";
 import { EvidenceLinks } from "./evidence-links";
 import { EvidenceTable } from "./evidence-table";
 import { StatusBadge } from "./status-badge";
 
 export function MetricsTable({ metrics }: { metrics: EvidenceMetric[] }) {
-  const met = metCount(metrics);
+  const headline = metricsHeadline(metrics);
   return (
     <section aria-labelledby="success-metrics">
       <h2
@@ -24,7 +24,7 @@ export function MetricsTable({ metrics }: { metrics: EvidenceMetric[] }) {
         Success metrics (SOW §6.3)
       </h2>
       <p className="mt-3 text-lg font-semibold text-text" data-met-count>
-        {met} of {metrics.length} met.
+        {headline}.
       </p>
       <p className="mt-1 leading-relaxed text-muted">
         Each target is the SOW&rsquo;s own. Where a target was missed, the
@@ -32,7 +32,7 @@ export function MetricsTable({ metrics }: { metrics: EvidenceMetric[] }) {
       </p>
       <EvidenceTable
         className="mt-5"
-        caption={`SOW §6.3 success metrics: ${met} of ${metrics.length} met. Target, achieved value, status and proof for each.`}
+        caption={`SOW §6.3 success metrics: ${headline}. Target, achieved value, status and proof for each.`}
         columns={["Metric", "Target", "Achieved", "Status", "Proof"]}
         rows={metrics.map((m) => ({
           key: m.id,
