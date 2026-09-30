@@ -77,7 +77,7 @@
           "id": "6.1-D1-c",
           "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
           "status": "present",
-          "note": "Two wallets the team does not control have registered agents on-chain, on 2026-09-29. The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transaction appears.",
+          "note": "Seven wallets the team does not control have registered agents on-chain (on 2026-09-29 and 2026-09-30). The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
           "links": [
             {
               "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
@@ -500,7 +500,7 @@
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
           "status": "present",
-          "note": "Two wallets the team does not control have registered agents on-chain, on 2026-09-29. The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
+          "note": "Seven wallets the team does not control have registered agents on-chain (on 2026-09-29 and 2026-09-30). The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
           "links": [
             {
               "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
