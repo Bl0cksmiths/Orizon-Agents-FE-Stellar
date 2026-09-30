@@ -1037,110 +1037,6 @@
       "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their addresses are held back here until each operator's consent to publish them is recorded."
     },
     {
-      "id": "m03",
-      "category": "Transaction targets",
-      "metric": "Workflows routed to external agents & settled on Testnet",
-      "target": "≥ 3",
-      "achieved": "0",
-      "status": "not_met",
-      "reason": "6 agents owned by outside operators are registered, but no workflow paid to one has settled since the sprint began on 2026-09-07. Of the 6, 1 is bound to an endpoint, per the live adoption report, and that endpoint is a parked web page, not a working agent. The three workflows that settled on escrow v2 on 2026-09-30 were the team's own test runs, paying agents the team owns, so none counts here (see Deliverable 4).",
-      "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract. A workflow counts when at least one of its counted charges paid an agent owned by an outside operator; several charges of one job are one workflow.",
-      "links": [
-        {
-          "label": "PaymentEscrow v2 contract (live) (every charge it recorded)",
-          "url": "https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4",
-          "kind": "contract"
-        },
-        {
-          "label": "PaymentEscrow v1 contract (every charge it recorded)",
-          "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
-          "kind": "contract"
-        },
-        {
-          "label": "Charge of 0.114 XLM to orizon_batch on the v1 escrow — 2026-05-13 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/3765fb1558afa23f4c9145614c4e2b053adafd2f0bc1ba81c358ee12303be56d",
-          "kind": "tx",
-          "tx_hash": "3765fb1558afa23f4c9145614c4e2b053adafd2f0bc1ba81c358ee12303be56d",
-          "date": "2026-05-13"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-05-13 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/2eec8282585c17ee1d6dd00136f67a3bcd2380adf40277ac82b5053c2e507e7a",
-          "kind": "tx",
-          "tx_hash": "2eec8282585c17ee1d6dd00136f67a3bcd2380adf40277ac82b5053c2e507e7a",
-          "date": "2026-05-13"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-05-14 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/33b575dd1ad9706a6be6e287016e4b84a2c205c166eb5c782faf0d4d0095f496",
-          "kind": "tx",
-          "tx_hash": "33b575dd1ad9706a6be6e287016e4b84a2c205c166eb5c782faf0d4d0095f496",
-          "date": "2026-05-14"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-05-14 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/33655a7f9fe16cb09d335d086fbeb06084f6a437e30b0420058f49464aef343e",
-          "kind": "tx",
-          "tx_hash": "33655a7f9fe16cb09d335d086fbeb06084f6a437e30b0420058f49464aef343e",
-          "date": "2026-05-14"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-05-18 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/5c00b766b79eb6eb7d583ebe5cebb6cfe6aaf9a4f9148b09bc5116d8c591fef3",
-          "kind": "tx",
-          "tx_hash": "5c00b766b79eb6eb7d583ebe5cebb6cfe6aaf9a4f9148b09bc5116d8c591fef3",
-          "date": "2026-05-18"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-06-09 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/008b9279ae24e5f6934c971f5d4203c914042556852a6dd993edaf9ad678b511",
-          "kind": "tx",
-          "tx_hash": "008b9279ae24e5f6934c971f5d4203c914042556852a6dd993edaf9ad678b511",
-          "date": "2026-06-09"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-06-09 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/1e38fd4a742acfc760fcbb64d40734b47b3721e68443b8026494d42757ce1180",
-          "kind": "tx",
-          "tx_hash": "1e38fd4a742acfc760fcbb64d40734b47b3721e68443b8026494d42757ce1180",
-          "date": "2026-06-09"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-06-09 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/7932846bfa9d8e1b5c4b448f9a70e8d391f5dead7413764e253a886b90f99cc2",
-          "kind": "tx",
-          "tx_hash": "7932846bfa9d8e1b5c4b448f9a70e8d391f5dead7413764e253a886b90f99cc2",
-          "date": "2026-06-09"
-        },
-        {
-          "label": "Charge of 0.01 XLM to calculatorai on the v2 escrow — 2026-09-30 (excluded: the agent is owned by the team's contract admin and v1 escrow settler; the buyer is the team's key GB4K6…YKAYKK)",
-          "url": "https://stellar.expert/explorer/testnet/tx/f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
-          "kind": "tx",
-          "tx_hash": "f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
-          "date": "2026-09-30"
-        },
-        {
-          "label": "Charge of 0.2 XLM to keyboardai on the v2 escrow — 2026-09-30 (excluded: the agent is owned by the team's contract admin and v1 escrow settler; the buyer is the team's key GCNQA…A2GP)",
-          "url": "https://stellar.expert/explorer/testnet/tx/19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
-          "kind": "tx",
-          "tx_hash": "19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
-          "date": "2026-09-30"
-        },
-        {
-          "label": "Charge of 0.01 XLM to calculatorai on the v2 escrow — 2026-09-30 (excluded: the agent is owned by the team's contract admin and v1 escrow settler; the buyer is the team's key GCNQA…A2GP)",
-          "url": "https://stellar.expert/explorer/testnet/tx/785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
-          "kind": "tx",
-          "tx_hash": "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
-          "date": "2026-09-30"
-        },
-        {
-          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
-        }
-      ]
-    },
-    {
       "id": "m04",
       "category": "Transaction targets",
       "metric": "On-chain USDC settlements (charges) recorded",
@@ -1442,6 +1338,14 @@
           "date": "2026-09-29"
         }
       ]
+    }
+  ],
+  "removed_metrics": [
+    {
+      "id": "m03",
+      "metric": "Workflows routed to external agents & settled on Testnet",
+      "removed_on": "2026-09-30",
+      "note": "Removed from the sprint's requirements by the team lead."
     }
   ],
   "disclosures": [
