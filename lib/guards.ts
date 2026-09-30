@@ -14,6 +14,7 @@ import type {
   AgentBinding,
   AgentSettlement,
   AgentIdAvailability,
+  ArtifactFile,
   ArtifactResponse,
   AuthorizeBuild,
   BindChallenge,
@@ -505,12 +506,10 @@ export function isReputationParams(v: unknown): v is ReputationParams {
  * This is the only validation the artifact ever gets: the backend types it as
  * a bare `dict` (`Task.artifact`, `ArtifactResponse.artifact`), so pydantic
  * performs no structural check and a worker's output crosses the HTTP seam
- * verbatim. `files[].language` is therefore required here — the code viewer
- * calls `language.toLowerCase()` and a missing one takes out the whole Trace
- * route through the error boundary. `entry` and `summary` are required on the
- * producing model (`CodeArtifact`, app/agents/workers/code_gen.py) but both
- * have working render-time fallbacks, so they are only type-checked when
- * present rather than made mandatory. */
+ * verbatim. `entry` and `summary` are required on the producing model
+ * (`CodeArtifact`, app/agents/workers/code_gen.py) but both have working
+ * render-time fallbacks, so they are only type-checked when present rather
+ * than made mandatory. */
 function isCodeArtifact(v: unknown): v is CodeArtifact {
   return (
     isRecord(v) &&
@@ -519,10 +518,22 @@ function isCodeArtifact(v: unknown): v is CodeArtifact {
     isOptionalStr(v.entry) &&
     isOptionalStr(v.summary) &&
     Array.isArray(v.files) &&
-    v.files.every(
-      (f) =>
-        isRecord(f) && isStr(f.path) && isStr(f.content) && isStr(f.language),
-    )
+    v.files.every(isArtifactFile)
+  );
+}
+
+/** One file of an artifact. `path` and `content` are the two fields every
+ * producer sends; `language` is optional because an external operator's
+ * files never carry one — the backend drops it (`_parse_files`,
+ * app/agents/workers/external_contract.py) — and the code viewer renders
+ * such a file as plain text. A `language` of the wrong type is still
+ * refused: it would reach `.toLowerCase()`. */
+function isArtifactFile(f: unknown): f is ArtifactFile {
+  return (
+    isRecord(f) &&
+    isStr(f.path) &&
+    isStr(f.content) &&
+    isOptionalStr(f.language)
   );
 }
 

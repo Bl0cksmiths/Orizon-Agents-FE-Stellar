@@ -220,7 +220,11 @@ export type TraceLine = {
 
 export type ArtifactFile = {
   path: string;
-  language: string;
+  /** Set by the first-party workers (`ArtifactFile` in app/schemas.py) and
+   * absent from every external operator's file — the backend rebuilds those
+   * from `path` and `content` alone and drops `language` on purpose
+   * (`_parse_files`, app/agents/workers/external_contract.py). */
+  language?: string | null;
   content: string;
 };
 
