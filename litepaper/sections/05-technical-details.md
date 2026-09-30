@@ -204,17 +204,18 @@ The **frontend** is a Next.js 14 App Router application with eight protected rou
 
 The **backend** is a FastAPI service. The orchestrator service decomposes intents; the execution service runs plans; the trace bus fans SSE events out to subscribers, replaying history for late joiners. Twelve workers are seeded, eight of them backed by real model calls. The Stellar router builds unsigned XDR for the user to sign, broadcasts user-signed XDR, and — when the protocol's signing key is configured — signs `charge` and `seal` XDR on the backend's behalf.
 
-The **contracts** are four lean Rust Soroban modules.
+The **contracts** are four lean Rust Soroban modules. The escrow is deployed in two versions: v2 is the one the backend settles through, and v1 is kept as history.
 
 | Contract | Address (testnet) | WASM | Role |
 | --- | --- | :---: | --- |
 | `AgentRegistry` | `CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ` | 7.2 KB (7,335 B) | Identity, skills, price catalog; resolves agent owner for payout |
-| `PaymentEscrow` | `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI` | 9.7 KB (9,953 B) | x402 authorize → charge → receipt flow; calls registry + SAC |
+| `PaymentEscrow` v1 (retired) | `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI` | 9.7 KB (9,953 B) | x402 authorize → charge → receipt flow, whose charge cannot complete (D-039); still deployed, no longer used |
 | `AttestationRegistry` | `CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK` | 5.1 KB (5,192 B) | Write-once workflow receipt under a job id |
 | `ReputationLedger` | `CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT` | 10.8 KB (11,052 B) | Decayed, value-weighted rating evidence per agent, 0–10,000 bps, with replay guard |
+| `PaymentEscrow` v2 (live since 2026-09-30) | `CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4` | 12.8 KB (13,151 B) | Custody at authorize → per-step payouts at settle → reclaim after expiry; calls registry + SAC |
 | Native XLM SAC | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | n/a | Settlement asset |
 
-The WASM sizes are the code deployed at each address, fetched read-only from testnet with `stellar contract fetch` on 2026-09-29 (1 KB = 1,024 bytes); the four total 33,532 bytes, 32.7 KB. Their sha256 hashes, which are the on-chain WASM hashes, begin `a56d2db5`, `d732e8e6`, `7146c4dc` and `2fc4965a` in table order. Escrow v2 is not deployed, and its size is not measured.
+The WASM sizes are the code deployed at each address, fetched read-only from testnet with `stellar contract fetch`, on 2026-09-29 for the first four and on 2026-09-30 for escrow v2 (1 KB = 1,024 bytes); the first four total 33,532 bytes, 32.7 KB. Their sha256 hashes, which are the on-chain WASM hashes, begin `a56d2db5`, `d732e8e6`, `7146c4dc` and `2fc4965a` in table order; escrow v2's begins `7571ef95`. Escrow v2's address is recorded as `payment_escrow_v2` in the address book (SC@06dc139 · addresses.json).
 
 The contracts share a small types crate (`contract/shared`) exporting `Agent`, `Authorization`, `Receipt` and `Attestation`; the ledger's `RepState` lives in the ledger itself (SC@dd2d642 · contract/shared/src/lib.rs; contract/reputation-ledger/src/lib.rs · `RepState`). Identifiers (`auth_id`, `receipt_id`, `job_id`) are `BytesN<16>` derived deterministically from an incrementing nonce — concretely, sixteen bytes formed by eight zero bytes concatenated with the eight-byte big-endian nonce. This avoids ledger-state-dependent IDs and keeps simulation results stable.
 
