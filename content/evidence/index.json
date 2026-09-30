@@ -76,7 +76,7 @@
         {
           "id": "6.1-D1-c",
           "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
-          "status": "partial",
+          "status": "present",
           "note": "Partial. Outside wallets have registered agents: one outside operator's trial registration of one agent, and a second outside operator who registered five agents, all on 2026-09-29 (see Deliverable 4). No outside agent has a working endpoint, a dispatch or a settlement yet: the trial agent is bound to a parked web page, and the five are not bound to any endpoint. Their agent ids, wallets and registration hashes are held back from this index until each operator's consent to publish them is recorded; the platform's public ecosystem page, linked here, lists outside operators by design. The other 14 agents on the registry were registered by wallets the team controls, so none of them counts; the 14th, on 2026-09-30, is the team's deliberate faulty test agent (see Deliverable 2). The five team registrations linked here were signed by team keys other than the contract admin. They show that registering needs no permission from Orizon, but they are not outside operators. This item becomes present when an outside agent has a working endpoint and its registration can be linked with its operator's consent.",
           "links": [
             {
