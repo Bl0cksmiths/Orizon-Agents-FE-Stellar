@@ -1419,7 +1419,7 @@
     {
       "id": "sow_versions",
       "title": "Targets come from SOW v4",
-      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today they stand at 6, 2 and 0, which meets the first two v4 targets and misses the third. The first two count registrations only: no outside agent is bound to a working endpoint yet (see Deliverable 4)."
+      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today they stand at 11, 7 and 0, which meets the first two v4 targets and misses the third. The first two count registrations only: no outside agent is bound to a working endpoint yet (see Deliverable 4)."
     },
     {
       "id": "repository_addresses",
