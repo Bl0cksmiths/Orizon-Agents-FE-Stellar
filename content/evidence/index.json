@@ -979,12 +979,13 @@
       "category": "Adoption targets",
       "metric": "Unique external operator wallet addresses",
       "target": "≥ 2",
-      "achieved": "2",
+      "achieved": "7",
       "status": "met",
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
+      "reason": "Met on registrations, which is what the SOW counts: 7 outside operators' wallets own agents. 2 registered on 2026-09-29, one owning 1 agent and the other 5, and 5 registered on 2026-09-30, each owning 1 agent. One of the 11 agents is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded.",
       "links": [
         {
-          "label": "The 2 counted outside operator wallets, as the ecosystem page lists them (their addresses are held back here until consent is recorded)",
+          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
           "url": "https://orizons.xyz/app/ecosystem",
           "kind": "page"
         },
@@ -1013,8 +1014,7 @@
           "url": "https://stellar.expert/explorer/testnet/account/GB4K6YRHDHB2HHNM3E7UUZJU5JP3MSQE3GXKMEA5IT4AM45D23YKAYKK",
           "kind": "account"
         }
-      ],
-      "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded."
+      ]
     },
     {
       "id": "m04",
