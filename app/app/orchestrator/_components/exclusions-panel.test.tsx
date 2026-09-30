@@ -335,16 +335,42 @@ describe("ExclusionsPanel · the disclosure", () => {
   });
 
   // An agent id is one unbreakable 32-character token and the panel has an
-  // explicit 390px acceptance criterion with the disclosure open.
+  // explicit 390px acceptance criterion with the disclosure open. jsdom does
+  // no layout, so this pins the rule; e2e/plan-floor.spec.ts measures it.
   it("lets a long agent id break rather than overflow", () => {
     const longId = "a".repeat(32);
     const { container } = opened(
       plan({ notices: [notice({ agent_id: longId, agent_name: null })] }),
     );
-    const holder = Array.from(container.querySelectorAll("b")).find((el) =>
-      el.className.includes("break-all"),
+    const holder = Array.from(container.querySelectorAll("b")).find(
+      (el) => el.textContent === longId,
     );
-    expect(holder?.textContent).toBe(longId);
+    expect(holder?.className).toContain("[overflow-wrap:anywhere]");
+  });
+
+  // break-all split "Faulty test agent (deliberate, team-run)" as
+  // "…(deliberate, tea / m-run)" at 390px on orizons.xyz.
+  it("never breaks a name or its replacement at an arbitrary letter", () => {
+    const { container } = opened(
+      plan({
+        notices: [
+          notice({
+            kind: "substituted",
+            agent_name: "Faulty test agent (deliberate, team-run)",
+            replacement_name: "Steady replacement agent",
+          }),
+        ],
+      }),
+    );
+    const names = Array.from(container.querySelectorAll("b"));
+    expect(names.map((b) => b.textContent)).toEqual([
+      "Faulty test agent (deliberate, team-run)",
+      "Steady replacement agent",
+    ]);
+    for (const b of names) {
+      expect(b.className).not.toContain("break-all");
+      expect(b.className).toContain("[overflow-wrap:anywhere]");
+    }
   });
 });
 
