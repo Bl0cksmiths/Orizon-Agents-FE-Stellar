@@ -308,7 +308,9 @@ test.describe("guide content safety and links", () => {
     await page
       .getByRole("link", { name: "Read the guide: List your agent on Orizon" })
       .click();
-    await expect(page).toHaveURL(new RegExp(`${GUIDE}$`));
+    // A client-side navigation: see evidence.spec.ts on why this waits
+    // with the navigation budget rather than `toHaveURL`'s 5s.
+    await page.waitForURL(new RegExp(`${GUIDE}$`));
     await expect(
       page.getByRole("heading", {
         level: 1,
@@ -329,7 +331,9 @@ test.describe("guide content safety and links", () => {
       .getByRole("banner")
       .getByRole("link", { name: "Guide", exact: true })
       .click();
-    await expect(page).toHaveURL(new RegExp(`${GUIDE}$`));
+    // A client-side navigation: see evidence.spec.ts on why this waits
+    // with the navigation budget rather than `toHaveURL`'s 5s.
+    await page.waitForURL(new RegExp(`${GUIDE}$`));
   });
 
   test("an unknown guide is a 404", async ({ page }) => {

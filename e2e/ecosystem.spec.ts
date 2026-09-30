@@ -205,7 +205,9 @@ test.describe("ecosystem page", () => {
       .getByRole("navigation")
       .getByRole("link", { name: "Ecosystem", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/app\/ecosystem$/);
+    // A client-side navigation: see evidence.spec.ts on why this waits
+    // with the navigation budget rather than `toHaveURL`'s 5s.
+    await page.waitForURL(/\/app\/ecosystem$/);
     await expect(
       page.getByRole("heading", { name: "Ecosystem", level: 1 }),
     ).toBeVisible();

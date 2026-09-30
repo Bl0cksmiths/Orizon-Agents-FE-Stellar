@@ -359,7 +359,9 @@ test.describe("litepaper page links", () => {
       .getByRole("heading", { name: "Where else to look" })
       .locator("xpath=ancestor::section[1]");
     await where.getByRole("link", { name: "Litepaper", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`${LITEPAPER}$`));
+    // A client-side navigation: see evidence.spec.ts on why this waits
+    // with the navigation budget rather than `toHaveURL`'s 5s.
+    await page.waitForURL(new RegExp(`${LITEPAPER}$`));
     await expect(
       page.getByRole("heading", { level: 1, name: TITLE }),
     ).toBeVisible();
