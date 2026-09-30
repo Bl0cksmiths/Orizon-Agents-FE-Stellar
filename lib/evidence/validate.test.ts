@@ -475,6 +475,177 @@ describe("metrics mirror SOW §6.3", () => {
   });
 });
 
+describe("removed metrics", () => {
+  const M03 = "Workflows routed to external agents & settled on Testnet";
+  const ENTRY = {
+    id: "m03",
+    metric: M03,
+    removed_on: "2026-09-30",
+    note: "Removed from the sprint's requirements by the team lead.",
+  };
+
+  /** The index with m03 taken out of the table and listed as removed. */
+  function removed(): Json {
+    const index = base();
+    index.metrics = index.metrics.filter((m: Json) => m.id !== "m03");
+    index.removed_metrics = [{ ...ENTRY }];
+    return index;
+  }
+
+  function expectOnlyRemoved(mutate: (i: Json) => void, pattern: RegExp) {
+    const index = removed();
+    mutate(index);
+    const problems = problemsOf(index);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(pattern);
+  }
+
+  it("passes: a metric taken out of the table with its entry", () => {
+    expect(problemsOf(removed())).toEqual([]);
+  });
+
+  it("passes: none removed, with the key absent or empty", () => {
+    const index = removed();
+    delete index.removed_metrics;
+    index.metrics.splice(2, 0, {
+      ...SOW_6_3[2],
+      achieved: "0",
+      status: "not_met",
+      reason: "Not reached in the fixture.",
+      method: "Counted in the fixture.",
+      links: [],
+    });
+    expect(index.metrics.map((m: Json) => m.id)).toEqual(
+      SOW_6_3.map((m) => m.id),
+    );
+    expect(problemsOf(index)).toEqual([]);
+    index.removed_metrics = [];
+    expect(problemsOf(index)).toEqual([]);
+  });
+
+  it("passes: more than one removed", () => {
+    const index = removed();
+    index.metrics = index.metrics.filter((m: Json) => m.id !== "m10");
+    index.removed_metrics.push({
+      id: "m10",
+      metric: SOW_6_3[9].metric,
+      removed_on: "2026-10-01",
+      note: "Removed by the team lead.",
+    });
+    expect(problemsOf(index)).toEqual([]);
+  });
+
+  it("refuses a metric left out with no entry", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics = [];
+    }, /^metrics must be exactly the eleven of SOW §6\.3, m01 to m11 in order; found 10: .*; m03 is left out with no removed_metrics entry$/);
+  });
+
+  it("refuses a second metric left out with no entry", () => {
+    expectOnlyRemoved((i) => {
+      i.metrics = i.metrics.filter((m: Json) => m.id !== "m05");
+    }, /^metrics must be the SOW §6\.3 metrics m01 to m11 in order, less the removed m03; found 9: .*; m05 is left out with no removed_metrics entry$/);
+  });
+
+  it("refuses an entry for a metric still in the table", () => {
+    const index = base();
+    index.removed_metrics = [{ ...ENTRY }];
+    expect(index.metrics.map((m: Json) => m.id)).toContain("m03");
+    expect(problemsOf(index)).toEqual([
+      'removed_metrics[0].id "m03" is still in metrics; a removed metric has no row',
+    ]);
+  });
+
+  it("refuses the same metric listed twice", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics.push({ ...ENTRY });
+    }, /^removed_metrics\[1\]\.id "m03" is listed twice$/);
+  });
+
+  for (const bad of ["m12", "M03", "", undefined]) {
+    it(`refuses an id that is not a §6.3 metric: ${JSON.stringify(bad) ?? "missing"}`, () => {
+      const index = removed();
+      index.removed_metrics[0].id = bad;
+      const problems = problemsOf(index);
+      expect(problems[0]).toMatch(
+        /^removed_metrics\[0\]\.id must be a SOW §6\.3 metric id, m01 to m11, not /,
+      );
+      // m03 is then left out with no valid entry, and that is said too.
+      expect(problems[1]).toMatch(
+        /m03 is left out with no removed_metrics entry$/,
+      );
+      expect(problems).toHaveLength(2);
+    });
+  }
+
+  it("keeps the metrics in order, less the removed", () => {
+    expectOnlyRemoved((i) => {
+      i.metrics.reverse();
+    }, /^metrics must be the SOW §6\.3 metrics m01 to m11 in order, less the removed m03; found 10: "m11", "m10"/);
+  });
+
+  it("must quote the SOW metric verbatim", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics[0].metric = "Workflows routed to external agents";
+    }, /^removed_metrics\[0\]\.metric must quote SOW §6\.3 verbatim for m03: "Workflows routed to external agents & settled on Testnet"/);
+  });
+
+  it("must quote the metric, not leave it out", () => {
+    expectOnlyRemoved((i) => {
+      delete i.removed_metrics[0].metric;
+    }, /^removed_metrics\[0\]\.metric must be a non-empty string, not missing$/);
+  });
+
+  for (const bad of [undefined, "2026-09-31", "30/09/2026", "today"]) {
+    it(`needs a calendar date removed_on, not ${JSON.stringify(bad) ?? "missing"}`, () => {
+      expectOnlyRemoved((i) => {
+        i.removed_metrics[0].removed_on = bad;
+      }, /^removed_metrics\[0\]\.removed_on must be a calendar date like 2026-10-02/);
+    });
+  }
+
+  it("needs a note", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics[0].note = " ";
+    }, /^removed_metrics\[0\]\.note must be a non-empty string, not " "$/);
+  });
+
+  for (const bad of ["Removed.", `${"f".repeat(64)} removed`, "— —"]) {
+    it(`needs at least two words of note, not ${JSON.stringify(bad)}`, () => {
+      expectOnlyRemoved((i) => {
+        i.removed_metrics[0].note = bad;
+      }, /^removed_metrics\[0\]\.note must say why in at least two words of plain language/);
+    });
+  }
+
+  it("refuses an unknown key on an entry", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics[0].removed_by = "the team lead";
+    }, /^removed_metrics\[0\] has an unknown key "removed_by"; allowed: id, metric, removed_on, note$/);
+  });
+
+  it("must be an array of objects", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics = [...i.removed_metrics, "m05"];
+    }, /^removed_metrics\[1\] must be an object, not "m05"$/);
+    const index = removed();
+    index.removed_metrics = { m03: ENTRY };
+    const problems = problemsOf(index);
+    expect(problems[0]).toBe("removed_metrics must be an array, not an object");
+    expect(problems[1]).toMatch(
+      /m03 is left out with no removed_metrics entry$/,
+    );
+    expect(problems).toHaveLength(2);
+  });
+
+  it("is testnet only, in its entries too", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics[0].note =
+        "Moved to mainnet: https://stellar.expert/explorer/public/tx/abc.";
+    }, /^removed_metrics\[0\]\.note points at the Stellar mainnet/);
+  });
+});
+
 describe("disclosures", () => {
   for (const id of [
     "testnet",
