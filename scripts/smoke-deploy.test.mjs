@@ -62,6 +62,11 @@ const scratch = mkdtempSync(join(tmpdir(), "smoke-deploy-"));
 const books = join(scratch, "contracts");
 mkdirSync(books);
 writeFileSync(join(books, "addresses.json"), JSON.stringify(BOOK));
+// The default runs use an unset pin, not the repository's own: the
+// committed pin changes when escrow v2 deploys, and these cases are about
+// the other checks.
+const UNSET_PINS = join(scratch, "pins-unset.json");
+writeFileSync(UNSET_PINS, JSON.stringify({ public: null, testnet: null }));
 
 /** @type {import("node:http").Server[]} */
 const servers = [];
@@ -103,7 +108,12 @@ async function origin(routes) {
 function smoke(target, env = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [SCRIPT, target], {
-      env: { ...process.env, ORIZON_CONTRACTS_DIR: books, ...env },
+      env: {
+        ...process.env,
+        ORIZON_CONTRACTS_DIR: books,
+        ORIZON_ESCROW_PINS: UNSET_PINS,
+        ...env,
+      },
     });
     let out = "";
     child.stdout.on("data", (chunk) => (out += chunk));
