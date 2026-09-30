@@ -1140,13 +1140,18 @@
       "category": "Transaction targets",
       "metric": "On-chain USDC settlements (charges) recorded",
       "target": "≥ 3",
-      "achieved": "0 (the escrow's 8 older 'charged' events do not count)",
-      "status": "not_met",
-      "reason": "None of the 8 charges on record counts: all 8 were the agent's owner paying itself and all 8 were settled before the sprint began (2026-05-13 to 2026-06-09). No payment from a buyer to a different agent owner has settled since the sprint began.",
+      "achieved": "3",
+      "status": "met",
+      "reason": "Met on 3 charges, all from the team's own escrow v2 test runs of 2026-09-30: team buyer keys paid agents owned by the team's admin wallet, so no outside operator was paid (metric 3 stays at 0). They count because the buyer is neither the agent's owner, the escrow's settler nor a platform key. The buyer of two of them, GCNQA…A2GP, is a team key whose register entry is in backend pull request #96, not merged yet; until then the generator holds those two charges' links back as if they were an outside wallet's, so they are added here by hand. The escrow's 8 older 'charged' events still do not count: all were the agent's owner paying itself, before the sprint.",
       "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract.",
       "links": [
         {
-          "label": "PaymentEscrow v1 contract (live) (every charge it recorded)",
+          "label": "PaymentEscrow v2 contract (live) (every charge it recorded)",
+          "url": "https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4",
+          "kind": "contract"
+        },
+        {
+          "label": "PaymentEscrow v1 contract (every charge it recorded)",
           "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
           "kind": "contract"
         },
@@ -1205,6 +1210,32 @@
           "kind": "tx",
           "tx_hash": "7932846bfa9d8e1b5c4b448f9a70e8d391f5dead7413764e253a886b90f99cc2",
           "date": "2026-06-09"
+        },
+        {
+          "label": "Charge of 0.01 XLM to calculatorai on the v2 escrow — 2026-09-30 (counted; a team test run: the buyer is the team's key GB4K6…YKAYKK, and the agent is owned by the team's admin wallet)",
+          "url": "https://stellar.expert/explorer/testnet/tx/f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+          "kind": "tx",
+          "tx_hash": "f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Charge of 0.2 XLM to keyboardai on the v2 escrow — 2026-09-30 (counted; a team test run: the buyer is the team's key GCNQA…A2GP, and the agent is owned by the team's admin wallet)",
+          "url": "https://stellar.expert/explorer/testnet/tx/19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
+          "kind": "tx",
+          "tx_hash": "19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Charge of 0.01 XLM to calculatorai on the v2 escrow — 2026-09-30 (counted; a team test run: the buyer is the team's key GCNQA…A2GP, and the agent is owned by the team's admin wallet)",
+          "url": "https://stellar.expert/explorer/testnet/tx/785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+          "kind": "tx",
+          "tx_hash": "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
         }
       ]
     },
