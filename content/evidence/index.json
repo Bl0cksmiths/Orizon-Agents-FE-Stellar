@@ -1022,6 +1022,11 @@
           "label": "The team's x402 escrow spike key (2026-09-15), random throwaway — owns spike_97437 (excluded: team wallet)",
           "url": "https://stellar.expert/explorer/testnet/account/GA5LEGIRHKZGDKGQ4XHBEMU2Z7BGDX7AE2XUWDXB3V6TCOVTD2LZMQ2M",
           "kind": "account"
+        },
+        {
+          "label": "The team's x402 escrow spike key (2026-09-15), random throwaway — owns faulty_test_v2 (excluded: team wallet)",
+          "url": "https://stellar.expert/explorer/testnet/account/GB4K6YRHDHB2HHNM3E7UUZJU5JP3MSQE3GXKMEA5IT4AM45D23YKAYKK",
+          "kind": "account"
         }
       ],
       "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their addresses are held back here until each operator's consent to publish them is recorded."
