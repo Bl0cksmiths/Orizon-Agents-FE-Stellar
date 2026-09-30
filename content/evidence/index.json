@@ -394,24 +394,30 @@
         {
           "id": "6.1-D3-c",
           "claim": "A recording of the dispute controls on the trace and receipt view.",
-          "status": "partial",
-          "note": "Partial. A 12-second recording and two screenshots of the live receipt for the team's third settled run, captured on 2026-09-30 at 09:45 UTC with no wallet connected, show the dispute view working on real data: the receipt marked Settled with its charge and seal, the 24-hour dispute window open with its countdown, the wallet gate on the dispute action ('If you paid for this workflow, connect that wallet to dispute a step'), and the step's dispute receipt, Under review, with up to 0.01 XLM creditable from the platform's own funds. They do not show the Dispute button being used: it appears only once the paying wallet is connected, and the capture did not connect one. The dispute shown was opened by the team's test harness through the API (see the next items). The end of the recording also shows an unrelated live error line above the trace log ('artifact fetch failed'), left in rather than cut. The Week-3 bundle's dispute screenshots were taken on a local copy with test data and are still not offered as evidence. This item becomes present with a recording of the Dispute button used from the paying wallet.",
+          "status": "present",
+          "note": "A 13-second recording and two screenshots of the live receipt for the team's third settled run, captured on 2026-09-30 at 15:30 UTC with no wallet connected, show the dispute controls on real data through to the end of a dispute: the receipt marked Settled with its charge and seal, the 24-hour dispute window open with its countdown, the dispute action gated behind the paying wallet ('If you paid for this workflow, connect that wallet to dispute a step'), and the step's dispute receipt marked Refunded, with the 0.01 XLM credit paid from the platform's funds and the refund and dispute rating transactions, each confirmed on Stellar and linked to Stellar Expert. The dispute was opened by the team's test harness through the API, not with the Dispute button, which appears only once the paying wallet is connected. An earlier screenshot of the same receipt, taken at 09:45 UTC while the dispute was under review, is kept to show it before the decision. The Week-3 bundle's dispute screenshots were taken on a local copy with test data and are still not offered as evidence.",
           "links": [
             {
-              "label": "Recording of the live receipt: settled, dispute window open, the wallet-gated dispute action and the step's dispute receipt under review, captured 2026-09-30",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-video-desktop-1440.webm",
+              "label": "Recording of the live receipt: settled, dispute window open, the wallet-gated dispute action and the step's dispute receipt refunded, with its refund and rating transactions, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/010960190f9f143a9ee588bb27f7f3d22bb40593/Week-4-Tranche-Submission/screenshots/d3c-dispute-refunded-video-desktop-1440.webm",
               "kind": "video",
               "date": "2026-09-30"
             },
             {
-              "label": "Screenshot of the live receipt and its dispute receipt at desktop width, captured 2026-09-30",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-desktop-1440.png",
+              "label": "Screenshot of the live receipt with the dispute refunded, at desktop width, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/010960190f9f143a9ee588bb27f7f3d22bb40593/Week-4-Tranche-Submission/screenshots/d3c-dispute-refunded-desktop-1440.png",
               "kind": "doc",
               "date": "2026-09-30"
             },
             {
               "label": "Screenshot of the same live receipt at phone width, captured 2026-09-30",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-phone-390.png",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/010960190f9f143a9ee588bb27f7f3d22bb40593/Week-4-Tranche-Submission/screenshots/d3c-dispute-refunded-phone-390.png",
+              "kind": "doc",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Earlier screenshot of the same receipt with the dispute under review, before the decision, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-desktop-1440.png",
               "kind": "doc",
               "date": "2026-09-30"
             },
