@@ -68,4 +68,10 @@ export const LITEPAPER_CHANGES: readonly LitepaperChange[] = [
     kind: "new",
     text: "§6 now ends with what holds throughout: testnet only, escrow v2 settling where v1 could not, one settler key that the admin can now rotate, credits funded and decided by the platform, and endpoint binding kept off chain.",
   },
+  {
+    where: "§6.1, §6.8, §6.9, §2, §5, §7, §10, §A–§E",
+    title: "Escrow v2 deployed and settling",
+    kind: "new",
+    text: "Escrow v2 was deployed on testnet on 2026-09-30, from the admin key, with the platform's signing key as its settler, and the backend now settles through it. Its first three workflows settled that day, disclosed team runs that were each sealed and rated, and refunds were switched on. The first escrow, v1, still exists but is no longer used; it could never settle. §7.4 now prices `settle` from those three transactions, at 790,647 stroops on average.",
+  },
 ];
