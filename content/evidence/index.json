@@ -555,7 +555,7 @@
           "id": "6.1-D4-d",
           "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
           "status": "present",
-          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; its entry in the team wallet register is in backend pull request #96, which is not merged yet. Because no outside operator's agent was paid, metric 3 stays at 0. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
+          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; its entry in the team wallet register is in backend pull request #96, which is not merged yet. No outside operator's agent was paid. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
           "links": [
             {
               "label": "PaymentEscrow v2 contract on Stellar Expert: live since 2026-09-30, where the three runs settled",
@@ -992,7 +992,7 @@
           "date": "2026-09-30"
         }
       ],
-      "reason": "Met on registrations, which is what the SOW counts: 6 agents registered from 2 outside operators' wallets. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their ids and registration hashes are held back here until each operator's consent to publish them is recorded."
+      "reason": "Met on registrations, which is what the SOW counts: 6 agents registered from 2 outside operators' wallets. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled. Their ids and registration hashes are held back here until each operator's consent to publish them is recorded."
     },
     {
       "id": "m02",
@@ -1034,7 +1034,7 @@
           "kind": "account"
         }
       ],
-      "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their addresses are held back here until each operator's consent to publish them is recorded."
+      "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded."
     },
     {
       "id": "m04",
@@ -1043,7 +1043,7 @@
       "target": "≥ 3",
       "achieved": "3",
       "status": "met",
-      "reason": "Met on 3 charges, all from the team's own escrow v2 test runs of 2026-09-30: team buyer keys paid agents owned by the team's admin wallet, so no outside operator was paid (metric 3 stays at 0). They count because the buyer is neither the agent's owner, the escrow's settler nor a platform key. The buyer of two of them, GCNQA…A2GP, is a team key whose register entry is in backend pull request #96, not merged yet; until then the generator holds those two charges' links back as if they were an outside wallet's, so they are added here by hand. The escrow's 8 older 'charged' events still do not count: all were the agent's owner paying itself, before the sprint.",
+      "reason": "Met on 3 charges, all from the team's own escrow v2 test runs of 2026-09-30: team buyer keys paid agents owned by the team's admin wallet, so no outside operator was paid. They count because the buyer is neither the agent's owner, the escrow's settler nor a platform key. The buyer of two of them, GCNQA…A2GP, is a team key whose register entry is in backend pull request #96, not merged yet; until then the generator holds those two charges' links back as if they were an outside wallet's, so they are added here by hand. The escrow's 8 older 'charged' events still do not count: all were the agent's owner paying itself, before the sprint.",
       "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract.",
       "links": [
         {
