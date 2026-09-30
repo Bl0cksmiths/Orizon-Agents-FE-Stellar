@@ -506,19 +506,29 @@ export function isReputationParams(v: unknown): v is ReputationParams {
  * This is the only validation the artifact ever gets: the backend types it as
  * a bare `dict` (`Task.artifact`, `ArtifactResponse.artifact`), so pydantic
  * performs no structural check and a worker's output crosses the HTTP seam
- * verbatim. `entry` and `summary` are required on the producing model
- * (`CodeArtifact`, app/agents/workers/code_gen.py) but both have working
- * render-time fallbacks, so they are only type-checked when present rather
- * than made mandatory. */
+ * verbatim.
+ *
+ * It has two producers. A first-party worker sends every field (`CodeArtifact`,
+ * app/agents/workers/code_gen.py). An external operator's artifact is rebuilt
+ * from an allowlist (`_parse_artifact`, app/agents/workers/external_contract.py)
+ * that keeps each of `title`, `files` and `preview_html` only when it arrived
+ * well-formed and never carries `summary` or `entry` — and returns no artifact
+ * at all when none of the three survives. So every field is optional here and
+ * each renders behind a fallback, but a field of the wrong type is refused,
+ * and so is an object with none of the three: the backend never sends one,
+ * and the viewer would draw an empty artifact for it. */
 function isCodeArtifact(v: unknown): v is CodeArtifact {
+  if (!isRecord(v)) return false;
+  const delivered =
+    v.title != null || v.files != null || v.preview_html != null;
   return (
-    isRecord(v) &&
-    isStr(v.title) &&
-    isStr(v.preview_html) &&
+    delivered &&
+    isOptionalStr(v.title) &&
+    isOptionalStr(v.preview_html) &&
     isOptionalStr(v.entry) &&
     isOptionalStr(v.summary) &&
-    Array.isArray(v.files) &&
-    v.files.every(isArtifactFile)
+    (v.files == null ||
+      (Array.isArray(v.files) && v.files.every(isArtifactFile)))
   );
 }
 

@@ -1135,6 +1135,44 @@ describe("isArtifactResponse", () => {
     expect(isArtifactResponse({ artifact: rest })).toBe(true);
   });
 
+  it("accepts an external artifact carrying any one of title, files or preview", () => {
+    const { title, files, preview_html } = external;
+    for (const only of [
+      { title },
+      { files },
+      { preview_html },
+      { files: [] },
+    ]) {
+      expect(isArtifactResponse({ artifact: only })).toBe(true);
+    }
+  });
+
+  it("rejects an artifact that delivers none of title, files or preview", () => {
+    // The backend answers `artifact: null` for this; an empty object is not
+    // an artifact, and the viewer would draw a blank one.
+    expect(isArtifactResponse({ artifact: {} })).toBe(false);
+    expect(
+      isArtifactResponse({ artifact: { summary: "s", entry: "index.html" } }),
+    ).toBe(false);
+  });
+
+  it("rejects a title, preview or file list of the wrong type", () => {
+    for (const bad of [
+      { ...external, title: 42 },
+      { ...external, preview_html: { html: "<p/>" } },
+      { ...external, files: "report.html" },
+      { ...external, files: { path: "report.html", content: "x" } },
+    ]) {
+      expect(isArtifactResponse({ artifact: bad })).toBe(false);
+    }
+  });
+
+  it("rejects an artifact that is not an object", () => {
+    for (const artifact of ["<html/>", 7, ["report.html"], true]) {
+      expect(isArtifactResponse({ artifact })).toBe(false);
+    }
+  });
+
   it("rejects non-object payloads", () => {
     expect(isArtifactResponse(null)).toBe(false);
     expect(isArtifactResponse("gateway timeout")).toBe(false);
