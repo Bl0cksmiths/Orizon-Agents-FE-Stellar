@@ -7,6 +7,8 @@ import tsx from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
 import css from "react-syntax-highlighter/dist/esm/languages/prism/css";
 import python from "react-syntax-highlighter/dist/esm/languages/prism/python";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { focusRing } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 SyntaxHighlighter.registerLanguage("html", html);
 SyntaxHighlighter.registerLanguage("markup", html);
@@ -42,19 +44,40 @@ const LANG_MAP: Record<string, string> = {
   py: "python",
 };
 
+/**
+ * `language` is optional because the backend does not always send one: an
+ * external operator's artifact files are rebuilt from `path` and `content`
+ * alone (`_parse_files`, app/agents/workers/external_contract.py). A file
+ * with no language renders as plain text — "text" is the highlighter's own
+ * no-grammar mode, so the code keeps its line numbers and wrapping but gets
+ * no token colouring that would claim a language nobody declared.
+ */
 export function CodeViewer({
   language,
   code,
+  label,
   maxHeight = 560,
 }: {
-  language: string;
+  language?: string | null;
   code: string;
+  /** Names the scrollable region for assistive tech — the file it shows. */
+  label: string;
   maxHeight?: number;
 }) {
-  const lang = LANG_MAP[language.toLowerCase()] ?? "markup";
+  const lang = language
+    ? (LANG_MAP[language.toLowerCase()] ?? "markup")
+    : "text";
   return (
     <div
-      className="relative overflow-auto rounded-sm border border-border bg-[#060010]"
+      role="region"
+      aria-label={label}
+      // A region that scrolls must be reachable to scroll: keyboard users
+      // otherwise cannot read past the first screen of a long file.
+      tabIndex={0}
+      className={cn(
+        "relative overflow-auto rounded-sm border border-border bg-[#060010]",
+        focusRing,
+      )}
       style={{ maxHeight }}
     >
       <SyntaxHighlighter

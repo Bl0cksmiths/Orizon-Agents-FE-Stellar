@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { CodeArtifact } from "@/lib/types";
+import type { ArtifactFile, CodeArtifact } from "@/lib/types";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +36,13 @@ const MIME_BY_LANGUAGE: Record<string, string> = {
   json: "application/json",
   svg: "image/svg+xml",
 };
+
+/** What a file is shown as. An external operator's files carry no language
+ * (the backend drops it), and the code viewer shows those as plain text — the
+ * label says so rather than leaving a dangling separator. */
+export function fileKind(file: ArtifactFile): string {
+  return file.language || "plain text";
+}
 
 export function ArtifactViewer({ artifact }: { artifact: CodeArtifact }) {
   const [tab, setTab] = useState<Tab>("preview");
@@ -83,7 +90,9 @@ export function ArtifactViewer({ artifact }: { artifact: CodeArtifact }) {
     const file = current;
     if (!file) return;
     const blob = new Blob([file.content], {
-      type: MIME_BY_LANGUAGE[file.language?.toLowerCase()] ?? "text/plain",
+      type:
+        (file.language && MIME_BY_LANGUAGE[file.language.toLowerCase()]) ||
+        "text/plain",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -215,11 +224,12 @@ export function ArtifactViewer({ artifact }: { artifact: CodeArtifact }) {
             {current && (
               <>
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan mb-2">
-                  {current.path} · {current.language}
+                  {current.path} · {fileKind(current)}
                 </div>
                 <CodeViewer
                   language={current.language}
                   code={current.content}
+                  label={`${current.path}, ${fileKind(current)}`}
                 />
               </>
             )}
