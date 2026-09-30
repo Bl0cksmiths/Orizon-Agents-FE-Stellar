@@ -123,7 +123,7 @@ DAG for the `/app/flow` viewer — node list + edge list.
 
 ### `GET /api/stellar/network`
 
-Canonical source of truth for contract IDs and network metadata. The response below is the live testnet deployment's, read on 2026-09-29; its shape is the `NetworkInfo` model on BE main (BE@a3dc1f9 · app/routers/stellar.py · `NetworkInfo`, `network`), with the contract ids nested under `contracts`. `dispatch_signer` is `null` when no dispatch key is configured.
+Canonical source of truth for contract IDs and network metadata. The response below is the live testnet deployment's, read on 2026-09-30, after `payment_escrow` moved to escrow v2; its shape is the `NetworkInfo` model on BE main (BE@a3dc1f9 · app/routers/stellar.py · `NetworkInfo`, `network`), with the contract ids nested under `contracts`. `dispatch_signer` is `null` when no dispatch key is configured.
 
 ```json
 200 OK
@@ -138,7 +138,7 @@ Canonical source of truth for contract IDs and network metadata. The response be
   "contracts": {
     "agent_registry": "CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
     "reputation_ledger": "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
-    "payment_escrow": "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+    "payment_escrow": "CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4",
     "attestation_registry": "CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK"
   }
 }
