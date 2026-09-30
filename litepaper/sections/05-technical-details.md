@@ -131,7 +131,7 @@ Three properties of this loop are worth highlighting.
 
 **Timeouts are enforced.** A worker has 120 seconds to return. If it does not, the wrapper emits an `error` line and the run moves on to the next step; the step that timed out is not billed. We never attempt to "kill" a worker; we just stop waiting.
 
-**Settlement happens once, after the loop.** Nothing is paid per step. At the end of the run the backend submits one settlement for the delivered steps only: one `settle` under escrow v2, one `charge` for the workflow's total on the deployed v1, which cannot complete on testnet (§6.9). A failed step is never billed, so a buyer pays for value that arrived, never for value that didn't (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_settle_v2`, `_settle_onchain`).
+**Settlement happens once, after the loop.** Nothing is paid per step. At the end of the run the backend submits one settlement for the delivered steps only: one `settle` under escrow v2, the live testnet escrow since 2026-09-30, and one `charge` for the workflow's total on the retired v1, which cannot complete (§6.9). A failed step is never billed, so a buyer pays for value that arrived, never for value that didn't (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_settle_v2`, `_settle_onchain`).
 
 The `code.critic` worker uses a parallel short-circuit: when the prior step's result carries `source: "baked"`, the critic runs the structural validator (`code_validator.validate_html`), reports the kit's `critic_checklist` as pre-satisfied, sleeps for a believable 0.4–1.0 s, and returns. No model call is incurred.
 
@@ -426,7 +426,7 @@ class TraceLine(BaseModel):
     msg: str
 ```
 
-The bus buffers every line so any subscriber — a watcher, an investigator, a reconciler — can replay the workflow from the start. The intent itself appears in the first `input` line; the payment appears as one `cost` line for the run's settlement, with its transaction hash (on testnet an `error` line, since the deployed escrow cannot complete a charge; §B.3); the final seal appears as a `proof` line.
+The bus buffers every line so any subscriber — a watcher, an investigator, a reconciler — can replay the workflow from the start. The intent itself appears in the first `input` line; the payment appears as one `cost` line for the run's settlement, with its transaction hash (on the retired v1 escrow an `error` line, since it cannot complete a charge; §B.3); the final seal appears as a `proof` line.
 
 The on-chain side is the four contracts together. For any sealed workflow you can pull:
 
