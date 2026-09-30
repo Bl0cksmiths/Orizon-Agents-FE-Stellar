@@ -400,9 +400,32 @@
         {
           "id": "6.1-D3-c",
           "claim": "A recording of the dispute controls on the trace and receipt view.",
-          "status": "missing",
-          "note": "Missing. The Dispute button and the refund receipt are merged, but they appear only for a settled payment, and the live deployment has none, so no live recording can be made yet. The Week-3 bundle's dispute screenshots were taken on a local copy with test data. They show the design, not a live dispute, so they are not offered as evidence.",
+          "status": "partial",
+          "note": "Partial. A 12-second recording and two screenshots of the live receipt for the team's third settled run, captured on 2026-09-30 at 09:45 UTC with no wallet connected, show the dispute view working on real data: the receipt marked Settled with its charge and seal, the 24-hour dispute window open with its countdown, the wallet gate on the dispute action ('If you paid for this workflow, connect that wallet to dispute a step'), and the step's dispute receipt, Under review, with up to 0.01 XLM creditable from the platform's own funds. They do not show the Dispute button being used: it appears only once the paying wallet is connected, and the capture did not connect one. The dispute shown was opened by the team's test harness through the API (see the next items). The end of the recording also shows an unrelated live error line above the trace log ('artifact fetch failed'), left in rather than cut. The Week-3 bundle's dispute screenshots were taken on a local copy with test data and are still not offered as evidence. This item becomes present with a recording of the Dispute button used from the paying wallet.",
           "links": [
+            {
+              "label": "Recording of the live receipt: settled, dispute window open, the wallet-gated dispute action and the step's dispute receipt under review, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-video-desktop-1440.webm",
+              "kind": "video",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Screenshot of the live receipt and its dispute receipt at desktop width, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-desktop-1440.png",
+              "kind": "doc",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Screenshot of the same live receipt at phone width, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-phone-390.png",
+              "kind": "doc",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Open the live receipt for team run 3 on orizons.xyz",
+              "url": "https://orizons.xyz/app/trace?task=tsk_7e1c369cebaf41b3",
+              "kind": "page"
+            },
             {
               "label": "Frontend pull request #68: the Dispute button on the trace and receipt view (merged)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/68",
