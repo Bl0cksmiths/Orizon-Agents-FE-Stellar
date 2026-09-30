@@ -15,7 +15,7 @@ SOW §6.3 metric m03 ("Workflows routed to external agents & settled on
 Testnet", target ≥ 3) was removed from the sprint's requirements by the team
 lead on 2026-09-30. The index has no m03 row; it lists m03 once under the
 top-level `removed_metrics`, and the page states that in one line under
-Disclosures. The headline counts only the rows shown ("7 of 10 metrics met").
+Disclosures. The headline counts only the rows shown ("9 of 10 metrics met" since 2026-09-30).
 
 The backend's generator, `scripts/sow_metrics`, does not know this. It always
 produces all eleven rows, each `met` or `not_met`. When you merge its output

@@ -9,7 +9,7 @@
   "snapshot": {
     "as_of": "2026-09-30",
     "network": "testnet",
-    "method": "Every on-chain link was re-read on 2026-09-30, after escrow v2 was deployed and the live API switched to it that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. The 19 transactions of the team's escrow v2 test runs were also re-verified successful by the backend's evidence tool (demo_evidence), and the screenshots and recording of 2026-09-30 were taken from the live site with no wallet connected. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json), is declared for it in an open pull request that this index names, or holds a platform role on the contracts. The metrics were re-measured the same day, at 10:42 UTC, by the backend's read-only generator (scripts/sow_metrics). Metric m03 was removed from the sprint's requirements on 2026-09-30, so its row from the generator was left out and the other ten are shown. An outside operator's agent ids, wallet and transaction hashes appear here only once that operator's consent to publish them is recorded. Nothing was signed, paid or submitted to make this snapshot."
+    "method": "Every on-chain link was re-read on 2026-09-30, after escrow v2 was deployed and the live API switched to it that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. The 21 transactions of the team's test runs, including the first dispute's refund and dispute rating, were also re-verified successful by the backend's evidence tool (demo_evidence), and the screenshots and recordings of 2026-09-30 were taken from the live site with no wallet connected. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json), is declared for it in an open pull request that this index names, or holds a platform role on the contracts. The metrics were re-measured the same day, at 10:42 UTC, by the backend's read-only generator (scripts/sow_metrics). Metrics 5 and 8 were measured again at 15:30 UTC, after the first dispute was refunded, and metrics 1 and 2 at 15:48 UTC, after five more outside wallets registered agents; their rows are from those runs, and the other rows are as measured at 10:42. Metric m03 was removed from the sprint's requirements on 2026-09-30, so its row from the generator was left out and the other ten are shown. An outside operator's agent ids, wallet and transaction hashes appear here only once that operator's consent to publish them is recorded. Nothing was signed, paid or submitted to make this snapshot."
   },
   "deliverables": [
     {
@@ -77,7 +77,7 @@
           "id": "6.1-D1-c",
           "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
           "status": "present",
-          "note": "Two wallets the team does not control have registered agents on-chain, on 2026-09-29. The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transaction appears.",
+          "note": "Seven wallets the team does not control have registered agents on-chain (on 2026-09-29 and 2026-09-30). The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
           "links": [
             {
               "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
@@ -85,7 +85,7 @@
               "kind": "page"
             },
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 20 registrations, 14 by team wallets and 6 by 2 outside operators",
+              "label": "AgentRegistry contract on Stellar Expert: all 25 registrations, 14 by team wallets and 11 by 7 outside operators",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
@@ -320,22 +320,23 @@
         {
           "id": "6.1-D3-a",
           "claim": "A dispute transaction on Stellar Expert: the negative on-chain rating written when a buyer's dispute is upheld.",
-          "status": "missing",
-          "note": "Missing. The first dispute on the live deployment is open and pending adjudication. On 2026-09-30 the team's test harness disputed the single step of the team's third settled run (dispute dsp_15acee279ac02852a5877ac1696ec4b5, on calculatorai's 0.01 XLM payout; see Deliverable 4). A dispute rating is written on-chain only when the platform's adjudicator upholds a dispute, and that decision has not been made: it waits on the adjudicator key. Until then all 40 ratings on the live ReputationLedger are ordinary ratings; none is a dispute. The dispute path is merged (the pull requests here). A test run on a separate drill ledger proved the mechanism, but it is not offered as evidence (see the notes).",
+          "status": "present",
+          "note": "On 2026-09-30 the platform's adjudicator upheld the first dispute on the live deployment: dispute dsp_15acee279ac02852a5877ac1696ec4b5, which the team's test harness raised against the single step of the team's third settled run (calculatorai's 0.01 XLM payout; see Deliverable 4). Upholding it wrote a dispute rating against calculatorai on the live ReputationLedger. Its score fell from 7004 to 6999 basis points, its lower bound from 5683 to 5678, and its dispute count went from 0 to 1. The ledger now holds 41 ratings, and this is the only dispute rating. The dispute is the team's own: the buyer, GCNQA…A2GP, is a team key, and calculatorai is owned by the team's admin wallet GA7AI…5OQV. A test run on a separate drill ledger proved the mechanism earlier, and it is not offered as evidence (see the notes).",
           "links": [
             {
-              "label": "Live dispute record from the backend: status open, with no rating or refund yet",
+              "label": "Dispute rating for agent calculatorai on Stellar testnet — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
+              "kind": "tx",
+              "tx_hash": "b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Live dispute record from the backend: status credited, with its rating and refund transactions",
               "url": "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_15acee279ac02852a5877ac1696ec4b5",
               "kind": "doc"
             },
             {
-              "label": "Screenshot of the open dispute on the live receipt, marked Under review, captured 2026-09-30",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-desktop-1440.png",
-              "kind": "doc",
-              "date": "2026-09-30"
-            },
-            {
-              "label": "ReputationLedger contract on Stellar Expert: 40 ratings so far, none of them a dispute",
+              "label": "ReputationLedger contract on Stellar Expert: 41 ratings, one of them a dispute",
               "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
               "kind": "contract"
             },
@@ -356,17 +357,24 @@
         {
           "id": "6.1-D3-b",
           "claim": "The matching partial-refund transaction on Stellar Expert.",
-          "status": "missing",
-          "note": "Missing. No refund has been paid on the live deployment. Since 2026-09-30 there are settled payments a dispute can refund, and refunds are switched on: the live readiness report shows disputes.reconcile.enabled true, with disputes stored in Postgres. The one open dispute (see the item above) is pending adjudication, and a refund is paid only if it is upheld. A refund is a credit the platform sends from its own balance (see the disclosures). The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
+          "status": "present",
+          "note": "On 2026-09-30, when the dispute above was upheld, the platform's signing key GDB4N…CDHP paid the buyer, the team key GCNQA…A2GP, 0.01 XLM. That is the disputed step's full charge: the live credit policy (dispute_credited_fraction) is 1.0, so the credit equals the step's price. The credit comes from the platform's own balance, not from the agent's owner and not from the escrow (see the disclosures). It is the first refund paid on the live deployment. The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
           "links": [
             {
-              "label": "Live backend readiness report: escrow version 2 and refunds switched on",
-              "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
+              "label": "Dispute credit refund for agent calculatorai of 0.0100000 XLM (native), the step's full charge, on Stellar testnet — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+              "kind": "tx",
+              "tx_hash": "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Live dispute record from the backend: status credited, with the refund transaction",
+              "url": "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_15acee279ac02852a5877ac1696ec4b5",
               "kind": "doc"
             },
             {
-              "label": "Live dispute record from the backend: status open, with no refund yet",
-              "url": "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_15acee279ac02852a5877ac1696ec4b5",
+              "label": "Live backend readiness report: escrow version 2 and refunds switched on",
+              "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
               "kind": "doc"
             },
             {
@@ -386,24 +394,30 @@
         {
           "id": "6.1-D3-c",
           "claim": "A recording of the dispute controls on the trace and receipt view.",
-          "status": "partial",
-          "note": "Partial. A 12-second recording and two screenshots of the live receipt for the team's third settled run, captured on 2026-09-30 at 09:45 UTC with no wallet connected, show the dispute view working on real data: the receipt marked Settled with its charge and seal, the 24-hour dispute window open with its countdown, the wallet gate on the dispute action ('If you paid for this workflow, connect that wallet to dispute a step'), and the step's dispute receipt, Under review, with up to 0.01 XLM creditable from the platform's own funds. They do not show the Dispute button being used: it appears only once the paying wallet is connected, and the capture did not connect one. The dispute shown was opened by the team's test harness through the API (see the next items). The end of the recording also shows an unrelated live error line above the trace log ('artifact fetch failed'), left in rather than cut. The Week-3 bundle's dispute screenshots were taken on a local copy with test data and are still not offered as evidence. This item becomes present with a recording of the Dispute button used from the paying wallet.",
+          "status": "present",
+          "note": "A 13-second recording and two screenshots of the live receipt for the team's third settled run, captured on 2026-09-30 at 15:30 UTC with no wallet connected, show the dispute controls on real data through to the end of a dispute: the receipt marked Settled with its charge and seal, the 24-hour dispute window open with its countdown, the dispute action gated behind the paying wallet ('If you paid for this workflow, connect that wallet to dispute a step'), and the step's dispute receipt marked Refunded, with the 0.01 XLM credit paid from the platform's funds and the refund and dispute rating transactions, each confirmed on Stellar and linked to Stellar Expert. The dispute was opened by the team's test harness through the API, not with the Dispute button, which appears only once the paying wallet is connected. An earlier screenshot of the same receipt, taken at 09:45 UTC while the dispute was under review, is kept to show it before the decision. The Week-3 bundle's dispute screenshots were taken on a local copy with test data and are still not offered as evidence.",
           "links": [
             {
-              "label": "Recording of the live receipt: settled, dispute window open, the wallet-gated dispute action and the step's dispute receipt under review, captured 2026-09-30",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-video-desktop-1440.webm",
+              "label": "Recording of the live receipt: settled, dispute window open, the wallet-gated dispute action and the step's dispute receipt refunded, with its refund and rating transactions, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/010960190f9f143a9ee588bb27f7f3d22bb40593/Week-4-Tranche-Submission/screenshots/d3c-dispute-refunded-video-desktop-1440.webm",
               "kind": "video",
               "date": "2026-09-30"
             },
             {
-              "label": "Screenshot of the live receipt and its dispute receipt at desktop width, captured 2026-09-30",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-desktop-1440.png",
+              "label": "Screenshot of the live receipt with the dispute refunded, at desktop width, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/010960190f9f143a9ee588bb27f7f3d22bb40593/Week-4-Tranche-Submission/screenshots/d3c-dispute-refunded-desktop-1440.png",
               "kind": "doc",
               "date": "2026-09-30"
             },
             {
               "label": "Screenshot of the same live receipt at phone width, captured 2026-09-30",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-phone-390.png",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/010960190f9f143a9ee588bb27f7f3d22bb40593/Week-4-Tranche-Submission/screenshots/d3c-dispute-refunded-phone-390.png",
+              "kind": "doc",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Earlier screenshot of the same receipt with the dispute under review, before the decision, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-desktop-1440.png",
               "kind": "doc",
               "date": "2026-09-30"
             },
@@ -425,7 +439,7 @@
               "date": "2026-09-22"
             },
             {
-              "label": "Week-3 evidence bundle on GitHub: what shipped for disputes, and why the live evidence is outstanding",
+              "label": "Week-3 evidence bundle on GitHub: what shipped for disputes",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/tree/main/Week-3-Tranche-Submission",
               "kind": "doc"
             }
@@ -485,18 +499,18 @@
         {
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
-          "status": "partial",
-          "note": "Partial. 2 outside operators have registered 6 agents, all on 2026-09-29, from wallets that are not in the team register and hold no platform role. That is more than the 2 registrations asked for, but the transactions are not listed here yet. The first operator's is a trial registration of a single agent, bound to a server address that is a parked web page, not a working agent. A second outside operator registered five agents, none bound to an endpoint yet. None of the six has had a dispatch or a settlement. The platform's own readiness check reports the trial agent ready only because that check accepts any page that answers. Their agent ids, wallets and registration hashes are held back from this index until each operator's consent to publish them is recorded, so the transactions are not linked. The platform's public ecosystem page, linked here, lists outside operators by design. The live adoption counter counts 6 outside agents and 2 outside operator wallets, which meets both targets, and 0 settled outside workflows against a target of 3 (see metrics 1 to 3).",
+          "status": "present",
+          "note": "Seven wallets the team does not control have registered agents on-chain (on 2026-09-29 and 2026-09-30). The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
           "links": [
-            {
-              "label": "AgentRegistry contract on Stellar Expert: all 20 registrations, 14 by team wallets and 6 by 2 outside operators",
-              "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
-              "kind": "contract"
-            },
             {
               "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
               "url": "https://orizons.xyz/app/ecosystem",
               "kind": "page"
+            },
+            {
+              "label": "AgentRegistry contract on Stellar Expert: all 25 registrations, 14 by team wallets and 11 by 7 outside operators",
+              "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
+              "kind": "contract"
             },
             {
               "label": "Live adoption counter: outside registrations, as the API counts them",
@@ -520,7 +534,7 @@
           "id": "6.1-D4-d",
           "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
           "status": "present",
-          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; its entry in the team wallet register is in backend pull request #96, which is not merged yet. No outside operator's agent was paid. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
+          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; backend pull request #96 added it to the team wallet register the same day. No outside operator's agent was paid. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
           "links": [
             {
               "label": "PaymentEscrow v2 contract on Stellar Expert: live since 2026-09-30, where the three runs settled",
@@ -620,9 +634,10 @@
               "date": "2026-09-28"
             },
             {
-              "label": "Backend pull request #96 (open): adds the run 2 and 3 buyer key GCNQA…A2GP to the team wallet register",
+              "label": "Backend pull request #96 (merged): adds the run 2 and 3 buyer key GCNQA…A2GP to the team wallet register",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/96",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-30"
             },
             {
               "label": "PaymentEscrow v1 contract on Stellar Expert (replaced on 2026-09-30): its Events tab shows 8 pre-sprint self-payments and none since",
@@ -844,19 +859,15 @@
       "category": "Adoption targets",
       "metric": "Externally-operated agents registered on Testnet",
       "target": "≥ 2",
-      "achieved": "6",
+      "achieved": "11",
       "status": "met",
       "method": "Read every agent the AgentRegistry contract lists, with its owner, straight from testnet. An agent counts only if its owner is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
+      "reason": "Met on registrations, which is what the SOW counts: 11 agents registered from 7 outside operators' wallets, 6 on 2026-09-29 and 5 on 2026-09-30. One of them is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their ids and registration hashes are held back here until each operator's consent to publish them is recorded.",
       "links": [
         {
           "label": "AgentRegistry contract (every registered agent)",
           "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
           "kind": "contract"
-        },
-        {
-          "label": "The 6 counted outside registrations (2026-09-29), as the ecosystem page lists them (their hashes are held back here until consent is recorded)",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
         },
         {
           "label": "Registration of orizon_batch by the team's contract admin and v1 escrow settler — 2026-04-20 (excluded: team wallet)",
@@ -950,26 +961,31 @@
           "date": "2026-09-29"
         },
         {
+          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
+        },
+        {
           "label": "Registration of faulty_test_v2 by the team's x402 escrow spike key (2026-09-15), random throwaway — 2026-09-30 (excluded: team wallet)",
           "url": "https://stellar.expert/explorer/testnet/tx/2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
           "kind": "tx",
           "tx_hash": "2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
           "date": "2026-09-30"
         }
-      ],
-      "reason": "Met on registrations, which is what the SOW counts: 6 agents registered from 2 outside operators' wallets. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled. Their ids and registration hashes are held back here until each operator's consent to publish them is recorded."
+      ]
     },
     {
       "id": "m02",
       "category": "Adoption targets",
       "metric": "Unique external operator wallet addresses",
       "target": "≥ 2",
-      "achieved": "2",
+      "achieved": "7",
       "status": "met",
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
+      "reason": "Met on registrations, which is what the SOW counts: 7 outside operators' wallets own agents. 2 registered on 2026-09-29, one owning 1 agent and the other 5, and 5 registered on 2026-09-30, each owning 1 agent. One of the 11 agents is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded.",
       "links": [
         {
-          "label": "The 2 counted outside operator wallets, as the ecosystem page lists them (their addresses are held back here until consent is recorded)",
+          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
           "url": "https://orizons.xyz/app/ecosystem",
           "kind": "page"
         },
@@ -998,8 +1014,7 @@
           "url": "https://stellar.expert/explorer/testnet/account/GB4K6YRHDHB2HHNM3E7UUZJU5JP3MSQE3GXKMEA5IT4AM45D23YKAYKK",
           "kind": "account"
         }
-      ],
-      "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded."
+      ]
     },
     {
       "id": "m04",
@@ -1008,7 +1023,7 @@
       "target": "≥ 3",
       "achieved": "3",
       "status": "met",
-      "reason": "Met on 3 charges, all from the team's own escrow v2 test runs of 2026-09-30: team buyer keys paid agents owned by the team's admin wallet, so no outside operator was paid. They count because the buyer is neither the agent's owner, the escrow's settler nor a platform key. The buyer of two of them, GCNQA…A2GP, is a team key whose register entry is in backend pull request #96, not merged yet; until then the generator holds those two charges' links back as if they were an outside wallet's, so they are added here by hand. The escrow's 8 older 'charged' events still do not count: all were the agent's owner paying itself, before the sprint.",
+      "reason": "Met on 3 charges, all from the team's own escrow v2 test runs of 2026-09-30: team buyer keys paid agents owned by the team's admin wallet, so no outside operator was paid. They count because the buyer is neither the agent's owner, the escrow's settler nor a platform key. The buyer of two of them, GCNQA…A2GP, is a team key, in the team wallet register since 2026-09-30 (backend pull request #96). The escrow's 8 older 'charged' events still do not count: all were the agent's owner paying itself, before the sprint.",
       "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract.",
       "links": [
         {
@@ -1097,11 +1112,6 @@
           "kind": "tx",
           "tx_hash": "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
           "date": "2026-09-30"
-        },
-        {
-          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
         }
       ]
     },
@@ -1110,9 +1120,9 @@
       "category": "Transaction targets",
       "metric": "Dispute → partial-refund settlements",
       "target": "≥ 1",
-      "achieved": "0",
-      "status": "not_met",
-      "reason": "No dispute has been refunded yet. The reputation ledger holds 40 ratings (40 of kind auto) and no dispute rating; its lifetime dispute count is 0 across all 20 agents. The only transfer out of a platform key on record, on 2026-09-12, went to a team key with no dispute behind it. One dispute, on a team test run's settled step, is open and pending the adjudicator's decision (see Deliverable 3).",
+      "achieved": "1",
+      "status": "met",
+      "reason": "Met on 1 refund, from the team's own test run of 2026-09-30: the platform upheld a dispute that the team's harness raised against a 0.01 XLM step paid by the team key GCNQA…A2GP to calculatorai, owned by the team's admin wallet. It wrote a dispute rating and paid the buyer 0.01 XLM back from the platform's signing key (see Deliverable 3). The ledger's lifetime dispute count is 1 across all agents. No dispute has been raised on an outside operator's work.",
       "method": "Read the dispute ratings the platform wrote to the ReputationLedger (from its keys' full transaction history) and traced each back, through the derived job id the backend records a dispute under, to the charge it disputes. A refund counts only when that charge counts and the platform then paid its payer back over the asset contract, no more than the charge. A transfer with no dispute behind it (such as a refund drill) does not count. The ledger's lifetime dispute count for every agent is read as a cross-check.",
       "links": [
         {
@@ -1126,6 +1136,20 @@
           "kind": "tx",
           "tx_hash": "9b8ffaa44b2b966e4c3f1ab581f4203a30d282901ba3b231a578e46d8f919a68",
           "date": "2026-09-12"
+        },
+        {
+          "label": "Dispute rating on calculatorai — 2026-09-30 (counted: refunded)",
+          "url": "https://stellar.expert/explorer/testnet/tx/b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
+          "kind": "tx",
+          "tx_hash": "b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Refund of 0.01 XLM to the payer of the disputed charge — 2026-09-30 (counted)",
+          "url": "https://stellar.expert/explorer/testnet/tx/cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+          "kind": "tx",
+          "tx_hash": "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+          "date": "2026-09-30"
         }
       ]
     },
@@ -1134,7 +1158,7 @@
       "category": "Technical milestones",
       "metric": "Permissionless AgentRegistry.register flow live on the dApp",
       "target": "Yes",
-      "achieved": "Yes: the Register page is live and open to any wallet. Two outside wallets have registered agents (see metric 1).",
+      "achieved": "Yes: the Register page is live and open to any wallet. Seven outside wallets have registered agents (see metric 2).",
       "status": "met",
       "method": "Opened the /app/register page on the live dApp with no login, and checked the live backend publishes the route that builds an unsigned registration transaction for the owner's own wallet to sign. The registry contract's register needs only the owner's signature, no admin.",
       "links": [
@@ -1188,9 +1212,9 @@
       "category": "Technical milestones",
       "metric": "Automated dispute window + partial-credit refund live",
       "target": "Yes",
-      "achieved": "Partly: the dispute routes are deployed, escrow v2 is live so a settled payment opens a dispute window, and refunds are switched on, but no dispute has been refunded on-chain yet. One dispute is open, pending adjudication.",
-      "status": "not_met",
-      "reason": "No dispute has been refunded on-chain yet (see the dispute refund row). The one open dispute, on a team test run, waits on the adjudicator's decision.",
+      "achieved": "Yes",
+      "status": "met",
+      "reason": "Met on 2026-09-30, when the first dispute was refunded on-chain (see the dispute refund row). That dispute is on the team's own test run.",
       "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject); that a dispute window can open at all, which needs a settled payment, and so the escrow v2 contract live; that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on); and that at least one dispute has been refunded on-chain (the dispute refund row above). Yes when all hold, Partly when the routes are deployed but the rest does not, and No when the routes are not.",
       "links": [
         {
@@ -1343,7 +1367,7 @@
     {
       "id": "platform_credits",
       "title": "Refunds are credits paid from the platform's own funds",
-      "text": "When a dispute is upheld, the platform sends the buyer a credit from its own balance. It is not taken back from the agent's owner, and it is not drawn from the buyer's authorization. The platform's signing key (GDB4N…CDHP) pays dispute credits, writes ratings and seals attestations, and it signs the settlements on escrow v2, live since 2026-09-30. The v1 escrow's settler was the admin key (GA7AI…5OQV). The credit is the price of the disputed step, capped by what the payment actually moved. A credit above the per-refund ceiling (MAX_REFUND_USDC) is refused outright, not reduced to the ceiling, and nothing is paid. Refunds were switched on with escrow v2 (the live readiness report shows them on). None has been paid yet: the one open dispute, on a team test run, is pending adjudication.",
+      "text": "When a dispute is upheld, the platform sends the buyer a credit from its own balance. It is not taken back from the agent's owner, and it is not drawn from the buyer's authorization. The platform's signing key (GDB4N…CDHP) pays dispute credits, writes ratings and seals attestations, and it signs the settlements on escrow v2, live since 2026-09-30. The v1 escrow's settler was the admin key (GA7AI…5OQV). The credit is the price of the disputed step, capped by what the payment actually moved. A credit above the per-refund ceiling (MAX_REFUND_USDC) is refused outright, not reduced to the ceiling, and nothing is paid. Refunds were switched on with escrow v2 (the live readiness report shows them on). The first credit was paid on 2026-09-30: 0.01 XLM from GDB4N…CDHP to the team buyer key GCNQA…A2GP, the full charge of a disputed step on a team test run, since the live credit policy (dispute_credited_fraction) is 1.0 (transaction cb2c5792…1e25f; see Deliverable 3).",
       "sow_ref": "§3.8, §4.1 (Deliverable 3)",
       "changed_since_sow": "The SOW says the refund is executed by the settler \"within the buyer's envelope\" (§3.8) and \"against the buyer's authorization envelope\" (§4.1). The v1 escrow had no refund function and never held funds, so there was nothing inside the envelope to return. The refund became a separate transfer funded by the platform (backend decision records ADR 0002 and ADR 0008)."
     },
@@ -1356,9 +1380,9 @@
     {
       "id": "permissioned_operations",
       "title": "Ratings and dispute decisions are made by the platform",
-      "text": "SOW §3.8: \"reputation ratings can only be submitted by the platform's scorer key. Settlement, rating submission, and dispute resolution are therefore trusted, permissioned operations today.\" This is still true. Only the platform's production key writes ratings, and disputes are decided by the platform's operator.",
+      "text": "SOW §3.8: \"reputation ratings can only be submitted by the platform's scorer key. Settlement, rating submission, and dispute resolution are therefore trusted, permissioned operations today.\" This is still true. Only the platform's production key writes ratings, and disputes are decided by the platform's operator: the first, on a team test run, was upheld on 2026-09-30.",
       "sow_ref": "§3.8",
-      "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). Of the 39 ratings written during the sprint, 36 come from runs whose payment did not settle, including the three failed runs of the team's deliberate faulty test agent, and 3 from the team's settled escrow v2 test runs of 2026-09-30."
+      "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). Of the 40 ratings written during the sprint, 36 come from runs whose payment did not settle, including the three failed runs of the team's deliberate faulty test agent, 3 from the team's settled escrow v2 test runs of 2026-09-30, and 1 is the dispute rating written when the first dispute was upheld that day."
     }
   ],
   "notes": [
@@ -1375,7 +1399,7 @@
     {
       "id": "team_wallets",
       "title": "How an outside operator is told apart from the team",
-      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. 14 of the 20 registrations so far are by team wallets, and each is labelled that way here; the 14th, on 2026-09-30, is the deliberate faulty test agent faulty_test_v2 (see Deliverable 2). The other 6, all on 2026-09-29, are by 2 outside operators: one operator's trial agent, bound to a parked web page, and a second operator's five agents, not yet bound to any endpoint (see Deliverable 4). The escrow v2 test runs of 2026-09-30 used team wallets only: the buyers GB4K6…YKAYKK, which is in the register, and GCNQA…A2GP, whose register entry is in backend pull request #96, not merged yet; and the admin wallet GA7AI…5OQV, which owns the agents and authorized the faulty agent's runs."
+      "text": "The team keeps a public register of every wallet it controls, in the backend repository (app/data/team_wallets.json). An agent counts as outside only when its owner is not in that register and holds no platform role. 14 of the 25 registrations so far are by team wallets, and each is labelled that way here; the 14th, on 2026-09-30, is the deliberate faulty test agent faulty_test_v2 (see Deliverable 2). The other 11 are by 7 outside operators: 6 agents from 2 operators on 2026-09-29 and 5 agents from 5 more operators on 2026-09-30. One is bound to a parked web page and the other 10 are not bound to any endpoint (see Deliverable 4). The escrow v2 test runs of 2026-09-30 used team wallets only: the buyers GB4K6…YKAYKK, which is in the register, and GCNQA…A2GP, added to the register on 2026-09-30 (backend pull request #96); and the admin wallet GA7AI…5OQV, which owns the agents and authorized the faulty agent's runs."
     },
     {
       "id": "pre_sprint_activity",
@@ -1395,7 +1419,7 @@
     {
       "id": "sow_versions",
       "title": "Targets come from SOW v4",
-      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today they stand at 6, 2 and 0, which meets the first two v4 targets and misses the third. The first two count registrations only: no outside agent is bound to a working endpoint yet (see Deliverable 4)."
+      "text": "An earlier SOW, v3 (2026-06-11), set lower targets: at least 1 outside agent, 1 outside wallet and 2 settled workflows. The approved v4 (2026-08-01) raised them to 2, 2 and 3. This index measures against v4. Today they stand at 11, 7 and 0, which meets the first two v4 targets and misses the third. The first two count registrations only: no outside agent is bound to a working endpoint yet (see Deliverable 4)."
     },
     {
       "id": "repository_addresses",
