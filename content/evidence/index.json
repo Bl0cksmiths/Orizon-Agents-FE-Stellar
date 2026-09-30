@@ -1511,7 +1511,7 @@
     {
       "id": "pre_sprint_activity",
       "title": "The 8 'charged' events on the escrow do not count",
-      "text": "The live PaymentEscrow's Events tab shows 8 'charged' events and the AttestationRegistry shows 8 seals. All 16 are from 2026-05-13 to 2026-06-09, months before the sprint began on 2026-09-07. In each, the team's admin wallet was the buyer, the settler and the agent's owner, so it paid itself and no money changed hands. They are linked under metric 4 so you can check them, and they are not counted toward any target."
+      "text": "The v1 PaymentEscrow's Events tab shows 8 'charged' events, and the AttestationRegistry shows 8 seals from the same days. All 16 are from 2026-05-13 to 2026-06-09, months before the sprint began on 2026-09-07. In each, the team's admin wallet was the buyer, the settler and the agent's owner, so it paid itself and no money changed hands. They are linked under metric 4 so you can check them, and they are not counted toward any target. The AttestationRegistry's 3 seals of 2026-09-30 are different: they seal the team's escrow v2 test runs (see Deliverable 4)."
     },
     {
       "id": "corrections",
