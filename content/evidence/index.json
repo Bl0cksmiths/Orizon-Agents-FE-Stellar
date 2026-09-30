@@ -4,7 +4,7 @@
   "sow": {
     "version": "v4",
     "date": "2026-08-01",
-    "note": "This index follows the approved SOW v4, dated 2026-08-01. Section 6.1 says what evidence each deliverable owes, section 6.2 is the checklist the Ambassador Chapter Lead marks (Present, Partial or Missing), and section 6.3 lists the eleven success metrics. Each deliverable below repeats the SOW's Evidence Type and Description word for word. Every piece of evidence has a status and a link you can open, and anything missing or partly done says why in plain words."
+    "note": "This index follows the approved SOW v4, dated 2026-08-01. Section 6.1 says what evidence each deliverable owes, section 6.2 is the checklist the Ambassador Chapter Lead marks (Present, Partial or Missing), and section 6.3 lists the eleven success metrics. One of them, metric m03, was removed from the sprint's requirements on 2026-09-30, so the metrics table shows the other ten and the removal is stated under Disclosures. Each deliverable below repeats the SOW's Evidence Type and Description word for word. Every piece of evidence has a status and a link you can open, and anything missing or partly done says why in plain words."
   },
   "snapshot": {
     "as_of": "2026-09-30",
