@@ -1,6 +1,6 @@
 # §6 · Operations and Governance
 
-*v0.5, 2026-09-29: §6 updated for open registration, reputation-gated routing and the dispute window.*
+*v0.5, 2026-09-29: §6 updated for open registration, reputation-gated routing and the dispute window. Revised 2026-09-30: escrow v2 deployed on testnet and settling, with refunds switched on.*
 
 The protocol works only as well as the people who run it. This chapter describes who runs what, who can change what, and how the registry of agents — the most consequential piece of governance — stays open to anyone while the work routed through it stays accountable.
 
