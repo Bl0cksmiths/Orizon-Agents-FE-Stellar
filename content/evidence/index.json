@@ -1120,9 +1120,9 @@
       "category": "Transaction targets",
       "metric": "Dispute → partial-refund settlements",
       "target": "≥ 1",
-      "achieved": "0",
-      "status": "not_met",
-      "reason": "No dispute has been refunded yet. The reputation ledger holds 40 ratings (40 of kind auto) and no dispute rating; its lifetime dispute count is 0 across all 20 agents. The only transfer out of a platform key on record, on 2026-09-12, went to a team key with no dispute behind it. One dispute, on a team test run's settled step, is open and pending the adjudicator's decision (see Deliverable 3).",
+      "achieved": "1",
+      "status": "met",
+      "reason": "Met on 1 refund, from the team's own test run of 2026-09-30: the platform upheld a dispute that the team's harness raised against a 0.01 XLM step paid by the team key GCNQA…A2GP to calculatorai, owned by the team's admin wallet. It wrote a dispute rating and paid the buyer 0.01 XLM back from the platform's signing key (see Deliverable 3). The ledger's lifetime dispute count is 1 across all agents. No dispute has been raised on an outside operator's work.",
       "method": "Read the dispute ratings the platform wrote to the ReputationLedger (from its keys' full transaction history) and traced each back, through the derived job id the backend records a dispute under, to the charge it disputes. A refund counts only when that charge counts and the platform then paid its payer back over the asset contract, no more than the charge. A transfer with no dispute behind it (such as a refund drill) does not count. The ledger's lifetime dispute count for every agent is read as a cross-check.",
       "links": [
         {
@@ -1136,6 +1136,20 @@
           "kind": "tx",
           "tx_hash": "9b8ffaa44b2b966e4c3f1ab581f4203a30d282901ba3b231a578e46d8f919a68",
           "date": "2026-09-12"
+        },
+        {
+          "label": "Dispute rating on calculatorai — 2026-09-30 (counted: refunded)",
+          "url": "https://stellar.expert/explorer/testnet/tx/b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
+          "kind": "tx",
+          "tx_hash": "b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Refund of 0.01 XLM to the payer of the disputed charge — 2026-09-30 (counted)",
+          "url": "https://stellar.expert/explorer/testnet/tx/cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+          "kind": "tx",
+          "tx_hash": "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+          "date": "2026-09-30"
         }
       ]
     },
