@@ -81,6 +81,27 @@ describe("the published operator guide", () => {
     );
   });
 
+  it("never says escrow v2 is still to be deployed, or that nothing settles", () => {
+    expect(SOURCE).not.toMatch(/once escrow v2 is deployed/i);
+    expect(SOURCE).not.toMatch(/until escrow v2 is deployed/i);
+    expect(SOURCE).not.toMatch(/That escrow v2 is deployed/);
+    expect(SOURCE).not.toMatch(/the deployment is on escrow v1/i);
+    expect(SOURCE).not.toMatch(/deployed v1 escrow/i);
+  });
+
+  it("records F-019 as fixed by the escrow v2 deploy, out of Known issues", () => {
+    // The friction log's rule: `fixed` means a merged and deployed change
+    // removed it. Escrow v2 was deployed on 2026-09-30.
+    expect(FRICTION_MAP["F-019"]).toBe("#check-that-payment-is-live");
+    const known = section("## Known issues", /^## /m);
+    expect(known).not.toContain("| F-019 |");
+    const coverage = section("## Friction log coverage", /^## /m);
+    const row = coverage
+      .split("\n")
+      .find((line) => line.startsWith("| F-019 |"));
+    expect(row).toContain("(fixed by the escrow v2 deploy, 2026-09-30)");
+  });
+
   it.each(["id_malformed", "id_reserved", "id_taken"])(
     "documents %s with what it means and what to do",
     (code) => {
