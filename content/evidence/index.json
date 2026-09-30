@@ -1536,7 +1536,7 @@
     {
       "id": "live_backend",
       "title": "The live API is updated by hand",
-      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It was last deployed on 2026-09-29, with everything merged to the backend's main branch up to pull request #94, including the adoption counter (backend pull request #89). Settlement through escrow v2 (backend pull request #88) is in that build but cannot run yet: the escrow v2 contract is not deployed to testnet, so the live escrow is still v1. No merged backend work is waiting for a deploy."
+      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It was deployed on 2026-09-29 with everything merged to the backend's main branch up to pull request #94, including the adoption counter (backend pull request #89) and settlement through escrow v2 (backend pull request #88). Until 2026-09-30 that settlement could not run, because escrow v2 was not yet on testnet and the live escrow was v1. On 2026-09-30 escrow v2 was deployed and the live API's escrow setting (STELLAR_PAYMENT_ESCROW) was pointed at it; its readiness report now shows escrow version 2 and refunds switched on, with disputes stored in Postgres."
     },
     {
       "id": "network_switch",
