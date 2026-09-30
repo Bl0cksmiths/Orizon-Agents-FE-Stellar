@@ -42,7 +42,7 @@ Emitted once per step *after* the worker returns successfully. Carries the agent
 01.318  cost  x402 payment → agt_02k2 :: 0.018 USDC (tx b04ee2d1…7a85)
 ```
 
-The per-step lines above carry a transaction hash only in this illustration. In the shipped backend, a run without an escrow authorisation emits one `cost` line per step marked `(simulated)`, and a paid run emits a single `cost` line for the workflow's charge instead (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_settle_onchain`). On testnet no paid run gets a settled hash: the deployed escrow cannot complete a charge, and the trace carries an `error` line in its place (§6.9).
+The per-step lines above carry a transaction hash only in this illustration. In the shipped backend, a run without an escrow authorisation emits one `cost` line per step marked `(simulated)`, and a paid run emits a single `cost` line for the workflow's charge instead (BE@a3dc1f9 · app/services/execution_svc.py · `_run`, `_settle_onchain`). Since escrow v2 was deployed on testnet on 2026-09-30, that line is the run's `x402 settle` with the settle transaction's hash (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`). On the retired v1 escrow no paid run got a settled hash: v1 cannot complete a charge, and the trace carried an `error` line in its place (§6.9).
 
 ## B.4 · `out` — worker result summary
 
@@ -75,7 +75,7 @@ Emitted at most once per workflow, after the `AttestationRegistry.seal` call ret
 06.420  proof  workflow sealed — 6 agents · 0.168 USDC · 6.42s
 ```
 
-A workflow that never reaches the sealed `proof` line either failed before the seal, or was run by a self-hosted operator who has not configured a signing key. On testnet a paid workflow does not reach the seal: the backend seals only after the charge confirms, and the deployed escrow cannot complete a charge (§6.9; BE@a3dc1f9 · app/services/execution_svc.py · `_settle_onchain`). A run without an escrow authorisation gets `proof` lines marked `(simulated)`.
+A workflow that never reaches the sealed `proof` line either failed before the seal, or was run by a self-hosted operator who has not configured a signing key. The backend seals only after the run's settlement confirms. On escrow v2, live on testnet since 2026-09-30, a paid workflow reaches the seal (for example seal tx `f0b25fc59ee3c0d3e85cd9d3c92c3d18211411a1c578f8bb2bb58ea59a7e2b5c`, after settle `f0674419…1235`); on the retired v1 escrow none did, because v1 cannot complete a charge (§6.9; BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`). A run without an escrow authorisation gets `proof` lines marked `(simulated)`.
 
 ## B.7 · `error` — unrecoverable failure
 
