@@ -356,10 +356,21 @@
           "id": "6.1-D3-a",
           "claim": "A dispute transaction on Stellar Expert: the negative on-chain rating written when a buyer's dispute is upheld.",
           "status": "missing",
-          "note": "Missing. No dispute has been raised on the live deployment. A buyer can dispute a step only after its payment settles, and no payment has settled during the sprint (see the disclosure on how payment works). All 34 ratings on the live ReputationLedger are ordinary ratings; none is a dispute. The dispute path is merged (the pull requests here). A test run on a separate drill ledger proved the mechanism, but it is not offered as evidence (see the notes).",
+          "note": "Missing. The first dispute on the live deployment is open and pending adjudication. On 2026-09-30 the team's test harness disputed the single step of the team's third settled run (dispute dsp_15acee279ac02852a5877ac1696ec4b5, on calculatorai's 0.01 XLM payout; see Deliverable 4). A dispute rating is written on-chain only when the platform's adjudicator upholds a dispute, and that decision has not been made: it waits on the adjudicator key. Until then all 40 ratings on the live ReputationLedger are ordinary ratings; none is a dispute. The dispute path is merged (the pull requests here). A test run on a separate drill ledger proved the mechanism, but it is not offered as evidence (see the notes).",
           "links": [
             {
-              "label": "ReputationLedger contract on Stellar Expert: 34 ratings so far, none of them a dispute",
+              "label": "Live dispute record from the backend: status open, with no rating or refund yet",
+              "url": "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_15acee279ac02852a5877ac1696ec4b5",
+              "kind": "doc"
+            },
+            {
+              "label": "Screenshot of the open dispute on the live receipt, marked Under review, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d3c-dispute-receipt-desktop-1440.png",
+              "kind": "doc",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "ReputationLedger contract on Stellar Expert: 40 ratings so far, none of them a dispute",
               "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
               "kind": "contract"
             },
