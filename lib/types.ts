@@ -220,16 +220,28 @@ export type TraceLine = {
 
 export type ArtifactFile = {
   path: string;
-  language: string;
+  /** Set by the first-party workers (`ArtifactFile` in app/schemas.py) and
+   * absent from every external operator's file — the backend rebuilds those
+   * from `path` and `content` alone and drops `language` on purpose
+   * (`_parse_files`, app/agents/workers/external_contract.py). */
+  language?: string | null;
   content: string;
 };
 
+/**
+ * Two producers, one wire shape. A first-party worker sends every field
+ * (`CodeArtifact` in app/schemas.py). An external operator's artifact is
+ * rebuilt from an allowlist (`_parse_artifact`,
+ * app/agents/workers/external_contract.py): each of `title`, `files` and
+ * `preview_html` is kept only when it arrived well-formed, at least one of
+ * them always survives, and `summary` and `entry` never do.
+ */
 export type CodeArtifact = {
-  title: string;
-  summary: string;
-  files: ArtifactFile[];
-  entry: string;
-  preview_html: string;
+  title?: string | null;
+  summary?: string | null;
+  files?: ArtifactFile[] | null;
+  entry?: string | null;
+  preview_html?: string | null;
 };
 
 export type ArtifactResponse = {

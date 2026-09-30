@@ -392,7 +392,14 @@ test.describe("evidence page links", () => {
       page.getByRole("contentinfo").getByRole("link", { name: "Evidence" }),
     ).toHaveAttribute("href", EVIDENCE);
     await evidence.click();
-    await expect(page).toHaveURL(new RegExp(`${EVIDENCE}$`));
+    // A client-side navigation: the URL changes only once /evidence's page
+    // chunk has loaded, and under `next dev` with the full suite running that
+    // chunk can be compiled on demand behind other routes' rebuilds. A trace
+    // of this test failing showed the click land on Evidence and the RSC fetch
+    // start at once, with the chunk still pending when `toHaveURL`'s 5s ran
+    // out. `waitForURL` takes the config's 60s navigationTimeout, the budget
+    // set for exactly that compile.
+    await page.waitForURL(new RegExp(`${EVIDENCE}$`));
     await expect(
       page.getByRole("heading", { level: 1, name: "Fixture evidence index" }),
     ).toBeVisible();

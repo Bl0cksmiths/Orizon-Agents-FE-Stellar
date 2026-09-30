@@ -7,6 +7,8 @@ import tsx from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
 import css from "react-syntax-highlighter/dist/esm/languages/prism/css";
 import python from "react-syntax-highlighter/dist/esm/languages/prism/python";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { focusRing } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 SyntaxHighlighter.registerLanguage("html", html);
 SyntaxHighlighter.registerLanguage("markup", html);
@@ -32,29 +34,72 @@ const theme = {
   cdata: { ...oneDark.cdata, color: MUTED },
 };
 
+/**
+ * A declared language → the grammar registered above. The keys are what the
+ * backend's first-party workers declare — `ArtifactFile.language` in
+ * app/agents/workers/code_gen.py documents "html" | "css" | "js" | "tsx" |
+ * "python", and both code workers and the demo kits emit "html" — plus the
+ * long names a model writing that field is as likely to use.
+ */
 const LANG_MAP: Record<string, string> = {
   html: "markup",
+  htm: "markup",
+  markup: "markup",
   js: "javascript",
+  javascript: "javascript",
+  jsx: "tsx",
   ts: "typescript",
+  typescript: "typescript",
   tsx: "tsx",
   css: "css",
   python: "python",
   py: "python",
 };
 
+/** The grammar a file is highlighted with. A language nobody registered is
+ * shown as plain text ("text", the highlighter's no-grammar mode) — colouring
+ * it as markup, as this once did, claimed a grammar the file does not have. */
+export function grammarFor(language: string | null | undefined): string {
+  if (!language) return "text";
+  const key = language.trim().toLowerCase();
+  // Own keys only: "constructor" must not find Object.prototype's.
+  return Object.prototype.hasOwnProperty.call(LANG_MAP, key)
+    ? LANG_MAP[key]
+    : "text";
+}
+
+/**
+ * `language` is optional because the backend does not always send one: an
+ * external operator's artifact files are rebuilt from `path` and `content`
+ * alone (`_parse_files`, app/agents/workers/external_contract.py). A file
+ * with no language renders as plain text — "text" is the highlighter's own
+ * no-grammar mode, so the code keeps its line numbers and wrapping but gets
+ * no token colouring that would claim a language nobody declared.
+ */
 export function CodeViewer({
   language,
   code,
+  label,
   maxHeight = 560,
 }: {
-  language: string;
+  language?: string | null;
   code: string;
+  /** Names the scrollable region for assistive tech — the file it shows. */
+  label: string;
   maxHeight?: number;
 }) {
-  const lang = LANG_MAP[language.toLowerCase()] ?? "markup";
+  const lang = grammarFor(language);
   return (
     <div
-      className="relative overflow-auto rounded-sm border border-border bg-[#060010]"
+      role="region"
+      aria-label={label}
+      // A region that scrolls must be reachable to scroll: keyboard users
+      // otherwise cannot read past the first screen of a long file.
+      tabIndex={0}
+      className={cn(
+        "relative overflow-auto rounded-sm border border-border bg-[#060010]",
+        focusRing,
+      )}
       style={{ maxHeight }}
     >
       <SyntaxHighlighter

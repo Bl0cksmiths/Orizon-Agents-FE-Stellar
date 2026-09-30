@@ -443,7 +443,9 @@ test("the marketing footer links to the demo", async ({ browser }) => {
     .getByRole("contentinfo")
     .getByRole("link", { name: "Demo", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/demo$/);
+  // A client-side navigation: see evidence.spec.ts on why this waits
+  // with the navigation budget rather than `toHaveURL`'s 5s.
+  await page.waitForURL(/\/demo$/);
   await expect(page.getByRole("note")).toHaveText(NOTICE);
   await page.context().close();
 });

@@ -473,11 +473,17 @@ export function ExecutionPlan({
                 {String(i + 1).padStart(2, "0")}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {/* max-w-full + break-all, as the exclusions panel's names:
-                    an agent name may be one unbroken token of up to 100
-                    characters, and at 360px it was clipped silently by the
-                    card rather than wrapped. */}
-                <Badge tone="violet" className="max-w-full break-all">
+                {/* max-w-full + overflow-wrap: anywhere, as the exclusions
+                    panel's names: an agent name may be one unbroken token of
+                    up to 100 characters, and at 360px it was clipped silently
+                    by the card rather than wrapped. Not break-all, which
+                    splits a multi-word name mid-word ("tea / m-run");
+                    `anywhere` wraps at the spaces first, and lets the chip's
+                    flex item shrink so a token still wraps inside it. */}
+                <Badge
+                  tone="violet"
+                  className="max-w-full [overflow-wrap:anywhere]"
+                >
                   {s.agent_name ?? s.agent_id}
                 </Badge>
                 {/* The floor goes in ONLY beside the step's own lower bound.
@@ -529,7 +535,10 @@ export function ExecutionPlan({
                     }
                   >
                     {/* The replaced agent's name is as long as any other. */}
-                    <Badge tone="cyan" className="max-w-full break-all">
+                    <Badge
+                      tone="cyan"
+                      className="max-w-full [overflow-wrap:anywhere]"
+                    >
                       ⇄ for {s.substituted_for}
                     </Badge>
                   </span>

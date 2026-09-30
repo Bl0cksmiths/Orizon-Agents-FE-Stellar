@@ -102,3 +102,53 @@ export const mockPlanNoSteps = {
   notices: [],
   reputation_degraded: false,
 } satisfies DecomposeResponse;
+
+/** The multi-word name that broke mid-word on orizons.xyz at 390px
+ *  (2026-09-30): "…(deliberate, tea / m-run)". */
+export const LONG_MULTI_WORD_NAME = "Faulty test agent (deliberate, team-run)";
+
+/** A Stellar account address: 56 characters with no break opportunity, the
+ *  shape an unnamed external agent's owner-derived id can take. */
+export const LONG_ACCOUNT_ID =
+  "GDQNY3PBOJOKYZSRMK2S7LHHGWZIUISD4QORETLMXEWXBI7KFZZMKTL3";
+
+/**
+ * Exclusions whose names are long in both ways: a multi-word name that must
+ * wrap between its words, and unbroken ids that can only wrap inside
+ * themselves. The first step carries the multi-word name too, since the step
+ * chips wrap by the same rule.
+ */
+export const mockPlanLongExclusionNames = {
+  ...mockPlanExcluded,
+  plan_id: "plan_e2e_long_exclusion_names",
+  steps: [
+    {
+      ...mockPlanExcluded.steps[0],
+      agent_name: LONG_MULTI_WORD_NAME,
+      substituted_for: LONG_ACCOUNT_ID,
+    },
+    ...mockPlanExcluded.steps.slice(1),
+  ],
+  notices: [
+    {
+      kind: "excluded",
+      agent_id: "faulty.team-run",
+      agent_name: LONG_MULTI_WORD_NAME,
+      reason: "below routing floor (3100 < 5500 bps)",
+      reason_code: "below_floor",
+      lower_bound_bps: 3100,
+      floor_bps: 5500,
+    },
+    {
+      kind: "substituted",
+      agent_id: LONG_ACCOUNT_ID,
+      agent_name: null,
+      replacement_id: LONG_AGENT_ID,
+      replacement_name: null,
+      reason: "below routing floor (4167 < 5500 bps)",
+      reason_code: "below_floor",
+      lower_bound_bps: 4167,
+      floor_bps: 5500,
+    },
+  ],
+} satisfies DecomposeResponse;

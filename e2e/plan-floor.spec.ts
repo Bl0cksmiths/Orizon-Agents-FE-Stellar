@@ -33,8 +33,11 @@ import {
   overflowingDescendants,
 } from "./plan-fixtures";
 import {
+  LONG_ACCOUNT_ID,
   LONG_AGENT_ID,
+  LONG_MULTI_WORD_NAME,
   mockPlanColdStart,
+  mockPlanLongExclusionNames,
   mockPlanLongNames,
   mockPlanNoSteps,
   mockPlanPartialOutage,
@@ -1021,6 +1024,124 @@ test.describe("plan card — at the narrow end of phone widths", () => {
     await expect(steps(page).first()).toContainText(`for ${LONG_AGENT_ID}`);
     expect(await overflowingDescendants(planCard(page))).toEqual([]);
   });
+});
+
+/**
+ * Where a rendered name's lines break. Each character is measured with its
+ * own Range, and a character that sits lower than the one before it starts a
+ * new line. A break is between words when a space separates the two
+ * characters either side of it, or the first is a hyphen — "team- / run" is
+ * the break `word-break: normal` itself takes (a UAX #14 opportunity). Any
+ * other break is mid-word: the "tea / m-run" of the 2026-09-30 report.
+ */
+async function lineBreaks(
+  target: Locator,
+): Promise<{ lines: string[]; midWord: string[] }> {
+  return target.evaluate((el) => {
+    // `spaceBefore`: a space came between this character and the last one
+    // measured. A space the line broke at hangs or collapses at the line's
+    // end and may have no box at all, so it is recorded here, not measured.
+    const chars: {
+      ch: string;
+      top: number;
+      height: number;
+      spaceBefore: boolean;
+    }[] = [];
+    let space = false;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const text = n.textContent ?? "";
+      for (let i = 0; i < text.length; i++) {
+        if (/\s/.test(text[i])) {
+          space = true;
+          continue;
+        }
+        const range = document.createRange();
+        range.setStart(n, i);
+        range.setEnd(n, i + 1);
+        const rect = Array.from(range.getClientRects()).find(
+          (r) => r.width > 0,
+        );
+        if (!rect) continue;
+        chars.push({
+          ch: text[i],
+          top: rect.top,
+          height: rect.height,
+          spaceBefore: space,
+        });
+        space = false;
+      }
+    }
+    const lines: string[] = [];
+    const midWord: string[] = [];
+    let line = "";
+    chars.forEach((c, i) => {
+      const prev = chars[i - 1];
+      if (prev && c.top > prev.top + prev.height / 2) {
+        lines.push(line);
+        if (!c.spaceBefore && prev.ch !== "-") {
+          midWord.push(`${line.slice(-6)} / ${c.ch}`);
+        }
+        line = "";
+      } else if (c.spaceBefore && line) {
+        line += " ";
+      }
+      line += c.ch;
+    });
+    lines.push(line);
+    return { lines, midWord };
+  });
+}
+
+test.describe("plan card — long names at phone widths", () => {
+  for (const frame of [PHONE, NARROW_PHONE]) {
+    test(`at ${frame.width}px, a multi-word name wraps between words and ids stay inside the card`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(frame);
+      await decomposeWith(page, mockPlanLongExclusionNames, { wallet: true });
+      await exclusions(page).locator("summary").click();
+      await expect(exclusions(page)).toHaveJSProperty("open", true);
+
+      const rows = exclusionRows(page);
+      await expect(rows).toHaveCount(mockPlanLongExclusionNames.notices.length);
+      await stableBox(rows.last());
+
+      // The name in the exclusions list, and the same name on its step chip.
+      const names = [
+        rows.first().getByText(LONG_MULTI_WORD_NAME, { exact: true }),
+        steps(page).first().getByText(LONG_MULTI_WORD_NAME, { exact: true }),
+      ];
+      for (const [i, name] of names.entries()) {
+        const { lines, midWord } = await lineBreaks(name);
+        // Not vacuous: the name really is wrapped at this width.
+        expect(
+          lines.length,
+          `name ${i} should wrap at ${frame.width}px: ${JSON.stringify(lines)}`,
+        ).toBeGreaterThan(1);
+        expect(midWord, `name ${i}: ${JSON.stringify(lines)}`).toEqual([]);
+      }
+
+      // The unbroken ids have no word to break between: they must still wrap
+      // inside themselves rather than run off the card.
+      await expect(rows.last()).toContainText(LONG_ACCOUNT_ID);
+      await expect(rows.last()).toContainText(LONG_AGENT_ID);
+      await expect(steps(page).first()).toContainText(`for ${LONG_ACCOUNT_ID}`);
+      for (const [index] of mockPlanLongExclusionNames.notices.entries()) {
+        expectWithinWidth(
+          await stableBox(rows.nth(index)),
+          frame,
+          `exclusion row ${index}`,
+        );
+      }
+      expect(await overflowingDescendants(planCard(page))).toEqual([]);
+      expectWithinWidth(
+        await stableBox(planCard(page)),
+        frame,
+        "the plan card",
+      );
+    });
+  }
 });
 
 /**

@@ -1065,25 +1065,60 @@ describe("isArtifactResponse", () => {
     expect(isArtifactResponse({ artifact: bad })).toBe(false);
   });
 
-  it("rejects a file without a language (code viewer calls .toLowerCase)", () => {
-    const bad = {
-      ...artifact,
-      files: [{ path: "index.html", content: "<html/>" }],
-    };
-    expect(isArtifactResponse({ artifact: bad })).toBe(false);
-    const wrongType = {
-      ...artifact,
-      files: [{ path: "app.tsx", language: 42, content: "x" }],
-    };
-    expect(isArtifactResponse({ artifact: wrongType })).toBe(false);
+  // The live shape of an external operator's artifact
+  // (tsk_7e1c369cebaf41b3, calculatorai, 2026-09-30): the backend rebuilds
+  // its files from `path` and `content` and drops `language`, and there is
+  // no `entry` or `summary`. Refusing it blanked the trace with "malformed
+  // response".
+  const external = {
+    title: "Add 250 and 750, then multiply the result by 3",
+    files: [{ path: "report.html", content: "<!doctype html><p>3000</p>" }],
+    preview_html: "<!doctype html><p>3000</p>",
+  };
+
+  it("accepts an external agent's artifact, whose files carry no language", () => {
+    expect(
+      isArtifactResponse({ artifact: external, charge_tx: "a", proof_tx: "b" }),
+    ).toBe(true);
   });
 
-  it("rejects when any one file in the set is missing its language", () => {
-    const bad = {
+  it("accepts a file set that mixes declared and undeclared languages", () => {
+    const mixed = {
       ...artifact,
-      files: [artifact.files[0], { path: "app.js", content: "console.log(1)" }],
+      files: [artifact.files[0], { path: "notes.txt", content: "plain" }],
     };
-    expect(isArtifactResponse({ artifact: bad })).toBe(false);
+    expect(isArtifactResponse({ artifact: mixed })).toBe(true);
+  });
+
+  it("rejects a language of the wrong type (the viewer lowercases it)", () => {
+    for (const language of [42, true, ["html"], { name: "html" }]) {
+      const bad = {
+        ...artifact,
+        files: [{ path: "app.tsx", language, content: "x" }],
+      };
+      expect(isArtifactResponse({ artifact: bad })).toBe(false);
+    }
+  });
+
+  it("rejects a file missing its path or its content, language or not", () => {
+    for (const file of [
+      { content: "x" },
+      { path: "report.html" },
+      { path: 7, content: "x" },
+      { path: "report.html", content: null },
+    ]) {
+      expect(
+        isArtifactResponse({ artifact: { ...external, files: [file] } }),
+      ).toBe(false);
+    }
+  });
+
+  it("rejects a file entry that is not an object", () => {
+    for (const file of ["report.html", 3, null, ["report.html", "x"]]) {
+      expect(
+        isArtifactResponse({ artifact: { ...external, files: [file] } }),
+      ).toBe(false);
+    }
   });
 
   it("rejects a non-string entry or summary", () => {
@@ -1098,6 +1133,44 @@ describe("isArtifactResponse", () => {
   it("accepts an artifact with no entry or summary (both render behind a fallback)", () => {
     const { entry: _e, summary: _s, ...rest } = artifact;
     expect(isArtifactResponse({ artifact: rest })).toBe(true);
+  });
+
+  it("accepts an external artifact carrying any one of title, files or preview", () => {
+    const { title, files, preview_html } = external;
+    for (const only of [
+      { title },
+      { files },
+      { preview_html },
+      { files: [] },
+    ]) {
+      expect(isArtifactResponse({ artifact: only })).toBe(true);
+    }
+  });
+
+  it("rejects an artifact that delivers none of title, files or preview", () => {
+    // The backend answers `artifact: null` for this; an empty object is not
+    // an artifact, and the viewer would draw a blank one.
+    expect(isArtifactResponse({ artifact: {} })).toBe(false);
+    expect(
+      isArtifactResponse({ artifact: { summary: "s", entry: "index.html" } }),
+    ).toBe(false);
+  });
+
+  it("rejects a title, preview or file list of the wrong type", () => {
+    for (const bad of [
+      { ...external, title: 42 },
+      { ...external, preview_html: { html: "<p/>" } },
+      { ...external, files: "report.html" },
+      { ...external, files: { path: "report.html", content: "x" } },
+    ]) {
+      expect(isArtifactResponse({ artifact: bad })).toBe(false);
+    }
+  });
+
+  it("rejects an artifact that is not an object", () => {
+    for (const artifact of ["<html/>", 7, ["report.html"], true]) {
+      expect(isArtifactResponse({ artifact })).toBe(false);
+    }
   });
 
   it("rejects non-object payloads", () => {
