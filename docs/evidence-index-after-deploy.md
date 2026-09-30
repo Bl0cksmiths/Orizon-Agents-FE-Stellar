@@ -9,6 +9,29 @@ exactly what to change, and how to check each change before committing it.
 Change nothing here until its check passes. An index that links a page that
 still answers 404 is worse than one that says the page is coming.
 
+## Metric m03 is removed: keep it out
+
+SOW §6.3 metric m03 ("Workflows routed to external agents & settled on
+Testnet", target ≥ 3) was removed from the sprint's requirements by the team
+lead on 2026-09-30. The index has no m03 row; it lists m03 once under the
+top-level `removed_metrics`, and the page states that in one line under
+Disclosures. The headline counts only the rows shown ("7 of 10 metrics met").
+
+The backend's generator, `scripts/sow_metrics`, does not know this. It always
+produces all eleven rows, each `met` or `not_met`. When you merge its output
+into `content/evidence/index.json`:
+
+- **Drop the m03 row it produces.** Do not paste it back into `metrics`.
+- Keep the `removed_metrics` entry for m03 exactly as it is.
+- Say so in `snapshot.method`, as the current text does.
+
+The validator enforces this: every §6.3 id must be either a row in `metrics`
+or an entry in `removed_metrics`, never both and never neither. A pasted m03
+row fails `npm run evidence:check` with
+`removed_metrics[0].id "m03" is still in metrics; a removed metric has no row`,
+and dropping the entry instead fails with `m03 is left out with no
+removed_metrics entry`. Neither is fixed by editing the validator.
+
 ## 0. Before you start
 
 Two deploys unlock different rows. Check which have happened.
