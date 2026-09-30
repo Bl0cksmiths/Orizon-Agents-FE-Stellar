@@ -292,3 +292,34 @@ test("fails when a book declares the other network", () => {
   assert.equal(status, 1, out);
   assert.match(out, /addresses\.json declares network "mainnet"/);
 });
+
+// The README lists v2 beside v1 once it is deployed. "PaymentEscrow v2" also
+// contains "PaymentEscrow", so the row must be held to the v2 key, not to v1's.
+const withV2Row = (v2) =>
+  readme().replace(
+    "## Testnet\n",
+    `## Testnet\n| **PaymentEscrow v2** | ${cell("testnet", v2)} |\n`,
+  );
+
+test("checks a README escrow v2 row against the v2 entry", () => {
+  const { status, out } = check({
+    readmeText: withV2Row(V2),
+    pins: { public: null, testnet: V2 },
+    books: { testnet: { ...TESTNET, payment_escrow_v2: V2 } },
+  });
+  assert.equal(status, 0, out);
+  assert.match(
+    out,
+    new RegExp(`  ok {2}README\\.md:\\d+ \\(testnet\\) {2}${V2}`),
+  );
+});
+
+test("fails a README escrow v2 row that links v1's escrow", () => {
+  const { status, out } = check({
+    readmeText: withV2Row(TESTNET.payment_escrow),
+    pins: { public: null, testnet: V2 },
+    books: { testnet: { ...TESTNET, payment_escrow_v2: V2 } },
+  });
+  assert.equal(status, 1, out);
+  assert.match(out, /the testnet payment_escrow_v2 is /);
+});
