@@ -392,8 +392,18 @@
           "id": "6.1-D3-b",
           "claim": "The matching partial-refund transaction on Stellar Expert.",
           "status": "missing",
-          "note": "Missing. No refund has been paid on the live deployment. There is nothing to refund yet, because no payment has settled, and refunds ship switched off until one does. A refund is a credit the platform sends from its own balance (see the disclosures). The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
+          "note": "Missing. No refund has been paid on the live deployment. Since 2026-09-30 there are settled payments a dispute can refund, and refunds are switched on: the live readiness report shows disputes.reconcile.enabled true, with disputes stored in Postgres. The one open dispute (see the item above) is pending adjudication, and a refund is paid only if it is upheld. A refund is a credit the platform sends from its own balance (see the disclosures). The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
           "links": [
+            {
+              "label": "Live backend readiness report: escrow version 2 and refunds switched on",
+              "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
+              "kind": "doc"
+            },
+            {
+              "label": "Live dispute record from the backend: status open, with no refund yet",
+              "url": "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_15acee279ac02852a5877ac1696ec4b5",
+              "kind": "doc"
+            },
             {
               "label": "Backend pull request #62: the partial-credit refund, paid by the platform's signing key (merged)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/62",
