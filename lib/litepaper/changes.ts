@@ -36,13 +36,13 @@ export const LITEPAPER_CHANGES: readonly LitepaperChange[] = [
     where: "§6.8",
     title: "The dispute window and platform-funded credit",
     kind: "new",
-    text: "The payer has 24 hours after a paid workflow settles to dispute a step. A Blocksmiths operator decides, and an upheld dispute is credited by a transfer from the platform's own key; nothing is taken back from the agent. The refund path ships switched off, and on testnet no window opens until escrow v2 is deployed.",
+    text: "The payer has 24 hours after a paid workflow settles to dispute a step. A Blocksmiths operator decides, and an upheld dispute is credited by a transfer from the platform's own key; nothing is taken back from the agent. The refund path ships switched off; on testnet it was switched on on 2026-09-30, when escrow v2 went live and the first window opened.",
   },
   {
     where: "§6.1, §6.6",
     title: "Settler rotation, corrected",
     kind: "corrected",
-    text: "v0.4 said the admin could rotate the settler key. The deployed escrow fixes its settler when it is created and has no way to change it. Escrow v2, merged but not deployed, adds an admin-only setter.",
+    text: "v0.4 said the admin could rotate the settler key. The first escrow fixed its settler when it was created and had no way to change it. Escrow v2, deployed on testnet on 2026-09-30, adds an admin-only setter.",
   },
   {
     where: "§6.2, §6.3",
@@ -66,6 +66,6 @@ export const LITEPAPER_CHANGES: readonly LitepaperChange[] = [
     where: "§6.9",
     title: "Standing disclosures",
     kind: "new",
-    text: "§6 now ends with what holds throughout: testnet only, the deployed escrow cannot settle, one settler key with no setter, credits funded and decided by the platform, and endpoint binding kept off chain.",
+    text: "§6 now ends with what holds throughout: testnet only, escrow v2 settling where v1 could not, one settler key that the admin can now rotate, credits funded and decided by the platform, and endpoint binding kept off chain.",
   },
 ];
