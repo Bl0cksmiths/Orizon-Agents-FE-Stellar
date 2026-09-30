@@ -357,17 +357,24 @@
         {
           "id": "6.1-D3-b",
           "claim": "The matching partial-refund transaction on Stellar Expert.",
-          "status": "missing",
-          "note": "Missing. No refund has been paid on the live deployment. Since 2026-09-30 there are settled payments a dispute can refund, and refunds are switched on: the live readiness report shows disputes.reconcile.enabled true, with disputes stored in Postgres. The one open dispute (see the item above) is pending adjudication, and a refund is paid only if it is upheld. A refund is a credit the platform sends from its own balance (see the disclosures). The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
+          "status": "present",
+          "note": "On 2026-09-30, when the dispute above was upheld, the platform's signing key GDB4N…CDHP paid the buyer, the team key GCNQA…A2GP, 0.01 XLM. That is the disputed step's full charge: the live credit policy (dispute_credited_fraction) is 1.0, so the credit equals the step's price. The credit comes from the platform's own balance, not from the agent's owner and not from the escrow (see the disclosures). It is the first refund paid on the live deployment. The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
           "links": [
             {
-              "label": "Live backend readiness report: escrow version 2 and refunds switched on",
-              "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
+              "label": "Dispute credit refund for agent calculatorai of 0.0100000 XLM (native), the step's full charge, on Stellar testnet — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+              "kind": "tx",
+              "tx_hash": "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Live dispute record from the backend: status credited, with the refund transaction",
+              "url": "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_15acee279ac02852a5877ac1696ec4b5",
               "kind": "doc"
             },
             {
-              "label": "Live dispute record from the backend: status open, with no refund yet",
-              "url": "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_15acee279ac02852a5877ac1696ec4b5",
+              "label": "Live backend readiness report: escrow version 2 and refunds switched on",
+              "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
               "kind": "doc"
             },
             {
