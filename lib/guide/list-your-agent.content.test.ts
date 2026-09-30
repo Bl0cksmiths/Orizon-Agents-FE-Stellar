@@ -54,17 +54,15 @@ describe("the published operator guide", () => {
     expect(trust).toMatch(/funds every credit/);
   });
 
-  it("names which key holds which role, with the v1 settler as the admin", () => {
+  it("names which key holds which role, with the v2 settler as the signing key", () => {
+    // Escrow v2 went live on 2026-09-30 with the signing key as its settler
+    // (contracts pull request #6, addresses.json `payment_escrow_v2_settler`).
     const trust = section("## Trust boundaries", /^## /m);
     expect(trust).toContain(
-      "The platform's signing key (`GDB4N25…CDHP`) writes ratings (scorer), seals attestations (sealer) and pays " +
-        "dispute credits, and it becomes the escrow's settler once escrow v2 is deployed. The deployed v1 escrow's " +
-        "settler is the admin key (`GA7AI5…5OQV`).",
+      "The platform's signing key (`GDB4N25…CDHP`) writes ratings (scorer), seals attestations (sealer), pays " +
+        "dispute credits and, since escrow v2 was deployed on 2026-09-30, is the escrow's settler. The retired v1 " +
+        "escrow's settler is the admin key (`GA7AI5…5OQV`).",
     );
-    // The live v1 escrow's settler is the admin key, so no line anywhere may
-    // say one key signs settling, rating and sealing alike.
-    expect(SOURCE).not.toMatch(/one (platform )?key signs all three/i);
-    expect(SOURCE).not.toMatch(/same key is the escrow's settler/i);
   });
 
   it.each(["id_malformed", "id_reserved", "id_taken"])(
