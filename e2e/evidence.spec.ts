@@ -12,6 +12,9 @@
  *     another origin;
  *   - the §6.2 checklist summary shows its derived suggestions and its rule;
  *   - a missed target's reason is visible inline in the metrics table;
+ *   - a metric removed from the sprint's requirements (the fixture's m03) has
+ *     no row, is left out of the count, and is disclosed in one plain line in
+ *     the disclosures list;
  *   - nothing scrolls sideways, and axe (WCAG 2.1 A/AA) is clean;
  * and also:
  *   - the REAL index (content/evidence/index.json), from the second dev
@@ -42,6 +45,8 @@ const A4_CONTENT = { width: 688, height: 1000 };
 const HASH = "1".repeat(64);
 const TX_URL = `https://stellar.expert/explorer/testnet/tx/${HASH}`;
 const M05_REASON = "Fixture reason for m05: not reached in the fixture.";
+const M03_METRIC = "Workflows routed to external agents & settled on Testnet";
+const REMOVED_LINE = `SOW §6.3 metric m03 (${M03_METRIC}, target ≥ 3) was removed from the sprint’s requirements on September 30, 2026.`;
 
 type Visit = { page: Page; thirdParty: string[]; apiCalls: string[] };
 
@@ -139,6 +144,24 @@ function metrics(page: Page) {
   return page.getByRole("table", { name: /SOW §6\.3 success metrics/ });
 }
 
+/** The removed metric: no row in the table, one plain line in the disclosures. */
+async function expectRemovedM03(page: Page) {
+  await expect(metrics(page)).toBeVisible();
+  await expect(
+    metrics(page).getByRole("rowheader", { name: new RegExp(M03_METRIC) }),
+  ).toHaveCount(0);
+  await expect(metrics(page)).not.toContainText(M03_METRIC);
+  const line = page.locator("[data-removed-metric]");
+  await expect(line).toHaveCount(1);
+  const inDisclosures = page
+    .getByRole("region", { name: "Disclosures" })
+    .locator('li[data-removed-metric="m03"]');
+  await inDisclosures.scrollIntoViewIfNeeded();
+  await expect(inDisclosures).toBeVisible();
+  await expect(inDisclosures).toHaveText(REMOVED_LINE);
+  await expect(inDisclosures.locator("[data-status]")).toHaveCount(0);
+}
+
 /** The suggestion each §6.2 row shows, as the reviewer reads it. */
 async function suggestions(page: Page): Promise<string[][]> {
   const rows = checklist(page).getByRole("row");
@@ -206,6 +229,8 @@ for (const [name, viewport] of [
       await reason.scrollIntoViewIfNeeded();
       await expect(reason).toBeVisible();
       await expect(m05.locator("[data-status]")).toHaveText("✕Not met");
+      await expect(table.getByRole("row")).toHaveCount(11);
+      await expectRemovedM03(page);
 
       await page.waitForLoadState("networkidle");
       expect(thirdParty).toEqual([]);
@@ -264,6 +289,7 @@ test.describe("evidence page with JavaScript disabled", () => {
     expect(await suggestions(page)).toEqual(EXPECTED_SUGGESTIONS);
     await expect(metrics(page).getByRole("row")).toHaveCount(11);
     await expect(page.getByText(M05_REASON)).toBeVisible();
+    await expectRemovedM03(page);
     await expect(page.locator("[data-disclosure]")).toHaveCount(4);
     await expect(
       page.getByRole("link", {
@@ -313,14 +339,19 @@ test.describe("evidence page printed", () => {
       }),
     ).toBeVisible();
 
+    // The removed metric prints too: no row, its line in the disclosures.
+    await expectRemovedM03(page);
+
     // Badges print as black words, the page as black on white.
     const colours = await page.evaluate(() => {
       const badge = document.querySelector('[data-status="missing"]')!;
+      const removed = document.querySelector("[data-removed-metric] p")!;
       return {
         badge: getComputedStyle(badge).color,
         badgeText: (badge as HTMLElement).innerText.replace(/\s+/g, " "),
         body: getComputedStyle(document.body).backgroundColor,
         text: getComputedStyle(document.querySelector("h1")!).color,
+        removed: getComputedStyle(removed).color,
       };
     });
     expect(colours).toEqual({
@@ -328,6 +359,7 @@ test.describe("evidence page printed", () => {
       badgeText: "✕ MISSING",
       body: "rgb(255, 255, 255)",
       text: "rgb(0, 0, 0)",
+      removed: "rgb(0, 0, 0)",
     });
 
     // And the printed pack really renders.
@@ -425,7 +457,7 @@ test.describe("the real evidence index at 360px", () => {
   ) as {
     title: string;
     deliverables: { items: Linked[] }[];
-    metrics: Linked[];
+    metrics: (Linked & { id: string; status: string })[];
   };
   const indexUrls = [
     ...index.deliverables.flatMap((d) => d.items),
@@ -451,6 +483,15 @@ test.describe("the real evidence index at 360px", () => {
     );
     expect(indexUrls.length).toBeGreaterThan(100);
     expect(indexUrls.filter((url) => !hrefs.has(url))).toEqual([]);
+    // m03 was removed from the sprint's requirements: out of the table and
+    // the count, and disclosed in its one line.
+    expect(index.metrics.map((m) => m.id)).not.toContain("m03");
+    const met = index.metrics.filter((m) => m.status === "met").length;
+    await expect(page.locator("[data-met-count]")).toHaveText(
+      `${met} of 10 metrics met.`,
+    );
+    await expect(metrics(page).getByRole("row")).toHaveCount(11);
+    await expectRemovedM03(page);
     expect(await sidewaysOverflow(page)).toEqual([]);
     expect(await axeProblems(page)).toEqual([]);
     await page.waitForLoadState("networkidle");
@@ -482,6 +523,7 @@ test.describe("the real evidence index at 360px", () => {
     const urls = page.locator("[data-evidence-page] [data-print-url]");
     const count = await urls.count();
     for (let i = 0; i < count; i++) await expect(urls.nth(i)).toBeVisible();
+    await expectRemovedM03(page);
 
     // Paper, not the phone, sets the printed width: A4 less the 14mm side
     // margins of print.css is 182mm, 688px at 96 per inch.
