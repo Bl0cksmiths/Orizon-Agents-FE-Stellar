@@ -242,6 +242,7 @@ const networkOf = new Map(
 
 /** How the README's tables name each contract, against its book key. */
 const README_LABELS = [
+  ["PaymentEscrow v2", "payment_escrow_v2"],
   ["PaymentEscrow", "payment_escrow"],
   ["AgentRegistry", "agent_registry"],
   ["AttestationRegistry", "attestation_registry"],
@@ -258,8 +259,13 @@ let readmeChecked = 0;
 
 readmeLines.forEach((line, index) => {
   const where = `${README}:${index + 1}`;
-  const labels = README_LABELS.filter(([label]) =>
+  const named = README_LABELS.filter(([label]) =>
     new RegExp(`\\b${label}\\b`).test(line),
+  );
+  // "PaymentEscrow v2" also contains "PaymentEscrow": the longer name wins.
+  const labels = named.filter(
+    ([label]) =>
+      !named.some(([other]) => other !== label && other.includes(label)),
   );
   for (const match of line.matchAll(EXPLORER_LINK)) {
     const [, text, segment, id] = match;
