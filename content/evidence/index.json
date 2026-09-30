@@ -634,9 +634,10 @@
               "date": "2026-09-28"
             },
             {
-              "label": "Backend pull request #96 (open): adds the run 2 and 3 buyer key GCNQA…A2GP to the team wallet register",
+              "label": "Backend pull request #96 (merged): adds the run 2 and 3 buyer key GCNQA…A2GP to the team wallet register",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/96",
-              "kind": "pr"
+              "kind": "pr",
+              "date": "2026-09-30"
             },
             {
               "label": "PaymentEscrow v1 contract on Stellar Expert (replaced on 2026-09-30): its Events tab shows 8 pre-sprint self-payments and none since",
