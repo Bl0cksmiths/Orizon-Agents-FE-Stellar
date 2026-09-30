@@ -54,17 +54,52 @@ describe("the published operator guide", () => {
     expect(trust).toMatch(/funds every credit/);
   });
 
-  it("names which key holds which role, with the v1 settler as the admin", () => {
+  it("names which key holds which role, with the v2 settler as the signing key", () => {
+    // Escrow v2 went live on 2026-09-30 with the signing key as its settler
+    // (contracts pull request #6, addresses.json `payment_escrow_v2_settler`).
     const trust = section("## Trust boundaries", /^## /m);
     expect(trust).toContain(
-      "The platform's signing key (`GDB4N25…CDHP`) writes ratings (scorer), seals attestations (sealer) and pays " +
-        "dispute credits, and it becomes the escrow's settler once escrow v2 is deployed. The deployed v1 escrow's " +
-        "settler is the admin key (`GA7AI5…5OQV`).",
+      "The platform's signing key (`GDB4N25…CDHP`) writes ratings (scorer), seals attestations (sealer), pays " +
+        "dispute credits and, since escrow v2 was deployed on 2026-09-30, is the escrow's settler. The retired v1 " +
+        "escrow's settler is the admin key (`GA7AI5…5OQV`).",
     );
-    // The live v1 escrow's settler is the admin key, so no line anywhere may
-    // say one key signs settling, rating and sealing alike.
-    expect(SOURCE).not.toMatch(/one (platform )?key signs all three/i);
-    expect(SOURCE).not.toMatch(/same key is the escrow's settler/i);
+  });
+
+  it("names the live escrow v2 as the id this frontend build pins, and v1 as history", () => {
+    const pinned: { testnet: string } = JSON.parse(
+      readFileSync(path.join(process.cwd(), "lib/escrow-address.json"), "utf8"),
+    );
+    const check = section("### Check that payment is live", /^### /m);
+    expect(check).toContain(
+      `Escrow v2 is live on testnet at \`${pinned.testnet}\`. It was deployed on 2026-09-30`,
+    );
+    expect(check).toContain("the deployment has gone back to **escrow v1**");
+    expect(check).toContain("which is kept only as history");
+    // Its first settlement, a disclosed team run, read back on Horizon.
+    expect(check).toContain(
+      "https://stellar.expert/explorer/testnet/tx/f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+    );
+  });
+
+  it("never says escrow v2 is still to be deployed, or that nothing settles", () => {
+    expect(SOURCE).not.toMatch(/once escrow v2 is deployed/i);
+    expect(SOURCE).not.toMatch(/until escrow v2 is deployed/i);
+    expect(SOURCE).not.toMatch(/That escrow v2 is deployed/);
+    expect(SOURCE).not.toMatch(/the deployment is on escrow v1/i);
+    expect(SOURCE).not.toMatch(/deployed v1 escrow/i);
+  });
+
+  it("records F-019 as fixed by the escrow v2 deploy, out of Known issues", () => {
+    // The friction log's rule: `fixed` means a merged and deployed change
+    // removed it. Escrow v2 was deployed on 2026-09-30.
+    expect(FRICTION_MAP["F-019"]).toBe("#check-that-payment-is-live");
+    const known = section("## Known issues", /^## /m);
+    expect(known).not.toContain("| F-019 |");
+    const coverage = section("## Friction log coverage", /^## /m);
+    const row = coverage
+      .split("\n")
+      .find((line) => line.startsWith("| F-019 |"));
+    expect(row).toContain("(fixed by the escrow v2 deploy, 2026-09-30)");
   });
 
   it.each(["id_malformed", "id_reserved", "id_taken"])(

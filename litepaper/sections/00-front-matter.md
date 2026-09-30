@@ -5,7 +5,7 @@
 
 ---
 
-**Version** 0.5 · **Date** 2026-09-29
+**Version** 0.5 · **Date** 2026-09-30
 **Network** Stellar (Protocol 22+) · **Settlement** USDC via Stellar Asset Contract
 **By** The Blocksmiths
 

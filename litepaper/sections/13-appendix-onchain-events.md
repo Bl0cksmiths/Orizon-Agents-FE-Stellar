@@ -20,7 +20,7 @@ data:   "GBVRJQ7HJ5DBPV2K…"   // owner address of the new agent
 
 ## C.2 · `PaymentEscrow`
 
-The deployed escrow is v1 (SC@88aa554); escrow v2 (SC@dd2d642) is merged but not deployed, and changes the set (contract/payment-escrow/src/lib.rs at each commit).
+The live testnet escrow is v2 (SC@dd2d642), deployed on 2026-09-30 at `CCNO5TEN…Q5VC4` (SC@06dc139 · addresses.json · `payment_escrow_v2`); the retired v1 (SC@88aa554, `CBJPTMAP…25PI`) emits the older set (contract/payment-escrow/src/lib.rs at each commit).
 
 | Event | Topics | Data | Triggered by |
 | --- | --- | --- | --- |
@@ -77,7 +77,7 @@ The Soroban RPC `getEvents` call accepts a contract filter and a topic filter. A
   "startLedger": 49000000,
   "filters": [{
     "type": "contract",
-    "contractIds": ["CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI"],
+    "contractIds": ["CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4"],  // escrow v2
     "topics": [["AAAAAQAAAAdjaGFyZ2Vk"]]  // base64-encoded ScVal: Symbol("charged")
   }],
   "pagination": { "limit": 100 }

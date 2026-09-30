@@ -4,7 +4,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Agent.** A principal in the protocol that earns USDC for performing a step in a workflow. Run off-chain either as one of the backend's seeded workers or behind an HTTPS endpoint its owner binds to its id (§6.3); recorded on-chain as a row in `AgentRegistry`. Identified by an eight-byte `Symbol` (e.g., `agt_11c0`). See §4.1, §6.2.
 
-**Agent owner.** The Stellar address that registered an agent and to which its payouts go: under escrow v2 (merged, not deployed) one `PaymentEscrow.settle` per workflow pays each delivered step's price to the owner `AgentRegistry.owner_of` names; the deployed v1 escrow's `charge` names the same owner but cannot complete its transfer on testnet (§6.9). The owner is set at `register()` time and verified against `caller.require_auth()` for `update_price` and `set_active`. See §5.3.1.
+**Agent owner.** The Stellar address that registered an agent and to which its payouts go: under escrow v2, the live testnet escrow since 2026-09-30, one `PaymentEscrow.settle` per workflow pays each delivered step's price to the owner `AgentRegistry.owner_of` names; the retired v1 escrow's `charge` names the same owner but cannot complete its transfer on testnet (§6.9). The owner is set at `register()` time and verified against `caller.require_auth()` for `update_price` and `set_active`. See §5.3.1.
 
 **Artifact.** The structured output of a code-producing worker — a single-file HTML document or a multi-file project — returned as a `CodeArtifact` JSON object and stored in `state.artifacts[task_id]`. The artifact's preview is rendered in a sandboxed iframe in the frontend. See §4.3.
 
@@ -20,7 +20,7 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **`BytesN<16>`.** Soroban's fixed-length 16-byte type, used for all protocol-internal identifiers (`auth_id`, `receipt_id`, `job_id`). Deterministic generation avoids ledger-state dependency. See §5.3.
 
-**`charge`.** `PaymentEscrow.charge(caller, auth_id, amount, job_id)`, on the deployed v1 escrow only; v2 has no `charge`. Step 2 of x402 on v1, submitted once per workflow for its total. Settler-only. Validates the envelope, calls `AgentRegistry.owner_of`, transfers via SAC, mutates `Authorization.spent`, stores `Receipt`, returns `receipt_id`. See §5.3.1.
+**`charge`.** `PaymentEscrow.charge(caller, auth_id, amount, job_id)`, on the retired v1 escrow only; v2 has no `charge`. Step 2 of x402 on v1, submitted once per workflow for its total. Settler-only. Validates the envelope, calls `AgentRegistry.owner_of`, transfers via SAC, mutates `Authorization.spent`, stores `Receipt`, returns `receipt_id`. See §5.3.1.
 
 **Composability Hackathon.** The Stellar ecosystem event during which the protocol's first public version was built and demonstrated. The protocol's productisation continues post-event. See §8.3.
 
@@ -64,15 +64,15 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Replay guard.** A persistent-storage marker keyed by `(agent_id, job_id)` in `ReputationLedger`. Prevents the scorer from rating the same `(agent_id, job_id)` pair twice; it does not lapse. See §5.5.1.
 
-**SAC.** Stellar Asset Contract — the Soroban wrapper around a native Stellar asset (XLM, USDC, etc.) exposing `Token::transfer`. The deployed v1 escrow calls it from `PaymentEscrow.charge` to move funds from buyer to agent owner, a transfer that cannot complete on testnet because the charge carries no buyer signature (§6.9). Escrow v2, merged but not deployed, calls it at `authorize`, to take the buyer's funds into custody, and at `settle`, to pay owners and return the rest. See §5.3.
+**SAC.** Stellar Asset Contract — the Soroban wrapper around a native Stellar asset (XLM, USDC, etc.) exposing `Token::transfer`. The retired v1 escrow calls it from `PaymentEscrow.charge` to move funds from buyer to agent owner, a transfer that cannot complete on testnet because the charge carries no buyer signature (§6.9). Escrow v2, live on testnet since 2026-09-30, calls it at `authorize`, to take the buyer's funds into custody, and at `settle`, to pay owners and return the rest. See §5.3.
 
-**Scorer.** The protocol-controlled address authorised to call `ReputationLedger.submit`. Rotatable by the admin via `set_scorer`. On testnet it is the backend's signing key, a different key from the deployed escrow's settler since 2026-09-19. See §6.1.
+**Scorer.** The protocol-controlled address authorised to call `ReputationLedger.submit`. Rotatable by the admin via `set_scorer`. On testnet it is the backend's signing key, which since 2026-09-30 is also escrow v2's settler. See §6.1.
 
 **`seal`.** `AttestationRegistry.seal(...)`. Step 3 of x402. Sealer-only. Write-once. Errs `AlreadyExists` on a second seal of the same `job_id`. See §5.3.1.
 
-**Sealer.** The protocol-controlled address authorised to call `AttestationRegistry.seal`. Rotatable by the admin via `set_sealer`. On testnet it is the backend's signing key, a different key from the deployed escrow's settler since 2026-09-19. See §6.1.
+**Sealer.** The protocol-controlled address authorised to call `AttestationRegistry.seal`. Rotatable by the admin via `set_sealer`. On testnet it is the backend's signing key, which since 2026-09-30 is also escrow v2's settler. See §6.1.
 
-**Settler.** The protocol-controlled address authorised to move escrowed payments: `charge` on the deployed escrow, `settle` on escrow v2. On the deployed escrow it is written once at construction and has no setter, so rotating it requires a redeploy; escrow v2 (merged, not yet deployed) adds an admin-only `set_settler`. See §6.1.
+**Settler.** The protocol-controlled address authorised to move escrowed payments: `settle` on escrow v2, the live testnet escrow since 2026-09-30, and `charge` on the retired v1. On v2 it is the backend's signing key, and the admin can rotate it with `set_settler`; on v1 it is the admin key, written once at construction with no setter, so rotating it required a redeploy. See §6.1.
 
 **SSE.** Server-Sent Events — the HTTP transport the backend uses to stream trace lines to subscribers. One-way, simple, reconnect-friendly. See §A.2, §B.8.
 
@@ -88,4 +88,4 @@ Terms used in this document, in alphabetical order. Where a term carries a preci
 
 **Workflow.** End-to-end: a buyer's intent → a typed plan → a sequence of paid worker calls → a sealed on-chain attestation. The unit of work in the protocol. See §1, §5.
 
-**x402.** A pattern borrowed from the HTTP-402 "payment required" semantics: authorise once, then settle within the envelope on completion. On the deployed v1 escrow it is `authorize` → one `charge` for the workflow's total → `seal`, and the charge cannot complete on testnet (§6.9); on escrow v2, merged but not deployed, it is `authorize` into custody → one `settle` → `seal`. See §5.3.3, Figure 5.
+**x402.** A pattern borrowed from the HTTP-402 "payment required" semantics: authorise once, then settle within the envelope on completion. On escrow v2, the live testnet escrow since 2026-09-30, it is `authorize` into custody → one `settle` → `seal`; on the retired v1 escrow it was `authorize` → one `charge` for the workflow's total → `seal`, and the charge cannot complete on testnet (§6.9). See §5.3.3, Figure 5.

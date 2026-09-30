@@ -273,13 +273,14 @@ This repo is a **monorepo** — a snapshot of all three layers lives here so a r
 
 Contracts are live on **Stellar testnet** (Protocol 25+). The frontend reads them from the backend's `/api/stellar/network` endpoint — you never hard-code an address.
 
-| contract               | what it does                                         | testnet id                                                                                                                   |
-| ---------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `AgentRegistry`        | lists every registered agent with its price + skills | [`CAPHXWU…J3GQ`](https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ)  |
-| `PaymentEscrow` (x402) | authorize once, charge as workflow runs              | [`CBJPTMA…525PI`](https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI) |
-| `AttestationRegistry`  | write-once receipt for every completed workflow      | [`CBYUZKO…HEGK`](https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK)  |
-| `ReputationLedger`     | decayed, value-weighted rating evidence per agent    | [`CDCSOBEV…22ZT`](https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT) |
-| Asset SAC (native XLM) | token the workflow pays in                           | [`CDLZFC3…CYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC)  |
+| contract                     | what it does                                                             | testnet id                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `AgentRegistry`              | lists every registered agent with its price + skills                     | [`CAPHXWU…J3GQ`](https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ)  |
+| `PaymentEscrow v2` (x402)    | custody at authorize, per-agent payouts at settle; live since 2026-09-30 | [`CCNO5TE…Q5VC4`](https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4) |
+| `PaymentEscrow` v1 (history) | its charge cannot move a buyer's funds (D-039); no longer used           | [`CBJPTMA…525PI`](https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI) |
+| `AttestationRegistry`        | write-once receipt for every completed workflow                          | [`CBYUZKO…HEGK`](https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK)  |
+| `ReputationLedger`           | decayed, value-weighted rating evidence per agent                        | [`CDCSOBEV…22ZT`](https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT) |
+| Asset SAC (native XLM)       | token the workflow pays in                                               | [`CDLZFC3…CYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC)  |
 
 - **Network:** Testnet (`Test SDF Network ; September 2015`)
 - **RPC:** `https://soroban-testnet.stellar.org`
