@@ -224,9 +224,75 @@
         {
           "id": "6.1-D2-b",
           "claim": "A routing example where an agent below the reputation floor is left out of the plan.",
-          "status": "missing",
-          "note": "Missing. No agent on the live registry is below the floor today, so there is no live exclusion to show. The lowest is the team's test agent uat624_ext_op, with an on-chain average of about 2.07 out of 5. But every agent starts from an estimate of 3.50, and a few small test ratings are not yet enough evidence to pull it under the 2.75 floor. The exclusion logic is merged and tested (the pull requests here, and the code in the next item). The only frame showing an exclusion so far used a plan written by a test, so it is not offered as evidence. This item becomes present with a recording of a live plan that leaves out a below-floor agent.",
+          "status": "present",
+          "note": "Present. A live plan on orizons.xyz, decomposed on 2026-09-30 at 09:45 UTC with no wallet connected, left out an agent below the reputation floor: 'Faulty test agent (deliberate, team-run)' (faulty_test_v2) is marked Excluded, 'below routing floor (5443 < 5500 bps)', a lower bound of 2.72 against the 2.75 floor, resting on 3 ratings. Disclosure: this is a deliberate test agent the team built and ran to show the floor at work, not an outside operator's agent. It was registered on 2026-09-30 by the team key GB4K6…YKAYKK and is set to hang without delivering (FAULT_MODE=hang_after:0). The team's admin wallet GA7AI…5OQV authorized three paid runs against it; each failed, nothing was charged, and the platform rated each run 20 out of 100. Its reputation lower bound fell from 5677 to 5596, 5518 and then 5443, below the 5500 floor, and the next live plan excluded it. The captures are cropped just below the excluded agent's row, because the rest of that list names agents with no endpoint bound, some of them outside operators' agents, whose names are held back until consent is recorded. The earlier QA frame RF-17 used a plan written by a test and is still not offered as evidence.",
           "links": [
+            {
+              "label": "Screenshot of a live plan at desktop width: the deliberate faulty test agent excluded below the routing floor (5443 < 5500), captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d2b-routing-exclusion-desktop-1440.png",
+              "kind": "doc",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Screenshot of the same exclusion on a live plan at phone width, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d2b-routing-exclusion-phone-390.png",
+              "kind": "doc",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Open the live Orchestrator and press Decompose: a plan lists any agent the floor left out",
+              "url": "https://orizons.xyz/app/orchestrator",
+              "kind": "page"
+            },
+            {
+              "label": "Registration of the deliberate faulty test agent faulty_test_v2 by team key GB4K6…YKAYKK — 2026-09-30 (team wallet)",
+              "url": "https://stellar.expert/explorer/testnet/tx/2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
+              "kind": "tx",
+              "tx_hash": "2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Faulty test run 1 of 3: payment authorization of 0.2 XLM by the team's admin wallet GA7AI…5OQV for faulty_test_v2; the run failed and nothing was charged — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/f10d0f48669d0f1de97d4ae5841f10c4fc27ab60747d1425ad77f16f3c34befb",
+              "kind": "tx",
+              "tx_hash": "f10d0f48669d0f1de97d4ae5841f10c4fc27ab60747d1425ad77f16f3c34befb",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Faulty test run 2 of 3: payment authorization of 0.2 XLM by the team's admin wallet GA7AI…5OQV for faulty_test_v2; the run failed and nothing was charged — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/55f233224e00d96d4e56579fa8077f797c9c3f3c578638a80139eeb5c82c8949",
+              "kind": "tx",
+              "tx_hash": "55f233224e00d96d4e56579fa8077f797c9c3f3c578638a80139eeb5c82c8949",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Faulty test run 3 of 3: payment authorization of 0.2 XLM by the team's admin wallet GA7AI…5OQV for faulty_test_v2; the run failed and nothing was charged — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/6af4f1c3afd8ee50fa25e478897eab9a1563d743a3a112db26d0d560b03b4463",
+              "kind": "tx",
+              "tx_hash": "6af4f1c3afd8ee50fa25e478897eab9a1563d743a3a112db26d0d560b03b4463",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Rating of faulty_test_v2 after failed run 1 of 3: 20 out of 100, lower bound 5677 to 5596 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/e7885bf192688ed4b65006abe82b5b5f58737b15fd06bfaa9c54de13fa0b9663",
+              "kind": "tx",
+              "tx_hash": "e7885bf192688ed4b65006abe82b5b5f58737b15fd06bfaa9c54de13fa0b9663",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Rating of faulty_test_v2 after failed run 2 of 3: 20 out of 100, lower bound 5596 to 5518 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/2980361e248b6a1284e17a2a7ec38d354991afc25f6f982270eb0710fa1aa388",
+              "kind": "tx",
+              "tx_hash": "2980361e248b6a1284e17a2a7ec38d354991afc25f6f982270eb0710fa1aa388",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Rating of faulty_test_v2 after failed run 3 of 3: 20 out of 100, lower bound 5518 to 5443 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/cc83982bd11e39fe61f3446df7f9cfa4a30a741d77ab717abf204894bbf4e30f",
+              "kind": "tx",
+              "tx_hash": "cc83982bd11e39fe61f3446df7f9cfa4a30a741d77ab717abf204894bbf4e30f",
+              "date": "2026-09-30"
+            },
             {
               "label": "Backend pull request #51: the plan lists any agent the floor left out, and the floor itself (merged)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/51",
