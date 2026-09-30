@@ -455,7 +455,7 @@ describe("metrics mirror SOW §6.3", () => {
   it("rejects an unknown status", () => {
     expectOnly((i) => {
       i.metrics[0].status = "partly";
-    }, /^metrics\[0\]\.status must be "met" or "not_met"/);
+    }, /^metrics\[0\]\.status must be "met", "not_met" or "descoped", not "partly"$/);
   });
 
   it("needs the achieved value and the method", () => {
