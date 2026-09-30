@@ -859,19 +859,15 @@
       "category": "Adoption targets",
       "metric": "Externally-operated agents registered on Testnet",
       "target": "≥ 2",
-      "achieved": "6",
+      "achieved": "11",
       "status": "met",
       "method": "Read every agent the AgentRegistry contract lists, with its owner, straight from testnet. An agent counts only if its owner is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
+      "reason": "Met on registrations, which is what the SOW counts: 11 agents registered from 7 outside operators' wallets, 6 on 2026-09-29 and 5 on 2026-09-30. One of them is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their ids and registration hashes are held back here until each operator's consent to publish them is recorded.",
       "links": [
         {
           "label": "AgentRegistry contract (every registered agent)",
           "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
           "kind": "contract"
-        },
-        {
-          "label": "The 6 counted outside registrations (2026-09-29), as the ecosystem page lists them (their hashes are held back here until consent is recorded)",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
         },
         {
           "label": "Registration of orizon_batch by the team's contract admin and v1 escrow settler — 2026-04-20 (excluded: team wallet)",
@@ -965,14 +961,18 @@
           "date": "2026-09-29"
         },
         {
+          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
+          "url": "https://orizons.xyz/app/ecosystem",
+          "kind": "page"
+        },
+        {
           "label": "Registration of faulty_test_v2 by the team's x402 escrow spike key (2026-09-15), random throwaway — 2026-09-30 (excluded: team wallet)",
           "url": "https://stellar.expert/explorer/testnet/tx/2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
           "kind": "tx",
           "tx_hash": "2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
           "date": "2026-09-30"
         }
-      ],
-      "reason": "Met on registrations, which is what the SOW counts: 6 agents registered from 2 outside operators' wallets. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled. Their ids and registration hashes are held back here until each operator's consent to publish them is recorded."
+      ]
     },
     {
       "id": "m02",
