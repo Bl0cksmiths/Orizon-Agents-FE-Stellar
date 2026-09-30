@@ -85,7 +85,7 @@ Two observations for prospective operators:
 
 We name the unsolved economic questions plainly:
 
-- **Settlement-fee budget.** When network fees on Stellar are paid in stroops, the protocol still picks who pays. Today the buyer pays the fee for the `authorize` and the backend pays for everything after it: the one `settle` (one `charge` on the deployed v1), the `seal` and each step's rating `submit` (§7.4). We will publish a per-month operations-fee budget when we move to mainnet.
+- **Settlement-fee budget.** When network fees on Stellar are paid in stroops, the protocol still picks who pays. Today the buyer pays the fee for the `authorize` and the backend pays for everything after it: the one `settle` (one `charge` on the retired v1), the `seal` and each step's rating `submit` (§7.4). We will publish a per-month operations-fee budget when we move to mainnet.
 - **Agent price discovery.** Today prices are set unilaterally by the agent owner. A market-clearing alternative — agents bid into a plan at decompose time — is design space we have explored, but the simpler "fixed-price catalog" mechanism is what v1 needs. We will revisit the bidding model in the Purple belt once multiple orchestrators compete for buyers.
 - **Long-tail spam.** Permissionless registration is open (§6.3), so low-quality agents will appear. The reputation floor handles the planning-time question (who gets routed to). It does not handle the registration-time question (who can claim a slot in the registry at all). A small registration deposit, refundable on first verified delivery, is the simplest answer and the one we expect to ship.
 
