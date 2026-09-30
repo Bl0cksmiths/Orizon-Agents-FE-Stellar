@@ -41,7 +41,7 @@ const PHONE = { width: 360, height: 780 };
 const A4_CONTENT = { width: 688, height: 1000 };
 const HASH = "1".repeat(64);
 const TX_URL = `https://stellar.expert/explorer/testnet/tx/${HASH}`;
-const M03_REASON = "Fixture reason for m03: not reached in the fixture.";
+const M05_REASON = "Fixture reason for m05: not reached in the fixture.";
 
 type Visit = { page: Page; thirdParty: string[]; apiCalls: string[] };
 
@@ -199,13 +199,13 @@ for (const [name, viewport] of [
 
       const table = metrics(page);
       await expect(page.locator("[data-met-count]")).toHaveText(
-        "7 of 11 metrics met.",
+        "7 of 10 metrics met.",
       );
-      const m03 = table.getByRole("row").nth(3);
-      const reason = m03.getByText(M03_REASON);
+      const m05 = table.getByRole("row").nth(4);
+      const reason = m05.getByText(M05_REASON);
       await reason.scrollIntoViewIfNeeded();
       await expect(reason).toBeVisible();
-      await expect(m03.locator("[data-status]")).toHaveText("✕Not met");
+      await expect(m05.locator("[data-status]")).toHaveText("✕Not met");
 
       await page.waitForLoadState("networkidle");
       expect(thirdParty).toEqual([]);
@@ -262,8 +262,8 @@ test.describe("evidence page with JavaScript disabled", () => {
       ).toBeVisible();
     }
     expect(await suggestions(page)).toEqual(EXPECTED_SUGGESTIONS);
-    await expect(metrics(page).getByRole("row")).toHaveCount(12);
-    await expect(page.getByText(M03_REASON)).toBeVisible();
+    await expect(metrics(page).getByRole("row")).toHaveCount(11);
+    await expect(page.getByText(M05_REASON)).toBeVisible();
     await expect(page.locator("[data-disclosure]")).toHaveCount(4);
     await expect(
       page.getByRole("link", {

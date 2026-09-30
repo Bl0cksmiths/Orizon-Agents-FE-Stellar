@@ -21,7 +21,7 @@ describe("evidence route metadata", () => {
       "Evidence index: every claim linked to its proof — Orizon Agents",
     );
     expect(meta.description).toBe(
-      "The Orizon Agents Instaward evidence as of September 28, 2026: each SOW deliverable and success metric linked to its proof on Stellar testnet. 7 of 11 metrics met.",
+      "The Orizon Agents Instaward evidence as of September 28, 2026: each SOW deliverable and success metric linked to its proof on Stellar testnet. 7 of 10 metrics met.",
     );
     expect(meta.alternates).toEqual({ canonical: "/evidence" });
     expect(meta.openGraph).toMatchObject({
@@ -30,6 +30,9 @@ describe("evidence route metadata", () => {
       images: [expect.objectContaining({ url: "/opengraph-image" })],
     });
     expect(meta.twitter).toMatchObject({ card: "summary_large_image" });
+    // The share cards carry the same count, out of the metrics shown.
+    expect(meta.openGraph?.description).toBe(meta.description);
+    expect(meta.twitter?.description).toBe(meta.description);
   });
 
   it("fails the build on a bad index", () => {

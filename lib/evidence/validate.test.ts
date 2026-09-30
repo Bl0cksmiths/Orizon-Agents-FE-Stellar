@@ -34,9 +34,34 @@ function problemsOf(index: unknown): string[] {
   return problems;
 }
 
-/** Break the index with `mutate`, then expect exactly one problem, matching `pattern`. */
-function expectOnly(mutate: (index: Json) => void, pattern: RegExp) {
+/**
+ * The fixture with all eleven §6.3 metrics as rows and none removed: the
+ * fixture itself lists m03 as removed from the sprint's requirements.
+ */
+function eleven(): Json {
   const index = base();
+  delete index.removed_metrics;
+  index.metrics.splice(2, 0, {
+    ...SOW_6_3[2],
+    achieved: "0",
+    status: "not_met",
+    reason: "Not reached in the fixture.",
+    method: "Counted in the fixture.",
+    links: [],
+  });
+  expect(index.metrics.map((m: Json) => m.id)).toEqual(
+    SOW_6_3.map((m) => m.id),
+  );
+  return index;
+}
+
+/** Break the index with `mutate`, then expect exactly one problem, matching `pattern`. */
+function expectOnly(
+  mutate: (index: Json) => void,
+  pattern: RegExp,
+  start: () => Json = base,
+) {
+  const index = start();
   mutate(index);
   const problems = problemsOf(index);
   expect(problems).toHaveLength(1);
@@ -49,7 +74,8 @@ const contractLink = (i: Json) => i.deliverables[4].items[1].links[0];
 const accountLink = (i: Json) => i.deliverables[4].items[1].links[1];
 
 describe("a valid index", () => {
-  it("passes: the fixture", () => {
+  it("passes: the fixture, which lists m03 as removed", () => {
+    expect(base().removed_metrics.map((r: Json) => r.id)).toEqual(["m03"]);
     expect(validateEvidenceIndex(base())).toEqual({ ok: true, problems: [] });
   });
 
@@ -408,21 +434,33 @@ describe("no mainnet anywhere", () => {
 
 describe("metrics mirror SOW §6.3", () => {
   it("must be eleven, not ten", () => {
-    expectOnly((i) => {
-      i.metrics.pop();
-    }, /^metrics must be exactly the eleven of SOW §6\.3, m01 to m11 in order; found 10:/);
+    expectOnly(
+      (i) => {
+        i.metrics.pop();
+      },
+      /^metrics must be exactly the eleven of SOW §6\.3, m01 to m11 in order; found 10: .*; m11 is left out with no removed_metrics entry$/,
+      eleven,
+    );
   });
 
   it("must be eleven, not twelve", () => {
-    expectOnly((i) => {
-      i.metrics.push({ ...i.metrics[10], id: "m12" });
-    }, /^metrics must be exactly the eleven of SOW §6\.3, m01 to m11 in order; found 12:/);
+    expectOnly(
+      (i) => {
+        i.metrics.push({ ...i.metrics[10], id: "m12" });
+      },
+      /^metrics must be exactly the eleven of SOW §6\.3, m01 to m11 in order; found 12:/,
+      eleven,
+    );
   });
 
   it("must be in order", () => {
-    expectOnly((i) => {
-      i.metrics.reverse();
-    }, /^metrics must be exactly the eleven.*found 11: "m11", "m10"/);
+    expectOnly(
+      (i) => {
+        i.metrics.reverse();
+      },
+      /^metrics must be exactly the eleven.*found 11: "m11", "m10"/,
+      eleven,
+    );
   });
 
   for (const key of ["category", "metric", "target"]) {
@@ -440,9 +478,9 @@ describe("metrics mirror SOW §6.3", () => {
 
   it("a not_met metric must give its reason", () => {
     expectOnly((i) => {
-      expect(i.metrics[2].status).toBe("not_met");
-      delete i.metrics[2].reason;
-    }, /^metrics\[2\] is "not_met", so its reason must say why, plainly; it is missing$/);
+      expect(i.metrics[3]).toMatchObject({ id: "m05", status: "not_met" });
+      delete i.metrics[3].reason;
+    }, /^metrics\[3\] is "not_met", so its reason must say why, plainly; it is missing$/);
   });
 
   it("a met metric must link its proof", () => {
@@ -505,19 +543,7 @@ describe("removed metrics", () => {
   });
 
   it("passes: none removed, with the key absent or empty", () => {
-    const index = removed();
-    delete index.removed_metrics;
-    index.metrics.splice(2, 0, {
-      ...SOW_6_3[2],
-      achieved: "0",
-      status: "not_met",
-      reason: "Not reached in the fixture.",
-      method: "Counted in the fixture.",
-      links: [],
-    });
-    expect(index.metrics.map((m: Json) => m.id)).toEqual(
-      SOW_6_3.map((m) => m.id),
-    );
+    const index = eleven();
     expect(problemsOf(index)).toEqual([]);
     index.removed_metrics = [];
     expect(problemsOf(index)).toEqual([]);
@@ -548,7 +574,7 @@ describe("removed metrics", () => {
   });
 
   it("refuses an entry for a metric still in the table", () => {
-    const index = base();
+    const index = eleven();
     index.removed_metrics = [{ ...ENTRY }];
     expect(index.metrics.map((m: Json) => m.id)).toContain("m03");
     expect(problemsOf(index)).toEqual([
