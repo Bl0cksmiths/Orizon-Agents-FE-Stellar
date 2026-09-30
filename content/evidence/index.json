@@ -411,42 +411,127 @@
         {
           "id": "6.1-D4-d",
           "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
-          "status": "missing",
-          "note": "Missing: 0 of 3. No payment has settled on the live escrow during the sprint, and no workflow has been sealed. The deployed PaymentEscrow cannot move a buyer's funds to a different wallet (defect D-039, found in QA), so none of the payment authorizations made since 2026-09-07 has been charged (the escrow has issued 30 authorizations in all, as of 2026-09-30). The escrow's Events tab does show 8 'charged' events, but all are from May and June 2026, before the sprint, and in each the team's admin wallet paid itself. They do not count (see the notes). A fixed escrow, v2, is merged in the contracts repository and the live backend can settle through it, but the v2 contract is not yet deployed to testnet.",
+          "status": "present",
+          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; its entry in the team wallet register is in backend pull request #96, which is not merged yet. Because no outside operator's agent was paid, metric 3 stays at 0. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
           "links": [
             {
-              "label": "PaymentEscrow (v1) contract on Stellar Expert: its Events tab shows 8 pre-sprint self-payments and none since",
-              "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+              "label": "PaymentEscrow v2 contract on Stellar Expert: live since 2026-09-30, where the three runs settled",
+              "url": "https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4",
               "kind": "contract"
             },
             {
-              "label": "AttestationRegistry contract on Stellar Expert: 8 pre-sprint seals and none since",
+              "label": "Team run 1 of 3: buyer authorization of 0.01 XLM by team key GB4K6…YKAYKK for calculatorai on escrow v2 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/36fae7698f6c9f5fe1152458d41eb650353725be877d476846c308e10a672fc7",
+              "kind": "tx",
+              "tx_hash": "36fae7698f6c9f5fe1152458d41eb650353725be877d476846c308e10a672fc7",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Team run 1 of 3: settlement paying 0.01 XLM for calculatorai to its owner, the team's admin wallet GA7AI…5OQV — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+              "kind": "tx",
+              "tx_hash": "f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Team run 1 of 3: attestation seal of the workflow, tying the payout to the work — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/f0b25fc59ee3c0d3e85cd9d3c92c3d18211411a1c578f8bb2bb58ea59a7e2b5c",
+              "kind": "tx",
+              "tx_hash": "f0b25fc59ee3c0d3e85cd9d3c92c3d18211411a1c578f8bb2bb58ea59a7e2b5c",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Team run 2 of 3: buyer authorization of 0.2 XLM by team key GCNQA…A2GP for keyboardai on escrow v2 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/b59d49e2ddb31fe9216c3da271897f184cb25f77203c62032f90864ba224cee1",
+              "kind": "tx",
+              "tx_hash": "b59d49e2ddb31fe9216c3da271897f184cb25f77203c62032f90864ba224cee1",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Team run 2 of 3: settlement paying 0.2 XLM for keyboardai to its owner, the team's admin wallet GA7AI…5OQV — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
+              "kind": "tx",
+              "tx_hash": "19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Team run 2 of 3: attestation seal of the workflow, tying the payout to the work — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/a705d6a437469ac1783f372bf60279f5e90a143c4fcde9bcaad20a7f24f68b02",
+              "kind": "tx",
+              "tx_hash": "a705d6a437469ac1783f372bf60279f5e90a143c4fcde9bcaad20a7f24f68b02",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Team run 3 of 3: buyer authorization of 0.01 XLM by team key GCNQA…A2GP for calculatorai on escrow v2 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/9f9e99c2aadcbf3b06cfe4738012dcc302fcee9358f092cfab4dc7f5caeac655",
+              "kind": "tx",
+              "tx_hash": "9f9e99c2aadcbf3b06cfe4738012dcc302fcee9358f092cfab4dc7f5caeac655",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Team run 3 of 3: settlement paying 0.01 XLM for calculatorai to its owner, the team's admin wallet GA7AI…5OQV — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+              "kind": "tx",
+              "tx_hash": "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Team run 3 of 3: attestation seal of the workflow, tying the payout to the work — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/efca274fb83b50865cfc20dc40b6949e5abd1ae23ed3e7a7622e6c9eda37c0a8",
+              "kind": "tx",
+              "tx_hash": "efca274fb83b50865cfc20dc40b6949e5abd1ae23ed3e7a7622e6c9eda37c0a8",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "AttestationRegistry contract on Stellar Expert: 8 pre-sprint seals, then the three team runs' seals of 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
               "kind": "contract"
             },
             {
-              "label": "Payment authorization by the team's QA buyer key GDJHP…PKXJ for uat624_ext_op, never charged — 2026-09-24 (team wallets)",
+              "label": "Contracts pull request #6 (merged): records the escrow v2 deployment on testnet",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/6",
+              "kind": "pr",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Frontend pull request #101 (merged): the app pins escrow v2",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/101",
+              "kind": "pr",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Contracts pull request #4 (merged; deployed to testnet on 2026-09-30): escrow v2, which fixes the payment defect",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/4",
+              "kind": "pr",
+              "date": "2026-09-28"
+            },
+            {
+              "label": "Backend pull request #88 (merged and deployed): settle payments through escrow v2, running since 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/88",
+              "kind": "pr",
+              "date": "2026-09-28"
+            },
+            {
+              "label": "Backend pull request #96 (open): adds the run 2 and 3 buyer key GCNQA…A2GP to the team wallet register",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/96",
+              "kind": "pr"
+            },
+            {
+              "label": "PaymentEscrow v1 contract on Stellar Expert (replaced on 2026-09-30): its Events tab shows 8 pre-sprint self-payments and none since",
+              "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+              "kind": "contract"
+            },
+            {
+              "label": "Payment authorization on the v1 escrow by the team's QA buyer key GDJHP…PKXJ for uat624_ext_op, never charged — 2026-09-24 (team wallets)",
               "url": "https://stellar.expert/explorer/testnet/tx/b122647fac7fe0ad40be3168736b5344a15229381d90f8be5582df15575b099c",
               "kind": "tx",
               "tx_hash": "b122647fac7fe0ad40be3168736b5344a15229381d90f8be5582df15575b099c",
               "date": "2026-09-24"
             },
             {
-              "label": "Contracts issue #3: why the live escrow cannot move a buyer's funds (defect D-039)",
+              "label": "Contracts issue #3: why the v1 escrow could not move a buyer's funds (defect D-039)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/issues/3",
               "kind": "doc"
-            },
-            {
-              "label": "Contracts pull request #4 (merged, not deployed): escrow v2, which fixes the payment defect",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/4",
-              "kind": "pr",
-              "date": "2026-09-28"
-            },
-            {
-              "label": "Backend pull request #88 (merged and deployed; waits for the escrow v2 contract): settle payments through escrow v2",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/88",
-              "kind": "pr",
-              "date": "2026-09-28"
             }
           ]
         },
