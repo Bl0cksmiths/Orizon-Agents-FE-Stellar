@@ -85,7 +85,7 @@ At an assumed USD 0.50 per XLM (an assumption made on 2026-09-29, not a quote), 
 
 Two observations for prospective operators:
 
-- **The cost of being a buyer is the agents you hire**, not infrastructure. A buyer running ten kit workflows a month pays 1.68 USDC in agent prices and ten `authorize` fees, about 8.62 XLM at the measured mean (10 × 862,247 stroops = 8,622,470 stroops), or about USD 4.31 at the assumed USD 0.50 per XLM; the platform pays the rest of the network fees.
+- **The cost of being a buyer is the agents you hire**, not infrastructure. A buyer running ten kit workflows a month pays 1.68 USDC in agent prices and ten `authorize` fees, about 0.86 XLM at the measured mean (10 × 862,247 stroops = 8,622,470 stroops), or about USD 0.43 at the assumed USD 0.50 per XLM; the platform pays the rest of the network fees.
 - **The cost of operating the protocol is the chain plus the inference bill.** The chain part is measured above: about USD 148 a month for 1,000 workflows at the assumed rate without the one-off archive restores, and USD 455 as sampled, nearly all of it paid by the platform. The inference part is not measured: the protocol covers OpenAI for the orchestrator and the live workers, and this document states no per-workflow inference cost, so we do not claim which of the two is larger. An operator running their own deployment can substitute a self-hosted model, which moves the inference cost to their own hardware.
 
 ## 7.5 · Open questions
