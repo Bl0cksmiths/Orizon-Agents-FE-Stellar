@@ -127,7 +127,7 @@ test("exits 0 when every check passes and the contracts match", async () => {
   assert.equal(code, 0, out);
   assert.match(out, /all 8 checks passed/);
   assert.match(out, /3 live contract ids match/);
-  // The repository's own pin is unset until escrow v2 is deployed.
+  // An unset pin is pending, never a pass or a failure.
   assert.match(
     out,
     /escrow v2 pin → not pinned for this network yet \(pending\)/,
