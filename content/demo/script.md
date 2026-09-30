@@ -52,7 +52,7 @@ The word counts are of the narration text exactly as written in this file, and t
 - **Evidence** names the transaction and the Stellar Expert page that proves the scene's claim. `<register_tx>` and similar placeholders are filled in from the recording session's evidence file (see the shot list) and go in the video description.
 - **Overlays added in post-production:** a small `Stellar testnet` tag in the top-right corner for the whole video, and a deliverable tag (`D1` to `D4`) in the top-left for each scene. In a cut the tag stays put. A cut marker (`⏩ 40 s cut: …`) sits bottom-centre and stays on screen for at least 1.5 s.
 - **Two browser windows, two wallets.** The operator window has only the operator's Freighter account in it, and the buyer window has only the buyer's. The viewer always knows whose screen it is from the window's corner label, `OPERATOR` or `BUYER`, which is added in post.
-- `[needs deploy: …]` marks a scene that depends on something not yet live on `orizons.xyz`. The full list is in [What must be deployed before recording](#what-must-be-deployed-before-recording), and the pre-flight has to show every one of them as GO.
+- `[needs deploy: …]` marks a scene that depends on something deployed to `orizons.xyz`, and says whether it is live yet. The full list is in [What must be deployed before recording](#what-must-be-deployed-before-recording), and the pre-flight has to show every one of them as GO.
 
 ## Operator segment
 
