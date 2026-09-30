@@ -817,7 +817,7 @@
           "id": "6.1-RD-f",
           "claim": "Every registration, settlement and attestation is viewable on Stellar Expert (testnet) under the four live contract IDs.",
           "status": "present",
-          "note": "These four contracts are the live set the API reports. Each contract page has an Events tab that lists everything it has recorded. They show real activity, but no settlement or attestation from the sprint yet (see Deliverable 4). A fifth contract, escrow v2, is merged but not deployed.",
+          "note": "These are the live contracts the API reports. On 2026-09-30 the payment escrow changed: escrow v2 (CCNO5…5VC4), deployed that day, replaced the v1 escrow as the one the API settles through, and v1 stays on-chain with its history. Each contract page has an Events tab that lists everything it has recorded. They now show the sprint's first settlements and attestations, three team test runs of 2026-09-30 (see Deliverable 4).",
           "links": [
             {
               "label": "AgentRegistry contract on Stellar Expert (testnet): every agent registration",
@@ -825,7 +825,12 @@
               "kind": "contract"
             },
             {
-              "label": "PaymentEscrow (v1) contract on Stellar Expert (testnet): payment authorizations and charges",
+              "label": "PaymentEscrow v2 contract on Stellar Expert (testnet): the live escrow since 2026-09-30, its authorizations and settlements",
+              "url": "https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4",
+              "kind": "contract"
+            },
+            {
+              "label": "PaymentEscrow v1 contract on Stellar Expert (testnet): payment authorizations and charges until it was replaced on 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
               "kind": "contract"
             },
@@ -840,12 +845,12 @@
               "kind": "contract"
             },
             {
-              "label": "Team admin wallet GA7AI…5OQV on Stellar Expert: contract admin and payment settler on the live escrow",
+              "label": "Team admin wallet GA7AI…5OQV on Stellar Expert: contract admin, and payment settler on the v1 escrow",
               "url": "https://stellar.expert/explorer/testnet/account/GA7AI5TAJEZA27I666DSJC4MUJYBEWUYNNZWPU7R2ONA7IZQVO6R5OQV",
               "kind": "account"
             },
             {
-              "label": "Platform production key GDB4N…CDHP on Stellar Expert: writes ratings and seals since 2026-09-19",
+              "label": "Platform production key GDB4N…CDHP on Stellar Expert: writes ratings and seals since 2026-09-19, and signs escrow v2 settlements",
               "url": "https://stellar.expert/explorer/testnet/account/GDB4N25UYM3YNTTAWX7LSGI2P7OR62QZQXRNQWAGF5TFVENDKCTTCDHP",
               "kind": "account"
             },
