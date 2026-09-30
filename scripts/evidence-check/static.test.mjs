@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -140,6 +140,68 @@ describe("evidence-check --static", () => {
     const broken = await checkEvidence({ indexPath: path, mode: "static" });
     assert.match(broken.errors[0], /not valid JSON/);
     assert.equal(exitCodeOf(broken), 1);
+  });
+});
+
+describe("evidence-check --static on removed metrics", () => {
+  const REAL = new URL("../../content/evidence/index.json", import.meta.url);
+  const real = () => JSON.parse(readFileSync(REAL, "utf8"));
+
+  it("passes the real index, whose m03 is removed: no row and no links for it", async () => {
+    const index = real();
+    assert.deepEqual(
+      index.removed_metrics.map((/** @type {any} */ r) => r.id),
+      ["m03"],
+    );
+    const report = await checkEvidence({
+      indexPath: write(index),
+      mode: "static",
+      client: /** @type {any} */ (noNetwork),
+    });
+    assert.deepEqual(report.validator.problems, []);
+    assert.equal(exitCodeOf(report), 0);
+    assert.equal(
+      report.rows.filter((r) => r.context === "metric m03").length,
+      0,
+    );
+    assert.ok(report.rows.some((r) => r.context === "metric m04"));
+  });
+
+  it("fails an index that drops a metric without its removed_metrics entry", async () => {
+    const index = real();
+    delete index.removed_metrics;
+    const report = await checkEvidence({
+      indexPath: write(index),
+      mode: "static",
+      client: /** @type {any} */ (noNetwork),
+    });
+    assert.equal(report.validator.ok, false);
+    assert.equal(report.validator.problems.length, 1);
+    assert.match(
+      report.validator.problems[0],
+      /m03 is left out with no removed_metrics entry$/,
+    );
+    assert.equal(exitCodeOf(report), 1);
+  });
+
+  it("fails an index that keeps a removed metric's row", async () => {
+    const index = real();
+    index.metrics.splice(2, 0, {
+      ...index.metrics[1],
+      id: "m03",
+      category: "Transaction targets",
+      metric: index.removed_metrics[0].metric,
+      target: "≥ 3",
+    });
+    const report = await checkEvidence({
+      indexPath: write(index),
+      mode: "static",
+      client: /** @type {any} */ (noNetwork),
+    });
+    assert.deepEqual(report.validator.problems, [
+      'removed_metrics[0].id "m03" is still in metrics; a removed metric has no row',
+    ]);
+    assert.equal(exitCodeOf(report), 1);
   });
 });
 
