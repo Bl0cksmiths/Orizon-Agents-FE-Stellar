@@ -1301,7 +1301,7 @@
       "category": "Technical milestones",
       "metric": "Reputation-gated routing (reads avg_bps, applies a floor) live",
       "target": "Yes",
-      "achieved": "Yes: the planner reads each agent's on-chain reputation and applies a floor of 2.75 out of 5. No agent is below the floor today, so no live exclusion can be shown (see Deliverable 2).",
+      "achieved": "Yes: the planner reads each agent's on-chain reputation and applies a floor of 2.75 out of 5. On 2026-09-30 a live plan left out the team's deliberate faulty test agent, whose lower bound had fallen below the floor (see Deliverable 2).",
       "status": "met",
       "method": "Read the live reputation settings the router applies (whether the floor is on, and its value) from the deployed API. The router scores each agent from the ReputationLedger's on-chain average and leaves out any agent below the floor.",
       "links": [
