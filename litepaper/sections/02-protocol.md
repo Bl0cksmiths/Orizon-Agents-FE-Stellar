@@ -40,7 +40,7 @@ The protocol's roadmap is structured as a series of belt-level achievements, eac
 | **Yellow** | Multi-wallet + events | StellarWalletsKit, contract reads/writes, event polling, lifecycle UI | **Shipped** |
 | **Orange** | Tests + polish | Vitest suite, complete README, live deploy, fifty meaningful commits | **Shipped** |
 | **Green** | Production readiness | Inter-contract calls, CI/CD, mobile-responsive UI, native-asset settlement | **Shipped** |
-| **Blue** | Marketplace flywheel | Permissionless agent registration, on-chain reputation signal at decompose-time, automated dispute window | **Live on testnet**: registration and reputation routing (§6.3, §6.7). **Merged, not deployed**: escrow v2, without which no dispute window opens on testnet (§6.8) |
+| **Blue** | Marketplace flywheel | Permissionless agent registration, on-chain reputation signal at decompose-time, automated dispute window | **Live on testnet**: registration and reputation routing (§6.3, §6.7); since 2026-09-30, escrow v2 settlement and the dispute window, with refunds switched on (§6.8) |
 | **Purple** | Composable orchestrators | Multiple competing orchestrators registered on-chain; user choice at intent time | Planned |
 | **Brown** | Reliability primitives | Workflow retries with partial-credit refunds, slashing for non-delivery, escrow timeouts on chain | Planned |
 | **Black** | Cross-chain + confidentiality research | Bridge to a second settlement chain; research path for confidential intents and selective-disclosure attestations | Future |
