@@ -64,17 +64,24 @@ A concrete picture of the economics for a small operator running, say, **1,000 b
 | Translation / OCR / Ads | 20 | 0.043 | 0.86 |
 | **Total agent payouts** | **1,000** | — | **≈ 171.66** |
 
-Network fees over the same window. A six-step workflow is nine transactions, not one per step: the buyer's `authorize`, then from the backend one `settle` (escrow v2; one `charge` for the workflow's total on the retired v1), one `seal` and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`, `_submit_ratings`). The fee per call is measured on the testnet contracts, one transaction each:
+Network fees over the same window. A six-step workflow is nine transactions, not one per step: the buyer's `authorize`, then from the backend one `settle` (escrow v2; one `charge` for the workflow's total on the retired v1), one `seal` and one rating `submit` per dispatched step (BE@a3dc1f9 · app/services/execution_svc.py · `_settle_v2`, `_settle_onchain`, `_submit_ratings`). The fee per call is measured on the escrow v2 team runs of 2026-09-30, the six disclosed runs whose transactions are recorded in BE@ff8e5ea · docs/evidence/5.01/v2-team-runs/ (one `lifecycle.jsonl` per run), read from Horizon as each transaction's `fee_charged`:
 
-| Operation | Per workflow | Calls/mo | Stroops each (measured) | XLM total |
+| Operation | Per workflow | Calls/mo | Stroops each: mean (min–max, samples) | XLM total |
 | --- | :---: | :---: | :---: | :---: |
-| `authorize` (buyer) | 1 | 1,000 | 106,477 | 106.48 × 10⁶ stroops = 10.65 |
-| `settle` (v2) | 1 | 1,000 | 790,647 (mean of 3) | 790.65 × 10⁶ stroops = 79.06 |
-| `seal` | 1 | 1,000 | 57,926 | 57.93 × 10⁶ stroops = 5.79 |
-| `submit` (rating) | 6 | 6,000 | 53,314 | 319.88 × 10⁶ stroops = 31.99 |
-| **Total network fee** | **9** | **9,000** | — | **≈ 127.49 XLM** |
+| `authorize` (buyer) | 1 | 1,000 | 862,247 (784,169–1,249,256, n = 6) | 862.25 × 10⁶ stroops = 86.22 |
+| `settle` | 1 | 1,000 | 790,647 (658,305–858,751, n = 3) | 790.65 × 10⁶ stroops = 79.06 |
+| `seal` | 1 | 1,000 | 6,222,403 (210,700–18,245,369, n = 3) | 6,222.40 × 10⁶ stroops = 622.24 |
+| `submit` (rating) | 6 | 6,000 | 205,772 (85,685–302,591, n = 6) | 1,234.63 × 10⁶ stroops = 123.46 |
+| **Total, as sampled** | **9** | **9,000** | — | **≈ 910.99 XLM** |
+| **Total, without the archive restores** | **9** | **9,000** | — | **≈ 296.61 XLM** |
 
-The samples are testnet transactions `027b0d42…9230` (`authorize`, 2026-09-22), `03c3f815…67b7` (`seal`, 2026-06-09) and `63031b49…28b2` (`submit`, 2026-09-22), and for `settle` the first three escrow v2 settles, all on 2026-09-30, whose fees Horizon reports as `fee_charged`: `f0674419…1235` (858,751 stroops), `19f3420d…3397` (854,885) and `785428bf…554b` (658,305). Their mean is (858,751 + 854,885 + 658,305) / 3 = 2,371,941 / 3 = 790,647 stroops, so 1,000 settles a month cost 1,000 × 790,647 stroops = 790.65 × 10⁶ stroops = 79.06 XLM. Each of those settles paid one delivered step to one owner; a settle that pays six owners writes more, and has not been measured. `settle` is now the largest line, about fourteen times the v1 `charge` it replaces (790,647 / 54,989 ≈ 14.4; `7932846b…9cc2`, 2026-06-09). The other rows are samples taken before escrow v2 went live, and are not re-priced here: the first v2 runs paid more for `authorize`, which under v2 also moves the buyer's funds into custody, at 784,169 to 1,249,256 stroops. A rating that writes an agent's first evidence costs more, up to 189,423 stroops in the scorer's recent history. The total is 106,477,000 + 790,647,000 + 57,926,000 + 319,884,000 = 1,274,934,000 stroops, or 127.49 XLM. At an assumed USD 0.50 per XLM (an assumption made on 2026-09-29, not a quote), the monthly network cost across 1,000 workflows is therefore about **USD 64** (127.49 × 0.50 = 63.75). The agent payouts of ≈ 172 USDC flow entirely through to agent owners; the protocol takes zero margin in v1.
+The samples, all on 2026-09-30 between 09:29 and 09:39 UTC: `authorize` in all six runs (1,249,256; 784,169; 785,857; 784,171; 784,169; 785,859 stroops), `settle` and `seal` in the three healthy runs (settles `f0674419…1235` 858,751, `19f3420d…3397` 854,885 and `785428bf…554b` 658,305; seals 18,245,369, 210,700 and 211,139), and one rating `submit` per run (296,690; 296,691; 167,290 for the healthy runs; 302,591; 85,685; 85,685 for the faulty agent's). The means are 5,173,481 / 6 = 862,247 for `authorize`, 2,371,941 / 3 = 790,647 for `settle`, 18,667,208 / 3 = 6,222,403 for `seal` and 1,234,632 / 6 = 205,772 for `submit`, rounded to the stroop. A workflow therefore costs 862,247 + 790,647 + 6,222,403 + 6 × 205,772 = 9,109,929 stroops, about 0.91 XLM, and 1,000 of them cost 9,109,929,000 stroops, 910.99 XLM.
+
+Three caveats. First, the sample is small and the means carry one-off costs. Three of the transactions restored archived ledger entries before running, which Soroban charges for: the first `seal` (`f0b25fc5…2b5c`, 18,245,369 stroops) and the first two settles. A steady stream of workflows would not pay that on every call. Without those three samples, `settle` is 658,305 (n = 1) and `seal` is (210,700 + 211,139) / 2 = 210,920 (n = 2), so a workflow costs 862,247 + 658,305 + 210,920 + 1,234,632 = 2,966,104 stroops, about 0.30 XLM, and 1,000 cost 296.61 XLM. The rating mean still includes each agent's first rating, which writes its first evidence and costs more (296,690 to 302,591, against 85,685 to 167,290 afterwards). Second, every sampled settle paid one delivered step to one owner. A settle with six payouts writes more, and has not been measured. Third, fees move with the network: `fee_charged` includes an inclusion fee that rises under surge pricing, and all the samples come from ten minutes of one testnet day.
+
+Before 2026-09-30 this table was priced from v1-era samples, for example a v1 `authorize` at 106,477 stroops (`027b0d42…9230`, 2026-09-22). Those figures are history: a v2 `authorize` also moves the buyer's funds into custody.
+
+At an assumed USD 0.50 per XLM (an assumption made on 2026-09-29, not a quote), the monthly network cost across 1,000 workflows is therefore about **USD 148** without the archive restores (296.61 × 0.50 = 148.31), and about USD 455 as sampled (910.99 × 0.50 = 455.50). The agent payouts of ≈ 172 USDC flow entirely through to agent owners; the protocol takes zero margin in v1.
 
 Two observations for prospective operators:
 
