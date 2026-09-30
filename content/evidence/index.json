@@ -85,41 +85,6 @@
               "kind": "page"
             },
             {
-              "label": "Registration of sign_probe_bb5c12 by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
-              "url": "https://stellar.expert/explorer/testnet/tx/416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
-              "kind": "tx",
-              "tx_hash": "416bea4f83e5afd9fc80e38c75ba4b1050031a2d590b0fe6232aa00d6a846393",
-              "date": "2026-09-07"
-            },
-            {
-              "label": "Registration of w1_audit_a7x by the team's registration probe key GBI2I…ADBH — 2026-09-07 (team wallet: not external)",
-              "url": "https://stellar.expert/explorer/testnet/tx/523f71b80dc8e4ecf8e8c5684d3c79b521009d8b010f24d407b0856a3111c6ef",
-              "kind": "tx",
-              "tx_hash": "523f71b80dc8e4ecf8e8c5684d3c79b521009d8b010f24d407b0856a3111c6ef",
-              "date": "2026-09-07"
-            },
-            {
-              "label": "Registration of spike_97437 by the team's payment-test key GA5LE…MQ2M — 2026-09-15 (team wallet: not external)",
-              "url": "https://stellar.expert/explorer/testnet/tx/3ca237c00bb1fd78fbf8b95fccdd7e46de61fe82bf4ce8558b8231b9c4a705c4",
-              "kind": "tx",
-              "tx_hash": "3ca237c00bb1fd78fbf8b95fccdd7e46de61fe82bf4ce8558b8231b9c4a705c4",
-              "date": "2026-09-15"
-            },
-            {
-              "label": "Registration of uat605_ext_op by the team's QA operator key GBWMD…7BQJ — 2026-09-17 (team wallet: not external)",
-              "url": "https://stellar.expert/explorer/testnet/tx/64ad14cd6516a93b8a2e9e2564bd5cc15c0d9ccfc74ede2694cd7fa47f11fa3e",
-              "kind": "tx",
-              "tx_hash": "64ad14cd6516a93b8a2e9e2564bd5cc15c0d9ccfc74ede2694cd7fa47f11fa3e",
-              "date": "2026-09-17"
-            },
-            {
-              "label": "Registration of uat624_ext_op by the team's QA operator key GBWMD…7BQJ — 2026-09-24 (team wallet: not external)",
-              "url": "https://stellar.expert/explorer/testnet/tx/e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
-              "kind": "tx",
-              "tx_hash": "e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
-              "date": "2026-09-24"
-            },
-            {
               "label": "AgentRegistry contract on Stellar Expert: all 20 registrations, 14 by team wallets and 6 by 2 outside operators",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
