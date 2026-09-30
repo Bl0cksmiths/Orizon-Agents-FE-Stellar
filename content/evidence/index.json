@@ -1288,11 +1288,11 @@
           "kind": "contract"
         },
         {
-          "label": "Registration of uat624_ext_op signed by the team's QA throwaway operator key, not the registry admin — 2026-09-24",
-          "url": "https://stellar.expert/explorer/testnet/tx/e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
+          "label": "Registration of faulty_test_v2 signed by the team's x402 escrow spike key (2026-09-15), random throwaway, not the registry admin — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
           "kind": "tx",
-          "tx_hash": "e3f58a1275ae6be15b6b20e852864a39ec81f7126d6e719a8adcba462e8fce1b",
-          "date": "2026-09-24"
+          "tx_hash": "2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
+          "date": "2026-09-30"
         }
       ]
     },
