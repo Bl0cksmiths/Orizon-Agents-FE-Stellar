@@ -142,14 +142,20 @@
         {
           "id": "6.1-D2-a",
           "claim": "Screenshots or a recording of the plan card showing each agent's on-chain reputation before the buyer pays.",
-          "status": "partial",
-          "note": "Partial. A screenshot of the live plan card exists, taken on 2026-09-19. It shows a reputation score on every step and the 2.75 routing floor. But every agent in it still had the starting estimate (about 3.50 out of 5), not a score earned on-chain, because the platform only began writing ratings later that day. No recording exists yet. Since then the platform has written 33 ratings on-chain, two of which are linked here, so the live plan card now shows earned scores for rated agents. Those ratings came from live test runs whose payments did not settle (see the disclosures). A new screenshot or recording would make this item present.",
+          "status": "present",
+          "note": "Present. Captures of the live plan card on orizons.xyz, taken on 2026-09-30 at 09:45 UTC with no wallet connected, show Calculator AI (calculatorai) planned with an earned on-chain reputation of ★ 3.50 from 2 rated jobs, not the starting estimate: its chip carries no '≈' estimate mark, and the plan's own data gives the score's source as on-chain (7004 of 10000, with a lower bound of 5683 against the 5500 floor). The two ratings behind it, 95 out of 100 each, were written on 2026-09-30 after two of the team's settled escrow v2 test runs (see Deliverable 4), and are linked here with the third run's rating, for keyboardai. Both agents are owned by the team's admin wallet. There is a desktop and a phone capture; no recording of the plan card exists. The 2026-09-19 screenshot is kept for history: every agent in it still had the starting estimate of about 3.50, because the platform only began writing ratings later that day.",
           "links": [
             {
-              "label": "Screenshot of the live plan card: a reputation score on every step, all still at the starting estimate",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/Week-2-Tranche-Submission/screenshots/01-orizons-plan-card.png",
+              "label": "Screenshot of the live plan card at desktop width: Calculator AI with an on-chain reputation of 3.50 from 2 rated jobs, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d2a-plan-card-onchain-score-desktop-1440.png",
               "kind": "doc",
-              "date": "2026-09-19"
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Screenshot of the same live plan card at phone width, captured 2026-09-30",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d2a-plan-card-onchain-score-phone-390.png",
+              "kind": "doc",
+              "date": "2026-09-30"
             },
             {
               "label": "Open the live Orchestrator, pick a preset intent and press Decompose to see the plan card",
@@ -157,9 +163,36 @@
               "kind": "page"
             },
             {
+              "label": "Rating of calculatorai after team run 1: 95 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/3aafc504ff0b3943ffa1c92ded576991dcfac888df59ab6164027d7ff43501f9",
+              "kind": "tx",
+              "tx_hash": "3aafc504ff0b3943ffa1c92ded576991dcfac888df59ab6164027d7ff43501f9",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Rating of calculatorai after team run 3: 95 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/adb7592eed1f403b39765da94ab9eff204b0fea33d7da52e5fe6a33c9750d40e",
+              "kind": "tx",
+              "tx_hash": "adb7592eed1f403b39765da94ab9eff204b0fea33d7da52e5fe6a33c9750d40e",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Rating of keyboardai after team run 2: 95 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/7ab2dd12333c6d6819aa0045e240e6bf30deceb5fcb10645b5ba5df2e7aee52c",
+              "kind": "tx",
+              "tx_hash": "7ab2dd12333c6d6819aa0045e240e6bf30deceb5fcb10645b5ba5df2e7aee52c",
+              "date": "2026-09-30"
+            },
+            {
               "label": "ReputationLedger contract on Stellar Expert: every rating written so far",
               "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
               "kind": "contract"
+            },
+            {
+              "label": "Earlier screenshot of the live plan card (history): a reputation score on every step, all still at the starting estimate",
+              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/main/Week-2-Tranche-Submission/screenshots/01-orizons-plan-card.png",
+              "kind": "doc",
+              "date": "2026-09-19"
             },
             {
               "label": "Rating of research.pro (agt_09l5): 70 out of 100, written on-chain by the platform's scoring key — 2026-09-19",
