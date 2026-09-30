@@ -225,17 +225,6 @@
       ]
     },
     {
-      "id": "m03",
-      "category": "Transaction targets",
-      "metric": "Workflows routed to external agents & settled on Testnet",
-      "target": "≥ 3",
-      "achieved": "Fixture short m03",
-      "status": "not_met",
-      "reason": "Fixture reason for m03: not reached in the fixture.",
-      "method": "Fixture method for m03.",
-      "links": []
-    },
-    {
       "id": "m04",
       "category": "Transaction targets",
       "metric": "On-chain USDC settlements (charges) recorded",
@@ -389,6 +378,14 @@
       "id": "usdc_xlm",
       "title": "Fixture note: XLM, not USDC",
       "text": "Fixture note text."
+    }
+  ],
+  "removed_metrics": [
+    {
+      "id": "m03",
+      "metric": "Workflows routed to external agents & settled on Testnet",
+      "removed_on": "2026-09-30",
+      "note": "Fixture: removed from the sprint's requirements."
     }
   ]
 }

@@ -11,6 +11,7 @@ import {
   countStatuses,
   describeCounts,
   metCount,
+  metricsHeadline,
   suggestMarking,
 } from "./checklist";
 import type { EvidenceIndex, ItemStatus } from "./types";
@@ -92,5 +93,19 @@ describe("checklistRows", () => {
 
   it("counts the metrics met", () => {
     expect(metCount(fixture.metrics)).toBe(7);
+  });
+
+  it("heads the metrics with the count met out of the rows shown", () => {
+    expect(metricsHeadline(fixture.metrics)).toBe(
+      `7 of ${fixture.metrics.length} metrics met`,
+    );
+    expect(
+      metricsHeadline([
+        { status: "met" },
+        { status: "not_met" },
+        { status: "met" },
+      ]),
+    ).toBe("2 of 3 metrics met");
+    expect(metricsHeadline([])).toBe("0 of 0 metrics met");
   });
 });

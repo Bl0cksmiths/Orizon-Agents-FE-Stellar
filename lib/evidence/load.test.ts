@@ -87,7 +87,7 @@ describe("loadEvidence", () => {
     const { problems, message } = error as EvidenceContentError;
     expect(problems.length).toBeGreaterThan(5);
     expect(problems).toContain(
-      'the index has an unknown key "extra"; allowed: schema, title, sow, snapshot, deliverables, metrics, disclosures, notes',
+      'the index has an unknown key "extra"; allowed: schema, title, sow, snapshot, deliverables, metrics, disclosures, notes, removed_metrics',
     );
     for (const p of problems) expect(message).toContain(`  - ${p}`);
   });

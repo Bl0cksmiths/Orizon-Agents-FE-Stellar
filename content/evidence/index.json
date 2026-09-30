@@ -4,12 +4,12 @@
   "sow": {
     "version": "v4",
     "date": "2026-08-01",
-    "note": "This index follows the approved SOW v4, dated 2026-08-01. Section 6.1 says what evidence each deliverable owes, section 6.2 is the checklist the Ambassador Chapter Lead marks (Present, Partial or Missing), and section 6.3 lists the eleven success metrics. Each deliverable below repeats the SOW's Evidence Type and Description word for word. Every piece of evidence has a status and a link you can open, and anything missing or partly done says why in plain words."
+    "note": "This index follows the approved SOW v4, dated 2026-08-01. Section 6.1 says what evidence each deliverable owes, section 6.2 is the checklist the Ambassador Chapter Lead marks (Present, Partial or Missing), and section 6.3 lists the eleven success metrics. One of them, metric m03, was removed from the sprint's requirements on 2026-09-30, so the metrics table shows the other ten and the removal is stated under Disclosures. Each deliverable below repeats the SOW's Evidence Type and Description word for word. Every piece of evidence has a status and a link you can open, and anything missing or partly done says why in plain words."
   },
   "snapshot": {
     "as_of": "2026-09-30",
     "network": "testnet",
-    "method": "Every on-chain link was re-read on 2026-09-30, after escrow v2 was deployed and the live API switched to it that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. The 19 transactions of the team's escrow v2 test runs were also re-verified successful by the backend's evidence tool (demo_evidence), and the screenshots and recording of 2026-09-30 were taken from the live site with no wallet connected. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json), is declared for it in an open pull request that this index names, or holds a platform role on the contracts. The metrics were re-measured the same day, at 10:42 UTC, by the backend's read-only generator (scripts/sow_metrics). An outside operator's agent ids, wallet and transaction hashes appear here only once that operator's consent to publish them is recorded. Nothing was signed, paid or submitted to make this snapshot."
+    "method": "Every on-chain link was re-read on 2026-09-30, after escrow v2 was deployed and the live API switched to it that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. The 19 transactions of the team's escrow v2 test runs were also re-verified successful by the backend's evidence tool (demo_evidence), and the screenshots and recording of 2026-09-30 were taken from the live site with no wallet connected. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json), is declared for it in an open pull request that this index names, or holds a platform role on the contracts. The metrics were re-measured the same day, at 10:42 UTC, by the backend's read-only generator (scripts/sow_metrics). Metric m03 was removed from the sprint's requirements on 2026-09-30, so its row from the generator was left out and the other ten are shown. An outside operator's agent ids, wallet and transaction hashes appear here only once that operator's consent to publish them is recorded. Nothing was signed, paid or submitted to make this snapshot."
   },
   "deliverables": [
     {
@@ -555,7 +555,7 @@
           "id": "6.1-D4-d",
           "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
           "status": "present",
-          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; its entry in the team wallet register is in backend pull request #96, which is not merged yet. Because no outside operator's agent was paid, metric 3 stays at 0. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
+          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; its entry in the team wallet register is in backend pull request #96, which is not merged yet. No outside operator's agent was paid. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
           "links": [
             {
               "label": "PaymentEscrow v2 contract on Stellar Expert: live since 2026-09-30, where the three runs settled",
@@ -992,7 +992,7 @@
           "date": "2026-09-30"
         }
       ],
-      "reason": "Met on registrations, which is what the SOW counts: 6 agents registered from 2 outside operators' wallets. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their ids and registration hashes are held back here until each operator's consent to publish them is recorded."
+      "reason": "Met on registrations, which is what the SOW counts: 6 agents registered from 2 outside operators' wallets. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled. Their ids and registration hashes are held back here until each operator's consent to publish them is recorded."
     },
     {
       "id": "m02",
@@ -1034,111 +1034,7 @@
           "kind": "account"
         }
       ],
-      "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled (see metric 3). Their addresses are held back here until each operator's consent to publish them is recorded."
-    },
-    {
-      "id": "m03",
-      "category": "Transaction targets",
-      "metric": "Workflows routed to external agents & settled on Testnet",
-      "target": "≥ 3",
-      "achieved": "0",
-      "status": "not_met",
-      "reason": "6 agents owned by outside operators are registered, but no workflow paid to one has settled since the sprint began on 2026-09-07. Of the 6, 1 is bound to an endpoint, per the live adoption report, and that endpoint is a parked web page, not a working agent. The three workflows that settled on escrow v2 on 2026-09-30 were the team's own test runs, paying agents the team owns, so none counts here (see Deliverable 4).",
-      "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract. A workflow counts when at least one of its counted charges paid an agent owned by an outside operator; several charges of one job are one workflow.",
-      "links": [
-        {
-          "label": "PaymentEscrow v2 contract (live) (every charge it recorded)",
-          "url": "https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4",
-          "kind": "contract"
-        },
-        {
-          "label": "PaymentEscrow v1 contract (every charge it recorded)",
-          "url": "https://stellar.expert/explorer/testnet/contract/CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
-          "kind": "contract"
-        },
-        {
-          "label": "Charge of 0.114 XLM to orizon_batch on the v1 escrow — 2026-05-13 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/3765fb1558afa23f4c9145614c4e2b053adafd2f0bc1ba81c358ee12303be56d",
-          "kind": "tx",
-          "tx_hash": "3765fb1558afa23f4c9145614c4e2b053adafd2f0bc1ba81c358ee12303be56d",
-          "date": "2026-05-13"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-05-13 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/2eec8282585c17ee1d6dd00136f67a3bcd2380adf40277ac82b5053c2e507e7a",
-          "kind": "tx",
-          "tx_hash": "2eec8282585c17ee1d6dd00136f67a3bcd2380adf40277ac82b5053c2e507e7a",
-          "date": "2026-05-13"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-05-14 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/33b575dd1ad9706a6be6e287016e4b84a2c205c166eb5c782faf0d4d0095f496",
-          "kind": "tx",
-          "tx_hash": "33b575dd1ad9706a6be6e287016e4b84a2c205c166eb5c782faf0d4d0095f496",
-          "date": "2026-05-14"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-05-14 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/33655a7f9fe16cb09d335d086fbeb06084f6a437e30b0420058f49464aef343e",
-          "kind": "tx",
-          "tx_hash": "33655a7f9fe16cb09d335d086fbeb06084f6a437e30b0420058f49464aef343e",
-          "date": "2026-05-14"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-05-18 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/5c00b766b79eb6eb7d583ebe5cebb6cfe6aaf9a4f9148b09bc5116d8c591fef3",
-          "kind": "tx",
-          "tx_hash": "5c00b766b79eb6eb7d583ebe5cebb6cfe6aaf9a4f9148b09bc5116d8c591fef3",
-          "date": "2026-05-18"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-06-09 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/008b9279ae24e5f6934c971f5d4203c914042556852a6dd993edaf9ad678b511",
-          "kind": "tx",
-          "tx_hash": "008b9279ae24e5f6934c971f5d4203c914042556852a6dd993edaf9ad678b511",
-          "date": "2026-06-09"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-06-09 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/1e38fd4a742acfc760fcbb64d40734b47b3721e68443b8026494d42757ce1180",
-          "kind": "tx",
-          "tx_hash": "1e38fd4a742acfc760fcbb64d40734b47b3721e68443b8026494d42757ce1180",
-          "date": "2026-06-09"
-        },
-        {
-          "label": "Charge of 0.168 XLM to orizon_batch on the v1 escrow — 2026-06-09 (excluded: self-payment (the payer owns the agent); settled before the sprint began on 2026-09-07; the agent is owned by the team's contract admin and v1 escrow settler)",
-          "url": "https://stellar.expert/explorer/testnet/tx/7932846bfa9d8e1b5c4b448f9a70e8d391f5dead7413764e253a886b90f99cc2",
-          "kind": "tx",
-          "tx_hash": "7932846bfa9d8e1b5c4b448f9a70e8d391f5dead7413764e253a886b90f99cc2",
-          "date": "2026-06-09"
-        },
-        {
-          "label": "Charge of 0.01 XLM to calculatorai on the v2 escrow — 2026-09-30 (excluded: the agent is owned by the team's contract admin and v1 escrow settler; the buyer is the team's key GB4K6…YKAYKK)",
-          "url": "https://stellar.expert/explorer/testnet/tx/f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
-          "kind": "tx",
-          "tx_hash": "f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
-          "date": "2026-09-30"
-        },
-        {
-          "label": "Charge of 0.2 XLM to keyboardai on the v2 escrow — 2026-09-30 (excluded: the agent is owned by the team's contract admin and v1 escrow settler; the buyer is the team's key GCNQA…A2GP)",
-          "url": "https://stellar.expert/explorer/testnet/tx/19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
-          "kind": "tx",
-          "tx_hash": "19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
-          "date": "2026-09-30"
-        },
-        {
-          "label": "Charge of 0.01 XLM to calculatorai on the v2 escrow — 2026-09-30 (excluded: the agent is owned by the team's contract admin and v1 escrow settler; the buyer is the team's key GCNQA…A2GP)",
-          "url": "https://stellar.expert/explorer/testnet/tx/785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
-          "kind": "tx",
-          "tx_hash": "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
-          "date": "2026-09-30"
-        },
-        {
-          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
-        }
-      ]
+      "reason": "Met on registrations, which is what the SOW counts: 2 outside operators' wallets own agents, one owning 1 agent and the other 5. No external agent is bound to a working endpoint: one outside operator's single agent is bound to a parked web page, the other operator's five agents are not bound to any endpoint yet, and none has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded."
     },
     {
       "id": "m04",
@@ -1147,7 +1043,7 @@
       "target": "≥ 3",
       "achieved": "3",
       "status": "met",
-      "reason": "Met on 3 charges, all from the team's own escrow v2 test runs of 2026-09-30: team buyer keys paid agents owned by the team's admin wallet, so no outside operator was paid (metric 3 stays at 0). They count because the buyer is neither the agent's owner, the escrow's settler nor a platform key. The buyer of two of them, GCNQA…A2GP, is a team key whose register entry is in backend pull request #96, not merged yet; until then the generator holds those two charges' links back as if they were an outside wallet's, so they are added here by hand. The escrow's 8 older 'charged' events still do not count: all were the agent's owner paying itself, before the sprint.",
+      "reason": "Met on 3 charges, all from the team's own escrow v2 test runs of 2026-09-30: team buyer keys paid agents owned by the team's admin wallet, so no outside operator was paid. They count because the buyer is neither the agent's owner, the escrow's settler nor a platform key. The buyer of two of them, GCNQA…A2GP, is a team key whose register entry is in backend pull request #96, not merged yet; until then the generator holds those two charges' links back as if they were an outside wallet's, so they are added here by hand. The escrow's 8 older 'charged' events still do not count: all were the agent's owner paying itself, before the sprint.",
       "method": "Walked every id each escrow contract has issued (its id counter numbers every authorization and receipt, so this does not depend on how long the network keeps events) and read each receipt and the payer that authorized it. A v1 charge and each payout of a v2 settle count as one charge. A charge is excluded when it is a self-payment (the payer owns the agent, is the escrow's settler, or is a platform key) or settled before the sprint began on 2026-09-07. Testnet settles in native XLM, not USDC: the escrow's payment asset is the native XLM asset contract.",
       "links": [
         {
@@ -1442,6 +1338,14 @@
           "date": "2026-09-29"
         }
       ]
+    }
+  ],
+  "removed_metrics": [
+    {
+      "id": "m03",
+      "metric": "Workflows routed to external agents & settled on Testnet",
+      "removed_on": "2026-09-30",
+      "note": "Removed from the sprint's requirements by the team lead."
     }
   ],
   "disclosures": [

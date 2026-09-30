@@ -3,8 +3,9 @@
  * the SOW to its proof, for a reviewer who is not a developer.
  *
  * In order: the header and how to use the page; the §6.2 checklist summary,
- * derived from the items; one section per §6.1 deliverable; the eleven §6.3
- * metrics; the disclosures; the notes; and where else to look. Everything is
+ * derived from the items; one section per §6.1 deliverable; the §6.3
+ * metrics, less any removed from the sprint's requirements; the disclosures,
+ * which name those; the notes; and where else to look. Everything is
  * server-rendered from the build-time index, so it reads in full with
  * JavaScript off, and it prints as a clean evidence pack (see print.css).
  */
@@ -44,7 +45,10 @@ export function EvidenceArticle({ index }: { index: EvidenceIndex }) {
         ))}
       </section>
       <MetricsTable metrics={index.metrics} />
-      <Disclosures disclosures={index.disclosures} />
+      <Disclosures
+        disclosures={index.disclosures}
+        removedMetrics={index.removed_metrics}
+      />
       <Notes notes={index.notes} />
       <WhereElse />
     </article>

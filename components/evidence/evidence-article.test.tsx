@@ -275,24 +275,60 @@ describe("the evidence page", () => {
     render(<EvidenceArticle index={fixture()} />);
     const metrics = section("Success metrics (SOW §6.3)");
     expect(text(metrics.querySelector("[data-met-count]"))).toBe(
-      "7 of 11 met.",
+      "7 of 10 metrics met.",
+    );
+    expect(text(metrics.querySelector("caption"))).toBe(
+      "SOW §6.3 success metrics: 7 of 10 metrics met. Target, achieved value, status and proof for each.",
     );
     const rows = within(metrics).getAllByRole("row").slice(1);
-    expect(rows).toHaveLength(11);
-    const m03 = rows[2];
-    expect(text(within(m03).getByRole("rowheader"))).toContain(
-      "Workflows routed to external agents & settled on Testnet",
+    expect(rows).toHaveLength(10);
+    const m05 = rows[3];
+    expect(text(within(m05).getByRole("rowheader"))).toContain(
+      "Dispute → partial-refund settlements",
     );
-    const status = m03.querySelector('[data-metric-status="not_met"]')!;
+    const status = m05.querySelector('[data-metric-status="not_met"]')!;
     expect(text(status)).toBe(
-      "✕Not metWhy: Fixture reason for m03: not reached in the fixture.",
+      "✕Not metWhy: Fixture reason for m05: not reached in the fixture.",
     );
-    expect(m03.querySelector("[title]")).toBeNull();
-    expect(text(m03)).toContain("No proof link yet.");
+    expect(m05.querySelector("[title]")).toBeNull();
+    expect(text(m05)).toContain("No proof link yet.");
     const m01 = rows[0];
     expect(text(m01.querySelector("[data-metric-status]"))).toBe("✓Met");
     expect(text(m01)).toContain("≥ 2");
     expect(text(m01)).toContain("How measured: Fixture method for m01.");
+  });
+
+  it("gives a removed metric no row, and discloses it in one plain line", () => {
+    const { container } = render(<EvidenceArticle index={fixture()} />);
+    const metrics = section("Success metrics (SOW §6.3)");
+    expect(text(metrics)).not.toContain(
+      "Workflows routed to external agents & settled on Testnet",
+    );
+    const lines = container.querySelectorAll("[data-removed-metric]");
+    expect(lines).toHaveLength(1);
+    const line = lines[0];
+    // In the disclosures list, and nowhere else.
+    expect(line.closest("section")).toBe(section("Disclosures"));
+    expect(line.parentElement).toBe(
+      container.querySelector("[data-disclosure]")!.parentElement,
+    );
+    expect(line.getAttribute("data-removed-metric")).toBe("m03");
+    expect(text(line)).toBe(
+      "SOW §6.3 metric m03 (Workflows routed to external agents & settled on Testnet, target ≥ 3) was removed from the sprint’s requirements on September 30, 2026.",
+    );
+    expect(line.querySelector("time")!.getAttribute("dateTime")).toBe(
+      "2026-09-30",
+    );
+    // A line of text, not a status: no badge.
+    expect(line.querySelector("[data-status]")).toBeNull();
+  });
+
+  it("discloses nothing removed when no metric was removed", () => {
+    const { container } = render(
+      <EvidenceArticle index={{ ...fixture(), removed_metrics: undefined }} />,
+    );
+    expect(container.querySelectorAll("[data-removed-metric]")).toHaveLength(0);
+    expect(container.querySelectorAll("[data-disclosure]")).toHaveLength(4);
   });
 
   it("lists every disclosure with its SOW reference and what changed", () => {

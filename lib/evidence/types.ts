@@ -55,6 +55,20 @@ export type EvidenceMetric = {
   links: EvidenceLink[];
 };
 
+/**
+ * A §6.3 metric taken out of the sprint's requirements: it has no row in
+ * `metrics`, and is listed here instead, once.
+ */
+export type RemovedMetric = {
+  id: string;
+  /** SOW §6.3's metric text, verbatim. */
+  metric: string;
+  /** YYYY-MM-DD. */
+  removed_on: string;
+  /** Plain words: why, and on whose decision. */
+  note: string;
+};
+
 export type EvidenceDisclosure = {
   id: string;
   title: string;
@@ -74,4 +88,6 @@ export type EvidenceIndex = {
   metrics: EvidenceMetric[];
   disclosures: EvidenceDisclosure[];
   notes: EvidenceNote[];
+  /** Absent when no metric was removed. */
+  removed_metrics?: RemovedMetric[];
 };

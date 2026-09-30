@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { EvidenceArticle } from "@/components/evidence/evidence-article";
-import { metCount } from "@/lib/evidence/checklist";
+import { metricsHeadline } from "@/lib/evidence/checklist";
 import { EVIDENCE_PATH, formatDate } from "@/lib/evidence/display";
 import { loadEvidence } from "@/lib/evidence/load";
 import { Footer } from "../_components/footer";
@@ -34,7 +34,7 @@ const TITLE = "Evidence index: every claim linked to its proof";
 
 export function generateMetadata(): Metadata {
   const index = loadEvidence();
-  const description = `The Orizon Agents Instaward evidence as of ${formatDate(index.snapshot.as_of)}: each SOW deliverable and success metric linked to its proof on Stellar testnet. ${metCount(index.metrics)} of ${index.metrics.length} metrics met.`;
+  const description = `The Orizon Agents Instaward evidence as of ${formatDate(index.snapshot.as_of)}: each SOW deliverable and success metric linked to its proof on Stellar testnet. ${metricsHeadline(index.metrics)}.`;
   return {
     title: `${TITLE} — Orizon Agents`,
     description,
