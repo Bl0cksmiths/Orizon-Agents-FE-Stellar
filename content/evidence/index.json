@@ -1322,9 +1322,9 @@
       "category": "Technical milestones",
       "metric": "Automated dispute window + partial-credit refund live",
       "target": "Yes",
-      "achieved": "Partly: the dispute routes are deployed, but no dispute window can open until a payment settles, which needs escrow v2, and refunds are switched off.",
+      "achieved": "Partly: the dispute routes are deployed, escrow v2 is live so a settled payment opens a dispute window, and refunds are switched on, but no dispute has been refunded on-chain yet. One dispute is open, pending adjudication.",
       "status": "not_met",
-      "reason": "No dispute window can open until a payment settles, which needs escrow v2, and refunds are switched off.",
+      "reason": "No dispute has been refunded on-chain yet (see the dispute refund row). The one open dispute, on a team test run, waits on the adjudicator's decision.",
       "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject); that a dispute window can open at all, which needs a settled payment, and so the escrow v2 contract live; that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on); and that at least one dispute has been refunded on-chain (the dispute refund row above). Yes when all hold, Partly when the routes are deployed but the rest does not, and No when the routes are not.",
       "links": [
         {
