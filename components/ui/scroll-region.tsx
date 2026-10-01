@@ -70,7 +70,15 @@ export function ScrollRegion({
           tabIndex={0}
           data-scroll-region
           data-overflowing={overflowing ? "true" : "false"}
-          className={cn("overflow-x-auto", focusRing, scrollerClassName)}
+          // `relative` keeps absolutely positioned descendants (every sr-only
+          // header label) inside the scroller. Without it they took the card
+          // as their containing block, escaped the clip, and widened the page
+          // to the table's full width behind the body's overflow-x: hidden.
+          className={cn(
+            "relative overflow-x-auto",
+            focusRing,
+            scrollerClassName,
+          )}
         >
           {children}
         </div>
