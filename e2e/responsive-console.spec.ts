@@ -602,6 +602,32 @@ test.describe("long values stay readable", () => {
     expect(cut).toBe(true);
   });
 
+  // The unbound notice spans every column of a 60rem table. Held to the
+  // scroller's visible width, its bind action is on screen however far the
+  // columns above it are scrolled.
+  test("a full-width registry row stays in view while the table scrolls", async ({
+    page,
+  }) => {
+    await mockConsole(page);
+    await page.setViewportSize({ width: 360, height: 900 });
+    await page.goto("/app/agents");
+    const region = page.getByRole("region", {
+      name: "Agent registry table, scrolls horizontally",
+    });
+    const bind = page.getByRole("link", { name: `bind ${LONG_ID}` });
+    await expect(bind).toBeVisible();
+    for (const left of [0, 10_000]) {
+      await region.evaluate((el, x) => el.scrollTo({ left: x }), left);
+      await expect
+        .poll(async () => {
+          const r = (await region.boundingBox())!;
+          const b = (await bind.boundingBox())!;
+          return b.x >= r.x - 1 && b.x + b.width <= r.x + r.width + 1;
+        })
+        .toBe(true);
+    }
+  });
+
   test("a wide table says that it scrolls", async ({ page }) => {
     await mockConsole(page);
     await page.setViewportSize({ width: 360, height: 900 });
