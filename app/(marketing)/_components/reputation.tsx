@@ -105,7 +105,7 @@ export function Reputation() {
                 </Card>
               ))}
             </div>
-            <p className="mt-6 text-sm leading-relaxed text-muted">
+            <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted">
               Wash-trading costs real USDC per fake rating. And when the chain
               is unreachable, scores fall back to the prior — never fabricated.
             </p>
