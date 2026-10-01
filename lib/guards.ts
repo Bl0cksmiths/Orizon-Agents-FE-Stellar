@@ -24,7 +24,9 @@ import type {
   EndpointCheck,
   DecomposeResponse,
   Flow,
+  LegacyOverview,
   Overview,
+  OverviewV2,
   PlanFloorNotice,
   PlanStep,
   ReputationBatch,
@@ -165,6 +167,66 @@ export function isOverview(v: unknown): v is Overview {
         isNum(s.pct) &&
         (s.tone === undefined || s.tone === null || isStr(s.tone)),
     )
+  );
+}
+
+/** The legacy overview's own field check, exported under the name the
+ * network-stats reader uses. Recognising the shape is all it is for: none of
+ * its fields is ever displayed (see `LegacyOverview`). */
+export const isLegacyOverview = (v: unknown): v is LegacyOverview =>
+  isOverview(v);
+
+/** A count: a non-negative whole number. `1.5` agents is a defect, and a
+ * negative one would print as a figure nobody measured. */
+const isCount = (v: unknown): v is number =>
+  isNum(v) && Number.isInteger(v) && v >= 0;
+
+/** A count, or `null` for one the backend could not read. Absent is NOT
+ * accepted: the measured shape always sends the key. */
+const isCountOrNull = (v: unknown): v is number | null =>
+  v === null || isCount(v);
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The measured overview. Checked as a whole, like the ecosystem payload:
+ * every figure here is a claim on the console's front page, so a payload with
+ * one malformed count is not half-trusted — it fails the guard, and the
+ * console derives its figures from the registry and the adoption read
+ * instead.
+ *
+ * `tasks` is deliberately unchecked: no surface renders it, and a backend
+ * that reshapes it must not discard counts that are well formed.
+ * `degraded` may be absent (read as false) but never a truthy non-boolean.
+ */
+export function isOverviewV2(v: unknown): v is OverviewV2 {
+  if (!isRecord(v) || !isNum(v.generated_at)) return false;
+  const { agents, operators, workflows, trust } = v;
+  return (
+    isRecord(agents) &&
+    ["registered", "onchain", "seeded", "external", "bound", "online"].every(
+      (k) => isCount(agents[k]),
+    ) &&
+    isRecord(operators) &&
+    isCount(operators.external_wallets) &&
+    isRecord(workflows) &&
+    isCountOrNull(workflows.settled) &&
+    Array.isArray(workflows.series) &&
+    workflows.series.every(
+      (d) =>
+        isRecord(d) &&
+        isStr(d.date) &&
+        DAY_RE.test(d.date) &&
+        isCount(d.settled),
+    ) &&
+    isRecord(trust) &&
+    (trust.avg === null || isNum(trust.avg)) &&
+    isCount(trust.rated_agents) &&
+    Array.isArray(v.skills) &&
+    v.skills.every(
+      (s) => isRecord(s) && isStr(s.name) && isCount(s.agents) && isNum(s.pct),
+    ) &&
+    isOptionalBool(v.degraded)
   );
 }
 
