@@ -146,10 +146,16 @@ export default function FlowPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.35, delay: 0.08 * i }}
                   className="absolute"
+                  // The centring goes through motion's own x/y. A plain
+                  // `transform` here was overwritten by the scale animation,
+                  // so every node hung off its point by its top-left corner:
+                  // the edges met corners, and the last node ran out past the
+                  // canvas edge at every width.
                   style={{
                     left: `${n.x}%`,
                     top: `${n.y}%`,
-                    transform: "translate(-50%, -50%)",
+                    x: "-50%",
+                    y: "-50%",
                   }}
                 >
                   <div className="clip-cyber-sm border border-violet/60 bg-surface/80 px-4 py-2.5 shadow-neon-violet backdrop-blur hover:border-violet transition min-w-[140px]">
