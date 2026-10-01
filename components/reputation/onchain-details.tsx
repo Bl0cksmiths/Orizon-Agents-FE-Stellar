@@ -157,8 +157,8 @@ export function OnchainDetails({
         </p>
       )}
 
-      {/* Stacked on a phone, like the rubric: a nowrap signature column
-          pushed the notes off the card. Roles are explicit because changing
+      {/* Stacked on a phone, like the rubric, and the signature wraps at its
+          commas: held to one line it pushed the notes off the card up to md. Roles are explicit because changing
           a table part's `display` drops its semantics in some browsers. */}
       <div className="mt-5">
         <table role="table" className="block w-full text-sm sm:table">
@@ -205,7 +205,7 @@ export function OnchainDetails({
                 </th>
                 <td
                   role="cell"
-                  className="block break-all py-1 pr-4 font-mono text-xs text-text sm:table-cell sm:whitespace-nowrap sm:break-normal sm:py-3"
+                  className="block break-all py-1 pr-4 font-mono text-xs text-text sm:table-cell sm:break-normal sm:py-3"
                 >
                   {row.signature}
                 </td>
