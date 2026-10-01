@@ -93,7 +93,9 @@ export function Footer() {
               <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-cyan mb-5">
                 {c.h}
               </div>
-              <ul className="space-y-3">
+              {/* On a touch screen every link is a 44px row, so the list
+                  drops its gaps; with a mouse it keeps the tighter rhythm. */}
+              <ul className="space-y-3 [@media(pointer:coarse)]:space-y-0">
                 {c.l.map(([label, href]) => {
                   const external = href.startsWith("http");
                   return (
@@ -102,7 +104,7 @@ export function Footer() {
                         href={href}
                         target={external ? "_blank" : undefined}
                         rel={external ? "noreferrer" : undefined}
-                        className="text-sm text-muted hover:text-text transition-colors"
+                        className="text-sm text-muted hover:text-text transition-colors [@media(pointer:coarse)]:inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center"
                       >
                         {label}
                       </Link>
