@@ -77,7 +77,7 @@ const mockRows = [
  */
 export function Reputation() {
   return (
-    <section id="reputation" className="relative py-28">
+    <section id="reputation" className="relative py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="THE TRUST LAYER"

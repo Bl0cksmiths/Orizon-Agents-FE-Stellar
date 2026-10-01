@@ -23,7 +23,7 @@ const pains = [
 
 export function Problem() {
   return (
-    <section id="problem" className="relative py-28">
+    <section id="problem" className="relative py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="THE GAP"

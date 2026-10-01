@@ -85,7 +85,7 @@ const primitives = [
 
 export function Solution() {
   return (
-    <section id="solution" className="relative py-28">
+    <section id="solution" className="relative py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="THE PRIMITIVES"

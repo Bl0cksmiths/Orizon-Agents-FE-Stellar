@@ -5,7 +5,7 @@ import { GridBg, Glow } from "@/components/ui/grid-bg";
 
 export function CTA() {
   return (
-    <section className="relative py-32">
+    <section className="relative py-24 md:py-32">
       <GridBg />
       <Glow
         color="violet"

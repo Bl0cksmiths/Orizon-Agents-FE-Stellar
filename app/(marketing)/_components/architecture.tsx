@@ -39,7 +39,7 @@ const modules = [
 
 export function Architecture() {
   return (
-    <section id="architecture" className="relative py-28">
+    <section id="architecture" className="relative py-20 md:py-28">
       <Glow color="violet" className="left-1/4 top-1/3 h-[320px] w-[320px]" />
       <Glow color="cyan" className="right-10 bottom-20 h-[280px] w-[280px]" />
 
