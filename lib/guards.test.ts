@@ -18,7 +18,6 @@ import {
   isEndpointCheck,
   isFlow,
   isLegacyOverview,
-  isOverview,
   isOverviewV2,
   isReputationInfo,
   isReputationParams,
@@ -152,7 +151,7 @@ describe("droppedCount", () => {
   });
 });
 
-describe("isOverview", () => {
+describe("isLegacyOverview field checks", () => {
   const valid = {
     agents_online: 128,
     tasks_per_sec: 0.42,
@@ -163,41 +162,46 @@ describe("isOverview", () => {
   };
 
   it("accepts a valid payload (extra keys tolerated)", () => {
-    expect(isOverview({ ...valid, extra: "ignored" })).toBe(true);
+    expect(isLegacyOverview({ ...valid, extra: "ignored" })).toBe(true);
   });
 
   it("rejects non-objects", () => {
-    expect(isOverview(null)).toBe(false);
-    expect(isOverview([])).toBe(false);
-    expect(isOverview("<html>proxy error</html>")).toBe(false);
+    expect(isLegacyOverview(null)).toBe(false);
+    expect(isLegacyOverview([])).toBe(false);
+    expect(isLegacyOverview("<html>proxy error</html>")).toBe(false);
   });
 
   it("rejects a throughput array containing non-numbers", () => {
-    expect(isOverview({ ...valid, throughput: [1, "2", 3] })).toBe(false);
+    expect(isLegacyOverview({ ...valid, throughput: [1, "2", 3] })).toBe(false);
   });
 
   it("rejects a string avg_completion", () => {
-    expect(isOverview({ ...valid, avg_completion: "0.97" })).toBe(false);
+    expect(isLegacyOverview({ ...valid, avg_completion: "0.97" })).toBe(false);
   });
 
   it("rejects a skills entry without a numeric pct", () => {
-    expect(isOverview({ ...valid, skills: [{ name: "code" }] })).toBe(false);
+    expect(isLegacyOverview({ ...valid, skills: [{ name: "code" }] })).toBe(
+      false,
+    );
   });
 
   it("rejects a non-string skill tone", () => {
     expect(
-      isOverview({ ...valid, skills: [{ name: "code", pct: 62, tone: 7 }] }),
+      isLegacyOverview({
+        ...valid,
+        skills: [{ name: "code", pct: 62, tone: 7 }],
+      }),
     ).toBe(false);
   });
 
   it("accepts a skill with an absent or unfamiliar tone", () => {
     // The backend types skills as dict[str, Any] — tone is not contractually
     // guaranteed, and the renderer color-falls-back on anything it knows.
-    expect(isOverview({ ...valid, skills: [{ name: "code", pct: 62 }] })).toBe(
-      true,
-    );
     expect(
-      isOverview({
+      isLegacyOverview({ ...valid, skills: [{ name: "code", pct: 62 }] }),
+    ).toBe(true);
+    expect(
+      isLegacyOverview({
         ...valid,
         skills: [{ name: "code", pct: 62, tone: "amber" }],
       }),

@@ -25,7 +25,6 @@ import type {
   DecomposeResponse,
   Flow,
   LegacyOverview,
-  Overview,
   OverviewV2,
   PlanFloorNotice,
   PlanStep,
@@ -141,17 +140,17 @@ export function screenAgentList(v: unknown): Agent[] | null {
   return Array.isArray(v) ? keepValid(v, isAgent) : null;
 }
 
-/** Dashboard + sidebar: stat tiles do `*100`/`.toFixed`, sparkline maps
- * `throughput`, the skills list maps `name`/`pct` and colors each bar from
- * `tone`.
+/**
+ * The legacy overview (see `LegacyOverview`). Recognising the shape is all
+ * this is for — so the request does not fail against a backend that still
+ * serves it — and none of its fields is ever displayed. The field checks
+ * stay as they were so a malformed payload is still told from a legacy one.
  *
  * `tone` is checked as a string only *when present*: the backend types skills
  * as `list[dict[str, Any]]` (`OverviewMetrics`, app/schemas.py), so pydantic
- * guarantees no key at all — requiring it (or pinning it to today's three
- * tone names) would reject payloads the contract permits. The renderer already
- * falls back to a default color for an unknown tone; the check only rules out
- * a non-string sneaking into a comparison. */
-export function isOverview(v: unknown): v is Overview {
+ * guarantees no key at all.
+ */
+export function isLegacyOverview(v: unknown): v is LegacyOverview {
   return (
     isRecord(v) &&
     isNum(v.agents_online) &&
@@ -169,12 +168,6 @@ export function isOverview(v: unknown): v is Overview {
     )
   );
 }
-
-/** The legacy overview's own field check, exported under the name the
- * network-stats reader uses. Recognising the shape is all it is for: none of
- * its fields is ever displayed (see `LegacyOverview`). */
-export const isLegacyOverview = (v: unknown): v is LegacyOverview =>
-  isOverview(v);
 
 /** A count: a non-negative whole number. `1.5` agents is a defect, and a
  * negative one would print as a figure nobody measured. */

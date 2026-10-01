@@ -316,10 +316,6 @@ export type OverviewV2 = {
   degraded: boolean;
 };
 
-/** Kept while the console still reads the legacy fields; removed once
- * lib/network-stats.ts owns every figure. */
-export type Overview = LegacyOverview;
-
 /** Where a reputation score comes from: on-chain evidence or the Bayesian
  * prior. Those are the two this build knows; a backend may add more, so the
  * wire fields are typed as any string. Only `"onchain"` is evidence, so

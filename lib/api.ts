@@ -9,7 +9,6 @@ import {
   isEndpointCheck,
   isFlow,
   isLegacyOverview,
-  isOverview,
   isOverviewV2,
   isReputationInfo,
   isReputationParams,
@@ -41,7 +40,6 @@ import type {
   ExecuteResponse,
   Flow,
   LegacyOverview,
-  Overview,
   OverviewV2,
   RegisterAgentReq,
   SetActiveReq,
@@ -259,7 +257,7 @@ async function httpError(
 }
 
 // Several components fetch the same GET simultaneously on mount (/app fires
-// getOverview from both the sidebar and the page). Identical paths share one
+// getNetworkOverview from both the sidebar and the page). Identical paths share one
 // request while it is in flight and for a short window after it resolves;
 // rejections are evicted immediately so retries always hit the network.
 export const GET_DEDUPE_MS = 1_000;
@@ -394,8 +392,6 @@ export const listAgents = () =>
   get<Agent[]>("/agents", ensureScreened("/agents", screenAgentList));
 export const listTasks = () =>
   get<Task[]>("/tasks", ensure("/tasks", isTaskList));
-export const getOverview = () =>
-  get<Overview>("/metrics/overview", ensure("/metrics/overview", isOverview));
 /** GET /api/metrics/overview in either shape the backend serves: the
  * measured one, or the legacy one whose figures are never displayed (see
  * `LegacyOverview`). Anything else is malformed and rejects as usual. */

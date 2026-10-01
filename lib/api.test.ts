@@ -33,7 +33,6 @@ import {
   getArtifact,
   getFlow,
   getNetworkOverview,
-  getOverview,
   getReputation,
   getReputationParams,
   getTrace,
@@ -492,7 +491,7 @@ describe("response guards", () => {
       jsonResponse(200, { agents_online: 1, throughput: "not-an-array" }),
     );
 
-    await expect(getOverview()).rejects.toThrow(
+    await expect(getNetworkOverview()).rejects.toThrow(
       "malformed response from /metrics/overview",
     );
   });
@@ -652,7 +651,7 @@ describe("response guards", () => {
     };
     fetchMock.mockResolvedValueOnce(jsonResponse(200, overview));
 
-    await expect(getOverview()).resolves.toEqual(overview);
+    await expect(getNetworkOverview()).resolves.toEqual(overview);
   });
 });
 
