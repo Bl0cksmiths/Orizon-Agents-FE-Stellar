@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { NETWORK_LABEL } from "@/components/ui/stellar-link";
 import {
   formatCount,
   provenanceCaption,
@@ -54,7 +55,10 @@ function tiles(s: NetworkStats): Tile[] {
     {
       label: "Settled workflows",
       value: fmt(s.settled),
-      caption: "settled on-chain",
+      // Distinct settled jobs from the settlement store, every payer counted:
+      // the team's own disclosed runs are in this figure, so it must never
+      // read as outside demand.
+      caption: `all time, all payers (team runs included) · ${NETWORK_LABEL}`,
     },
     {
       label: "Avg trust (on-chain)",
