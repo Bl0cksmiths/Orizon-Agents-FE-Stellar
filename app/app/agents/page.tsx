@@ -14,6 +14,7 @@ import {
 } from "@/components/agents/reputation-cell";
 import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { droppedCount } from "@/lib/guards";
 import { isOwnedBy } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
@@ -363,12 +364,7 @@ export default function AgentsPage() {
             reason: the region is only scrollable once its content overflows,
             and the content only widens when the reputation batch lands. So
             the violation raced the fetch, and looked like a flaky test. */}
-        <div
-          className={`overflow-x-auto ${focusRing}`}
-          tabIndex={0}
-          role="region"
-          aria-label="Agent registry table, scrolls horizontally"
-        >
+        <ScrollRegion label="Agent registry table, scrolls horizontally">
           {/* A floor is set as well as a fill. Story 3.05 put standing marks
               in the agent cell, which widened it and left the numeric columns
               to crush — the header ran together as "REPUTATIONRUNSSTATUS" and
@@ -631,7 +627,7 @@ export default function AgentsPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </Card>
     </div>
   );
