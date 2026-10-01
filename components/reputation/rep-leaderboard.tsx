@@ -152,8 +152,7 @@ function UnreadRow({
         <span className="sr-only">unranked</span>
       </td>
       <td className="py-3 pr-4">
-        <div className="font-mono">{agent.name}</div>
-        <div className="font-mono text-xs text-muted">{agent.id}</div>
+        <AgentIdentity agent={agent} />
       </td>
       <td className="py-3 pr-4">
         <ReputationCell agentName={agent.name} rep={null} read={read} />
@@ -428,10 +427,7 @@ export function RepLeaderboard({
                       {i + 1}
                     </td>
                     <td className="py-3 pr-4">
-                      <div className="font-mono">{agent.name}</div>
-                      <div className="font-mono text-xs text-muted">
-                        {agent.id}
-                      </div>
+                      <AgentIdentity agent={agent} />
                     </td>
                     <td className="py-3 pr-4">
                       <ReputationBadge
@@ -511,5 +507,26 @@ export function RepLeaderboard({
         </table>
       </ScrollRegion>
     </div>
+  );
+}
+
+/**
+ * Name over id, each capped and ellipsised. One 50-character name set the
+ * agent column to its full width and pushed the score off a phone. The whole
+ * text is still in the cell for assistive tech, and in the title on hover.
+ */
+function AgentIdentity({ agent }: { agent: Agent }) {
+  return (
+    <>
+      <div title={agent.name} className="max-w-[12rem] truncate font-mono">
+        {agent.name}
+      </div>
+      <div
+        title={agent.id}
+        className="max-w-[12rem] truncate font-mono text-xs text-muted"
+      >
+        {agent.id}
+      </div>
+    </>
   );
 }
