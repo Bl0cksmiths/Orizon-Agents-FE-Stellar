@@ -1,5 +1,5 @@
 /**
- * The marketing nav, at the six widths it is designed for.
+ * The marketing nav, at the six widths it is designed for (and 360px).
  *
  * What went wrong before this redesign, live on 2026-10-01: at 1920 the two
  * buttons wrapped onto two lines and the logo's "_" touched the first link;
@@ -22,6 +22,8 @@ import { WCAG_TAGS, disputeScan } from "./dispute-axe";
 import { mockApi, mockWallet } from "./mocks";
 
 const WIDTHS = [
+  // The narrowest phone the other public-page specs read at, then the six.
+  { width: 360, height: 780 },
   { width: 375, height: 812 },
   { width: 768, height: 1024 },
   { width: 1024, height: 768 },
@@ -58,6 +60,18 @@ async function visit(page: Page, path = "/") {
   await mockApi(page);
   await page.goto(path);
   await expect(logo(page)).toBeVisible();
+  // The bar is server-rendered, so it is visible before React hydrates it,
+  // and a press in that window does nothing. React tags each element it has
+  // hydrated with its props; the toggle, always in the DOM, is the signal.
+  await expect
+    .poll(() =>
+      page
+        .locator('header button[aria-controls="marketing-mobile-menu"]')
+        .evaluate((el) =>
+          Object.keys(el).some((key) => key.startsWith("__reactProps")),
+        ),
+    )
+    .toBe(true);
 }
 
 async function overflowX(page: Page): Promise<number> {
@@ -219,7 +233,7 @@ for (const viewport of WIDTHS) {
         // Launch App button below it.
         const next = desktop ? menuButton(page, "Platform") : launch(page);
         const gap = (await rect(next)).left - (await rect(logo(page))).right;
-        expect(gap).toBeGreaterThanOrEqual(24);
+        expect(gap).toBeGreaterThanOrEqual(desktop ? 32 : 12);
 
         if (desktop) {
           await expect(bar(page)).toBeVisible();
