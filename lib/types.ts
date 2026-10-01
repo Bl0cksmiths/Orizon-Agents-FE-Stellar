@@ -259,14 +259,66 @@ export type FlowNode = {
 };
 export type Flow = { nodes: FlowNode[]; edges: [string, string][] };
 
-export type Overview = {
+/**
+ * GET /api/metrics/overview as backends up to 2026-10 serve it. Every field is
+ * a presentation baseline or ambiguous: `agents_online` adds a hard-coded 2481
+ * to the real count, `tasks_per_sec`, `throughput` and `skills` are constants,
+ * and `avg_completion` / `avg_trust` silently fall back to invented figures
+ * with nothing in the payload saying so. The shape is still accepted so the
+ * request does not fail against a live backend, but nothing in it is ever
+ * displayed: lib/network-stats.ts derives every figure from measured sources
+ * instead.
+ */
+export type LegacyOverview = {
   agents_online: number;
   tasks_per_sec: number;
   avg_completion: number;
   avg_trust: number;
   throughput: number[];
-  skills: { name: string; pct: number; tone: "violet" | "cyan" | "magenta" }[];
+  skills: { name: string; pct: number; tone?: string | null }[];
 };
+
+/** One day of the settled-workflow series: `date` is `YYYY-MM-DD` (UTC). */
+export type SettledDay = { date: string; settled: number };
+
+/** One skill in the registry mix: how many registered agents list it, and
+ * that as a whole-number share of every registered agent. */
+export type SkillShare = { name: string; agents: number; pct: number };
+
+/**
+ * GET /api/metrics/overview once the backend measures it. Every count is
+ * read from the registry or the chain; a value it could not read is `null`
+ * (and `degraded` is set), never a stand-in.
+ */
+export type OverviewV2 = {
+  /** Unix seconds. */
+  generated_at: number;
+  agents: {
+    registered: number;
+    onchain: number;
+    seeded: number;
+    /** On-chain agents owned by a wallet the team does not control. */
+    external: number;
+    bound: number;
+    online: number;
+  };
+  operators: { external_wallets: number };
+  workflows: { settled: number | null; series: SettledDay[] };
+  tasks: {
+    recent: number;
+    complete: number;
+    failed: number;
+    completion_rate: number | null;
+  };
+  /** `avg` is on the 0–5 scale, over on-chain-rated agents only. */
+  trust: { avg: number | null; rated_agents: number };
+  skills: SkillShare[];
+  degraded: boolean;
+};
+
+/** Kept while the console still reads the legacy fields; removed once
+ * lib/network-stats.ts owns every figure. */
+export type Overview = LegacyOverview;
 
 /** Where a reputation score comes from: on-chain evidence or the Bayesian
  * prior. Those are the two this build knows; a backend may add more, so the
