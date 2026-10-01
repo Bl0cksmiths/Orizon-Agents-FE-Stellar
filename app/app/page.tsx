@@ -199,11 +199,14 @@ export default function OverviewPage() {
         </ErrorNote>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Two up on a phone, four from md. One column wasted a phone's
+          height on four short figures; four beside a 240px sidebar at 768px
+          clipped them, since a Card's clip-path cuts what overflows it. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {!overview && !error && <LoadingStatus label="Loading metrics…" />}
         {!overview &&
           METRIC_KEYS.map((k) => (
-            <Card key={k}>
+            <Card key={k} className="min-w-0 p-4 sm:p-6">
               <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 {k}
               </div>
@@ -223,11 +226,11 @@ export default function OverviewPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: i * 0.06 }}
           >
-            <Card>
+            <Card className="h-full min-w-0 p-4 sm:p-6" data-stat-tile>
               <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 {metric.k}
               </div>
-              <div className="font-mono text-3xl neon-text">
+              <div className="font-mono text-2xl neon-text sm:text-3xl">
                 {metric.v}
                 {metric.unit && (
                   <span className="ml-1.5 text-base text-muted">
