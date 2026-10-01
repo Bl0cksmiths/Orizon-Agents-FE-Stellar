@@ -518,8 +518,34 @@ export function Sidebar() {
           "lg:translate-x-0",
         )}
       >
-        <div className="flex h-16 items-center px-5 border-b border-border">
+        <div className="flex h-16 items-center justify-between px-5 border-b border-border">
           <Logo />
+          {/* The backdrop also closes the drawer, but on a phone it is a
+              sliver to the right of a 240px panel; this is the control a
+              thumb finds. Drawer-only, so it never shows on the rail. */}
+          <button
+            type="button"
+            aria-label="close menu"
+            onClick={() => setOpen(false)}
+            className={cn(
+              "-mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-muted hover:text-text lg:hidden",
+              focusRing,
+            )}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <path
+                d="M5 5l10 10M15 5L5 15"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
