@@ -299,6 +299,21 @@ async function overflow(page: Page): Promise<string[]> {
         found.push(`ends at ${Math.round(box.right)}px: ${name(el)}`);
         continue;
       }
+      const clip = clipperOf(el as HTMLElement);
+      const clipRight = clip?.getBoundingClientRect().right ?? Infinity;
+      if (
+        box.right > clipRight + 1 &&
+        !el.closest("[aria-hidden=true], [data-decor]") &&
+        !(
+          el.parentElement &&
+          el.parentElement.getBoundingClientRect().right > clipRight + 1
+        )
+      ) {
+        found.push(
+          `cut off by its card at ${Math.round(clipRight)}px: ${name(el)}`,
+        );
+        continue;
+      }
       // Content wider than its own box is only lost when it also runs past
       // the nearest ancestor that clips: a Card's clip-path, or overflow
       // hidden. Text overflowing that way moves no box, so the edge check
@@ -311,9 +326,8 @@ async function overflow(page: Page): Promise<string[]> {
       ) {
         continue;
       }
-      const clip = clipperOf(h);
       const end = box.left + h.scrollWidth;
-      if (clip && end > clip.getBoundingClientRect().right + 1) {
+      if (clip && end > clipRight + 1) {
         found.push(
           `content ${h.scrollWidth}px in a ${h.clientWidth}px box, cut off by its card: ${name(el)}`,
         );
@@ -356,6 +370,34 @@ async function clippedTiles(page: Page): Promise<string[]> {
         if (r.right > box.right + 1 || h.scrollWidth > h.clientWidth + 1) {
           bad.push(`«${label}» cuts off «${(el.textContent ?? "").trim()}»`);
         }
+      }
+    }
+    return bad;
+  });
+}
+
+/**
+ * The top bar holds one row: nothing past the right edge, and no control
+ * whose label wrapped inside its fixed height (at 360px the wallet address
+ * used to break onto a second line inside a 32px chip).
+ */
+async function topBarProblems(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    const bad: string[] = [];
+    const header = document.querySelector("header");
+    for (const el of Array.from(header?.querySelectorAll("*") ?? [])) {
+      const h = el as HTMLElement;
+      const box = h.getBoundingClientRect();
+      if (box.width === 0 || h.closest(".sr-only")) continue;
+      const what = (h.textContent ?? "").trim().slice(0, 30);
+      if (box.right > vw + 1 || box.left < -1)
+        bad.push(`off screen: «${what}»`);
+      if (
+        (h.tagName === "BUTTON" || h.tagName === "A") &&
+        h.scrollHeight > h.clientHeight + 1
+      ) {
+        bad.push(`wrapped: «${what}»`);
       }
     }
     return bad;
@@ -407,6 +449,9 @@ test.describe("the console at every width", () => {
           await scrollThrough(page);
           await motionSettled(page.locator("main"));
           await expectNavMode(page, width);
+          expect(await topBarProblems(page), `top bar at ${width}px`).toEqual(
+            [],
+          );
           expect(await overflow(page), `overflow at ${width}px`).toEqual([]);
           expect(await clippedTiles(page), `tiles at ${width}px`).toEqual([]);
           const { violations } = await new AxeBuilder({ page })
