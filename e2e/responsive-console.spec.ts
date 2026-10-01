@@ -550,10 +550,18 @@ test.describe("the console drawer", () => {
     await expect(
       page.getByRole("dialog", { name: "Navigation" }),
     ).toBeVisible();
-    // A point on the top bar, right of the drawer: what is hit there must be
-    // the backdrop, not a top-bar control still painted over it.
+    // A point on the top bar, right of the drawer: what is on top there must
+    // be the backdrop, not the top bar still painted over it. The page behind
+    // is `inert`, which takes it out of hit testing altogether, so it is
+    // lifted for the one probe: this asks about paint order, not about clicks.
     const hit = await page.evaluate(() => {
+      const header = document.querySelector("header");
+      const inert = Array.from(document.querySelectorAll("[inert]")).filter(
+        (el) => header && el.contains(header),
+      );
+      inert.forEach((el) => el.removeAttribute("inert"));
       const el = document.elementFromPoint(700, 32);
+      inert.forEach((el) => el.setAttribute("inert", ""));
       return el?.getAttribute("aria-label") ?? el?.tagName ?? null;
     });
     expect(hit).toBe("close menu");
