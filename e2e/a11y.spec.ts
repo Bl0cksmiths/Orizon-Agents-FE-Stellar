@@ -54,6 +54,11 @@ const ROUTES = [
  * are both on screen before the page is judged.
  */
 const READY: Partial<Record<string, (page: Page) => Promise<void>>> = {
+  // The four measured tiles, so the sweep judges the figures and their
+  // captions rather than the loading skeletons.
+  "/app": async (page) => {
+    await expect(page.locator("main [data-stat-tile]")).toHaveCount(4);
+  },
   // The environment badge and the balance rows, so the sweep judges the page
   // a PDAX operator sees rather than its loading skeletons.
   "/app/pdax": async (page) => {
