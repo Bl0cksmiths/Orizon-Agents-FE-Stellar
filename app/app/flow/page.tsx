@@ -95,7 +95,10 @@ export default function FlowPage() {
             </div>
           )}
           {flow && (
-            <>
+            // Points are percentages of this inset box, not of the canvas: a
+            // node is centred on its point and at least 140px wide, so one at
+            // x=4% or x=96% needs half its width of margin to stay on screen.
+            <div className="absolute inset-x-20 inset-y-10">
               <svg
                 viewBox="0 0 100 100"
                 className="absolute inset-0 h-full w-full"
@@ -166,7 +169,7 @@ export default function FlowPage() {
                   </div>
                 </m.div>
               ))}
-            </>
+            </div>
           )}
         </div>
 
