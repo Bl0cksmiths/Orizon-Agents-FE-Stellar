@@ -95,4 +95,10 @@ describe("Hero stat row", () => {
     expect(screen.getByText("Launch Console ▸")).toBeTruthy();
     expect(container.textContent).toContain("orizon.flow");
   });
+
+  it("labels the sample run an example, never live", () => {
+    const { container } = render(<Hero stats={null} />);
+    expect(container.textContent).toContain("orizon.flowexample");
+    expect(container.textContent).not.toMatch(/\blive\b/i);
+  });
 });
