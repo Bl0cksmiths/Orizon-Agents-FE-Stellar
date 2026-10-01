@@ -22,7 +22,6 @@
           "id": "6.1-D1-a",
           "claim": "The registration flow is built and merged: the Register an Agent page, signing in the operator's own wallet, and the backend endpoints that build, check and list a registration.",
           "status": "present",
-          "note": "The contract's register call was already open to any wallet. Story 1.01 audited it and needed no contract change, so there is no contracts pull request for this item.",
           "links": [
             {
               "label": "Frontend pull request #39: the Register an Agent form, its input checks and wallet signing (merged)",
