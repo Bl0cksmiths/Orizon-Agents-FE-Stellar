@@ -5,9 +5,9 @@ import { useEffect, useRef } from "react";
 import { ErrorNote } from "@/components/ui/error-note";
 import { Logo } from "@/components/ui/logo";
 import { StaleBadge } from "@/components/ui/stale-badge";
-import { getOverview } from "@/lib/api";
+import { sidebarLine } from "@/lib/network-stats";
 import { focusRing } from "@/lib/ui";
-import { useFetch } from "@/lib/use-fetch";
+import { useNetworkStats } from "@/lib/use-network-stats";
 import { cn } from "@/lib/utils";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
 import { DESKTOP_NAV_QUERY, useMobileNav } from "./mobile-nav-context";
@@ -401,15 +401,13 @@ export function Sidebar() {
   // Revalidating on focus refreshes them when the operator comes back to the
   // tab without adding a second poller alongside the Overview page's.
   const {
-    data: overview,
+    data: stats,
     error,
     loading,
     retrying,
     lastSuccessAt,
     reload,
-  } = useFetch(getOverview, [], {
-    revalidateOnFocus: true,
-  });
+  } = useNetworkStats();
 
   // Below lg the closed drawer is only translated off-screen, which leaves its
   // links in the tab order and accessibility tree (WCAG 2.4.3). Mark the closed
@@ -606,11 +604,9 @@ export function Sidebar() {
                 network
               </span>
             </div>
-            {overview && (
+            {stats && (
               <div className="font-mono text-[11px] text-muted leading-5">
-                {`${overview.agents_online.toLocaleString()} agents online`}
-                <br />
-                {`avg completion ${(overview.avg_completion * 100).toFixed(0)}%`}
+                {sidebarLine(stats)}
               </div>
             )}
             {/* These counters ride every console route, so a failed refresh
@@ -626,11 +622,9 @@ export function Sidebar() {
             {/* Placeholder dashes only before anything has ever loaded and
                 only while no failure is on screen — a retry attempt turns
                 `loading` back on, and dashes must not replace the error. */}
-            {!overview && !error && (
+            {!stats && !error && (
               <div className="font-mono text-[11px] text-muted leading-5">
-                — agents online
-                <br />
-                avg completion —
+                — agents registered · — external
               </div>
             )}
             {error && (
@@ -642,7 +636,7 @@ export function Sidebar() {
                 <span className="block">
                   {/* The badge above already says "stale" and dates it —
                       this line carries why. */}
-                  {overview ? "refresh failed" : "network metrics unavailable"}
+                  {stats ? "refresh failed" : "network metrics unavailable"}
                 </span>
                 <span className="mt-0.5 block break-all opacity-80">
                   {error}
