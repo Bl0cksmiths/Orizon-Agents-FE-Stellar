@@ -371,9 +371,15 @@ test.describe("marketing nav menus", () => {
   }) => {
     await visit(page);
     const button = menuButton(page, "Platform");
-    await button.focus();
-    await page.keyboard.press("Enter");
-    await expect(button).toHaveAttribute("aria-expanded", "true");
+    // Retried: under the full suite, `next dev` can re-render or reload the
+    // page as other routes compile, taking focus off the button mid-test.
+    await expect(async () => {
+      await button.focus();
+      await page.keyboard.press("Enter");
+      await expect(button).toHaveAttribute("aria-expanded", "true", {
+        timeout: 1_000,
+      });
+    }).toPass();
     await page.keyboard.press("ArrowDown");
     const product = panel(page, "Platform").getByRole("link", {
       name: "Product",
