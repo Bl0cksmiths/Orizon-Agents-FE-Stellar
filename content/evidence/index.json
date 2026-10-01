@@ -1665,7 +1665,7 @@
     {
       "id": "permissionless_scope",
       "title": "Anyone can register; payment is still run by the platform",
-      "text": "SOW §3.8: \"Deliverable 1 makes registration permissionless; it does not make settlement permissionless.\" Any wallet can register an agent without asking Orizon. Paying agents, writing ratings and deciding disputes are still done by keys the platform holds.",
+      "text": "SOW §3.8: \"Deliverable 1 makes registration permissionless; it does not make settlement permissionless.\" Any wallet can register an agent without asking Orizon. Paying agents, writing ratings and deciding disputes are still done by keys the platform holds. The contract's register call was already open to any wallet: story 1.01 audited it and needed no contract change, so Deliverable 1 has no contracts pull request.",
       "sow_ref": "§3.8"
     },
     {
