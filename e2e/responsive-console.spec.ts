@@ -25,6 +25,7 @@ import {
   mockAdoptionWithOperator,
   mockAgents,
   mockApi,
+  mockOverviewV2,
   mockDispute,
   mockDisputeApi,
   mockDisputeTaskId,
@@ -77,6 +78,9 @@ async function mockConsole(
       },
     },
     adoption: mockAdoptionWithOperator,
+    // The measured overview, so the settled chart and the composition card
+    // are drawn at every width, not their empty states.
+    overview: mockOverviewV2,
     ...extra,
   });
   await mockNetwork(page);
