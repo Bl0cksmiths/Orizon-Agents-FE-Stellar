@@ -4,13 +4,16 @@
  * The outline variant used to draw its border with `border-*`. A CSS border
  * runs only along the box's four sides, so `clip-cyber` cut it off at the two
  * chamfered corners and left the diagonals bare: the outline looked torn,
- * top-right and bottom-left. The border is now a 1px ring clipped to the
- * chamfered shape itself.
+ * top-right and bottom-left. The border now draws the straight sides, and two
+ * corner-sized pseudo-elements (`.chamfer-edges` in app/globals.css) draw the
+ * diagonals in the same colour. Neither an overlay nor a background-image on
+ * the box itself: both leave axe unable to judge the label's contrast, which
+ * the axe scans in nav.spec.ts and a11y.spec.ts would report.
  *
  * Asserted two ways, on each outline control the public pages show:
  *
- *   - the structure: no CSS border colour of its own, and a ring child whose
- *     clip-path is the even-odd ring;
+ *   - the structure: a 1px border in the edge colour, and a cut-sized
+ *     diagonal in each chamfered corner;
  *   - the pixels: the diagonals are painted about as strongly as the straight
  *     top edge. A screenshot is decoded here (8-bit PNG, inflated with
  *     node:zlib) rather than compared with a stored baseline, which would
@@ -117,7 +120,7 @@ async function borderStrength(control: Locator, cut: number) {
   const w = img.width;
   const h = img.height;
   const c = cut * s;
-  const inset = 0.7 * s; // half a CSS pixel in from the cut, on the ring
+  const inset = 0.7 * s; // just inside the cut, on the diagonal line
   const top = violetNear(img, w / 2, inset);
   const diagonals: number[] = [];
   for (const t of [0.3, 0.5, 0.7]) {
@@ -144,20 +147,28 @@ async function expectUnbrokenBorder(control: Locator, cut: 12 | 8) {
       }),
     )
     .toBe(1);
-  // Structure: the CSS border is only a transparent spacer, and the ring is
-  // the even-odd polygon.
+  // Structure: the border draws the straight sides, and a cut-sized
+  // pseudo-element in each chamfered corner draws its diagonal.
   const structure = await control.evaluate((el) => {
-    const ring = el.querySelector<HTMLElement>(":scope > [data-cyber-border]");
+    const corner = (which: "::before" | "::after") => {
+      const style = getComputedStyle(el, which);
+      return {
+        size: `${style.width} ${style.height}`,
+        gradient: style.backgroundImage.startsWith("linear-gradient"),
+      };
+    };
     return {
-      borderColor: getComputedStyle(el).borderTopColor,
       borderWidth: getComputedStyle(el).borderTopWidth,
-      ringClip: ring ? getComputedStyle(ring).clipPath : null,
+      borderColor: getComputedStyle(el).borderTopColor,
+      before: corner("::before"),
+      after: corner("::after"),
     };
   });
-  expect(structure.borderColor).toBe("rgba(0, 0, 0, 0)");
   expect(structure.borderWidth).toBe("1px");
-  expect(structure.ringClip).toContain("evenodd");
-  expect(structure.ringClip).toContain(`${cut}px`);
+  expect(structure.borderColor).toBe("rgba(176, 38, 255, 0.6)");
+  for (const corner of [structure.before, structure.after]) {
+    expect(corner).toEqual({ size: `${cut}px ${cut}px`, gradient: true });
+  }
 
   // Pixels: each diagonal is painted at least half as strongly as the top.
   const { top, diagonals } = await borderStrength(control, cut);
@@ -197,8 +208,8 @@ test.describe("outline border on the chamfered corners", () => {
     await page.goto("/");
     const cta = page
       .getByRole("main")
-      .locator('a[href="/app/agents"]')
-      .filter({ has: page.locator("[data-cyber-border]") });
+      // The outline one, of the two links to the marketplace.
+      .locator('a[href="/app/agents"].chamfer-edges');
     await cta.scrollIntoViewIfNeeded();
     await settle(page);
     await expectUnbrokenBorder(cta, 12);
@@ -207,9 +218,7 @@ test.describe("outline border on the chamfered corners", () => {
   test("the not-found page's way home", async ({ page }) => {
     await page.goto("/no-such-page");
     await settle(page);
-    const home = page
-      .locator('a[href="/"]')
-      .filter({ has: page.locator("[data-cyber-border]") });
+    const home = page.locator('a[href="/"].chamfer-edges');
     await expectUnbrokenBorder(home, 12);
   });
 
@@ -230,9 +239,17 @@ test.describe("outline border on the chamfered corners", () => {
     const button = page
       .getByRole("banner")
       .getByRole("button", { name: "Connect Wallet" });
-    const ring = button.locator("> [data-cyber-border]");
-    await expect(ring).toHaveCSS("background-color", "rgba(176, 38, 255, 0.6)");
+    // The straight sides and the diagonals share one colour, `--edge`.
+    const edge = () =>
+      button.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.getPropertyValue("--edge").trim(), style.borderTopColor];
+      });
+    expect(await edge()).toEqual([
+      "rgba(176,38,255,0.6)",
+      "rgba(176, 38, 255, 0.6)",
+    ]);
     await button.hover();
-    await expect(ring).toHaveCSS("background-color", "rgb(176, 38, 255)");
+    await expect.poll(edge).toEqual(["#B026FF", "rgb(176, 38, 255)"]);
   });
 });
