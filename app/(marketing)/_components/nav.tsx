@@ -54,7 +54,7 @@ export function Nav() {
           : "bg-transparent",
       )}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-8 px-6 lg:grid lg:grid-cols-[1fr_auto_1fr]">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:grid lg:gap-8 lg:grid-cols-[1fr_auto_1fr]">
         <Logo className="shrink-0 justify-self-start" />
 
         <nav aria-label="Main" className="hidden lg:block">
@@ -86,7 +86,10 @@ export function Nav() {
           </ul>
         </nav>
 
-        <div className="flex shrink-0 items-center gap-3 justify-self-end">
+        {/* Below `sm` the row is tight — a 360px phone has room for the logo,
+            Launch App and the toggle with little to spare — so the gaps
+            close up and Launch App drops its arrow there. */}
+        <div className="flex shrink-0 items-center gap-2 justify-self-end sm:gap-3">
           <ConnectWallet
             size="sm"
             variant="outline"
@@ -99,7 +102,10 @@ export function Nav() {
             variant="primary"
             className="whitespace-nowrap"
           >
-            Launch App <span aria-hidden>▸</span>
+            Launch App{" "}
+            <span aria-hidden className="hidden sm:inline">
+              ▸
+            </span>
           </ButtonLink>
           <MobileMenu
             open={sheetOpen}
