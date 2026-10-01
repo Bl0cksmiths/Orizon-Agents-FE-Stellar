@@ -1103,9 +1103,81 @@
           "date": "2026-09-29"
         },
         {
-          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
+          "label": "Registration of Data_Autobot by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+          "kind": "tx",
+          "tx_hash": "3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Learning_Bot by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+          "kind": "tx",
+          "tx_hash": "d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Powerbot by an outside operator's wallet GCVOW…KQKX (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "kind": "tx",
+          "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of fitness_autobot by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+          "kind": "tx",
+          "tx_hash": "3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of game_fi by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+          "kind": "tx",
+          "tx_hash": "3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of messaging_bot by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+          "kind": "tx",
+          "tx_hash": "0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Gamer_Bot by an outside operator's wallet GBG2J…62U5 (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+          "kind": "tx",
+          "tx_hash": "3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of ReWoA_bot by an outside operator's wallet GD45P…WTAQ (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+          "kind": "tx",
+          "tx_hash": "8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of SocialFi_Bot by an outside operator's wallet GB3YZ…2RUN (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+          "kind": "tx",
+          "tx_hash": "4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of Stake_Bot by an outside operator's wallet GBJIX…VZKX (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+          "kind": "tx",
+          "tx_hash": "42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of Trade_Bot by an outside operator's wallet GDSMF…GAU4 (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+          "kind": "tx",
+          "tx_hash": "4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+          "date": "2026-09-30"
         },
         {
           "label": "Registration of faulty_test_v2 by the team's x402 escrow spike key (2026-09-15), random throwaway — 2026-09-30 (excluded: team wallet)",
