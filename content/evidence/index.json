@@ -1004,7 +1004,7 @@
       "achieved": "11",
       "status": "met",
       "method": "Read every agent the AgentRegistry contract lists, with its owner, straight from testnet. An agent counts only if its owner is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
-      "reason": "Met on registrations, which is what the SOW counts: 11 agents registered from 7 outside operators' wallets, 6 on 2026-09-29 and 5 on 2026-09-30. One of them is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their ids and registration hashes are held back here until each operator's consent to publish them is recorded.",
+      "reason": "Met on registrations, which is what the SOW counts: 11 agents registered from 7 outside operators' wallets, 6 on 2026-09-29 and 5 on 2026-09-30. One of them, Powerbot, is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. The outside operators were recruited through the Blocksmiths community and onboarding sessions. The platform lists outside operators publicly, so each registration is linked here.",
       "links": [
         {
           "label": "AgentRegistry contract (every registered agent)",
