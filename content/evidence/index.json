@@ -905,12 +905,12 @@
           "note": "The API runs on a free plan, so the first request can take up to a minute while it wakes. It is updated by a manual deploy and was last deployed on 2026-09-29 (see the notes).",
           "links": [
             {
-              "label": "Live API: the network (testnet) and the four contract addresses it uses",
+              "label": "Live API: the network (testnet) and the four contract addresses it uses (on a free plan, so the first request can take up to a minute; see the notes)",
               "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/network",
               "kind": "page"
             },
             {
-              "label": "Live API status check: ready, with the platform's scoring key",
+              "label": "Live API status check: ready, on escrow v2 with refund reconciliation on, with the platform's scoring key",
               "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
               "kind": "page"
             },
