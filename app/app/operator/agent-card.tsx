@@ -149,12 +149,16 @@ export function AgentCard({
           size="sm"
           onClick={() => setManaging((v) => !v)}
           aria-expanded={managing}
-          className={focusRing}
+          title={`settings for ${agent.id}`}
+          // The id can run to 64 characters with no break; capped to the
+          // card and ellipsised, the label no longer pushes the card past a
+          // phone's edge. The accessible name is still the whole id.
+          className={`max-w-full ${focusRing}`}
         >
           <span aria-hidden="true" className="mr-1.5 inline-block">
             {managing ? "▾" : "▸"}
           </span>
-          settings for {agent.id}
+          <span className="min-w-0 truncate">settings for {agent.id}</span>
         </Button>
         {managing && (
           <div className="mt-4">
