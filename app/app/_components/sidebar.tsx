@@ -439,13 +439,47 @@ export function Sidebar() {
         ? document.activeElement
         : null;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      // aria-modal promises focus stays in the dialog. The page behind is
+      // inert, but the backdrop and the browser chrome are not, so Tab off
+      // the last link used to leave the drawer. Wrap it at both ends.
+      const aside = asideRef.current;
+      if (e.key !== "Tab" || !aside) return;
+      const focusables = Array.from(
+        aside.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      const inside = aside.contains(active) && active !== aside;
+      if (e.shiftKey && (active === first || !inside)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
     };
+    // Widening past lg with the drawer open (a tablet turned to landscape)
+    // would otherwise leave the page inert and its scroll locked behind a
+    // sidebar that is no longer a drawer.
+    const desktop = window.matchMedia(DESKTOP_NAV_QUERY);
+    const onDesktop = () => {
+      if (desktop.matches) setOpen(false);
+    };
+    desktop.addEventListener("change", onDesktop);
     document.addEventListener("keydown", onKeyDown);
     document.body.classList.add("overflow-hidden");
     asideRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      desktop.removeEventListener("change", onDesktop);
       document.body.classList.remove("overflow-hidden");
       // The opener (the hamburger) lives inside ConsoleContent, which is still
       // `inert` at this point — focusing an element inside an inert subtree is
