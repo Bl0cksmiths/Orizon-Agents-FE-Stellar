@@ -369,12 +369,19 @@ test.describe("litepaper page links", () => {
     await expect(
       page.getByRole("contentinfo").getByRole("link", { name: "Litepaper" }),
     ).toHaveAttribute("href", LITEPAPER);
-    await expect(
-      page
-        .getByRole("banner")
-        .first()
-        .getByRole("link", { name: "Litepaper", exact: true }),
-    ).toHaveAttribute("href", LITEPAPER);
+    // In the nav it sits in the Resources menu, marked as the current page.
+    // Retried: a press that lands before the page hydrates does nothing.
+    const bar = page
+      .getByRole("banner")
+      .first()
+      .getByRole("navigation", { name: "Main" });
+    const inNav = bar.getByRole("link", { name: "Litepaper", exact: true });
+    await expect(async () => {
+      await bar.getByRole("button", { name: "Resources", exact: true }).click();
+      await expect(inNav).toBeVisible({ timeout: 1_000 });
+    }).toPass();
+    await expect(inNav).toHaveAttribute("href", LITEPAPER);
+    await expect(inNav).toHaveAttribute("aria-current", "page");
     await page.context().close();
   });
 
