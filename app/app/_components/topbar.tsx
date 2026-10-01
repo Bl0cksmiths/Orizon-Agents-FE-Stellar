@@ -79,7 +79,7 @@ export function Topbar() {
           <button
             aria-label="open menu"
             onClick={toggle}
-            className={`md:hidden flex items-center justify-center h-9 w-9 -ml-1 clip-cyber-sm border border-border hover:border-violet/60 hover:bg-violet/5 transition ${focusRing}`}
+            className={`lg:hidden flex shrink-0 items-center justify-center h-11 w-11 -ml-1.5 clip-cyber-sm border border-border hover:border-violet/60 hover:bg-violet/5 transition ${focusRing}`}
           >
             <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
               <path
@@ -90,19 +90,33 @@ export function Topbar() {
               />
             </svg>
           </button>
-          <nav className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted truncate">
-            {meta.b.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-2">
-                {i > 0 && <span className="text-violet">/</span>}
-                <span className={i === meta.b.length - 1 ? "text-text" : ""}>
-                  {crumb}
+          {/* Below lg only the page's own crumb is shown: the full trail
+              left the right-hand controls no room (on a phone the wallet
+              address wrapped onto two lines inside a 32px chip, and on a
+              tablet the page name was cut to "OVER…"). */}
+          <nav className="flex min-w-0 items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-muted sm:tracking-[0.22em]">
+            {meta.b.map((crumb, i) => {
+              const last = i === meta.b.length - 1;
+              return (
+                <span
+                  key={i}
+                  className={
+                    last ? "flex min-w-0 items-center gap-2" : "hidden lg:flex"
+                  }
+                >
+                  {i > 0 && (
+                    <span className="hidden text-violet lg:inline">/</span>
+                  )}
+                  <span className={last ? "truncate text-text" : ""}>
+                    {crumb}
+                  </span>
                 </span>
-              </span>
-            ))}
+              );
+            })}
           </nav>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex shrink-0 items-center gap-2 md:gap-4">
           {connected &&
             // A failed balance fetch used to render the same quiet "—" as a
             // balance that simply hadn't loaded. Say it failed, and make the
@@ -141,7 +155,10 @@ export function Topbar() {
                 </span>
               </div>
             ))}
-          <ConnectWallet />
+          {/* Below sm the network badge is dropped (the wrong-network
+              banner under this bar still says when it matters) and the
+              address chip may not wrap. */}
+          <ConnectWallet className="max-sm:[&>span]:hidden [&_button]:whitespace-nowrap" />
           <div role="status" aria-live="polite" className="flex items-center">
             {backendError ? (
               // A stale success must not outrank a live failure — report the
@@ -154,19 +171,33 @@ export function Topbar() {
                 aria-label={`backend unreachable — ${backendError}. Retry`}
                 className={`disabled:opacity-50 ${focusRing}`}
               >
+                {/* On a phone the pill is its dot (and the ↻ that makes it
+                    a retry): the words stay for screen readers, and the
+                    page's own crumb gets the room. */}
                 <Badge tone="magenta" dot>
-                  {backendRechecking ? "checking…" : "offline ↻"}
+                  {backendRechecking ? (
+                    <span className="max-sm:sr-only">checking…</span>
+                  ) : (
+                    <>
+                      <span className="max-sm:sr-only">offline </span>↻
+                    </>
+                  )}
                 </Badge>
               </button>
             ) : backend ? (
               <span title={`backend reachable · ${backend.network}`}>
                 <Badge tone="success" dot>
-                  live
+                  <span className="max-sm:sr-only">live</span>
                 </Badge>
               </span>
             ) : (
               <span title="checking backend…">
-                <Badge tone="muted">checking…</Badge>
+                <Badge tone="muted">
+                  <span aria-hidden="true" className="sm:hidden">
+                    …
+                  </span>
+                  <span className="max-sm:sr-only">checking…</span>
+                </Badge>
               </span>
             )}
           </div>

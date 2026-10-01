@@ -24,9 +24,9 @@ export default function Loading() {
       </div>
 
       {/* Stat tiles. */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
+          <Card key={i} className="min-w-0 p-4 sm:p-6">
             <Skeleton className="h-3 w-24 mb-4" />
             <Skeleton className="h-8 w-16" />
           </Card>

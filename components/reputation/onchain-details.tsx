@@ -157,37 +157,64 @@ export function OnchainDetails({
         </p>
       )}
 
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-              <th scope="col" className="pb-3 pr-4 text-left">
+      {/* Stacked on a phone, like the rubric, and the signature wraps at its
+          commas: held to one line it pushed the notes off the card up to md. Roles are explicit because changing
+          a table part's `display` drops its semantics in some browsers. */}
+      <div className="mt-5">
+        <table role="table" className="block w-full text-sm sm:table">
+          <thead
+            role="rowgroup"
+            className="sr-only sm:not-sr-only sm:table-header-group"
+          >
+            <tr
+              role="row"
+              className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted"
+            >
+              <th
+                role="columnheader"
+                scope="col"
+                className="pb-3 pr-4 text-left"
+              >
                 method
               </th>
-              <th scope="col" className="pb-3 pr-4 text-left">
+              <th
+                role="columnheader"
+                scope="col"
+                className="pb-3 pr-4 text-left"
+              >
                 signature
               </th>
-              <th scope="col" className="pb-3 text-left">
+              <th role="columnheader" scope="col" className="pb-3 text-left">
                 notes
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup" className="block sm:table-row-group">
             {METHODS.map((row) => (
               <tr
+                role="row"
                 key={row.method}
-                className="border-b border-border/50 last:border-0"
+                className="block border-b border-border/50 py-3 last:border-0 sm:table-row sm:py-0"
               >
                 <th
+                  role="rowheader"
                   scope="row"
-                  className="py-3 pr-4 text-left font-mono font-normal text-cyan"
+                  className="block pr-4 text-left sm:table-cell sm:py-3 font-mono font-normal text-cyan"
                 >
                   {row.method}
                 </th>
-                <td className="py-3 pr-4 font-mono text-xs text-text whitespace-nowrap">
+                <td
+                  role="cell"
+                  className="block break-all py-1 pr-4 font-mono text-xs text-text sm:table-cell sm:break-normal sm:py-3"
+                >
                   {row.signature}
                 </td>
-                <td className="py-3 text-muted">{row.notes}</td>
+                <td
+                  role="cell"
+                  className="block text-muted sm:table-cell sm:py-3"
+                >
+                  {row.notes}
+                </td>
               </tr>
             ))}
           </tbody>

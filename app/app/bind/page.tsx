@@ -428,7 +428,10 @@ function BindPageInner() {
                       touch("agent_id");
                       clearOutcome();
                     }}
-                    className={`clip-cyber-sm border border-border px-2.5 py-1 font-mono text-[11px] text-muted transition hover:border-violet/60 hover:text-text disabled:opacity-50 ${focusRing}`}
+                    title={a.id}
+                    // Capped to the row and ellipsised: a long id ran the
+                    // chip off a phone. The name is still the whole id.
+                    className={`block max-w-full truncate clip-cyber-sm border border-border px-2.5 py-1 font-mono text-[11px] text-muted transition hover:border-violet/60 hover:text-text disabled:opacity-50 ${focusRing}`}
                   >
                     {a.id}
                   </button>

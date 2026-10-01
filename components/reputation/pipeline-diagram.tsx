@@ -115,7 +115,7 @@ export function PipelineDiagram({
             <div className="flex items-center gap-3">
               <span
                 aria-hidden="true"
-                className="font-mono text-xl font-semibold text-violet"
+                className="font-mono text-xl font-semibold text-violet-readable"
               >
                 {String(i + 1).padStart(2, "0")}
               </span>
@@ -129,7 +129,7 @@ export function PipelineDiagram({
               <p className="mt-3 font-mono text-[11px] text-cyan">{s.call}</p>
             )}
             {s.note && (
-              <p className="mt-3 border-t border-border/40 pt-3 font-mono text-[11px] text-violet">
+              <p className="mt-3 border-t border-border/40 pt-3 font-mono text-[11px] text-violet-readable">
                 {s.note}
               </p>
             )}

@@ -107,7 +107,7 @@ export function ScoreCalculator({
             step={1}
             value={mean}
             onChange={(e) => setMean(Number(e.target.value))}
-            className="w-full accent-violet"
+            className="h-6 w-full accent-violet"
           />
         </div>
 
@@ -132,7 +132,7 @@ export function ScoreCalculator({
             step={1}
             value={weight}
             onChange={(e) => setWeight(Number(e.target.value))}
-            className="w-full accent-violet"
+            className="h-6 w-full accent-violet"
           />
         </div>
 

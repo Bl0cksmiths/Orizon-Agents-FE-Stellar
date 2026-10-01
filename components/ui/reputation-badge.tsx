@@ -110,9 +110,9 @@ export function ReputationBadge({
       <span aria-hidden="true">{prior ? "≈" : ""}★</span>
       <span aria-hidden="true">{score(bps)}</span>
       {showCount && (
-        <span aria-hidden="true" className="opacity-70">
-          · {count}
-        </span>
+        // Full tone: at 70% opacity the count on a below-floor chip was
+        // 3.4:1 magenta on magenta, under the 4.5:1 a 10px figure needs.
+        <span aria-hidden="true">· {count}</span>
       )}
       {disputePct && (
         <span aria-hidden="true" className="text-magenta">

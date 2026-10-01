@@ -25,7 +25,7 @@ export function ConsoleContent({ children }: { children: React.ReactNode }) {
   }, [open]);
 
   return (
-    <div ref={ref} className="md:pl-60">
+    <div ref={ref} className="lg:pl-60">
       {children}
     </div>
   );

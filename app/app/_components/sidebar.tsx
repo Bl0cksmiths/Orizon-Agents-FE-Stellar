@@ -10,7 +10,7 @@ import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { cn } from "@/lib/utils";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
-import { useMobileNav } from "./mobile-nav-context";
+import { DESKTOP_NAV_QUERY, useMobileNav } from "./mobile-nav-context";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -411,16 +411,16 @@ export function Sidebar() {
     revalidateOnFocus: true,
   });
 
-  // Below md the closed drawer is only translated off-screen, which leaves its
+  // Below lg the closed drawer is only translated off-screen, which leaves its
   // links in the tab order and accessibility tree (WCAG 2.4.3). Mark the closed
-  // drawer `inert` there; on md+ it is a permanently visible landmark, so never
+  // drawer `inert` there; on lg+ it is a permanently visible landmark, so never
   // inert. This effect runs before the focus effect below, so opening removes
   // inert before focus moves in. (inert is set via attribute — @types/react 18
   // does not type the prop yet.)
   useEffect(() => {
     const el = asideRef.current;
     if (!el) return;
-    const desktop = window.matchMedia("(min-width: 768px)");
+    const desktop = window.matchMedia(DESKTOP_NAV_QUERY);
     const apply = () => {
       if (!open && !desktop.matches) el.setAttribute("inert", "");
       else el.removeAttribute("inert");
@@ -439,13 +439,47 @@ export function Sidebar() {
         ? document.activeElement
         : null;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      // aria-modal promises focus stays in the dialog. The page behind is
+      // inert, but the backdrop and the browser chrome are not, so Tab off
+      // the last link used to leave the drawer. Wrap it at both ends.
+      const aside = asideRef.current;
+      if (e.key !== "Tab" || !aside) return;
+      const focusables = Array.from(
+        aside.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      const inside = aside.contains(active) && active !== aside;
+      if (e.shiftKey && (active === first || !inside)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
     };
+    // Widening past lg with the drawer open (a tablet turned to landscape)
+    // would otherwise leave the page inert and its scroll locked behind a
+    // sidebar that is no longer a drawer.
+    const desktop = window.matchMedia(DESKTOP_NAV_QUERY);
+    const onDesktop = () => {
+      if (desktop.matches) setOpen(false);
+    };
+    desktop.addEventListener("change", onDesktop);
     document.addEventListener("keydown", onKeyDown);
     document.body.classList.add("overflow-hidden");
     asideRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      desktop.removeEventListener("change", onDesktop);
       document.body.classList.remove("overflow-hidden");
       // The opener (the hamburger) lives inside ConsoleContent, which is still
       // `inert` at this point — focusing an element inside an inert subtree is
@@ -459,14 +493,17 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile-only backdrop, visible when the drawer is open. */}
+      {/* Drawer-only backdrop, visible when the drawer is open. z-[35]:
+          above the sticky top bar (z-30), which it used to sit level with and
+          so lose to by DOM order, leaving the bar bright and clickable-looking
+          over a dimmed page; below the drawer itself (z-40). */}
       <button
         aria-label="close menu"
         aria-hidden={!open}
         tabIndex={open ? 0 : -1}
         onClick={() => setOpen(false)}
         className={cn(
-          "fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden transition-opacity",
+          "fixed inset-0 z-[35] bg-black/60 backdrop-blur-sm lg:hidden transition-opacity",
           focusRing,
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
@@ -478,14 +515,42 @@ export function Sidebar() {
         aria-modal={open ? "true" : undefined}
         aria-label="Navigation"
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-border bg-surface/95 md:bg-surface/60 backdrop-blur-xl transition-transform duration-200",
+          "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-border bg-surface/95 lg:bg-surface/60 backdrop-blur-xl transition-transform duration-200",
           // Mobile: slide in/out. Desktop: always visible.
           open ? "translate-x-0" : "-translate-x-full",
-          "md:translate-x-0",
+          "lg:translate-x-0",
         )}
       >
-        <div className="flex h-16 items-center px-5 border-b border-border">
-          <Logo />
+        <div className="flex h-16 items-center justify-between px-5 border-b border-border">
+          {/* min-h-11: a 44px target in the drawer, like everything else
+              in it; the mark itself is 32px. */}
+          <Logo className="min-h-11" />
+          {/* The backdrop also closes the drawer, but on a phone it is a
+              sliver to the right of a 240px panel; this is the control a
+              thumb finds. Drawer-only, so it never shows on the rail. */}
+          <button
+            type="button"
+            aria-label="close menu"
+            onClick={() => setOpen(false)}
+            className={cn(
+              "-mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-muted hover:text-text lg:hidden",
+              focusRing,
+            )}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <path
+                d="M5 5l10 10M15 5L5 15"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
@@ -504,7 +569,7 @@ export function Sidebar() {
                 onClick={() => setOpen(false)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-all",
+                  "relative flex min-h-11 items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-all lg:min-h-0",
                   focusRing,
                   active
                     ? "bg-violet/10 text-text"

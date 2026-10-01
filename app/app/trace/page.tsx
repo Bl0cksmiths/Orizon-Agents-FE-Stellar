@@ -501,7 +501,10 @@ function TracePageInner() {
                 "aria-labelledby": tabId.trace,
               }
             : {})}
-          className="grid gap-6 lg:grid-cols-[1fr_280px]"
+          // The 280px rail joins at xl, not lg: beside the console sidebar
+          // at 1024px it left the trace itself about 400px. `minmax(0, 1fr)`
+          // so a long hash in the trace cannot widen the column past the page.
+          className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_280px]"
         >
           <Card className="!p-0 overflow-hidden">
             <div className="flex items-center justify-between border-b border-border bg-surface/80 px-4 py-2.5">
@@ -656,7 +659,7 @@ function TraceSkeleton() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <Card className="!p-0 overflow-hidden">
           <div className="flex items-center justify-between border-b border-border bg-surface/80 px-4 py-2.5">
             <div className="flex items-center gap-3">

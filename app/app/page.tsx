@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import { m } from "framer-motion";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ErrorNote } from "@/components/ui/error-note";
@@ -199,11 +200,14 @@ export default function OverviewPage() {
         </ErrorNote>
       )}
 
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Two up on a phone, four from md. One column wasted a phone's
+          height on four short figures; four beside a 240px sidebar at 768px
+          clipped them, since a Card's clip-path cuts what overflows it. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {!overview && !error && <LoadingStatus label="Loading metrics…" />}
         {!overview &&
           METRIC_KEYS.map((k) => (
-            <Card key={k}>
+            <Card key={k} className="min-w-0 p-4 sm:p-6">
               <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 {k}
               </div>
@@ -223,11 +227,11 @@ export default function OverviewPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: i * 0.06 }}
           >
-            <Card>
+            <Card className="h-full min-w-0 p-4 sm:p-6" data-stat-tile>
               <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 {metric.k}
               </div>
-              <div className="font-mono text-3xl neon-text">
+              <div className="font-mono text-2xl neon-text sm:text-3xl">
                 {metric.v}
                 {metric.unit && (
                   <span className="ml-1.5 text-base text-muted">
@@ -240,7 +244,7 @@ export default function OverviewPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -337,8 +341,8 @@ export default function OverviewPage() {
                 : "loading…"}
           </span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <ScrollRegion label="Recent tasks table, scrolls horizontally">
+          <table className="w-full min-w-[40rem] text-sm">
             {/* The heading above already names this table on screen, so the
                 caption carries the same name for assistive tech only. */}
             <caption className="sr-only">
@@ -377,11 +381,19 @@ export default function OverviewPage() {
                       cell's existing look against the th defaults. */}
                   <th
                     scope="row"
-                    className="py-3 text-left font-mono text-xs font-normal text-muted"
+                    className="py-3 pr-4 text-left font-mono text-xs font-normal text-muted"
                   >
-                    {t.id}
+                    {/* Capped like the registry's id column; the whole id
+                        stays in the cell and in the title. */}
+                    <span title={t.id} className="block max-w-[10rem] truncate">
+                      {t.id}
+                    </span>
                   </th>
-                  <td className="py-3 max-w-md truncate">{t.intent}</td>
+                  <td className="py-3 pr-4">
+                    <span title={t.intent} className="block max-w-md truncate">
+                      {t.intent}
+                    </span>
+                  </td>
                   <td className="py-3 font-mono text-xs">{t.agents}</td>
                   <td className="py-3 font-mono text-xs text-cyan">
                     {formatSpent(t.spent, network?.asset)}
@@ -433,7 +445,7 @@ export default function OverviewPage() {
                 ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </Card>
     </div>
   );

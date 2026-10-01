@@ -119,7 +119,7 @@ export function RepStats({
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {tiles.map((t) => (
-        <Card key={t.k}>
+        <Card key={t.k} data-stat-tile>
           <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
             {t.k}
           </div>

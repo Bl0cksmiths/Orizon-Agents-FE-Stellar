@@ -14,6 +14,7 @@ import {
 } from "@/components/agents/reputation-cell";
 import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
 import { listAgents, listReputation } from "@/lib/api";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { droppedCount } from "@/lib/guards";
 import { isOwnedBy } from "@/lib/binding-status";
 import { isListed } from "@/lib/routability";
@@ -363,11 +364,10 @@ export default function AgentsPage() {
             reason: the region is only scrollable once its content overflows,
             and the content only widens when the reputation batch lands. So
             the violation raced the fetch, and looked like a flaky test. */}
-        <div
-          className={`overflow-x-auto ${focusRing}`}
-          tabIndex={0}
-          role="region"
-          aria-label="Agent registry table, scrolls horizontally"
+        <ScrollRegion
+          label="Agent registry table, scrolls horizontally"
+          // The container the full-width rows below measure themselves by.
+          scrollerClassName="[container-type:inline-size]"
         >
           {/* A floor is set as well as a fill. Story 3.05 put standing marks
               in the agent cell, which widened it and left the numeric columns
@@ -469,9 +469,19 @@ export default function AgentsPage() {
                       existing look against the th defaults. */}
                       <th
                         scope="row"
-                        className="py-3 text-left font-mono text-xs font-normal text-muted"
+                        className="py-3 pr-4 text-left font-mono text-xs font-normal text-muted"
                       >
-                        {a.id}
+                        {/* Capped and ellipsised: one 64-character id set the
+                            column to its full width and pushed every other
+                            column off a phone. The text is all still in the
+                            cell, so the row header's name is the whole id;
+                            the title shows it on hover. */}
+                        <span
+                          title={a.id}
+                          className="block max-w-[12rem] truncate"
+                        >
+                          {a.id}
+                        </span>
                       </th>
                       <td className="py-3 font-mono">
                         <div className="flex flex-wrap items-center gap-2">
@@ -582,7 +592,9 @@ export default function AgentsPage() {
                     {bindingState === "unbound" && isListed(a) && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
-                          <UnboundNotice agentId={a.id} agentName={a.name} />
+                          <PinnedToView>
+                            <UnboundNotice agentId={a.id} agentName={a.name} />
+                          </PinnedToView>
                         </td>
                       </tr>
                     )}
@@ -593,26 +605,30 @@ export default function AgentsPage() {
                     {bindingState === "error" && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
-                          <ErrorNote
-                            className="clip-cyber-sm"
-                            onRetry={binding.recheck}
-                            retryLabel="recheck"
-                            retrying={binding.rechecking}
-                          >
-                            couldn&apos;t check whether {a.name} has an endpoint
-                            bound — its status is unknown.
-                          </ErrorNote>
+                          <PinnedToView>
+                            <ErrorNote
+                              className="clip-cyber-sm"
+                              onRetry={binding.recheck}
+                              retryLabel="recheck"
+                              retrying={binding.rechecking}
+                            >
+                              couldn&apos;t check whether {a.name} has an
+                              endpoint bound — its status is unknown.
+                            </ErrorNote>
+                          </PinnedToView>
                         </td>
                       </tr>
                     )}
                     {open && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
-                          <ManagePanel
-                            agent={a}
-                            owner={a.owner ?? ""}
-                            onChanged={retry}
-                          />
+                          <PinnedToView>
+                            <ManagePanel
+                              agent={a}
+                              owner={a.owner ?? ""}
+                              onChanged={retry}
+                            />
+                          </PinnedToView>
                         </td>
                       </tr>
                     )}
@@ -631,8 +647,23 @@ export default function AgentsPage() {
               )}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </Card>
     </div>
+  );
+}
+
+/**
+ * A full-width row's content, held to the visible part of the scroller.
+ *
+ * The notice and manage rows span all eight columns, so they were as wide as
+ * the 60rem table: on a phone their sentences ran off past the card edge and
+ * the bind button sat out of sight, a sideways scroll away. Sticky at the
+ * left and one scroller wide (`100cqw`), they stay put while the columns
+ * above them scroll.
+ */
+function PinnedToView({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="sticky left-0 w-[calc(100cqw-0.5rem)]">{children}</div>
   );
 }

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { ErrorNote } from "@/components/ui/error-note";
 import { Skeleton, LoadingStatus } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import {
   ReputationCell,
@@ -100,8 +101,10 @@ function SortableTh({
       <button
         type="button"
         onClick={() => onSort(col)}
+        // min-h-6: the bare 10px label was a 20px-tall target, under WCAG
+        // 2.5.8's 24px minimum.
         className={cn(
-          "font-mono text-[10px] uppercase tracking-[0.25em] transition hover:text-text",
+          "inline-flex min-h-6 items-center font-mono text-[10px] uppercase tracking-[0.25em] transition hover:text-text",
           active ? "text-text" : "text-muted",
         )}
       >
@@ -151,8 +154,7 @@ function UnreadRow({
         <span className="sr-only">unranked</span>
       </td>
       <td className="py-3 pr-4">
-        <div className="font-mono">{agent.name}</div>
-        <div className="font-mono text-xs text-muted">{agent.id}</div>
+        <AgentIdentity agent={agent} />
       </td>
       <td className="py-3 pr-4">
         <ReputationCell agentName={agent.name} rep={null} read={read} />
@@ -332,7 +334,7 @@ export function RepLeaderboard({
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <ScrollRegion label="Reputation leaderboard, scrolls horizontally">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
@@ -427,10 +429,7 @@ export function RepLeaderboard({
                       {i + 1}
                     </td>
                     <td className="py-3 pr-4">
-                      <div className="font-mono">{agent.name}</div>
-                      <div className="font-mono text-xs text-muted">
-                        {agent.id}
-                      </div>
+                      <AgentIdentity agent={agent} />
                     </td>
                     <td className="py-3 pr-4">
                       <ReputationBadge
@@ -508,7 +507,28 @@ export function RepLeaderboard({
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </div>
+  );
+}
+
+/**
+ * Name over id, each capped and ellipsised. One 50-character name set the
+ * agent column to its full width and pushed the score off a phone. The whole
+ * text is still in the cell for assistive tech, and in the title on hover.
+ */
+function AgentIdentity({ agent }: { agent: Agent }) {
+  return (
+    <>
+      <div title={agent.name} className="max-w-[12rem] truncate font-mono">
+        {agent.name}
+      </div>
+      <div
+        title={agent.id}
+        className="max-w-[12rem] truncate font-mono text-xs text-muted"
+      >
+        {agent.id}
+      </div>
+    </>
   );
 }

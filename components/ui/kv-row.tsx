@@ -31,7 +31,16 @@ export function KVRow({
       <dt className="text-muted text-[10px] uppercase tracking-widest pt-1">
         {k}
       </dt>
-      <dd className={cn("text-right break-all text-text", valueClassName)}>
+      {/* overflow-wrap: anywhere, not word-break: break-all. Both let a
+          56-character address or a hash wrap on a phone, but break-all also
+          split prose values mid-word ("soroban r / pc event retention",
+          "Septe / mber 2015") where a space was right there. */}
+      <dd
+        className={cn(
+          "text-right text-text [overflow-wrap:anywhere]",
+          valueClassName,
+        )}
+      >
         {children ?? value}
       </dd>
     </div>

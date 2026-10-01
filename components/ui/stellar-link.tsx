@@ -54,8 +54,12 @@ export function StellarExpertLink({
       href={stellarExpertUrl(kind, id, network)}
       target="_blank"
       rel="noreferrer"
+      // A 24px minimum height: a 10px label on its own line was a 15px-tall
+      // target, under WCAG 2.5.8's 24px minimum. The same `inline-flex
+      // min-h-6 items-center` the receipt already gives its links, so they
+      // are drawn exactly as before and its loading skeleton still fits.
       className={cn(
-        "font-mono text-[10px] uppercase tracking-widest text-cyan hover:text-text",
+        "inline-flex min-h-6 items-center font-mono text-[10px] uppercase tracking-widest text-cyan hover:text-text",
         focusRing,
         className,
       )}

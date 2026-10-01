@@ -116,7 +116,11 @@ export default function ReputationPage() {
 
       <PipelineDiagram generation={escrowGeneration(network)} />
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
+      {/* `grid-cols-1` is load-bearing: an implicit track sizes to its
+          content's min-content, so the rubric table widened the whole column
+          past a phone's edge and took the calculator with it. Side by side
+          only from xl: beside the sidebar at lg each card was 300px wide. */}
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
         <RatingRubric />
         <ScoreCalculator
           params={params}

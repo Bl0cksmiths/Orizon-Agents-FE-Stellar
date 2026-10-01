@@ -79,42 +79,68 @@ export function RatingRubric() {
       <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-muted">
         how the settler scores a settled step
       </p>
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-              <th scope="col" className="pb-3 pr-4 text-left">
+      {/* Three short columns stack on a phone: in a 280px card the "why"
+          column was crushed to a word a line, and scrolling sideways to read
+          a sentence is worse. Roles are explicit because changing a table
+          part's `display` drops its semantics in some browsers. */}
+      <div className="mt-5">
+        <table role="table" className="block w-full text-sm sm:table">
+          <thead
+            role="rowgroup"
+            className="sr-only sm:not-sr-only sm:table-header-group"
+          >
+            <tr
+              role="row"
+              className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted"
+            >
+              <th
+                role="columnheader"
+                scope="col"
+                className="pb-3 pr-4 text-left"
+              >
                 signal
               </th>
-              <th scope="col" className="pb-3 pr-4 text-left">
+              <th
+                role="columnheader"
+                scope="col"
+                className="pb-3 pr-4 text-left"
+              >
                 rating
               </th>
-              <th scope="col" className="pb-3 text-left">
+              <th role="columnheader" scope="col" className="pb-3 text-left">
                 why
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup" className="block sm:table-row-group">
             {ROWS.map((r) => (
               <tr
+                role="row"
                 key={r.signal}
-                className="border-b border-border/50 last:border-0"
+                className="block border-b border-border/50 py-3 last:border-0 sm:table-row sm:py-0"
               >
                 <th
+                  role="rowheader"
                   scope="row"
-                  className="py-3 pr-4 text-left font-normal text-text"
+                  className="block pr-4 text-left sm:table-cell sm:py-3 font-normal text-text"
                 >
                   {r.signal}
                 </th>
                 <td
+                  role="cell"
                   className={cn(
-                    "py-3 pr-4 font-mono whitespace-nowrap",
+                    "block py-1 pr-4 font-mono whitespace-nowrap sm:table-cell sm:py-3",
                     ratingTone[r.kind],
                   )}
                 >
                   {r.rating}
                 </td>
-                <td className="py-3 text-muted">{r.why}</td>
+                <td
+                  role="cell"
+                  className="block text-muted sm:table-cell sm:py-3"
+                >
+                  {r.why}
+                </td>
               </tr>
             ))}
           </tbody>

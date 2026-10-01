@@ -79,8 +79,10 @@ export default function FlowPage() {
 
         {/* Nodes are positioned by percentage inside a clipped canvas and are
             each ≥140px wide, so a node near x=96% has nowhere to render on a
-            narrow viewport. Below md the same graph is listed instead. */}
-        <div className="relative hidden h-[520px] w-full bg-[#060010] overflow-hidden md:block">
+            narrow viewport, and two nodes 24% apart overlap below a ~740px
+            canvas (at 768px and beside the sidebar at 1024px they did). Below
+            xl the same graph is listed instead. */}
+        <div className="relative hidden h-[520px] w-full bg-[#060010] overflow-hidden xl:block">
           <div className="absolute inset-0 grid-bg opacity-60" />
           {!flow && !error && (
             <div className="absolute inset-0 grid place-items-center">
@@ -95,7 +97,10 @@ export default function FlowPage() {
             </div>
           )}
           {flow && (
-            <>
+            // Points are percentages of this inset box, not of the canvas: a
+            // node is centred on its point and at least 140px wide, so one at
+            // x=4% or x=96% needs half its width of margin to stay on screen.
+            <div className="absolute inset-x-20 inset-y-10">
               <svg
                 viewBox="0 0 100 100"
                 className="absolute inset-0 h-full w-full"
@@ -146,10 +151,16 @@ export default function FlowPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.35, delay: 0.08 * i }}
                   className="absolute"
+                  // The centring goes through motion's own x/y. A plain
+                  // `transform` here was overwritten by the scale animation,
+                  // so every node hung off its point by its top-left corner:
+                  // the edges met corners, and the last node ran out past the
+                  // canvas edge at every width.
                   style={{
                     left: `${n.x}%`,
                     top: `${n.y}%`,
-                    transform: "translate(-50%, -50%)",
+                    x: "-50%",
+                    y: "-50%",
                   }}
                 >
                   <div className="clip-cyber-sm border border-violet/60 bg-surface/80 px-4 py-2.5 shadow-neon-violet backdrop-blur hover:border-violet transition min-w-[140px]">
@@ -160,11 +171,11 @@ export default function FlowPage() {
                   </div>
                 </m.div>
               ))}
-            </>
+            </div>
           )}
         </div>
 
-        <div className="bg-[#060010] p-4 md:hidden">
+        <div className="bg-[#060010] p-4 xl:hidden">
           {!flow && !error && <Skeleton className="h-40 w-full" />}
           {error && (
             <ErrorNote onRetry={reload} retrying={reconnecting}>
@@ -215,7 +226,7 @@ export default function FlowPage() {
             { h: "Edges", v: String(flow.edges.length) },
             { h: "Parallel branches", v: String(parallelBranches) },
           ].map((s) => (
-            <Card key={s.h}>
+            <Card key={s.h} data-stat-tile>
               <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted mb-2">
                 {s.h}
               </div>
