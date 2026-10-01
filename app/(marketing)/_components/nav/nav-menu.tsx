@@ -154,6 +154,9 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
             : "pointer-events-none invisible -translate-y-1 opacity-0",
         )}
       >
+        {/* Opaque, not frosted: the header's own backdrop-filter becomes the
+            panel's backdrop root, so a blur here would see only the header
+            and the hero's headline would read straight through. */}
         <div className="clip-cyber relative w-[24rem] border border-border bg-surface p-2 shadow-inner-glow">
           <div
             aria-hidden
