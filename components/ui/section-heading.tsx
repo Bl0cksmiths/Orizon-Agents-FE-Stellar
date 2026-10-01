@@ -40,7 +40,7 @@ export function SectionHeading({
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className="text-3xl md:text-5xl font-semibold leading-[1.05] tracking-tight"
+        className="text-[clamp(1.875rem,1.2rem+2.6vw,3rem)] font-semibold leading-[1.05] tracking-tight"
       >
         {title}
       </m.h2>

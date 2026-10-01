@@ -77,7 +77,7 @@ const mockRows = [
  */
 export function Reputation() {
   return (
-    <section id="reputation" className="relative py-28">
+    <section id="reputation" className="relative py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="THE TRUST LAYER"
@@ -105,7 +105,7 @@ export function Reputation() {
                 </Card>
               ))}
             </div>
-            <p className="mt-6 text-sm leading-relaxed text-muted">
+            <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted">
               Wash-trading costs real USDC per fake rating. And when the chain
               is unreachable, scores fall back to the prior — never fabricated.
             </p>
@@ -118,7 +118,7 @@ export function Reputation() {
             transition={{ duration: 0.5, delay: 0.08 }}
           >
             <Card aria-hidden="true" className="h-full">
-              <div className="mb-6 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 <span>{"// reputation ledger — routing view"}</span>
                 <span>floor ★ 2.75</span>
               </div>
@@ -160,9 +160,15 @@ export function Reputation() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.5, delay: 0.16 }}
-          className="mt-10 flex flex-wrap gap-4"
+          className="mt-10 flex flex-col gap-4 sm:flex-row sm:flex-wrap"
         >
-          <ButtonLink href="/app/reputation" size="lg">
+          {/* On a phone the label runs to two lines, so the button grows
+              with it instead of clipping at the fixed height. */}
+          <ButtonLink
+            href="/app/reputation"
+            size="lg"
+            className="h-auto min-h-12 py-3 text-center"
+          >
             Explore the Reputation System ▸
           </ButtonLink>
           <a

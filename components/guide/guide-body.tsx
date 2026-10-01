@@ -20,6 +20,44 @@ type WithNode<T extends keyof JSX.IntrinsicElements> =
   ComponentPropsWithoutRef<T> & { node?: Element };
 
 /**
+ * Each table cell's column name, for the label a phone shows above it. Keyed
+ * by the cell's node, so the tree itself is left as the parser made it.
+ */
+const cellLabels = new WeakMap<Element, string>();
+
+const isElement = (n: unknown): n is Element =>
+  typeof n === "object" && n !== null && (n as Element).type === "element";
+
+function textOf(n: Element | Root): string {
+  return n.children
+    .map((c) => (c.type === "text" ? c.value : isElement(c) ? textOf(c) : ""))
+    .join("");
+}
+
+function labelCells(n: Element | Root): void {
+  for (const child of n.children) {
+    if (!isElement(child)) continue;
+    if (child.tagName !== "table") {
+      labelCells(child);
+      continue;
+    }
+    const sections = child.children.filter(isElement);
+    const head = sections.find((e) => e.tagName === "thead");
+    const headRow = head?.children.filter(isElement)[0];
+    const names = (headRow?.children.filter(isElement) ?? []).map((th) =>
+      textOf(th).trim(),
+    );
+    for (const body of sections.filter((e) => e.tagName === "tbody")) {
+      for (const row of body.children.filter(isElement)) {
+        row.children.filter(isElement).forEach((cell, i) => {
+          if (names[i]) cellLabels.set(cell, names[i]);
+        });
+      }
+    }
+  }
+}
+
+/**
  * A heading with its GitHub-slugger id and a visible anchor link. The link
  * sits beside the heading, not inside it, so the heading's accessible name is
  * just its text. Preflight makes headings inherit their size and weight, so
@@ -37,7 +75,7 @@ function heading(Tag: "h2" | "h3" | "h4" | "h5" | "h6", className: string) {
           <a
             href={`#${info.id}`}
             className={cn(
-              "shrink-0 font-mono text-[0.8em] font-normal text-muted no-underline transition-colors hover:text-cyan",
+              "shrink-0 font-mono text-[0.8em] font-normal text-muted no-underline transition-colors hover:text-cyan [@media(pointer:coarse)]:-my-2 [@media(pointer:coarse)]:inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:justify-center",
               focusRing,
             )}
           >
@@ -177,13 +215,42 @@ const components = {
       {children}
     </blockquote>
   ),
+  // Below sm a table is a stack of rows, each cell under its column's name,
+  // so a phone reads every column instead of scrolling to find the last one.
+  // The roles are explicit because changing a table part's display drops its
+  // table semantics in some browsers (as in components/ui/stacked-table).
   table: ({ children }: WithNode<"table">) => (
-    <table className="w-full min-w-[32rem] border-collapse text-left text-sm">
+    <table
+      role="table"
+      className="block w-full border-collapse text-left text-sm sm:table sm:min-w-[32rem]"
+    >
       {children}
     </table>
   ),
+  thead: ({ children }: WithNode<"thead">) => (
+    <thead
+      role="rowgroup"
+      className="sr-only sm:not-sr-only sm:table-header-group"
+    >
+      {children}
+    </thead>
+  ),
+  tbody: ({ children }: WithNode<"tbody">) => (
+    <tbody role="rowgroup" className="block sm:table-row-group">
+      {children}
+    </tbody>
+  ),
+  tr: ({ children }: WithNode<"tr">) => (
+    <tr
+      role="row"
+      className="block border-b border-border py-2 last:border-b-0 sm:table-row sm:py-0 sm:last:border-b"
+    >
+      {children}
+    </tr>
+  ),
   th: ({ children, style }: WithNode<"th">) => (
     <th
+      role="columnheader"
       scope="col"
       style={style}
       className="border-b border-border bg-surface/70 px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-widest text-muted"
@@ -191,14 +258,26 @@ const components = {
       {children}
     </th>
   ),
-  td: ({ children, style }: WithNode<"td">) => (
-    <td
-      style={style}
-      className="border-b border-border px-3 py-2 align-top text-text/90"
-    >
-      {children}
-    </td>
-  ),
+  td: ({ children, style, node }: WithNode<"td">) => {
+    const label = node ? cellLabels.get(node) : undefined;
+    return (
+      <td
+        role="cell"
+        style={style}
+        className="block px-3 py-1 align-top text-text/90 first:font-semibold sm:table-cell sm:border-b sm:border-border sm:py-2 sm:first:font-normal"
+      >
+        {label && (
+          <span
+            aria-hidden="true"
+            className="block font-mono text-[10px] uppercase tracking-widest text-muted sm:hidden"
+          >
+            {label}
+          </span>
+        )}
+        {children}
+      </td>
+    );
+  },
   hr: () => <hr className="my-10 border-border" />,
   strong: ({ children }: WithNode<"strong">) => (
     <strong className="font-semibold text-text">{children}</strong>
@@ -210,6 +289,7 @@ const components = {
 } as unknown as Components;
 
 export function GuideBody({ tree }: { tree: Root }) {
+  labelCells(tree);
   return toJsxRuntime(tree, {
     Fragment,
     jsx,

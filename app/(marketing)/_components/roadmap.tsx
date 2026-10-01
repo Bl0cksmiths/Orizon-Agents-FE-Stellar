@@ -56,7 +56,7 @@ const toneByStatus: Record<
 
 export function Roadmap() {
   return (
-    <section id="roadmap" className="relative py-28">
+    <section id="roadmap" className="relative py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="TRAJECTORY"
@@ -65,9 +65,9 @@ export function Roadmap() {
         />
 
         <div className="relative mt-16">
-          <div className="absolute left-0 right-0 top-10 hidden h-px bg-gradient-to-r from-cyan via-violet to-magenta md:block" />
+          <div className="absolute left-0 right-0 top-10 hidden h-px bg-gradient-to-r from-cyan via-violet to-magenta lg:block" />
 
-          <div className="grid gap-5 md:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {stages.map((s, i) => (
               <m.div
                 key={s.v}
@@ -75,11 +75,11 @@ export function Roadmap() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="relative"
+                className="relative flex flex-col"
               >
                 <div
                   className={cn(
-                    "relative mx-auto mb-6 hidden h-5 w-5 rounded-full md:block",
+                    "relative mx-auto mb-6 hidden h-5 w-5 rounded-full lg:block",
                     s.status === "now" && "bg-cyan shadow-[0_0_16px_#00FFD1]",
                     s.status === "next" &&
                       "bg-violet shadow-[0_0_16px_#B026FF]",
@@ -88,7 +88,7 @@ export function Roadmap() {
                     s.status === "vision" && "bg-muted/50 ring-2 ring-border",
                   )}
                 />
-                <div className="clip-cyber border border-border bg-surface/60 p-5">
+                <div className="clip-cyber flex-1 border border-border bg-surface/60 p-5">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="font-mono text-xl font-semibold">
                       {s.v}

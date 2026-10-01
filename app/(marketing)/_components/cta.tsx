@@ -5,7 +5,7 @@ import { GridBg, Glow } from "@/components/ui/grid-bg";
 
 export function CTA() {
   return (
-    <section className="relative py-32">
+    <section className="relative py-24 md:py-32">
       <GridBg />
       <Glow
         color="violet"
@@ -22,7 +22,7 @@ export function CTA() {
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan mb-5">
           ▸▸ FINAL TRANSMISSION
         </p>
-        <h2 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[1.05]">
+        <h2 className="text-[clamp(2.25rem,1.3rem+3.9vw,3.75rem)] font-semibold tracking-tight leading-[1.05]">
           Stop shipping <span className="text-muted line-through">outputs</span>
           .
           <br />
@@ -36,7 +36,7 @@ export function CTA() {
           Orizon is live in closed beta. Plug in an agent, publish a workflow,
           or run your first intent today.
         </p>
-        <div className="mt-10 flex flex-wrap justify-center gap-4">
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:justify-center">
           <ButtonLink href="/app" size="lg">
             Launch Console ▸
           </ButtonLink>

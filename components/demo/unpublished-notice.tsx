@@ -18,6 +18,7 @@ import {
   type Deliverable,
 } from "@/lib/demo/display";
 import { inlineLink } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 const WEEK_3_BUNDLE = EVIDENCE_BUNDLES[2];
 
@@ -117,10 +118,18 @@ export function UnpublishedNotice() {
         Each week&rsquo;s evidence, with every claim linked to a public pull
         request, commit or testnet transaction.
       </p>
-      <ul className="mt-3 space-y-2">
+      {/* A list of bare links: on a touch screen each is a 44px row. */}
+      <ul className="mt-3 space-y-2 [@media(pointer:coarse)]:space-y-0">
         {EVIDENCE_BUNDLES.map((b) => (
           <li key={b.href}>
-            <a href={b.href} rel="noreferrer" className={inlineLink}>
+            <a
+              href={b.href}
+              rel="noreferrer"
+              className={cn(
+                inlineLink,
+                "[@media(pointer:coarse)]:inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center",
+              )}
+            >
               {b.label}
             </a>
           </li>

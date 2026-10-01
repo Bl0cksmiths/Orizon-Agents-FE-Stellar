@@ -85,7 +85,7 @@ const primitives = [
 
 export function Solution() {
   return (
-    <section id="solution" className="relative py-28">
+    <section id="solution" className="relative py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="THE PRIMITIVES"
@@ -93,7 +93,7 @@ export function Solution() {
           subtitle="Orizon isn't an AI tool or an API marketplace. It's infrastructure for how autonomous work gets done."
         />
 
-        <div className="mt-14 grid gap-5 md:grid-cols-3">
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {primitives.map((p, i) => (
             <m.div
               key={p.num}
@@ -101,6 +101,8 @@ export function Solution() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.5, delay: i * 0.08 }}
+              // Two across on a tablet, the third card full width beneath.
+              className="sm:last:col-span-2 lg:last:col-span-1"
             >
               <Card className="h-full">
                 <div className="flex items-start justify-between mb-6">

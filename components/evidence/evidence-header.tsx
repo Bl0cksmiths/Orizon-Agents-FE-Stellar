@@ -51,7 +51,7 @@ export function EvidenceHeader({ index }: { index: EvidenceIndex }) {
         <h2 id="how-to-use" className="text-lg font-semibold text-text">
           How to use this page
         </h2>
-        <p className="mt-2 leading-relaxed text-text/90">
+        <p className="mt-2 max-w-3xl leading-relaxed text-text/90">
           Each row below shows a claim and the links that prove it; click a link
           to see the proof on Stellar Expert, the public ledger explorer, or on
           the page it names. You do not need an account, a wallet or any
@@ -59,7 +59,7 @@ export function EvidenceHeader({ index }: { index: EvidenceIndex }) {
           for each deliverable, then open that deliverable&rsquo;s items to
           check them yourself.
         </p>
-        <p className="mt-3 text-sm leading-relaxed text-muted">
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
           How this snapshot was taken: {index.snapshot.method}
         </p>
       </section>

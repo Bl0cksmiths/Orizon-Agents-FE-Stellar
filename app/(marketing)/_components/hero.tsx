@@ -23,12 +23,12 @@ export function Hero() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="mb-6 flex items-center gap-3"
+              className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2"
             >
-              <Badge tone="cyan" dot>
+              <Badge tone="cyan" dot className="whitespace-nowrap">
                 System online · v0.1
               </Badge>
-              <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
+              <span className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
                 {"// ORIZON AGENTS"}
               </span>
             </m.div>
@@ -37,7 +37,7 @@ export function Hero() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.05 }}
-              className="text-4xl md:text-6xl lg:text-7xl font-semibold leading-[1.02] tracking-tight"
+              className="text-[clamp(2.25rem,1.2rem+4.4vw,4.5rem)] font-semibold leading-[1.02] tracking-tight"
             >
               The orchestration{" "}
               <span className="relative">
@@ -64,7 +64,7 @@ export function Hero() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="mt-9 flex flex-wrap items-center gap-4"
+              className="mt-9 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center"
             >
               <ButtonLink href="/app" size="lg">
                 Launch Console ▸
@@ -106,7 +106,7 @@ export function Hero() {
               <span className="text-muted">$</span>{" "}
               <span className="text-cyan">orizon</span>{" "}
               <span className="text-text">run</span>{" "}
-              <span className="text-violet">
+              <span className="text-violet-readable">
                 "build me a landing page for pulse ai"
               </span>
               {"\n\n"}
