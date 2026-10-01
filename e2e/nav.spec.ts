@@ -98,6 +98,33 @@ async function headerOutsideWindow(page: Page): Promise<string[]> {
   );
 }
 
+/**
+ * Opens a menu, retried. In CI, under the full suite, `next dev` can
+ * re-render or reload the page as other routes compile, and a click that
+ * lands in that moment is lost; a retry clicks only while it is still shut.
+ */
+async function openMenu(page: Page, name: "Platform" | "Resources") {
+  const button = menuButton(page, name);
+  await expect(async () => {
+    if ((await button.getAttribute("aria-expanded")) !== "true") {
+      await button.click();
+    }
+    await expect(button).toHaveAttribute("aria-expanded", "true", {
+      timeout: 1_000,
+    });
+  }).toPass({ timeout: 15_000 });
+}
+
+/** Opens the sheet, retried for the same reason as `openMenu`. */
+async function openSheet(page: Page) {
+  await expect(async () => {
+    if (!(await sheet(page).evaluate((d: HTMLDialogElement) => d.open))) {
+      await toggle(page).click();
+    }
+    await expect(sheet(page)).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 async function overflowX(page: Page): Promise<number> {
   return page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
@@ -301,7 +328,7 @@ for (const viewport of WIDTHS) {
           page,
         }) => {
           await visit(page);
-          await menuButton(page, name).click();
+          await openMenu(page, name);
           await expect(menuButton(page, name)).toHaveAttribute(
             "aria-expanded",
             "true",
@@ -322,7 +349,7 @@ for (const viewport of WIDTHS) {
         page,
       }) => {
         await visit(page);
-        await toggle(page).click();
+        await openSheet(page);
         await expect(sheet(page)).toBeVisible();
         // Once its slide-in has settled, the panel sits inside the window.
         await expect
@@ -388,7 +415,7 @@ for (const viewport of WIDTHS.filter((v) => v.width <= DESKTOP_FROM)) {
       expect(await smallTargets(header(page))).toEqual([]);
       expect(await headerOutsideWindow(page)).toEqual([]);
       if (viewport.width < DESKTOP_FROM) {
-        await toggle(page).click();
+        await openSheet(page);
         await expect(sheetPanel(page)).toHaveCSS("opacity", "1");
         expect(await smallTargets(sheetPanel(page))).toEqual([]);
       }
@@ -420,11 +447,11 @@ test.describe("marketing nav menus", () => {
   }) => {
     await visit(page);
     await expect(panel(page, "Platform").getByRole("link")).toHaveCount(0);
-    await menuButton(page, "Platform").click();
+    await openMenu(page, "Platform");
     await expect(
       panel(page, "Platform").getByRole("link", { name: "Roadmap" }),
     ).toBeVisible();
-    await menuButton(page, "Resources").click();
+    await openMenu(page, "Resources");
     await expect(menuButton(page, "Platform")).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -482,7 +509,7 @@ test.describe("marketing nav menus", () => {
 
   test("close on a click outside", async ({ page }) => {
     await visit(page);
-    await menuButton(page, "Resources").click();
+    await openMenu(page, "Resources");
     await expect(
       panel(page, "Resources").getByRole("link").first(),
     ).toBeVisible();
@@ -498,7 +525,7 @@ test.describe("marketing nav menus", () => {
     page,
   }) => {
     await visit(page, "/evidence");
-    await menuButton(page, "Platform").click();
+    await openMenu(page, "Platform");
     await panel(page, "Platform")
       .getByRole("link", { name: "Roadmap" })
       .click();
@@ -520,7 +547,7 @@ test.describe("marketing nav menus", () => {
       "data-current",
       /.*/,
     );
-    await menuButton(page, "Resources").click();
+    await openMenu(page, "Resources");
     await expect(
       panel(page, "Resources").getByRole("link", { name: "Evidence" }),
     ).toHaveAttribute("aria-current", "page");
@@ -539,7 +566,7 @@ test.describe("marketing nav menus", () => {
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await visit(page);
-    await menuButton(page, "Platform").click();
+    await openMenu(page, "Platform");
     await expect(panel(page, "Platform")).toHaveCSS(
       "transition-property",
       "none",
@@ -578,7 +605,7 @@ test.describe("marketing nav sheet", () => {
     await visit(page);
     // Opened the moment the page can take it: the sheet must still arrive
     // fully visible, not stuck at its entrance's first frame.
-    await toggle(page).click();
+    await openSheet(page);
     await expect(sheet(page)).toBeVisible();
     await expect(sheetPanel(page)).toHaveCSS("opacity", "1");
     await expect(toggle(page)).toHaveAttribute("aria-expanded", "true");
@@ -621,7 +648,7 @@ test.describe("marketing nav sheet", () => {
     page,
   }) => {
     await visit(page);
-    await toggle(page).click();
+    await openSheet(page);
     await expect(sheet(page)).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(sheet(page)).toBeHidden();
@@ -636,17 +663,17 @@ test.describe("marketing nav sheet", () => {
 
   test("closes on a route change, and on a section link", async ({ page }) => {
     await visit(page);
-    await toggle(page).click();
+    await openSheet(page);
     await sheet(page).getByRole("link", { name: "Use cases" }).click();
     await expect(sheet(page)).toBeHidden();
     await page.waitForURL(/\/#use-cases$/);
 
-    await toggle(page).click();
+    await openSheet(page);
     await sheet(page).getByRole("link", { name: "Evidence" }).click();
     await page.waitForURL(/\/evidence$/);
     await expect(sheet(page)).toBeHidden();
     // And it marks the page it led to.
-    await toggle(page).click();
+    await openSheet(page);
     await expect(
       sheet(page).getByRole("link", { name: "Evidence" }),
     ).toHaveAttribute("aria-current", "page");
@@ -656,7 +683,7 @@ test.describe("marketing nav sheet", () => {
     page,
   }) => {
     await visit(page);
-    await toggle(page).click();
+    await openSheet(page);
     await expect(sheet(page)).toBeVisible();
     await page.setViewportSize(DESKTOP);
     await expect(sheet(page)).toBeHidden();
