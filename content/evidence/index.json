@@ -1196,7 +1196,7 @@
       "achieved": "7",
       "status": "met",
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
-      "reason": "Met on registrations, which is what the SOW counts: 7 outside operators' wallets own agents. 2 registered on 2026-09-29, one owning 1 agent and the other 5, and 5 registered on 2026-09-30, each owning 1 agent. One of the 11 agents is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded.",
+      "reason": "Met on registrations, which is what the SOW counts: 7 outside operators' wallets own agents. 2 registered on 2026-09-29, one owning 1 agent and the other 5, and 5 registered on 2026-09-30, each owning 1 agent. One of the 11 agents is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. The outside operators were recruited through the Blocksmiths community and onboarding sessions. The platform lists outside operators publicly, so each wallet is linked here.",
       "links": [
         {
           "label": "An outside operator's wallet GB3YZ…2RUN — owns SocialFi_Bot (counted: outside operator)",
