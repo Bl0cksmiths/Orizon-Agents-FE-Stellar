@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { ErrorNote } from "@/components/ui/error-note";
 import { Skeleton, LoadingStatus } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
 import {
   ReputationCell,
@@ -332,7 +333,7 @@ export function RepLeaderboard({
         </div>
       )}
 
-      <div className="overflow-x-auto">
+      <ScrollRegion label="Reputation leaderboard, scrolls horizontally">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
@@ -508,7 +509,7 @@ export function RepLeaderboard({
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </div>
   );
 }
