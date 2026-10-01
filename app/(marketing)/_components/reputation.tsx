@@ -118,7 +118,7 @@ export function Reputation() {
             transition={{ duration: 0.5, delay: 0.08 }}
           >
             <Card aria-hidden="true" className="h-full">
-              <div className="mb-6 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 <span>{"// reputation ledger — routing view"}</span>
                 <span>floor ★ 2.75</span>
               </div>
