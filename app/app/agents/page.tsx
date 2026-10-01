@@ -469,9 +469,19 @@ export default function AgentsPage() {
                       existing look against the th defaults. */}
                       <th
                         scope="row"
-                        className="py-3 text-left font-mono text-xs font-normal text-muted"
+                        className="py-3 pr-4 text-left font-mono text-xs font-normal text-muted"
                       >
-                        {a.id}
+                        {/* Capped and ellipsised: one 64-character id set the
+                            column to its full width and pushed every other
+                            column off a phone. The text is all still in the
+                            cell, so the row header's name is the whole id;
+                            the title shows it on hover. */}
+                        <span
+                          title={a.id}
+                          className="block max-w-[12rem] truncate"
+                        >
+                          {a.id}
+                        </span>
                       </th>
                       <td className="py-3 font-mono">
                         <div className="flex flex-wrap items-center gap-2">
