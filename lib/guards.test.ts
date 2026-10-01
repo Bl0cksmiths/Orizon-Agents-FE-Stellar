@@ -246,6 +246,26 @@ describe("isOverviewV2", () => {
     ).toBe(true);
   });
 
+  it("accepts the parts the backend reports as unreadable", () => {
+    expect(
+      isOverviewV2({
+        ...valid,
+        agents: { ...valid.agents, external: null, bound: null },
+        operators: { external_wallets: null },
+        trust: { avg: null, rated_agents: null },
+        degraded: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("still requires the registry counts the backend always measures", () => {
+    for (const k of ["registered", "onchain", "seeded", "online"]) {
+      expect(
+        isOverviewV2({ ...valid, agents: { ...valid.agents, [k]: null } }),
+      ).toBe(false);
+    }
+  });
+
   it("does not check the tasks block, which no surface renders", () => {
     expect(isOverviewV2({ ...valid, tasks: "reshaped" })).toBe(true);
   });
