@@ -282,13 +282,15 @@ export type LegacyOverview = {
 export type SettledDay = { date: string; settled: number };
 
 /** One skill in the registry mix: how many registered agents list it, and
- * that as a whole-number share of every registered agent. */
+ * its whole-number share of every skill tag in the registry (the shares sum
+ * to 100; an agent lists several tags). */
 export type SkillShare = { name: string; agents: number; pct: number };
 
 /**
- * GET /api/metrics/overview once the backend measures it. Every count is
- * read from the registry or the chain; a value it could not read is `null`
- * (and `degraded` is set), never a stand-in.
+ * GET /api/metrics/overview once the backend measures it (BE PR #103). Every
+ * count is read from the registry, the binding set, the settlement store or
+ * the chain; a part the backend could not read is `null` (and `degraded` is
+ * set), never a stand-in.
  */
 export type OverviewV2 = {
   /** Unix seconds. */
@@ -297,12 +299,20 @@ export type OverviewV2 = {
     registered: number;
     onchain: number;
     seeded: number;
-    /** On-chain agents owned by a wallet the team does not control. */
-    external: number;
-    bound: number;
+    /** On-chain agents owned by a wallet the team does not control, by the
+     * adoption report's own owner rule. Null when that rule could not be
+     * built. */
+    external: number | null;
+    /** On-chain agents with an endpoint bound. Null while the binding set
+     * has not loaded. */
+    bound: number | null;
     online: number;
   };
-  operators: { external_wallets: number };
+  /** Distinct owners of the external agents; null with `agents.external`. */
+  operators: { external_wallets: number | null };
+  /** Distinct settled jobs, all time and all payers — team runs included —
+   * from the durable settlement store; the series is the last 14 UTC days.
+   * `settled` is null (and `series` empty) when the store is unreadable. */
   workflows: { settled: number | null; series: SettledDay[] };
   tasks: {
     recent: number;
@@ -310,8 +320,11 @@ export type OverviewV2 = {
     failed: number;
     completion_rate: number | null;
   };
-  /** `avg` is on the 0–5 scale, over on-chain-rated agents only. */
-  trust: { avg: number | null; rated_agents: number };
+  /** `avg` is on the 0–5 scale, over agents with on-chain rating evidence,
+   * and null when none is rated. `rated_agents` is null when the reputation
+   * read itself failed. */
+  trust: { avg: number | null; rated_agents: number | null };
+  /** `pct` is a share of all skill TAGS in the registry, not of agents. */
   skills: SkillShare[];
   degraded: boolean;
 };

@@ -87,13 +87,20 @@ export const REASONS = {
   trustScale: "Trust was reported on a scale this console doesn't know",
   settledUnreported: "This backend doesn't report settled workflows yet",
   settledUnreadable: "Couldn't read settlements right now",
+  owners: "Couldn't verify agent owners right now",
+  bindings: "The binding set hasn't loaded yet",
   pending: "Still reading — the backend may be waking up",
 } as const;
 
 /** "2,481" — every count on every surface, in one locale. */
 export const formatCount = (n: number): string => n.toLocaleString("en-US");
 
-/** The measured overview, as sent. Its nulls are gaps with a reason. */
+/** A count the measured overview may send as null, as a gap for `reason`. */
+const orGap = (n: number | null, reason: string): Measured<number> =>
+  n === null ? gap(reason) : measured(n);
+
+/** The measured overview, as sent. Its nulls are gaps with a reason — never
+ * a zero. */
 export function statsFromOverview(o: OverviewV2): NetworkStats {
   const settled =
     o.workflows.settled === null
@@ -105,9 +112,9 @@ export function statsFromOverview(o: OverviewV2): NetworkStats {
     onchain: measured(o.agents.onchain),
     seeded: measured(o.agents.seeded),
     online: measured(o.agents.online),
-    bound: measured(o.agents.bound),
-    external: measured(o.agents.external),
-    operatorWallets: measured(o.operators.external_wallets),
+    bound: orGap(o.agents.bound, REASONS.bindings),
+    external: orGap(o.agents.external, REASONS.owners),
+    operatorWallets: orGap(o.operators.external_wallets, REASONS.owners),
     settled,
     // A series beside an unreadable total would chart days that are missing
     // settlements as days without any.
@@ -125,6 +132,9 @@ export function statsFromOverview(o: OverviewV2): NetworkStats {
 }
 
 function trustFromOverview(t: OverviewV2["trust"]): Measured<Trust> {
+  // A null count means the reputation read itself failed; only a measured
+  // zero is "nobody rated yet".
+  if (t.rated_agents === null) return gap(REASONS.reputation);
   if (t.avg === null) {
     return gap(t.rated_agents === 0 ? REASONS.noRatings : REASONS.reputation);
   }
