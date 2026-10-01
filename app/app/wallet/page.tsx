@@ -107,14 +107,17 @@ export default function WalletPage() {
       {connected && (
         <Card glow>
           <div className="flex items-end justify-between flex-wrap gap-4">
-            <div>
+            {/* min-w-0 and a smaller phone size: at 360px the seven-decimal
+                balance ran past the card, whose clip-path cut its last
+                digits off. A balance too long even so wraps, never clips. */}
+            <div className="min-w-0 max-w-full">
               <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan mb-2">
                 ▸ native XLM balance
               </div>
-              <div className="flex items-baseline gap-3">
+              <div className="flex flex-wrap items-baseline gap-x-3">
                 <span
                   className={cn(
-                    "text-5xl font-semibold tracking-tight tabular-nums",
+                    "min-w-0 break-all text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl",
                     !balanceKnown && balanceError && "text-magenta",
                   )}
                 >
