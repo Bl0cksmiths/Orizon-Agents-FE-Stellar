@@ -16,6 +16,7 @@ import {
   hasPendingReads,
   onchainTrust,
   provenanceCaption,
+  sourceBreakdown,
   sidebarLine,
   statsFromOverview,
   walletsCaption,
@@ -485,6 +486,95 @@ describe("deriveSkillMix", () => {
   it("is empty when no agent lists a skill", () => {
     expect(deriveSkillMix([])).toEqual([]);
     expect(deriveSkillMix([agent({ id: "1", skills: [" "] })])).toEqual([]);
+  });
+});
+
+describe("sourceBreakdown", () => {
+  it("splits the registry into seeded, external and the rest of on-chain, summing to 100", () => {
+    // Live testnet, 2026-10-02: 49 registered, 12 seeded, 37 on-chain, 24
+    // external.
+    const s = statsFromOverview({
+      ...overviewV2,
+      agents: {
+        ...overviewV2.agents,
+        registered: 49,
+        seeded: 12,
+        onchain: 37,
+        external: 24,
+      },
+    });
+    expect(sourceBreakdown(s)).toEqual({
+      ok: true,
+      value: [
+        { key: "seeded", label: "Seeded catalog", agents: 12, pct: 24 },
+        {
+          key: "external",
+          label: "On-chain · external operators",
+          agents: 24,
+          pct: 49,
+        },
+        {
+          key: "onchain-other",
+          label: "On-chain · team or unverified owner",
+          agents: 13,
+          pct: 27,
+        },
+      ],
+    });
+  });
+
+  it("keeps on-chain whole when the external count is not known", () => {
+    const s = statsFromOverview({
+      ...overviewV2,
+      agents: { ...overviewV2.agents, external: null },
+    });
+    const slices = sourceBreakdown(s);
+    expect(slices.ok && slices.value.map((x) => [x.key, x.agents])).toEqual([
+      ["seeded", 12],
+      ["onchain", 13],
+    ]);
+  });
+
+  it("refuses an external count larger than the on-chain registry", () => {
+    const s = statsFromOverview({
+      ...overviewV2,
+      agents: { ...overviewV2.agents, external: 99 },
+    });
+    const slices = sourceBreakdown(s);
+    expect(slices.ok && slices.value.map((x) => x.key)).toEqual([
+      "seeded",
+      "onchain",
+    ]);
+  });
+
+  it("names agents of an unknown source rather than dropping them", () => {
+    const s = statsFromOverview({
+      ...overviewV2,
+      agents: { ...overviewV2.agents, registered: 27 },
+    });
+    const slices = sourceBreakdown(s);
+    expect(slices.ok && slices.value.at(-1)).toMatchObject({
+      key: "unknown",
+      agents: 2,
+    });
+  });
+
+  it("is empty for an empty registry and a gap for an unreadable one", () => {
+    const empty = deriveNetworkStats({
+      agents: ok([]),
+      adoption: failed(),
+      reputation: failed(),
+    });
+    expect(sourceBreakdown(empty)).toEqual({ ok: true, value: [] });
+    const dead = deriveNetworkStats({
+      agents: failed(),
+      adoption: failed(),
+      reputation: failed(),
+    });
+    expect(sourceBreakdown(dead)).toEqual({
+      ok: false,
+      reason: REASONS.registry,
+    });
   });
 });
 
