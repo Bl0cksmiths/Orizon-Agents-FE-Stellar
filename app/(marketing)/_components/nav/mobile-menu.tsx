@@ -29,7 +29,7 @@ import {
   type Ref,
   type SyntheticEvent,
 } from "react";
-import { ButtonLink, CyberBorder } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
 import { Logo } from "@/components/ui/logo";
 import { lockPageScroll } from "@/lib/scroll-lock";
@@ -210,14 +210,10 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
               aria-label="Close menu"
               onClick={() => onOpenChange(false)}
               className={cn(
-                "group/close clip-cyber-sm relative grid h-9 w-9 place-items-center border border-transparent text-muted transition hover:text-text",
+                "chamfer-edges chamfer-edges-sm relative clip-cyber-sm grid h-9 w-9 place-items-center border border-[color:var(--edge)] text-muted transition [--edge:rgba(176,38,255,0.18)] hover:text-text hover:[--edge:rgba(176,38,255,0.6)]",
                 focusRing,
               )}
             >
-              <CyberBorder
-                cut={8}
-                className="bg-border group-hover/close:bg-violet/60"
-              />
               <svg
                 viewBox="0 0 20 20"
                 fill="none"

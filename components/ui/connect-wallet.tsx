@@ -1,6 +1,6 @@
 "use client";
 import { useWallet } from "@/lib/wallet";
-import { Button, CyberBorder } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
@@ -63,12 +63,8 @@ export function ConnectWallet({
         <button
           onClick={disconnect}
           title={`${walletName ?? "wallet"} · ${address} · click to disconnect`}
-          className={`group/address relative clip-cyber-sm whitespace-nowrap border border-transparent bg-violet/10 h-8 px-3 font-mono text-[11px] uppercase tracking-[0.2em] text-text hover:shadow-neon-violet transition ${focusRing}`}
+          className={`chamfer-edges chamfer-edges-sm relative clip-cyber-sm whitespace-nowrap border [--edge:rgba(176,38,255,0.6)] border-[color:var(--edge)] hover:[--edge:#B026FF] bg-violet/10 h-8 px-3 font-mono text-[11px] uppercase tracking-[0.2em] text-text hover:shadow-neon-violet transition ${focusRing}`}
         >
-          <CyberBorder
-            cut={8}
-            className="bg-violet/60 group-hover/address:bg-violet"
-          />
           ◆ {short(address)}
         </button>
       </div>
