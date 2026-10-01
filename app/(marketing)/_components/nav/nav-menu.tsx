@@ -148,10 +148,13 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
         onKeyDown={onPanelKeyDown}
         className={cn(
           "absolute left-1/2 top-full z-10 -translate-x-1/2 pt-3",
-          "transition-[opacity,transform,visibility] duration-150 ease-out motion-reduce:transition-none",
+          "duration-150 ease-out motion-reduce:transition-none",
+          // Visibility flips at once on the way in — a transition would hold
+          // it at `hidden` for the first frame, where focus() on a link fails
+          // — and waits out the fade on the way out.
           open
-            ? "visible translate-y-0 opacity-100"
-            : "pointer-events-none invisible -translate-y-1 opacity-0",
+            ? "visible translate-y-0 opacity-100 transition-[opacity,transform]"
+            : "pointer-events-none invisible -translate-y-1 opacity-0 transition-[opacity,transform,visibility]",
         )}
       >
         {/* Opaque, not frosted: the header's own backdrop-filter becomes the
