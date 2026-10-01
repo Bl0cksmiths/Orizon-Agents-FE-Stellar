@@ -154,7 +154,7 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
             : "pointer-events-none invisible -translate-y-1 opacity-0",
         )}
       >
-        <div className="clip-cyber relative w-[22rem] border border-border bg-surface/95 p-2 shadow-inner-glow backdrop-blur-xl">
+        <div className="clip-cyber relative w-[24rem] border border-border bg-surface p-2 shadow-inner-glow">
           <div
             aria-hidden
             data-decor
