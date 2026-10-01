@@ -244,7 +244,7 @@ export default function OverviewPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div>
