@@ -14,8 +14,12 @@ const variants: Record<Variant, string> = {
   primary:
     "bg-violet text-white shadow-neon-violet hover:shadow-[0_0_0_1px_rgba(176,38,255,0.8),0_0_40px_rgba(176,38,255,0.55)] hover:brightness-110",
   cyan: "bg-cyan text-[#002219] shadow-neon-cyan hover:brightness-110",
+  // A CSS border runs only along the box's four sides, so `clip-cyber` cut it
+  // off at the two chamfered corners and left the diagonals bare. The border
+  // still draws the straight sides; `chamfer-edges` (globals.css) paints the
+  // two diagonals in the same colour, `--edge`, which hover brightens.
   outline:
-    "bg-transparent text-text border border-violet/60 hover:border-violet hover:bg-violet/10 hover:shadow-neon-violet",
+    "chamfer-edges bg-transparent text-text border [--edge:rgba(176,38,255,0.6)] border-[color:var(--edge)] hover:[--edge:#B026FF] hover:bg-violet/10 hover:shadow-neon-violet",
   ghost: "bg-transparent text-muted hover:text-text hover:bg-white/5",
 };
 
@@ -38,12 +42,13 @@ type AsLink = Common & { href: string };
 
 export const Button = forwardRef<HTMLButtonElement, AsButton>(
   (
-    { variant = "primary", size = "md", className, children, ...props },
+    { variant = "primary", size = "md", className, children, style, ...props },
     ref,
   ) => (
     <button
       ref={ref}
       className={cn(base, variants[variant], sizes[size], className)}
+      style={style}
       {...props}
     >
       {children}

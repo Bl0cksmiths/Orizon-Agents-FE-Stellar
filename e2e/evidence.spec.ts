@@ -23,7 +23,8 @@
  *   - printed, the nav and footer drop out, every link shows its URL, and
  *     badges and text are black words on white;
  *   - outside links open safely and say where they go;
- *   - the nav (one line at xl) and the footer both reach the page.
+ *   - the nav (its Resources menu, the bar one line) and the footer both
+ *     reach the page.
  */
 import { readFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
@@ -402,26 +403,29 @@ test.describe("evidence page links", () => {
     await page.context().close();
   });
 
-  test("is reached from the marketing nav, still one line at xl, and from the footer", async ({
+  test("is reached from the marketing nav's Resources menu, the bar on one line, and from the footer", async ({
     browser,
   }) => {
     const { page } = await stranger(browser, { viewport: DESKTOP });
     await page.goto("/guide/list-your-agent");
-    const banner = page.getByRole("banner").first();
-    const evidence = banner.getByRole("link", {
-      name: "Evidence",
-      exact: true,
-    });
-    await expect(evidence).toBeVisible();
-    // Every nav link sits on the same single line.
-    const tops = await banner
-      .locator("nav a")
-      .evaluateAll((links) =>
-        links
-          .filter((a) => (a as HTMLElement).offsetParent !== null)
-          .map((a) => Math.round(a.getBoundingClientRect().top)),
+    const bar = page
+      .getByRole("banner")
+      .first()
+      .getByRole("navigation", { name: "Main" });
+    // Every top-level item in the bar sits on the same single line.
+    const tops = await bar
+      .locator(":scope > ul > li")
+      .evaluateAll((items) =>
+        items.map((li) => Math.round(li.getBoundingClientRect().top)),
       );
+    expect(tops).toHaveLength(3);
     expect(new Set(tops).size).toBe(1);
+    const evidence = bar.getByRole("link", { name: "Evidence", exact: true });
+    // Retried: a press that lands before the page hydrates does nothing.
+    await expect(async () => {
+      await bar.getByRole("button", { name: "Resources", exact: true }).click();
+      await expect(evidence).toBeVisible({ timeout: 1_000 });
+    }).toPass();
     await expect(
       page.getByRole("contentinfo").getByRole("link", { name: "Evidence" }),
     ).toHaveAttribute("href", EVIDENCE);

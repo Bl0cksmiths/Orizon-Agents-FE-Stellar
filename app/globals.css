@@ -64,6 +64,48 @@ body {
     );
   }
 
+  /* The diagonal edges of a bordered clip-cyber box. A CSS border runs only
+     along the four sides, so the clip cuts it off at the two chamfers and
+     leaves the diagonals bare; these paint them, 1px thick and just inside
+     the cut, in the border's colour (--edge). Corner-sized pseudo-elements,
+     not a full overlay or a background-image on the box: either of those
+     leaves axe unable to judge the label's contrast. The box must be
+     positioned; -1px reaches past its padding box to the border's corner. */
+  .chamfer-edges::before,
+  .chamfer-edges::after {
+    content: "";
+    position: absolute;
+    width: var(--cut, 12px);
+    height: var(--cut, 12px);
+    pointer-events: none;
+  }
+  .chamfer-edges::before {
+    top: -1px;
+    right: -1px;
+    background: linear-gradient(
+      to top right,
+      transparent calc(50% - 1px),
+      var(--edge) calc(50% - 1px),
+      var(--edge) 50%,
+      transparent 50%
+    );
+  }
+  .chamfer-edges::after {
+    bottom: -1px;
+    left: -1px;
+    background: linear-gradient(
+      to top right,
+      transparent 50%,
+      var(--edge) 50%,
+      var(--edge) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    );
+  }
+  /* For clip-cyber-sm, which cuts 8px. */
+  .chamfer-edges-sm {
+    --cut: 8px;
+  }
+
   /* Neon text */
   .neon-text {
     text-shadow:
