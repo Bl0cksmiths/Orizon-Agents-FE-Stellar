@@ -39,12 +39,15 @@ const cols = [
       ["Demo", DEMO_PATH],
       ["Evidence", EVIDENCE_PATH],
       ["Litepaper", LITEPAPER_PATH],
-      ["Docs", "https://github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar#readme"],
+      [
+        "Docs",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar#readme",
+      ],
       ["API", "https://orizon-agents-be-stellar.onrender.com/docs"],
       ["Status", "https://orizon-agents-be-stellar.onrender.com/health"],
       [
         "Changelog",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-FE-Stellar/commits",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/commits",
       ],
     ],
   },
