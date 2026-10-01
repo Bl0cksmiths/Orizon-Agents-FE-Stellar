@@ -102,6 +102,22 @@ describe("getPublicNetworkStats", () => {
     );
   });
 
+  it("leaves out the overview's unreadable owner counts rather than printing 0", async () => {
+    const f = backend({
+      "/api/metrics/overview": {
+        ...measured,
+        agents: { ...measured.agents, external: null, bound: null },
+        operators: { external_wallets: null },
+        degraded: true,
+      },
+    });
+    await expect(getPublicNetworkStats(ENV, f)).resolves.toEqual({
+      registered: 25,
+      external: null,
+      operatorWallets: null,
+    });
+  });
+
   it("caches each read for the ISR window", async () => {
     const f = backend({ "/api/metrics/overview": measured });
     await getPublicNetworkStats(ENV, f);
