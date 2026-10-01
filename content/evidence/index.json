@@ -867,7 +867,6 @@
           "id": "6.1-RD-c",
           "claim": "Smart-contract source code is public on GitHub and released under the MIT licence.",
           "status": "present",
-          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Smart-contract source code on GitHub (Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar)",
