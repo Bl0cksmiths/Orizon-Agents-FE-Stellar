@@ -388,16 +388,16 @@ describe("deriveNetworkStats (an older backend)", () => {
 });
 
 describe("onchainTrust", () => {
-  it("leaves the prior and degraded entries out of the average", () => {
+  it("averages every agent with on-chain evidence, a last-known read included, and leaves the prior out", () => {
     expect(
       onchainTrust(
         batch(
           rep("rated", 8000),
           rep("prior", 7000, { source: "prior" }),
-          rep("lying", 1000, { degraded: true }),
+          rep("last-known", 6000, { degraded: true }),
         ),
       ),
-    ).toEqual({ ok: true, value: { avg: 4, ratedAgents: 1 } });
+    ).toEqual({ ok: true, value: { avg: 3.5, ratedAgents: 2 } });
   });
 
   it("is 'no ratings yet' when nothing is rated and nothing failed", () => {
@@ -418,22 +418,27 @@ describe("onchainTrust", () => {
   });
 });
 
+/**
+ * The expected rows below were worked by hand from the backend's `_skills`
+ * and `_largest_remainder` (app/routers/metrics.py, BE PR #103), so the two
+ * paths state the same mix for the same registry.
+ */
 describe("deriveSkillMix", () => {
-  it("ranks skills by agent count, case-folded and counted once per agent", () => {
+  it("counts each agent once per skill, case-folded, with tag shares summing to 100", () => {
     const mix = deriveSkillMix([
       agent({ id: "1", skills: ["Code", "code", " code "] }),
       agent({ id: "2", skills: ["code"] }),
       agent({ id: "3", skills: ["research"] }),
       agent({ id: "4", skills: [] }),
     ]);
+    // Tags: code 2, research 1 → 66.7 / 33.3 → 67 / 33.
     expect(mix).toEqual([
-      { name: "code", agents: 2, pct: 50 },
-      { name: "research", agents: 1, pct: 25 },
-      { name: OTHER_SKILLS, agents: 1, pct: 25 },
+      { name: "code", agents: 2, pct: 67 },
+      { name: "research", agents: 1, pct: 33 },
     ]);
   });
 
-  it("keeps the top five and folds the agents listing none of them into other", () => {
+  it("keeps the top five and folds every other skill into one row", () => {
     const list = [
       ...["a", "b", "c", "d", "e"].flatMap((s, i) =>
         Array.from({ length: 6 - i }, (_, j) =>
@@ -444,22 +449,29 @@ describe("deriveSkillMix", () => {
       agent({ id: "g0", skills: ["g", "a"] }),
       agent({ id: "none", skills: [] }),
     ];
-    const mix = deriveSkillMix(list);
-    expect(mix.map((r) => r.name)).toEqual([
-      "a",
-      "b",
-      "c",
-      "d",
-      "e",
-      OTHER_SKILLS,
+    // Holders a7 b5 c4 d3 e2, rest {f, g} held by f0 and g0. Tags total 23:
+    // floors 30 21 17 13 8 8 (97), the three spare points to the largest
+    // remainders — b (17), e (16) and other (16).
+    expect(deriveSkillMix(list)).toEqual([
+      { name: "a", agents: 7, pct: 30 },
+      { name: "b", agents: 5, pct: 22 },
+      { name: "c", agents: 4, pct: 17 },
+      { name: "d", agents: 3, pct: 13 },
+      { name: "e", agents: 2, pct: 9 },
+      { name: OTHER_SKILLS, agents: 2, pct: 9 },
     ]);
-    expect(mix[0].agents).toBe(7);
-    // f0 and the skill-less agent; g0 also lists "a", so it is not "other".
-    expect(mix[5]).toEqual({
-      name: OTHER_SKILLS,
-      agents: 2,
-      pct: Math.round((2 / list.length) * 100),
-    });
+  });
+
+  it("folds a skill literally named other into the other row", () => {
+    expect(
+      deriveSkillMix([
+        agent({ id: "x", skills: ["other"] }),
+        agent({ id: "y", skills: ["code"] }),
+      ]),
+    ).toEqual([
+      { name: "code", agents: 1, pct: 50 },
+      { name: OTHER_SKILLS, agents: 1, pct: 50 },
+    ]);
   });
 
   it("breaks ties by name so the order is stable between polls", () => {
@@ -470,11 +482,9 @@ describe("deriveSkillMix", () => {
     expect(mix.map((r) => r.name)).toEqual(["alpha", "zeta"]);
   });
 
-  it("adds no other row when every agent is covered, and nothing for no agents", () => {
-    expect(
-      deriveSkillMix([agent({ id: "1", skills: ["code"] })]).map((r) => r.name),
-    ).toEqual(["code"]);
+  it("is empty when no agent lists a skill", () => {
     expect(deriveSkillMix([])).toEqual([]);
+    expect(deriveSkillMix([agent({ id: "1", skills: [" "] })])).toEqual([]);
   });
 });
 
