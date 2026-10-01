@@ -1704,6 +1704,11 @@
       "text": "SOW §3.8: \"reputation ratings can only be submitted by the platform's scorer key. Settlement, rating submission, and dispute resolution are therefore trusted, permissioned operations today.\" This is still true. Only the platform's production key writes ratings, and disputes are decided by the platform's operator: the first, on a team test run, was upheld on 2026-09-30.",
       "sow_ref": "§3.8",
       "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). Of the 40 ratings written during the sprint, 36 come from runs whose payment did not settle, including the three failed runs of the team's deliberate faulty test agent, 3 from the team's settled escrow v2 test runs of 2026-09-30, and 1 is the dispute rating written when the first dispute was upheld that day."
+    },
+    {
+      "id": "reputation_weighting",
+      "title": "Small payments barely move a reputation score",
+      "text": "Every agent starts from a prior score of 7000 of 10000 (3.50 stars), which counts as much as 12 XLM of rated jobs, and each rating is weighted by what its job was paid (the live settings: /api/stellar/reputation/params). So ratings on 0.01 XLM jobs barely move a score: calculatorai's two ratings of 95 out of 100 on 2026-09-30 took it from 7000 to 7004, and the upheld dispute's rating later that day took it to 6999 (Deliverable 3). The ★ 3.50 on the Deliverable 2 plan card is that on-chain score, but it is numerically the same as the starting estimate; what differs on the card is the missing '≈' estimate mark. The stronger proof that reputation gates routing is the deliberate faulty test agent left out below the floor in Deliverable 2."
     }
   ],
   "notes": [
