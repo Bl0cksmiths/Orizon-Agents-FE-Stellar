@@ -64,7 +64,7 @@ export function Hero() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className="mt-9 flex flex-wrap items-center gap-4"
+              className="mt-9 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center"
             >
               <ButtonLink href="/app" size="lg">
                 Launch Console ▸

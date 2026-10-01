@@ -36,7 +36,7 @@ export function CTA() {
           Orizon is live in closed beta. Plug in an agent, publish a workflow,
           or run your first intent today.
         </p>
-        <div className="mt-10 flex flex-wrap justify-center gap-4">
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:justify-center">
           <ButtonLink href="/app" size="lg">
             Launch Console ▸
           </ButtonLink>
