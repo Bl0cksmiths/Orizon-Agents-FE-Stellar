@@ -10,7 +10,7 @@ import { focusRing } from "@/lib/ui";
 import { useFetch } from "@/lib/use-fetch";
 import { cn } from "@/lib/utils";
 import { NETWORK_LABEL } from "@/components/ui/stellar-link";
-import { useMobileNav } from "./mobile-nav-context";
+import { DESKTOP_NAV_QUERY, useMobileNav } from "./mobile-nav-context";
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -411,16 +411,16 @@ export function Sidebar() {
     revalidateOnFocus: true,
   });
 
-  // Below md the closed drawer is only translated off-screen, which leaves its
+  // Below lg the closed drawer is only translated off-screen, which leaves its
   // links in the tab order and accessibility tree (WCAG 2.4.3). Mark the closed
-  // drawer `inert` there; on md+ it is a permanently visible landmark, so never
+  // drawer `inert` there; on lg+ it is a permanently visible landmark, so never
   // inert. This effect runs before the focus effect below, so opening removes
   // inert before focus moves in. (inert is set via attribute — @types/react 18
   // does not type the prop yet.)
   useEffect(() => {
     const el = asideRef.current;
     if (!el) return;
-    const desktop = window.matchMedia("(min-width: 768px)");
+    const desktop = window.matchMedia(DESKTOP_NAV_QUERY);
     const apply = () => {
       if (!open && !desktop.matches) el.setAttribute("inert", "");
       else el.removeAttribute("inert");
@@ -466,7 +466,7 @@ export function Sidebar() {
         tabIndex={open ? 0 : -1}
         onClick={() => setOpen(false)}
         className={cn(
-          "fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden transition-opacity",
+          "fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity",
           focusRing,
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
@@ -478,10 +478,10 @@ export function Sidebar() {
         aria-modal={open ? "true" : undefined}
         aria-label="Navigation"
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-border bg-surface/95 md:bg-surface/60 backdrop-blur-xl transition-transform duration-200",
+          "fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-border bg-surface/95 lg:bg-surface/60 backdrop-blur-xl transition-transform duration-200",
           // Mobile: slide in/out. Desktop: always visible.
           open ? "translate-x-0" : "-translate-x-full",
-          "md:translate-x-0",
+          "lg:translate-x-0",
         )}
       >
         <div className="flex h-16 items-center px-5 border-b border-border">

@@ -1,7 +1,7 @@
 "use client";
 /**
  * Tiny context shared between Sidebar (the drawer) and Topbar (the hamburger).
- * Mobile-only — desktop ignores `open` because the sidebar is always rendered.
+ * Below lg only — desktop ignores `open` because the sidebar is always rendered.
  */
 import {
   createContext,
@@ -10,6 +10,15 @@ import {
   useMemo,
   useState,
 } from "react";
+
+/**
+ * Where the sidebar stops being a drawer. lg, not md: at 768px a fixed 240px
+ * rail left 528px for the page, which crushed four stat tiles into a row and
+ * clipped their figures. Tablets get the full width and the drawer instead.
+ * Keep in step with the `lg:` classes in sidebar.tsx, topbar.tsx and
+ * console-content.tsx.
+ */
+export const DESKTOP_NAV_QUERY = "(min-width: 1024px)";
 
 type Ctx = {
   open: boolean;
