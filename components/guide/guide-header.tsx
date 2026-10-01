@@ -15,6 +15,7 @@ import {
   shortSha,
 } from "@/lib/guide/display";
 import { inlineLink } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 const term = "font-mono text-[10px] uppercase tracking-[0.25em] text-muted";
 const value = "font-mono text-xs text-text";
@@ -62,7 +63,10 @@ export function GuideHeader({ meta }: { meta: GuideMeta }) {
               href={backendCommitUrl(meta.api_verified_against)}
               rel="noreferrer"
               aria-label={`Backend commit ${shortSha(meta.api_verified_against)}`}
-              className={inlineLink}
+              className={cn(
+                inlineLink,
+                "[@media(pointer:coarse)]:inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center",
+              )}
             >
               {shortSha(meta.api_verified_against)}
             </a>
