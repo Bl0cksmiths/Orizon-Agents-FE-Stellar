@@ -76,8 +76,10 @@ export function Footer() {
   return (
     <footer className="relative border-t border-border bg-surface/40">
       <div className="mx-auto max-w-7xl px-6 py-16">
-        <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr_1.2fr]">
-          <div>
+        {/* Two link columns on a phone and four on a tablet, with the brand
+            block on its own row above them; one row of five from lg. */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1.2fr]">
+          <div className="col-span-2 sm:col-span-4 lg:col-span-1">
             <Logo />
             <p className="mt-5 max-w-xs text-sm text-muted leading-relaxed">
               The orchestration layer for autonomous digital labor.
