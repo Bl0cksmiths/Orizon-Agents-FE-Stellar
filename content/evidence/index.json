@@ -540,7 +540,6 @@
           "id": "6.1-D4-b",
           "claim": "The public \"List your agent on Orizon\" integration guide.",
           "status": "present",
-          "note": "The guide is public at orizons.xyz/guide/list-your-agent, with every sample in it checked.",
           "links": [
             {
               "label": "The 'List your agent on Orizon' guide on orizons.xyz",
