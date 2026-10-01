@@ -224,7 +224,7 @@ export default function FlowPage() {
             { h: "Edges", v: String(flow.edges.length) },
             { h: "Parallel branches", v: String(parallelBranches) },
           ].map((s) => (
-            <Card key={s.h}>
+            <Card key={s.h} data-stat-tile>
               <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted mb-2">
                 {s.h}
               </div>

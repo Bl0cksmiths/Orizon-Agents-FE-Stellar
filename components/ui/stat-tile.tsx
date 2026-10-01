@@ -23,7 +23,9 @@ export function StatTile({
   className?: string;
 }) {
   return (
-    <div className={cn("min-w-0", className)}>
+    // data-stat-tile: e2e/responsive-console.spec.ts finds every figure tile
+    // by it and checks none is clipped or pushed off screen.
+    <div className={cn("min-w-0", className)} data-stat-tile>
       <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
         {label}
       </div>
