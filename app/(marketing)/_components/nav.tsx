@@ -1,32 +1,32 @@
 "use client";
+
+/**
+ * The marketing site's top bar, shared by the home page and the public pages
+ * (guide, evidence, demo, litepaper).
+ *
+ * From `lg`: the logo, then three items — the Platform and Resources menus
+ * and the promoted Guide link — centred, then Connect Wallet (quiet) and
+ * Launch App (primary). Below `lg`: the logo, Launch App and a toggle for the
+ * full-height sheet. The links themselves live in ./nav/links.ts.
+ */
+
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { Logo } from "@/components/ui/logo";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { ButtonLink } from "@/components/ui/button";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
-import { EVIDENCE_PATH } from "@/lib/evidence/display";
-import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
-import { LITEPAPER_PATH } from "@/lib/litepaper/paths.mjs";
+import { Logo } from "@/components/ui/logo";
+import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
-
-// Section links are rooted at "/" so they also work from the guide pages,
-// which share this nav; on the home page they still just scroll.
-const links = [
-  { href: "/#solution", label: "Product" },
-  { href: "/#architecture", label: "Architecture" },
-  { href: "/#reputation", label: "Reputation" },
-  { href: "/#use-cases", label: "Use Cases" },
-  { href: "/#roadmap", label: "Roadmap" },
-  { href: LIST_YOUR_AGENT_PATH, label: "Guide" },
-  { href: EVIDENCE_PATH, label: "Evidence" },
-  { href: LITEPAPER_PATH, label: "Litepaper" },
-];
+import { GUIDE, isCurrent, MENUS, type NavGroup } from "./nav/links";
+import { MobileMenu } from "./nav/mobile-menu";
+import { CurrentMark, NavMenu } from "./nav/nav-menu";
 
 export function Nav() {
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const firstLinkRef = useRef<HTMLAnchorElement>(null);
+  const [openMenu, setOpenMenu] = useState<NavGroup["id"] | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -35,109 +35,105 @@ export function Nav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Mobile menu: Escape closes, focus moves to the first link on open and
-  // returns to the hamburger on close (same conventions as the app sidebar).
+  // A new page closes whatever was open on the last one.
   useEffect(() => {
-    if (!open) return;
-    const opener = menuButtonRef.current;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    firstLinkRef.current?.focus();
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      opener?.focus();
-    };
-  }, [open]);
+    setOpenMenu(null);
+    setSheetOpen(false);
+  }, [pathname]);
+
+  const guideCurrent = isCurrent(GUIDE, pathname);
 
   return (
     <header
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300",
-        scrolled
-          ? "bg-bg/70 backdrop-blur-xl border-b border-border"
+        // An open menu over the hero gets the scrolled bar's backdrop too, so
+        // its panel never floats on a transparent strip.
+        scrolled || openMenu
+          ? "border-b border-border bg-bg/70 backdrop-blur-xl"
           : "bg-transparent",
       )}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <Logo />
-        <nav className="hidden items-center gap-6 xl:flex 2xl:gap-8">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.22em] text-muted hover:text-text transition-colors"
-            >
-              {l.label}
-            </Link>
-          ))}
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-8 px-6 lg:grid lg:grid-cols-[1fr_auto_1fr]">
+        <Logo className="shrink-0 justify-self-start" />
+
+        <nav aria-label="Main" className="hidden lg:block">
+          <ul className="flex items-center gap-2 xl:gap-4">
+            {MENUS.map((group) => (
+              <li key={group.id}>
+                <MenuSlot
+                  group={group}
+                  openMenu={openMenu}
+                  setOpenMenu={setOpenMenu}
+                  pathname={pathname}
+                />
+              </li>
+            ))}
+            <li>
+              <Link
+                href={GUIDE.href}
+                aria-current={guideCurrent ? "page" : undefined}
+                className={cn(
+                  "relative flex h-9 items-center whitespace-nowrap px-3 font-mono text-[11px] uppercase tracking-[0.22em] transition-colors",
+                  guideCurrent ? "text-text" : "text-muted hover:text-text",
+                  focusRing,
+                )}
+              >
+                {GUIDE.label}
+                <CurrentMark show={guideCurrent} />
+              </Link>
+            </li>
+          </ul>
         </nav>
-        <div className="flex items-center gap-3">
-          <ConnectWallet size="sm" className="hidden xl:flex" />
-          <ButtonLink href="/app" size="sm" variant="primary">
-            Launch App ▸
-          </ButtonLink>
-          <button
-            ref={menuButtonRef}
-            type="button"
-            aria-expanded={open}
-            aria-controls="marketing-mobile-menu"
-            aria-label={open ? "Close menu" : "Open menu"}
-            onClick={() => setOpen((v) => !v)}
-            className="grid h-9 w-9 place-items-center text-muted hover:text-text transition-colors xl:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan"
+
+        <div className="flex shrink-0 items-center gap-3 justify-self-end">
+          <ConnectWallet
+            size="sm"
+            variant="outline"
+            showWalletName={false}
+            className="hidden lg:flex"
+          />
+          <ButtonLink
+            href="/app"
+            size="sm"
+            variant="primary"
+            className="whitespace-nowrap"
           >
-            <svg
-              viewBox="0 0 20 20"
-              fill="none"
-              className="h-5 w-5"
-              aria-hidden="true"
-            >
-              {open ? (
-                <path
-                  d="M5 5l10 10M15 5L5 15"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              ) : (
-                <path
-                  d="M3 5h14M3 10h14M3 15h14"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              )}
-            </svg>
-          </button>
+            Launch App <span aria-hidden>▸</span>
+          </ButtonLink>
+          <MobileMenu
+            open={sheetOpen}
+            onOpenChange={setSheetOpen}
+            pathname={pathname}
+          />
         </div>
       </div>
-      {/* Mobile disclosure panel — same links as the desktop nav. */}
-      <nav
-        id="marketing-mobile-menu"
-        aria-label="Mobile"
-        className={cn(
-          "border-b border-border bg-bg/95 px-6 pb-6 pt-2 backdrop-blur-xl xl:hidden",
-          open ? "block" : "hidden",
-        )}
-      >
-        <div className="flex flex-col gap-1">
-          {links.map((l, i) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              ref={i === 0 ? firstLinkRef : undefined}
-              onClick={() => setOpen(false)}
-              className="rounded-sm px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.22em] text-muted hover:bg-white/5 hover:text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan"
-            >
-              {l.label}
-            </Link>
-          ))}
-        </div>
-        <div className="mt-4 border-t border-border pt-4">
-          <ConnectWallet size="sm" className="w-full" />
-        </div>
-      </nav>
     </header>
+  );
+}
+
+/** One menu, with its open state lifted so only one is open at a time. */
+function MenuSlot({
+  group,
+  openMenu,
+  setOpenMenu,
+  pathname,
+}: {
+  group: NavGroup;
+  openMenu: NavGroup["id"] | null;
+  setOpenMenu: (id: NavGroup["id"] | null) => void;
+  pathname: string | null;
+}) {
+  const onOpenChange = useCallback(
+    (open: boolean) => setOpenMenu(open ? group.id : null),
+    [group.id, setOpenMenu],
+  );
+  return (
+    <NavMenu
+      group={group}
+      open={openMenu === group.id}
+      onOpenChange={onOpenChange}
+      pathname={pathname}
+    />
   );
 }
