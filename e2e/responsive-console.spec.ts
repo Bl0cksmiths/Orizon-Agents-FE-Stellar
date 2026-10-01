@@ -314,6 +314,15 @@ async function overflow(page: Page): Promise<string[]> {
         );
         continue;
       }
+      // A control whose label wrapped inside its fixed height spills out of
+      // the bottom of its own border (h-8 buttons do not grow).
+      if (
+        (el.tagName === "BUTTON" || el.tagName === "A") &&
+        (el as HTMLElement).scrollHeight > (el as HTMLElement).clientHeight + 1
+      ) {
+        found.push(`label wrapped out of its control: ${name(el)}`);
+        continue;
+      }
       // Content wider than its own box is only lost when it also runs past
       // the nearest ancestor that clips: a Card's clip-path, or overflow
       // hidden. Text overflowing that way moves no box, so the edge check
