@@ -831,7 +831,6 @@
           "id": "6.1-RD-a",
           "claim": "Frontend source code is public on GitHub and released under the MIT licence.",
           "status": "present",
-          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Frontend source code on GitHub (Bl0cksmiths/Orizon-Agents-FE-Stellar)",
