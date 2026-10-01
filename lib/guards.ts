@@ -197,11 +197,14 @@ export function isOverviewV2(v: unknown): v is OverviewV2 {
   const { agents, operators, workflows, trust } = v;
   return (
     isRecord(agents) &&
-    ["registered", "onchain", "seeded", "external", "bound", "online"].every(
-      (k) => isCount(agents[k]),
+    ["registered", "onchain", "seeded", "online"].every((k) =>
+      isCount(agents[k]),
     ) &&
+    // Null when the owner rule or the binding set could not be read.
+    isCountOrNull(agents.external) &&
+    isCountOrNull(agents.bound) &&
     isRecord(operators) &&
-    isCount(operators.external_wallets) &&
+    isCountOrNull(operators.external_wallets) &&
     isRecord(workflows) &&
     isCountOrNull(workflows.settled) &&
     Array.isArray(workflows.series) &&
@@ -214,7 +217,8 @@ export function isOverviewV2(v: unknown): v is OverviewV2 {
     ) &&
     isRecord(trust) &&
     (trust.avg === null || isNum(trust.avg)) &&
-    isCount(trust.rated_agents) &&
+    // Null when the reputation read itself failed.
+    isCountOrNull(trust.rated_agents) &&
     Array.isArray(v.skills) &&
     v.skills.every(
       (s) => isRecord(s) && isStr(s.name) && isCount(s.agents) && isNum(s.pct),
