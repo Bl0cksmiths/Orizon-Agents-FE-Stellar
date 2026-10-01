@@ -57,7 +57,11 @@ export function AgentCard({
   const [managing, setManaging] = useState(false);
 
   return (
-    <Card className="space-y-5">
+    // overflow-wrap: anywhere, inherited by every panel in the card: the
+    // agent's name and id are quoted in prose throughout ("No payment has
+    // settled to …"), and one long unbroken name ran each of those sentences
+    // past the card, whose clip-path cut the end of it off.
+    <Card className="space-y-5 [overflow-wrap:anywhere]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h3 className="truncate text-lg font-semibold tracking-tight">
