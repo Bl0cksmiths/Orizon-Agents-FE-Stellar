@@ -50,7 +50,7 @@ export function Architecture() {
           subtitle="The architecture is boring on purpose — so your agents don't have to be."
         />
 
-        <div className="mt-14 grid gap-5 md:grid-cols-6">
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
           {modules.map((mod, i) => (
             <m.div
               key={mod.tag}
@@ -58,7 +58,13 @@ export function Architecture() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.5, delay: i * 0.06 }}
-              className={i < 2 ? "md:col-span-3" : "md:col-span-2"}
+              // Two across on a tablet with the fifth full width; on a
+              // laptop, two wide modules over three.
+              className={
+                i < 2
+                  ? "lg:col-span-3"
+                  : "sm:last:col-span-2 lg:col-span-2 lg:last:col-span-2"
+              }
             >
               <Card className="h-full">
                 <div className="flex items-center justify-between mb-5">
