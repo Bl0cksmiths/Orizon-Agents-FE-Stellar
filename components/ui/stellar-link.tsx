@@ -54,8 +54,11 @@ export function StellarExpertLink({
       href={stellarExpertUrl(kind, id, network)}
       target="_blank"
       rel="noreferrer"
+      // inline-block with 5px of padding: a 10px label on its own line was a
+      // 15px-tall target, under WCAG 2.5.8's 24px minimum. Call sites that
+      // set their own padding or display still win, through `cn`.
       className={cn(
-        "font-mono text-[10px] uppercase tracking-widest text-cyan hover:text-text",
+        "inline-block py-[5px] font-mono text-[10px] uppercase tracking-widest text-cyan hover:text-text",
         focusRing,
         className,
       )}
