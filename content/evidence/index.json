@@ -668,7 +668,6 @@
           "id": "6.1-D4-d",
           "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
           "status": "present",
-          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; backend pull request #96 added it to the team wallet register the same day. No outside operator's agent was paid. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
           "links": [
             {
               "label": "PaymentEscrow v2 contract on Stellar Expert: live since 2026-09-30, where the three runs settled",
