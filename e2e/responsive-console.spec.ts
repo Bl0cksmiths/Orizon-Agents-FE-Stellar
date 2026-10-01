@@ -700,3 +700,41 @@ test.describe("long values stay readable", () => {
     await expect(page.getByText(/scroll sideways|scroll back/)).toHaveCount(0);
   });
 });
+
+test.describe("the flow graph", () => {
+  // Nodes are at least 140px wide and placed by percentage, so on a narrow
+  // canvas two neighbours land on top of each other. Below xl the graph is a
+  // list; wherever the canvas does show, no two nodes may touch.
+  test("draws no node over another at any width", async ({ page }) => {
+    await mockConsole(page);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    for (const width of WIDTHS) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/app/flow");
+      await expect(tiles(page)).toHaveCount(3);
+      await motionSettled(page.locator("main"));
+      const overlaps = await page.evaluate(() => {
+        const nodes = Array.from(
+          document.querySelectorAll("main .clip-cyber-sm.min-w-\\[140px\\]"),
+        )
+          .map((el) => el.getBoundingClientRect())
+          .filter((r) => r.width > 0);
+        const hits: string[] = [];
+        nodes.forEach((a, i) =>
+          nodes.slice(i + 1).forEach((b, j) => {
+            if (
+              a.left < b.right &&
+              b.left < a.right &&
+              a.top < b.bottom &&
+              b.top < a.bottom
+            ) {
+              hits.push(`node ${i} overlaps node ${i + j + 1}`);
+            }
+          }),
+        );
+        return hits;
+      });
+      expect(overlaps, `at ${width}px`).toEqual([]);
+    }
+  });
+});
