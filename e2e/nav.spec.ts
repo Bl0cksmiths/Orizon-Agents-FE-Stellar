@@ -74,6 +74,30 @@ async function visit(page: Page, path = "/") {
     .toBe(true);
 }
 
+/**
+ * Every painted element of the header that reaches past either side of the
+ * window. The page-level check below cannot see these: the global stylesheet
+ * gives the body `overflow-x: hidden`, so a bar that runs off the right edge
+ * is clipped there and never widens the document.
+ */
+async function headerOutsideWindow(page: Page): Promise<string[]> {
+  return header(page).evaluate((h) =>
+    Array.from(h.querySelectorAll<HTMLElement>("*"))
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return (
+          r.width > 0 &&
+          getComputedStyle(el).visibility !== "hidden" &&
+          (r.left < -0.5 || r.right > window.innerWidth + 0.5)
+        );
+      })
+      .map(
+        (el) =>
+          `<${el.tagName.toLowerCase()}> ${Math.round(el.getBoundingClientRect().left)}–${Math.round(el.getBoundingClientRect().right)}px "${(el.textContent ?? "").trim().slice(0, 30)}"`,
+      ),
+  );
+}
+
 async function overflowX(page: Page): Promise<number> {
   return page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
@@ -225,6 +249,7 @@ for (const viewport of WIDTHS) {
       }) => {
         await visit(page, path);
         expect(await overflowX(page)).toBeLessThanOrEqual(0);
+        expect(await headerOutsideWindow(page)).toEqual([]);
 
         await expectOneLine(launch(page));
         if (desktop) await expectOneLine(connectWallet(page));
