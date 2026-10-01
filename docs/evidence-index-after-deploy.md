@@ -141,18 +141,37 @@ curl -s https://orizons.xyz/demo | grep -o 'data-demo="[a-z]*"'
   pull request #88) and the adoption counter (backend pull request #89)." with
   the deploy date, and name whatever merged work is still waiting, if any.
 
-### `6.1-D4-c`: outside registrations
+### Outside operators: `6.1-D1-c`, `6.1-D4-c`, `m01`, `m02`, `m06`
 
-Unlocked when `/api/ecosystem/adoption` answers 200.
+The platform lists outside operators publicly: `GET /api/ecosystem/adoption`
+serves every outside wallet and agent id by design (backend ADR 0012). So the
+index links them too. Nothing is held back for consent, and no item links the
+Ecosystem page in place of a transaction.
 
-- `note`: drop "is merged in backend pull request #89 but not deployed, so its
-  public address (/api/ecosystem/adoption) does not work yet. It goes live with
-  the next manual backend deploy on Render."
-- `links`: add
-  `{ "label": "Live adoption counter: outside registrations, as the API counts them", "url": "https://orizon-agents-be-stellar.onrender.com/api/ecosystem/adoption", "kind": "page" }`.
-  #89 label: drop `, not yet deployed`.
-- `status` stays `"missing"` until the counter shows at least 2 outside
-  registrations. Then link each registration `tx` and set `"present"`.
+When an outside operator registers, run the generator from a detached worktree
+at backend `origin/main` (read-only; it needs no secret), with
+`--publish-external` so its links name the outside registrations and wallets:
+
+```sh
+python -m scripts.sow_metrics --print-block --publish-external --out-dir <scratch>
+curl -s -m 90 https://orizon-agents-be-stellar.onrender.com/api/ecosystem/adoption | jq .totals
+```
+
+Then add each new outside registration, in ledger order, to D1-c, D4-c, m01
+and m06, as a `tx` link with its `tx_hash` and the ledger's `date`:
+
+- D1-c and D4-c: `Registration of <agent_id> by an outside operator's wallet GXXXX…YYYY — <date>`
+- m01: the same label, ending `(counted: outside operator)`
+- m06: `Registration of <agent_id> signed by an outside operator's wallet GXXXX…YYYY, not the registry admin — <date>`
+
+and each new wallet to m02 as an `account` link,
+`An outside operator's wallet GXXXX…YYYY — owns <agent_id> (counted: outside operator)`.
+Update the counts in m01/m02 `achieved` and `reason`, keep `reason` true about
+which agents are bound and whether any has settled, and keep the
+`team_wallets` and `sow_versions` notes' counts in step.
+`scripts/evidence-check/static.test.mjs` checks that D1-c, D4-c, m01 and m06
+link the same outside registrations, that m01 and m02 link as many as they
+count, and that the index has no consent wording.
 
 ## 3. After the MIT licence pull requests merge
 
