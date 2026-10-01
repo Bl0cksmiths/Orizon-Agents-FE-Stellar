@@ -364,7 +364,11 @@ export default function AgentsPage() {
             reason: the region is only scrollable once its content overflows,
             and the content only widens when the reputation batch lands. So
             the violation raced the fetch, and looked like a flaky test. */}
-        <ScrollRegion label="Agent registry table, scrolls horizontally">
+        <ScrollRegion
+          label="Agent registry table, scrolls horizontally"
+          // The container the full-width rows below measure themselves by.
+          scrollerClassName="[container-type:inline-size]"
+        >
           {/* A floor is set as well as a fill. Story 3.05 put standing marks
               in the agent cell, which widened it and left the numeric columns
               to crush — the header ran together as "REPUTATIONRUNSSTATUS" and
@@ -578,7 +582,9 @@ export default function AgentsPage() {
                     {bindingState === "unbound" && isListed(a) && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
-                          <UnboundNotice agentId={a.id} agentName={a.name} />
+                          <PinnedToView>
+                            <UnboundNotice agentId={a.id} agentName={a.name} />
+                          </PinnedToView>
                         </td>
                       </tr>
                     )}
@@ -589,26 +595,30 @@ export default function AgentsPage() {
                     {bindingState === "error" && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
-                          <ErrorNote
-                            className="clip-cyber-sm"
-                            onRetry={binding.recheck}
-                            retryLabel="recheck"
-                            retrying={binding.rechecking}
-                          >
-                            couldn&apos;t check whether {a.name} has an endpoint
-                            bound — its status is unknown.
-                          </ErrorNote>
+                          <PinnedToView>
+                            <ErrorNote
+                              className="clip-cyber-sm"
+                              onRetry={binding.recheck}
+                              retryLabel="recheck"
+                              retrying={binding.rechecking}
+                            >
+                              couldn&apos;t check whether {a.name} has an
+                              endpoint bound — its status is unknown.
+                            </ErrorNote>
+                          </PinnedToView>
                         </td>
                       </tr>
                     )}
                     {open && (
                       <tr className="border-b border-border/50 bg-bg/20">
                         <td colSpan={8} className="px-1 pb-4">
-                          <ManagePanel
-                            agent={a}
-                            owner={a.owner ?? ""}
-                            onChanged={retry}
-                          />
+                          <PinnedToView>
+                            <ManagePanel
+                              agent={a}
+                              owner={a.owner ?? ""}
+                              onChanged={retry}
+                            />
+                          </PinnedToView>
                         </td>
                       </tr>
                     )}
@@ -630,5 +640,20 @@ export default function AgentsPage() {
         </ScrollRegion>
       </Card>
     </div>
+  );
+}
+
+/**
+ * A full-width row's content, held to the visible part of the scroller.
+ *
+ * The notice and manage rows span all eight columns, so they were as wide as
+ * the 60rem table: on a phone their sentences ran off past the card edge and
+ * the bind button sat out of sight, a sideways scroll away. Sticky at the
+ * left and one scroller wide (`100cqw`), they stay put while the columns
+ * above them scroll.
+ */
+function PinnedToView({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="sticky left-0 w-[calc(100cqw-0.5rem)]">{children}</div>
   );
 }
