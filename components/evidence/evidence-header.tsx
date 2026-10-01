@@ -59,7 +59,7 @@ export function EvidenceHeader({ index }: { index: EvidenceIndex }) {
           for each deliverable, then open that deliverable&rsquo;s items to
           check them yourself.
         </p>
-        <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
           How this snapshot was taken: {index.snapshot.method}
         </p>
       </section>
