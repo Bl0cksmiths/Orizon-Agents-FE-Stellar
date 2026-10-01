@@ -302,6 +302,65 @@ export function hasPendingReads(s: NetworkStats): boolean {
   );
 }
 
+/** One slice of the registry by where its agents came from. */
+export type SourceSlice = {
+  key: "seeded" | "external" | "onchain-other" | "onchain" | "unknown";
+  label: string;
+  agents: number;
+  /** Share of every registered agent; the slices sum to 100. */
+  pct: number;
+};
+
+/**
+ * The registry split by source: the seeded first-party catalog, on-chain
+ * agents run by outside operators, and the rest of the on-chain registry —
+ * team wallets, plus any agent whose owner could not be verified, which the
+ * adoption rule does not count as external. When the external count is not
+ * known the on-chain slice stays whole rather than being split on a guess.
+ *
+ * Chosen over the skill mix for the composition card: skills are free-form
+ * tags that nearly every agent holds alone, so the mix is one "other" row at
+ * ~94% beside five rows of 1–2% — a flat chart that says nothing. Every agent
+ * has exactly one source, so this split sums to the registry and reads at a
+ * glance.
+ */
+export function sourceBreakdown(s: NetworkStats): Measured<SourceSlice[]> {
+  if (!s.registered.ok) return s.registered;
+  if (!s.seeded.ok) return s.seeded;
+  if (!s.onchain.ok) return s.onchain;
+  const registered = s.registered.value;
+  if (registered === 0) return measured([]);
+  const seeded = s.seeded.value;
+  const onchain = s.onchain.value;
+  const external =
+    s.external.ok && s.external.value <= onchain ? s.external.value : null;
+  const slices: Omit<SourceSlice, "pct">[] = [
+    { key: "seeded", label: "Seeded catalog", agents: seeded },
+    ...(external === null
+      ? [{ key: "onchain" as const, label: "On-chain", agents: onchain }]
+      : [
+          {
+            key: "external" as const,
+            label: "On-chain · external operators",
+            agents: external,
+          },
+          {
+            key: "onchain-other" as const,
+            label: "On-chain · team or unverified owner",
+            agents: onchain - external,
+          },
+        ]),
+    {
+      key: "unknown",
+      label: "Other source",
+      agents: Math.max(0, registered - seeded - onchain),
+    },
+  ];
+  const kept = slices.filter((x) => x.agents > 0);
+  const pcts = largestRemainder(kept.map((x) => x.agents));
+  return measured(kept.map((x, i) => ({ ...x, pct: pcts[i] })));
+}
+
 /** "13 on-chain · 12 seeded", or null when the split is not known. */
 export function provenanceCaption(s: NetworkStats): string | null {
   if (!s.onchain.ok || !s.seeded.ok) return null;
