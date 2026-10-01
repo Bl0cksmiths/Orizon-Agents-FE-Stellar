@@ -348,7 +348,7 @@
           "note": "The code links are pinned to the backend merge of 2026-09-18 (pull request #58), when this routing shipped. The floor check itself is unchanged in the later build the live API runs. The floor is judged on a cautious lower estimate of each agent's on-chain average, so a new agent with few ratings is not over-trusted or over-punished.",
           "links": [
             {
-              "label": "Routing code: the floor check on each agent's reputation (backend, pinned to the Week-2 merge)",
+              "label": "Routing code: the floor check on each agent's reputation (backend, pinned to the Week-2 merge; unchanged in the build the live API runs)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/f45aa2e8ee2755a6dfa016a02a6a8c9a977163e1/app/services/reputation_svc.py#L213-L224",
               "kind": "repo",
               "date": "2026-09-18"
