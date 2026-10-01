@@ -13,6 +13,7 @@ import {
   REASONS,
   deriveNetworkStats,
   deriveSkillMix,
+  hasPendingReads,
   onchainTrust,
   provenanceCaption,
   sidebarLine,
@@ -311,6 +312,23 @@ describe("deriveNetworkStats (an older backend)", () => {
         reputation: failed(),
       });
       expect(statedNumbers(s)).toEqual([]);
+    });
+
+    it("says a read still in flight is pending, not failed", () => {
+      const s = deriveNetworkStats({
+        ...all,
+        adoption: { ok: false, error: "still reading", pending: true },
+      });
+      expect(s.external).toEqual({
+        ok: false,
+        reason: REASONS.pending,
+        pending: true,
+      });
+      expect(hasPendingReads(s)).toBe(true);
+      expect(hasPendingReads(deriveNetworkStats(all))).toBe(false);
+      expect(
+        hasPendingReads(deriveNetworkStats({ ...all, adoption: failed() })),
+      ).toBe(false);
     });
 
     it("notes registry entries the guard dropped", () => {
