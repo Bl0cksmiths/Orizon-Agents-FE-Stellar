@@ -18,7 +18,7 @@ export function GuideArticle({ guide }: { guide: LoadedGuide }) {
       data-guide={guide.slug}
       className="relative mx-auto grid max-w-6xl gap-y-8 px-4 pb-24 pt-28 sm:px-6 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-x-14"
     >
-      <div className="min-w-0 lg:col-start-1">
+      <div className="min-w-0 max-w-3xl lg:col-start-1">
         <GuideHeader meta={guide.meta} />
       </div>
       <div className="min-w-0 lg:col-start-2 lg:row-span-3 lg:row-start-1">
@@ -26,7 +26,7 @@ export function GuideArticle({ guide }: { guide: LoadedGuide }) {
           <GuideToc toc={guide.toc} />
         </div>
       </div>
-      <div className="min-w-0 lg:col-start-1">
+      <div className="min-w-0 max-w-3xl lg:col-start-1">
         <VerifyLegend />
       </div>
       <div className="min-w-0 max-w-3xl lg:col-start-1">
