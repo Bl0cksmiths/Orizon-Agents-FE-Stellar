@@ -408,6 +408,16 @@ async function topBarProblems(page: Page): Promise<string[]> {
       ) {
         bad.push(`wrapped: «${what}»`);
       }
+      // Content wider than its box runs under its neighbour: the crumbs
+      // used to slide beneath the wallet controls.
+      if (
+        getComputedStyle(h).overflowX === "visible" &&
+        h.scrollWidth > h.clientWidth + 1
+      ) {
+        bad.push(
+          `crowded: «${what}» needs ${h.scrollWidth}px of ${h.clientWidth}px`,
+        );
+      }
     }
     return bad;
   });
@@ -625,6 +635,14 @@ test.describe("long values stay readable", () => {
     });
     const bind = page.getByRole("link", { name: `bind ${LONG_ID}` });
     await expect(bind).toBeVisible();
+    // Its label is ellipsised inside the button rather than spilling out.
+    expect(
+      await bind.evaluate(
+        (el) =>
+          el.scrollWidth <= el.clientWidth + 1 &&
+          el.scrollHeight <= el.clientHeight + 1,
+      ),
+    ).toBe(true);
     for (const left of [0, 10_000]) {
       await region.evaluate((el, x) => el.scrollTo({ left: x }), left);
       await expect
@@ -635,6 +653,23 @@ test.describe("long values stay readable", () => {
         })
         .toBe(true);
     }
+  });
+
+  test("the top bar fits a phone with no wallet and the backend offline", async ({
+    page,
+  }) => {
+    // No wallet: the wide "Connect Wallet" button. No network answer: the
+    // "offline ↻" retry pill. Both at once is the most the bar ever holds.
+    await mockApi(page);
+    await page.setViewportSize({ width: 360, height: 900 });
+    await page.goto("/app/wallet");
+    await expect(
+      page.getByRole("banner").getByRole("button", { name: /connect wallet/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /backend unreachable/i }),
+    ).toBeVisible();
+    expect(await topBarProblems(page)).toEqual([]);
   });
 
   test("a wide table says that it scrolls", async ({ page }) => {
