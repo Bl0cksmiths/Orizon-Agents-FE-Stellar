@@ -260,7 +260,9 @@ function WalletLink({
       target="_blank"
       rel="noreferrer"
       title={owner}
-      className={cn(inlineLink, "font-mono")}
+      // inline-block and padded to a 24px target (WCAG 2.5.8): these stand
+      // alone in their rows, so the inline-text exception does not cover them.
+      className={cn(inlineLink, "inline-block py-[5px] font-mono")}
     >
       {shortAddress(owner)}
       <span className="sr-only">
@@ -461,7 +463,9 @@ function TxLink({
       target="_blank"
       rel="noreferrer"
       title={hash}
-      className={cn(inlineLink, "font-mono")}
+      // inline-block and padded to a 24px target (WCAG 2.5.8): these stand
+      // alone in their rows, so the inline-text exception does not cover them.
+      className={cn(inlineLink, "inline-block py-[5px] font-mono")}
     >
       tx {hash.slice(0, 8)}…
       <span className="sr-only"> on Stellar Expert (opens in a new tab)</span>
