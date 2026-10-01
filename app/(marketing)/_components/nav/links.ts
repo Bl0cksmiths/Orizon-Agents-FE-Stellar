@@ -84,7 +84,7 @@ export const RESOURCES: NavGroup = {
     {
       href: LITEPAPER_PATH,
       label: "Litepaper",
-      description: "The protocol in full, as PDF, web page or Markdown",
+      description: "The full protocol, in four formats",
       section: LITEPAPER_PATH,
     },
   ],
