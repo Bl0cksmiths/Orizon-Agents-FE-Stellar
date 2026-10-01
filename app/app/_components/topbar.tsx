@@ -90,19 +90,32 @@ export function Topbar() {
               />
             </svg>
           </button>
-          <nav className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted truncate">
-            {meta.b.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-2">
-                {i > 0 && <span className="text-violet">/</span>}
-                <span className={i === meta.b.length - 1 ? "text-text" : ""}>
-                  {crumb}
+          {/* On a phone only the page's own crumb is shown: the full trail
+              left the right-hand controls no room, and the wallet address
+              wrapped onto two lines inside a 32px chip. */}
+          <nav className="flex min-w-0 items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted">
+            {meta.b.map((crumb, i) => {
+              const last = i === meta.b.length - 1;
+              return (
+                <span
+                  key={i}
+                  className={
+                    last ? "flex min-w-0 items-center gap-2" : "hidden sm:flex"
+                  }
+                >
+                  {i > 0 && (
+                    <span className="hidden text-violet sm:inline">/</span>
+                  )}
+                  <span className={last ? "truncate text-text" : ""}>
+                    {crumb}
+                  </span>
                 </span>
-              </span>
-            ))}
+              );
+            })}
           </nav>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex shrink-0 items-center gap-2 md:gap-4">
           {connected &&
             // A failed balance fetch used to render the same quiet "—" as a
             // balance that simply hadn't loaded. Say it failed, and make the
@@ -141,7 +154,10 @@ export function Topbar() {
                 </span>
               </div>
             ))}
-          <ConnectWallet />
+          {/* Below sm the network badge is dropped (the wrong-network
+              banner under this bar still says when it matters) and the
+              address chip may not wrap. */}
+          <ConnectWallet className="max-sm:[&>span]:hidden [&_button]:whitespace-nowrap" />
           <div role="status" aria-live="polite" className="flex items-center">
             {backendError ? (
               // A stale success must not outrank a live failure — report the
