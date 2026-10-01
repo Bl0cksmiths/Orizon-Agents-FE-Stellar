@@ -158,7 +158,7 @@ export function UseCases() {
                 </div>
               </div>
 
-              <div className="text-right md:text-right">
+              <div className="md:text-right">
                 <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-magenta mb-2">
                   Outcome ▸
                 </div>
