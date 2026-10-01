@@ -13,13 +13,20 @@ import type {
 } from "../lib/types";
 
 /**
- * Mock payloads shaped to satisfy lib/guards.ts (isOverview, isTaskList,
+ * Mock payloads shaped to satisfy lib/guards.ts (isOverviewV2, isTaskList,
  * isDecomposeResponse) so lib/api.ts accepts them exactly like real backend
  * responses. Values are chosen to be distinctive so specs can assert them.
  */
 
-export const mockOverview = {
-  agents_online: 2481,
+/**
+ * `GET /api/metrics/overview` as the live backend serves it until BE PR #103
+ * deploys: every figure invented (`agents_online` is the real count plus a
+ * hard-coded 2481). It stays the default, because it is what production
+ * answers today — and its values are distinctive so a spec can assert that
+ * none of them ever reaches the screen.
+ */
+export const mockLegacyOverview = {
+  agents_online: 2485,
   tasks_per_sec: 1.234,
   avg_completion: 0.984,
   avg_trust: 4.87,
@@ -29,6 +36,50 @@ export const mockOverview = {
     { name: "design", pct: 31, tone: "cyan" },
     { name: "research", pct: 27, tone: "magenta" },
   ],
+};
+
+/** The legacy overview's invented figures, as a page would print them. */
+export const LEGACY_FIGURES = /2,48\d|1\.234|98\.4%|4\.87/;
+
+/** The last fourteen UTC days ending 2026-10-02, two of them with
+ * settlements. */
+const settledSeries = Array.from({ length: 14 }, (_, i) => ({
+  date: new Date(Date.UTC(2026, 8, 19 + i)).toISOString().slice(0, 10),
+  settled: i === 11 ? 2 : i === 13 ? 1 : 0,
+}));
+
+/** The measured overview (BE PR #103), every part read. */
+export const mockOverviewV2: import("../lib/types").OverviewV2 = {
+  generated_at: 1_790_900_000,
+  agents: {
+    registered: 25,
+    onchain: 13,
+    seeded: 12,
+    external: 11,
+    bound: 6,
+    online: 22,
+  },
+  operators: { external_wallets: 7 },
+  workflows: { settled: 3, series: settledSeries },
+  tasks: { recent: 2, complete: 1, failed: 0, completion_rate: 1 },
+  trust: { avg: 3.49, rated_agents: 12 },
+  skills: [
+    { name: "research", agents: 2, pct: 2 },
+    { name: "seo", agents: 2, pct: 2 },
+    { name: "other", agents: 23, pct: 96 },
+  ],
+  degraded: false,
+};
+
+/** The measured overview with every part the backend may fail to read
+ * reported as null: owners, bindings, settlements and reputation. */
+export const mockOverviewV2Degraded: import("../lib/types").OverviewV2 = {
+  ...mockOverviewV2,
+  agents: { ...mockOverviewV2.agents, external: null, bound: null },
+  operators: { external_wallets: null },
+  workflows: { settled: null, series: [] },
+  trust: { avg: null, rated_agents: null },
+  degraded: true,
 };
 
 export const mockTasks = [
@@ -1309,6 +1360,10 @@ export type MockApiOptions = {
   /** What `GET /api/ecosystem/adoption` answers. Defaults to
    * `mockAdoptionZero`, today's honest all-zero answer. */
   adoption?: import("../lib/ecosystem").EcosystemAdoption;
+  /** What `GET /api/metrics/overview` answers. Defaults to
+   * `mockLegacyOverview`, the shape production serves today; pass
+   * `mockOverviewV2` (or its degraded variant) for the measured one. */
+  overview?: typeof mockLegacyOverview | import("../lib/types").OverviewV2;
 };
 
 export async function mockApi(
@@ -1373,7 +1428,7 @@ export async function mockApi(
     }
 
     if (method === "GET" && pathname === "/api/metrics/overview") {
-      return json(route, mockOverview);
+      return json(route, options.overview ?? mockLegacyOverview);
     }
     if (method === "GET" && pathname === "/api/tasks") {
       return json(route, mockTasks);
