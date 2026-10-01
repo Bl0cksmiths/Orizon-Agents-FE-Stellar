@@ -11,6 +11,13 @@ import { CTA } from "./(marketing)/_components/cta";
 import { Footer } from "./(marketing)/_components/footer";
 import { Marquee } from "@/components/ui/marquee";
 import { BackendWarmup } from "@/components/backend-warmup";
+import { getPublicNetworkStats } from "@/lib/public-network-stats";
+
+// The hero's network figures are read on the server and the page is
+// regenerated at most every five minutes (PUBLIC_STATS_REVALIDATE_S — Next
+// needs the literal here). A read that fails leaves the figures out until
+// the next regeneration; it never fails the build.
+export const revalidate = 300;
 
 // Structured data for search engines. Serialized into a JSON-LD script tag
 // below; the page stays a server component so this ships as static HTML.
@@ -52,7 +59,8 @@ const agentTags = [
   "crawl.v2",
 ];
 
-export default function Home() {
+export default async function Home() {
+  const stats = await getPublicNetworkStats();
   return (
     <>
       <script
@@ -66,7 +74,7 @@ export default function Home() {
           land past the nav rather than on top of it. */}
       <Nav />
       <main id="main" className="relative overflow-hidden">
-        <Hero />
+        <Hero stats={stats} />
         <Marquee items={agentTags} />
         <Problem />
         <Solution />
