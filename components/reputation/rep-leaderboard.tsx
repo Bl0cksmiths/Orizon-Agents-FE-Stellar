@@ -101,8 +101,10 @@ function SortableTh({
       <button
         type="button"
         onClick={() => onSort(col)}
+        // min-h-6: the bare 10px label was a 20px-tall target, under WCAG
+        // 2.5.8's 24px minimum.
         className={cn(
-          "font-mono text-[10px] uppercase tracking-[0.25em] transition hover:text-text",
+          "inline-flex min-h-6 items-center font-mono text-[10px] uppercase tracking-[0.25em] transition hover:text-text",
           active ? "text-text" : "text-muted",
         )}
       >
