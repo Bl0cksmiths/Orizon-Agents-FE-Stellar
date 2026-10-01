@@ -924,7 +924,6 @@
           "id": "6.1-RD-f",
           "claim": "Every registration, settlement and attestation is viewable on Stellar Expert (testnet) under the four live contract IDs.",
           "status": "present",
-          "note": "These are the live contracts the API reports. On 2026-09-30 the payment escrow changed: escrow v2 (CCNO5…5VC4), deployed that day, replaced the v1 escrow as the one the API settles through, and v1 stays on-chain with its history. Each contract page has an Events tab that lists everything it has recorded. They now show the sprint's first settlements and attestations, three team test runs of 2026-09-30 (see Deliverable 4).",
           "links": [
             {
               "label": "AgentRegistry contract on Stellar Expert (testnet): every agent registration",
