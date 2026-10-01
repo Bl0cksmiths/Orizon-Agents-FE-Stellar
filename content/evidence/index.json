@@ -885,7 +885,6 @@
           "id": "6.1-RD-d",
           "claim": "The dApp is live at orizons.xyz and runs on Stellar testnet.",
           "status": "present",
-          "note": "orizons.xyz points at testnet for this sprint and is due to switch back to mainnet afterwards, so a visit after the sprint may show mainnet (see the notes).",
           "links": [
             {
               "label": "The live Orizon app on orizons.xyz (testnet during the sprint)",
