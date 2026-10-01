@@ -32,7 +32,7 @@ import {
   getAgentBindingOrNull,
   getArtifact,
   getFlow,
-  getOverview,
+  getNetworkOverview,
   getReputation,
   getReputationParams,
   getTrace,
@@ -491,7 +491,47 @@ describe("response guards", () => {
       jsonResponse(200, { agents_online: 1, throughput: "not-an-array" }),
     );
 
-    await expect(getOverview()).rejects.toThrow(
+    await expect(getNetworkOverview()).rejects.toThrow(
+      "malformed response from /metrics/overview",
+    );
+  });
+
+  it("reads the measured overview and still accepts the legacy one", async () => {
+    const measured = {
+      generated_at: 1_790_900_000,
+      agents: {
+        registered: 25,
+        onchain: 13,
+        seeded: 12,
+        external: 11,
+        bound: 6,
+        online: 22,
+      },
+      operators: { external_wallets: 7 },
+      workflows: { settled: null, series: [] },
+      tasks: { recent: 0, complete: 0, failed: 0, completion_rate: null },
+      trust: { avg: null, rated_agents: 0 },
+      skills: [],
+      degraded: true,
+    };
+    const legacy = {
+      agents_online: 2514,
+      tasks_per_sec: 1.284,
+      avg_completion: 0.942,
+      avg_trust: 4.86,
+      throughput: [22, 18],
+      skills: [{ name: "content", pct: 38, tone: "violet" }],
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, measured));
+    await expect(getNetworkOverview()).resolves.toEqual(measured);
+    clearGetCache();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, legacy));
+    await expect(getNetworkOverview()).resolves.toEqual(legacy);
+    clearGetCache();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { agents: { registered: "25" } }),
+    );
+    await expect(getNetworkOverview()).rejects.toThrow(
       "malformed response from /metrics/overview",
     );
   });
@@ -611,7 +651,7 @@ describe("response guards", () => {
     };
     fetchMock.mockResolvedValueOnce(jsonResponse(200, overview));
 
-    await expect(getOverview()).resolves.toEqual(overview);
+    await expect(getNetworkOverview()).resolves.toEqual(overview);
   });
 });
 

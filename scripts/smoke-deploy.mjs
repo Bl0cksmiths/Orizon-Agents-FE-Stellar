@@ -75,11 +75,17 @@ const CHECKS = [
         : "expected a non-empty nodes array",
   },
   {
+    // Either shape the backend serves: the measured overview, or the legacy
+    // one a backend deployed before the measured one still answers with. The
+    // frontend reads both, so a deploy order where the frontend leads must
+    // not fail the smoke.
     path: "/api/metrics/overview",
     expect: (body) =>
-      typeof body?.agents_online === "number" && Array.isArray(body?.throughput)
+      typeof body?.agents?.registered === "number" ||
+      (typeof body?.agents_online === "number" &&
+        Array.isArray(body?.throughput))
         ? null
-        : "expected agents_online + throughput",
+        : "expected agents.registered (or the legacy agents_online + throughput)",
   },
   {
     path: NETWORK_PATH,

@@ -17,7 +17,8 @@ import {
   isBindErrorCode,
   isEndpointCheck,
   isFlow,
-  isOverview,
+  isLegacyOverview,
+  isOverviewV2,
   isReputationInfo,
   isReputationParams,
   isStellarNetworkInfo,
@@ -150,7 +151,7 @@ describe("droppedCount", () => {
   });
 });
 
-describe("isOverview", () => {
+describe("isLegacyOverview field checks", () => {
   const valid = {
     agents_online: 128,
     tasks_per_sec: 0.42,
@@ -161,45 +162,192 @@ describe("isOverview", () => {
   };
 
   it("accepts a valid payload (extra keys tolerated)", () => {
-    expect(isOverview({ ...valid, extra: "ignored" })).toBe(true);
+    expect(isLegacyOverview({ ...valid, extra: "ignored" })).toBe(true);
   });
 
   it("rejects non-objects", () => {
-    expect(isOverview(null)).toBe(false);
-    expect(isOverview([])).toBe(false);
-    expect(isOverview("<html>proxy error</html>")).toBe(false);
+    expect(isLegacyOverview(null)).toBe(false);
+    expect(isLegacyOverview([])).toBe(false);
+    expect(isLegacyOverview("<html>proxy error</html>")).toBe(false);
   });
 
   it("rejects a throughput array containing non-numbers", () => {
-    expect(isOverview({ ...valid, throughput: [1, "2", 3] })).toBe(false);
+    expect(isLegacyOverview({ ...valid, throughput: [1, "2", 3] })).toBe(false);
   });
 
   it("rejects a string avg_completion", () => {
-    expect(isOverview({ ...valid, avg_completion: "0.97" })).toBe(false);
+    expect(isLegacyOverview({ ...valid, avg_completion: "0.97" })).toBe(false);
   });
 
   it("rejects a skills entry without a numeric pct", () => {
-    expect(isOverview({ ...valid, skills: [{ name: "code" }] })).toBe(false);
+    expect(isLegacyOverview({ ...valid, skills: [{ name: "code" }] })).toBe(
+      false,
+    );
   });
 
   it("rejects a non-string skill tone", () => {
     expect(
-      isOverview({ ...valid, skills: [{ name: "code", pct: 62, tone: 7 }] }),
+      isLegacyOverview({
+        ...valid,
+        skills: [{ name: "code", pct: 62, tone: 7 }],
+      }),
     ).toBe(false);
   });
 
   it("accepts a skill with an absent or unfamiliar tone", () => {
     // The backend types skills as dict[str, Any] — tone is not contractually
     // guaranteed, and the renderer color-falls-back on anything it knows.
-    expect(isOverview({ ...valid, skills: [{ name: "code", pct: 62 }] })).toBe(
-      true,
-    );
     expect(
-      isOverview({
+      isLegacyOverview({ ...valid, skills: [{ name: "code", pct: 62 }] }),
+    ).toBe(true);
+    expect(
+      isLegacyOverview({
         ...valid,
         skills: [{ name: "code", pct: 62, tone: "amber" }],
       }),
     ).toBe(true);
+  });
+});
+
+describe("isOverviewV2", () => {
+  const valid = {
+    generated_at: 1_790_900_000,
+    agents: {
+      registered: 25,
+      onchain: 13,
+      seeded: 12,
+      external: 11,
+      bound: 6,
+      online: 22,
+    },
+    operators: { external_wallets: 7 },
+    workflows: {
+      settled: 3,
+      series: [
+        { date: "2026-10-01", settled: 1 },
+        { date: "2026-10-02", settled: 2 },
+      ],
+    },
+    tasks: { recent: 4, complete: 3, failed: 1, completion_rate: 0.75 },
+    trust: { avg: 3.49, rated_agents: 12 },
+    skills: [{ name: "research", agents: 4, pct: 16 }],
+    degraded: false,
+  };
+
+  it("accepts the measured shape, nulls and an absent degraded flag included", () => {
+    expect(isOverviewV2(valid)).toBe(true);
+    expect(
+      isOverviewV2({
+        ...valid,
+        workflows: { settled: null, series: [] },
+        trust: { avg: null, rated_agents: 0 },
+        degraded: undefined,
+      }),
+    ).toBe(true);
+  });
+
+  it("accepts the parts the backend reports as unreadable", () => {
+    expect(
+      isOverviewV2({
+        ...valid,
+        agents: { ...valid.agents, external: null, bound: null },
+        operators: { external_wallets: null },
+        trust: { avg: null, rated_agents: null },
+        degraded: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("still requires the registry counts the backend always measures", () => {
+    for (const k of ["registered", "onchain", "seeded", "online"]) {
+      expect(
+        isOverviewV2({ ...valid, agents: { ...valid.agents, [k]: null } }),
+      ).toBe(false);
+    }
+  });
+
+  it("does not check the tasks block, which no surface renders", () => {
+    expect(isOverviewV2({ ...valid, tasks: "reshaped" })).toBe(true);
+  });
+
+  it("rejects the legacy shape, so it can never read as measured", () => {
+    expect(
+      isOverviewV2({
+        agents_online: 2514,
+        tasks_per_sec: 1.284,
+        avg_completion: 0.942,
+        avg_trust: 4.86,
+        throughput: [1, 2],
+        skills: [],
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects a count that is fractional, negative, a string or missing", () => {
+    for (const registered of [1.5, -1, "25", undefined]) {
+      expect(
+        isOverviewV2({ ...valid, agents: { ...valid.agents, registered } }),
+      ).toBe(false);
+    }
+    expect(isOverviewV2({ ...valid, operators: {} })).toBe(false);
+  });
+
+  it("rejects a settled count that is absent rather than null", () => {
+    expect(
+      isOverviewV2({ ...valid, workflows: { series: valid.workflows.series } }),
+    ).toBe(false);
+  });
+
+  it("rejects a series day with a malformed date or count", () => {
+    expect(
+      isOverviewV2({
+        ...valid,
+        workflows: { settled: 1, series: [{ date: "Oct 2", settled: 1 }] },
+      }),
+    ).toBe(false);
+    expect(
+      isOverviewV2({
+        ...valid,
+        workflows: {
+          settled: 1,
+          series: [{ date: "2026-10-02", settled: -1 }],
+        },
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects a string trust average and a skill without an agent count", () => {
+    expect(
+      isOverviewV2({ ...valid, trust: { avg: "3.4", rated_agents: 1 } }),
+    ).toBe(false);
+    expect(
+      isOverviewV2({ ...valid, skills: [{ name: "code", pct: 10 }] }),
+    ).toBe(false);
+  });
+
+  it("rejects a truthy non-boolean degraded flag", () => {
+    expect(isOverviewV2({ ...valid, degraded: "false" })).toBe(false);
+  });
+
+  it("rejects non-objects", () => {
+    expect(isOverviewV2(null)).toBe(false);
+    expect(isOverviewV2("<html>proxy error</html>")).toBe(false);
+  });
+});
+
+describe("isLegacyOverview", () => {
+  it("recognises the legacy shape and nothing measured", () => {
+    expect(
+      isLegacyOverview({
+        agents_online: 2514,
+        tasks_per_sec: 1.284,
+        avg_completion: 0.942,
+        avg_trust: 4.86,
+        throughput: [1, 2],
+        skills: [{ name: "content", pct: 38, tone: "violet" }],
+      }),
+    ).toBe(true);
+    expect(isLegacyOverview({ agents: { registered: 1 } })).toBe(false);
   });
 });
 

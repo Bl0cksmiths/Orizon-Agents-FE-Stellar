@@ -24,7 +24,8 @@ import type {
   EndpointCheck,
   DecomposeResponse,
   Flow,
-  Overview,
+  LegacyOverview,
+  OverviewV2,
   PlanFloorNotice,
   PlanStep,
   ReputationBatch,
@@ -139,17 +140,17 @@ export function screenAgentList(v: unknown): Agent[] | null {
   return Array.isArray(v) ? keepValid(v, isAgent) : null;
 }
 
-/** Dashboard + sidebar: stat tiles do `*100`/`.toFixed`, sparkline maps
- * `throughput`, the skills list maps `name`/`pct` and colors each bar from
- * `tone`.
+/**
+ * The legacy overview (see `LegacyOverview`). Recognising the shape is all
+ * this is for — so the request does not fail against a backend that still
+ * serves it — and none of its fields is ever displayed. The field checks
+ * stay as they were so a malformed payload is still told from a legacy one.
  *
  * `tone` is checked as a string only *when present*: the backend types skills
  * as `list[dict[str, Any]]` (`OverviewMetrics`, app/schemas.py), so pydantic
- * guarantees no key at all — requiring it (or pinning it to today's three
- * tone names) would reject payloads the contract permits. The renderer already
- * falls back to a default color for an unknown tone; the check only rules out
- * a non-string sneaking into a comparison. */
-export function isOverview(v: unknown): v is Overview {
+ * guarantees no key at all.
+ */
+export function isLegacyOverview(v: unknown): v is LegacyOverview {
   return (
     isRecord(v) &&
     isNum(v.agents_online) &&
@@ -165,6 +166,64 @@ export function isOverview(v: unknown): v is Overview {
         isNum(s.pct) &&
         (s.tone === undefined || s.tone === null || isStr(s.tone)),
     )
+  );
+}
+
+/** A count: a non-negative whole number. `1.5` agents is a defect, and a
+ * negative one would print as a figure nobody measured. */
+const isCount = (v: unknown): v is number =>
+  isNum(v) && Number.isInteger(v) && v >= 0;
+
+/** A count, or `null` for one the backend could not read. Absent is NOT
+ * accepted: the measured shape always sends the key. */
+const isCountOrNull = (v: unknown): v is number | null =>
+  v === null || isCount(v);
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The measured overview. Checked as a whole, like the ecosystem payload:
+ * every figure here is a claim on the console's front page, so a payload with
+ * one malformed count is not half-trusted — it fails the guard, and the
+ * console derives its figures from the registry and the adoption read
+ * instead.
+ *
+ * `tasks` is deliberately unchecked: no surface renders it, and a backend
+ * that reshapes it must not discard counts that are well formed.
+ * `degraded` may be absent (read as false) but never a truthy non-boolean.
+ */
+export function isOverviewV2(v: unknown): v is OverviewV2 {
+  if (!isRecord(v) || !isNum(v.generated_at)) return false;
+  const { agents, operators, workflows, trust } = v;
+  return (
+    isRecord(agents) &&
+    ["registered", "onchain", "seeded", "online"].every((k) =>
+      isCount(agents[k]),
+    ) &&
+    // Null when the owner rule or the binding set could not be read.
+    isCountOrNull(agents.external) &&
+    isCountOrNull(agents.bound) &&
+    isRecord(operators) &&
+    isCountOrNull(operators.external_wallets) &&
+    isRecord(workflows) &&
+    isCountOrNull(workflows.settled) &&
+    Array.isArray(workflows.series) &&
+    workflows.series.every(
+      (d) =>
+        isRecord(d) &&
+        isStr(d.date) &&
+        DAY_RE.test(d.date) &&
+        isCount(d.settled),
+    ) &&
+    isRecord(trust) &&
+    (trust.avg === null || isNum(trust.avg)) &&
+    // Null when the reputation read itself failed.
+    isCountOrNull(trust.rated_agents) &&
+    Array.isArray(v.skills) &&
+    v.skills.every(
+      (s) => isRecord(s) && isStr(s.name) && isCount(s.agents) && isNum(s.pct),
+    ) &&
+    isOptionalBool(v.degraded)
   );
 }
 

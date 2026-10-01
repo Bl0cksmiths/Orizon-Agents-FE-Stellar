@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { mockApi, mockOverview, mockTasks } from "./mocks";
+import {
+  LEGACY_FIGURES,
+  mockAgents,
+  mockApi,
+  mockReputationBatch,
+  mockTasks,
+} from "./mocks";
 import { mockNetwork } from "./plan-fixtures";
 
 test.describe("console overview", () => {
@@ -17,17 +23,32 @@ test.describe("console overview", () => {
       ).toBeVisible();
     }
 
-    // Metric cards resolve against the mocked GET /api/metrics/overview.
-    // agents_online renders localized ("2,481") in a metric card (and again
-    // in the sidebar footer, hence first()); tasks_per_sec renders "1.234".
-    await expect(
-      page
-        .getByText(mockOverview.agents_online.toLocaleString("en-US"))
-        .first(),
-    ).toBeVisible();
-    await expect(
-      page.getByText(mockOverview.tasks_per_sec.toFixed(3)).first(),
-    ).toBeVisible();
+    // The mocked overview is the legacy shape, so every figure is derived
+    // from the registry, the adoption read and the reputation batch.
+    const tile = (label: string) =>
+      page.locator("main [data-stat-tile]").filter({ hasText: label });
+    const onchain = mockAgents.filter((a) => a.source === "onchain").length;
+    const seeded = mockAgents.filter((a) => a.source === "seeded").length;
+    await expect(tile("Registered agents")).toContainText(
+      `${mockAgents.length}${onchain} on-chain · ${seeded} seeded`,
+    );
+    await expect(tile("External agents")).toContainText(
+      "0from 0 operator wallets",
+    );
+    const rated = Object.values(mockReputationBatch.reputations).filter(
+      (r) => r.source === "onchain",
+    );
+    const avg =
+      rated.reduce((sum, r) => sum + r.smoothed_bps, 0) / rated.length / 2000;
+    await expect(tile("Avg trust (on-chain)")).toContainText(
+      `${avg.toFixed(2)}/ 5across ${rated.length} rated agents`,
+    );
+    await expect(sidebar).toContainText(
+      `${mockAgents.length} agents registered · 0 external`,
+    );
+    // None of the legacy overview's invented figures reaches the screen.
+    await expect(page.locator("body")).not.toContainText(LEGACY_FIGURES);
+    await expect(page.locator("body")).not.toContainText("2,481");
 
     // Recent-tasks table shows a mocked task id.
     await expect(page.getByText(mockTasks[0].id)).toBeVisible();

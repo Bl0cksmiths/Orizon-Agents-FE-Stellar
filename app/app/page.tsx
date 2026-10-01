@@ -1,27 +1,21 @@
 "use client";
 import { useCallback, useState } from "react";
-import { m } from "framer-motion";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
-import { getOverview, getStellarNetwork, listTasks } from "@/lib/api";
+import { Composition } from "@/components/network/composition";
+import { NetworkTiles } from "@/components/network/network-tiles";
+import { SettledChart } from "@/components/network/settled-chart";
+import { getStellarNetwork, listTasks } from "@/lib/api";
+import type { NetworkStats } from "@/lib/network-stats";
 import { formatSpent } from "@/lib/trace-amounts";
-import type { Overview, Task } from "@/lib/types";
-import { focusRing } from "@/lib/ui";
+import type { Task } from "@/lib/types";
+import { loadNetworkStats } from "@/lib/use-network-stats";
 import { isTransientFetchError, useFetch } from "@/lib/use-fetch";
 import { usePolling } from "@/lib/use-polling";
-
-// Tile labels are static, so they render while the payload is loading and
-// stay put when it fails — only the value slot swaps to a failed state.
-const METRIC_KEYS = [
-  "Agents online",
-  "Tasks / s",
-  "Avg completion",
-  "Avg trust",
-] as const;
 
 const statusTone: Record<
   Task["status"],
@@ -33,48 +27,8 @@ const statusTone: Record<
   failed: "magenta",
 };
 
-function Sparkline({ points }: { points: number[] }) {
-  if (!points.length) return <div className="h-36" />;
-  const max = Math.max(...points) || 1;
-  const w = 600;
-  const h = 140;
-  const path = points
-    .map((v, i) => {
-      const x = (i / Math.max(1, points.length - 1)) * w;
-      const y = h - (v / max) * (h - 12) - 6;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-
-  return (
-    <svg
-      role="img"
-      aria-label="Sparkline of tasks executed over the last 24 hours"
-      viewBox={`0 0 ${w} ${h}`}
-      className="h-36 w-full"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient id="sparkFill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#B026FF" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#B026FF" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`${path} L${w},${h} L0,${h} Z`} fill="url(#sparkFill)" />
-      <path d={path} stroke="#B026FF" strokeWidth="1.5" fill="none" />
-      <path
-        d={path}
-        stroke="#00FFD1"
-        strokeWidth="0.6"
-        fill="none"
-        opacity="0.6"
-      />
-    </svg>
-  );
-}
-
 export default function OverviewPage() {
-  const [overview, setOverview] = useState<Overview | null>(null);
+  const [stats, setStats] = useState<NetworkStats | null>(null);
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // A terminal failure (a 4xx that will not fix itself) is distinct from a
@@ -90,8 +44,8 @@ export default function OverviewPage() {
   const { data: network } = useFetch(getStellarNetwork, []);
 
   const load = useCallback(async () => {
-    const [o, t] = await Promise.all([getOverview(), listTasks()]);
-    setOverview(o);
+    const [n, t] = await Promise.all([loadNetworkStats(), listTasks()]);
+    setStats(n);
     setTasks(t);
     setError(null);
     setTerminal(false);
@@ -135,38 +89,13 @@ export default function OverviewPage() {
   // full backoff window after a hand-triggered refresh.
   const dataAt = Math.max(lastSuccessAt ?? 0, manualSuccessAt ?? 0) || null;
 
-  // /api/metrics/overview carries no period-over-period deltas, so the tiles
-  // show the measured value and its unit only — never an invented trend.
-  const metrics: { k: string; v: string; unit?: string }[] = overview
-    ? [
-        {
-          k: "Agents online",
-          v: overview.agents_online.toLocaleString(),
-        },
-        {
-          k: "Tasks / s",
-          v: overview.tasks_per_sec.toFixed(3),
-        },
-        {
-          k: "Avg completion",
-          v: `${(overview.avg_completion * 100).toFixed(1)}%`,
-        },
-        {
-          // avg_trust is served on a 0..5 scale; the suffix is the unit, not a delta.
-          k: "Avg trust",
-          v: overview.avg_trust.toFixed(2),
-          unit: "/ 5",
-        },
-      ]
-    : [];
-
   return (
     <div className="space-y-8">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
           <p className="mt-1 text-sm text-muted">
-            Realtime pulse of the Orizon network.
+            Measured from the agent registry and the chain.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -196,84 +125,36 @@ export default function OverviewPage() {
           {error}
           {terminal
             ? " · this won't resolve on its own — retry once it's restored"
-            : overview && " · showing the last values received"}
+            : stats && " · showing the last values received"}
         </ErrorNote>
+      )}
+
+      {stats && stats.notes.length > 0 && (
+        <div className="space-y-1 font-mono text-[11px] text-muted">
+          {stats.notes.map((note) => (
+            <p key={note}>{note}</p>
+          ))}
+        </div>
       )}
 
       {/* Two up on a phone, four from md. One column wasted a phone's
           height on four short figures; four beside a 240px sidebar at 768px
           clipped them, since a Card's clip-path cuts what overflows it. */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-        {!overview && !error && <LoadingStatus label="Loading metrics…" />}
-        {!overview &&
-          METRIC_KEYS.map((k) => (
-            <Card key={k} className="min-w-0 p-4 sm:p-6">
-              <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-                {k}
-              </div>
-              {error ? (
-                <div className="font-mono text-sm text-magenta">
-                  unavailable
-                </div>
-              ) : (
-                <Skeleton className="h-8 w-16" />
-              )}
-            </Card>
-          ))}
-        {metrics.map((metric, i) => (
-          <m.div
-            key={metric.k}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: i * 0.06 }}
-          >
-            <Card className="h-full min-w-0 p-4 sm:p-6" data-stat-tile>
-              <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-                {metric.k}
-              </div>
-              <div className="font-mono text-2xl neon-text sm:text-3xl">
-                {metric.v}
-                {metric.unit && (
-                  <span className="ml-1.5 text-base text-muted">
-                    {metric.unit}
-                  </span>
-                )}
-              </div>
-            </Card>
-          </m.div>
-        ))}
+        {!stats && !error && <LoadingStatus label="Loading metrics…" />}
+        <NetworkTiles stats={stats} failed={Boolean(error)} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <Card>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold">Throughput</h2>
-              <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-                tasks executed · last 24h
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {["1h", "24h", "7d"].map((t, i) => (
-                <button
-                  key={t}
-                  type="button"
-                  disabled
-                  title="coming soon"
-                  className={
-                    `clip-cyber-sm border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${focusRing} ` +
-                    (i === 1
-                      ? "border-violet bg-violet/20 text-text"
-                      : "border-border text-muted hover:text-text")
-                  }
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Throughput</h2>
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
+              settled workflows per day · all payers · last 14 days (UTC)
+            </p>
           </div>
-          {overview ? (
-            <Sparkline points={overview.throughput} />
+          {stats ? (
+            <SettledChart series={stats.series} />
           ) : error ? (
             <div className="grid h-36 place-items-center border border-dashed border-border font-mono text-[11px] text-muted">
               throughput unavailable — backend unreachable
@@ -289,44 +170,22 @@ export default function OverviewPage() {
         <Card>
           <h2 className="text-lg font-semibold mb-1">Network composition</h2>
           <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted mb-5">
-            by skill cluster
+            registered agents by source
           </p>
-          <div className="space-y-3">
-            {(overview?.skills ?? []).map((r) => (
-              <div key={r.name}>
-                <div className="flex items-center justify-between font-mono text-[11px] text-muted mb-1">
-                  <span className="uppercase tracking-widest">{r.name}</span>
-                  <span>{r.pct}%</span>
-                </div>
-                <div className="h-1.5 bg-white/5 overflow-hidden">
-                  <div
-                    className={
-                      "h-full " +
-                      (r.tone === "violet"
-                        ? "bg-violet shadow-[0_0_10px_#B026FF]"
-                        : r.tone === "cyan"
-                          ? "bg-cyan shadow-[0_0_10px_#00FFD1]"
-                          : "bg-magenta shadow-[0_0_10px_#FF2E9A]")
-                    }
-                    style={{ width: `${r.pct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-            {!overview &&
-              (error ? (
-                <p className="font-mono text-[11px] text-muted">
-                  skill mix unavailable — backend unreachable
-                </p>
-              ) : (
-                <>
-                  <LoadingStatus label="Loading network composition…" />
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <Skeleton key={i} className="h-4 w-full" />
-                  ))}
-                </>
+          {stats ? (
+            <Composition stats={stats} />
+          ) : error ? (
+            <p className="font-mono text-[11px] text-muted">
+              composition unavailable — backend unreachable
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <LoadingStatus label="Loading network composition…" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-4 w-full" />
               ))}
-          </div>
+            </div>
+          )}
         </Card>
       </div>
 

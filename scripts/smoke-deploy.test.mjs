@@ -201,6 +201,28 @@ test("exits 1 when a route answers with the wrong shape", async () => {
   assert.match(out, /\/api\/agents → expected at least one agent/);
 });
 
+test("accepts the measured overview as well as the legacy one", async () => {
+  const measured = {
+    agents: { registered: 49, onchain: 37, seeded: 12 },
+    workflows: { settled: 3, series: [] },
+  };
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/api/metrics/overview": measured }),
+  );
+  assert.equal(code, 0, out);
+});
+
+test("exits 1 when the overview is neither shape", async () => {
+  const { code, out } = await smoke(
+    await origin({
+      ...HEALTHY,
+      "/api/metrics/overview": { agents: { registered: "49" } },
+    }),
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /\/api\/metrics\/overview → expected agents\.registered/);
+});
+
 test("exits 1 when production runs a contract the book does not list", async () => {
   const { code, out } = await smoke(
     await origin({

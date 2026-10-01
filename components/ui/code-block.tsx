@@ -1,12 +1,19 @@
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 
+/**
+ * A terminal-styled sample. `badge` labels what it is: "example" by default,
+ * because a sample run is illustrative — it said "◉ live" once, beside a
+ * made-up run, which read as a claim about the network.
+ */
 export function CodeBlock({
   title = "orizon.sh",
+  badge = "example",
   children,
   className,
 }: {
   title?: string;
+  badge?: string;
   children: ReactNode;
   className?: string;
 }) {
@@ -26,7 +33,7 @@ export function CodeBlock({
         <span className="text-[10px] uppercase tracking-[0.25em] text-muted">
           {title}
         </span>
-        <span className="text-[10px] font-mono text-muted">◉ live</span>
+        <span className="text-[10px] font-mono text-muted">{badge}</span>
       </div>
       <pre className="px-4 py-4 leading-6 text-text/90 whitespace-pre-wrap">
         {children}

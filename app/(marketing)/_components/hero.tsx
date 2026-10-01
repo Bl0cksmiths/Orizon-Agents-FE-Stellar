@@ -4,8 +4,12 @@ import { ButtonLink } from "@/components/ui/button";
 import { GridBg, Glow, Scanline } from "@/components/ui/grid-bg";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Badge } from "@/components/ui/badge";
+import type { PublicNetworkStats } from "@/lib/public-network-stats";
+import { HeroStats } from "./hero-stats";
 
-export function Hero() {
+/** `stats` is read on the server (app/page.tsx); null leaves the stat row
+ * out. */
+export function Hero({ stats }: { stats: PublicNetworkStats | null }) {
   return (
     <section className="relative overflow-hidden pt-32 pb-24 md:pt-40 md:pb-32">
       <GridBg />
@@ -74,27 +78,16 @@ export function Hero() {
               </ButtonLink>
             </m.div>
 
-            <m.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-              className="mt-10 grid max-w-md grid-cols-3 gap-6"
-            >
-              {[
-                { k: "Agents", v: "2,481" },
-                { k: "Tasks/s", v: "1.2k" },
-                { k: "Avg trust", v: "99.3%" },
-              ].map((s) => (
-                <div key={s.k}>
-                  <div className="font-mono text-2xl text-text neon-text-cyan">
-                    {s.v}
-                  </div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-                    {s.k}
-                  </div>
-                </div>
-              ))}
-            </m.div>
+            {stats && (
+              <m.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+                className="mt-10"
+              >
+                <HeroStats stats={stats} />
+              </m.div>
+            )}
           </div>
 
           <m.div
