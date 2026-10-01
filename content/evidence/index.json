@@ -182,7 +182,7 @@
           "note": "Present. Captures of the live plan card on orizons.xyz, taken on 2026-09-30 at 09:45 UTC with no wallet connected, show Calculator AI (calculatorai) planned with an earned on-chain reputation of ★ 3.50 from 2 rated jobs, not the starting estimate: its chip carries no '≈' estimate mark, and the plan's own data gives the score's source as on-chain (7004 of 10000, with a lower bound of 5683 against the 5500 floor). The two ratings behind it, 95 out of 100 each, were written on 2026-09-30 after two of the team's settled escrow v2 test runs (see Deliverable 4), and are linked here with the third run's rating, for keyboardai. Both agents are owned by the team's admin wallet. There is a desktop and a phone capture; no recording of the plan card exists. The 2026-09-19 screenshot is kept for history: every agent in it still had the starting estimate of about 3.50, because the platform only began writing ratings later that day.",
           "links": [
             {
-              "label": "Screenshot of the live plan card at desktop width: Calculator AI with an on-chain reputation of 3.50 from 2 rated jobs, captured 2026-09-30",
+              "label": "Screenshot of the live plan card at desktop width: Calculator AI with an on-chain reputation of 3.50 from 2 rated jobs, the same figure as the starting estimate but without its '≈' mark (see the disclosures), captured 2026-09-30",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d2a-plan-card-onchain-score-desktop-1440.png",
               "kind": "doc",
               "date": "2026-09-30"
