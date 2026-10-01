@@ -21,8 +21,10 @@ export function nestToc(toc: TocEntry[]): Section[] {
   return sections;
 }
 
+// On a touch screen each entry is a 44px row; with a mouse the list stays
+// compact.
 const link = cn(
-  "block py-1 text-sm text-muted transition-colors hover:text-text",
+  "block py-1 text-sm text-muted transition-colors hover:text-text [@media(pointer:coarse)]:flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center",
   focusRing,
 );
 
