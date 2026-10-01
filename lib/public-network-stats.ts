@@ -28,10 +28,12 @@ import {
 
 /** How long a rendered hero, and each read behind it, may be served. */
 export const PUBLIC_STATS_REVALIDATE_S = 300;
-/** A read slower than this is left out of the render. The backend takes
- * 30–60s to wake on its free tier; a build or a first render must not wait
- * that long, and the next regeneration reads it again. */
-export const PUBLIC_STATS_TIMEOUT_MS = 10_000;
+/** A read slower than this is left out of the render. The adoption read
+ * took 13–40s against the live testnet backend (2026-10-02), so a tighter
+ * deadline dropped the external figures from every build. Waiting costs a
+ * build at most this long, and a visitor nothing: ISR regenerates in the
+ * background while the last page is served. */
+export const PUBLIC_STATS_TIMEOUT_MS = 45_000;
 
 export type PublicNetworkStats = {
   registered: number | null;
