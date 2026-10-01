@@ -345,7 +345,6 @@
           "id": "6.1-D2-c",
           "claim": "A link to the routing code that applies the reputation floor.",
           "status": "present",
-          "note": "The code links are pinned to the backend merge of 2026-09-18 (pull request #58), when this routing shipped. The floor check itself is unchanged in the later build the live API runs. The floor is judged on a cautious lower estimate of each agent's on-chain average, so a new agent with few ratings is not over-trusted or over-punished.",
           "links": [
             {
               "label": "Routing code: the floor check on each agent's reputation (backend, pinned to the Week-2 merge; unchanged in the build the live API runs)",
