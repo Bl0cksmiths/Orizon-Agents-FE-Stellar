@@ -90,9 +90,10 @@ export function Topbar() {
               />
             </svg>
           </button>
-          {/* On a phone only the page's own crumb is shown: the full trail
-              left the right-hand controls no room, and the wallet address
-              wrapped onto two lines inside a 32px chip. */}
+          {/* Below lg only the page's own crumb is shown: the full trail
+              left the right-hand controls no room (on a phone the wallet
+              address wrapped onto two lines inside a 32px chip, and on a
+              tablet the page name was cut to "OVER…"). */}
           <nav className="flex min-w-0 items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted">
             {meta.b.map((crumb, i) => {
               const last = i === meta.b.length - 1;
@@ -100,11 +101,11 @@ export function Topbar() {
                 <span
                   key={i}
                   className={
-                    last ? "flex min-w-0 items-center gap-2" : "hidden sm:flex"
+                    last ? "flex min-w-0 items-center gap-2" : "hidden lg:flex"
                   }
                 >
                   {i > 0 && (
-                    <span className="hidden text-violet sm:inline">/</span>
+                    <span className="hidden text-violet lg:inline">/</span>
                   )}
                   <span className={last ? "truncate text-text" : ""}>
                     {crumb}
