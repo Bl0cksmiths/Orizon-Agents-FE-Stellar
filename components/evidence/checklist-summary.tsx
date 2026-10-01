@@ -16,6 +16,7 @@ import {
 import { deliverableAnchor } from "@/lib/evidence/display";
 import type { EvidenceDeliverable } from "@/lib/evidence/types";
 import { inlineLink } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 import { EvidenceTable } from "./evidence-table";
 import { StatusBadge } from "./status-badge";
 
@@ -50,7 +51,13 @@ export function ChecklistSummary({
         rows={rows.map((r) => ({
           key: r.id,
           header: (
-            <Link href={`#${deliverableAnchor(r.id)}`} className={inlineLink}>
+            <Link
+              href={`#${deliverableAnchor(r.id)}`}
+              className={cn(
+                inlineLink,
+                "[@media(pointer:coarse)]:inline-block [@media(pointer:coarse)]:py-3",
+              )}
+            >
               {r.row === r.name ? r.row : `${r.row}: ${r.name}`}
             </Link>
           ),
