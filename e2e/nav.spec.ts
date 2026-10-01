@@ -343,6 +343,75 @@ for (const viewport of WIDTHS) {
   });
 }
 
+/** The smallest comfortable touch target, in CSS pixels (WCAG 2.5.5). */
+const TAP = 44;
+
+/**
+ * Each visible control in `root` smaller than 44 × 44px. The logo is left
+ * out: it is a wide link (about 150px) in the shared Logo component, and
+ * only its height falls short.
+ */
+async function smallTargets(root: Locator): Promise<string[]> {
+  return root.evaluate((el, tap) => {
+    return Array.from(el.querySelectorAll<HTMLElement>("a[href], button"))
+      .filter((c) => !c.matches('[aria-label="Orizon Agents — home"]'))
+      .filter((c) => {
+        const r = c.getBoundingClientRect();
+        return r.width > 0 && getComputedStyle(c).visibility !== "hidden";
+      })
+      .map((c) => {
+        const r = c.getBoundingClientRect();
+        return { c, w: Math.round(r.width), h: Math.round(r.height) };
+      })
+      .filter(({ w, h }) => w < tap || h < tap)
+      .map(
+        ({ c, w, h }) =>
+          `${(c.getAttribute("aria-label") ?? c.textContent ?? "").trim()} ${w}×${h}`,
+      );
+  }, TAP);
+}
+
+// Phones and tablets, landscape included, are touch screens: there every
+// control in the bar and the sheet is at least 44px square.
+for (const viewport of WIDTHS.filter((v) => v.width <= DESKTOP_FROM)) {
+  test.describe(`marketing nav on a ${viewport.width}px touch screen`, () => {
+    test.use({ viewport, hasTouch: true });
+
+    test("has 44px touch targets in the bar and the sheet", async ({
+      page,
+    }) => {
+      await visit(page);
+      expect(
+        await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+        "the context is a touch screen",
+      ).toBe(true);
+      expect(await smallTargets(header(page))).toEqual([]);
+      expect(await headerOutsideWindow(page)).toEqual([]);
+      if (viewport.width < DESKTOP_FROM) {
+        await toggle(page).click();
+        await expect(sheetPanel(page)).toHaveCSS("opacity", "1");
+        expect(await smallTargets(sheetPanel(page))).toEqual([]);
+      }
+    });
+  });
+}
+
+test.describe("marketing nav with a mouse", () => {
+  test.use({ viewport: DESKTOP });
+
+  test("keeps its compact density", async ({ page }) => {
+    await visit(page);
+    expect(
+      await page.evaluate(() => matchMedia("(pointer: coarse)").matches),
+    ).toBe(false);
+    expect(
+      (await rect(launch(page))).bottom - (await rect(launch(page))).top,
+    ).toBe(32);
+    const platform = await rect(menuButton(page, "Platform"));
+    expect(platform.bottom - platform.top).toBe(36);
+  });
+});
+
 test.describe("marketing nav menus", () => {
   test.use({ viewport: DESKTOP });
 
