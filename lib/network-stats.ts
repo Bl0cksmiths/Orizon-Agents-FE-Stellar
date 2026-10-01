@@ -30,10 +30,14 @@ import type {
 
 /** A figure that was measured, or the reason it could not be. */
 export type Measured<T> =
-  { ok: true; value: T } | { ok: false; reason: string };
+  | { ok: true; value: T }
+  /** `pending`: the read is still in flight, not failed — the surface says
+   * so, and asks again shortly. */
+  | { ok: false; reason: string; pending?: boolean };
 
 /** The outcome of one read, as the derivation receives it. */
-export type Read<T> = { ok: true; value: T } | { ok: false; error: string };
+export type Read<T> =
+  { ok: true; value: T } | { ok: false; error: string; pending?: boolean };
 
 export type Trust = { avg: number; ratedAgents: number };
 
@@ -61,6 +65,12 @@ export type NetworkStats = {
 const measured = <T>(value: T): Measured<T> => ({ ok: true, value });
 const gap = <T>(reason: string): Measured<T> => ({ ok: false, reason });
 
+/** The gap a failed read leaves: still in flight, or failed for `reason`. */
+const gapFor = <T>(read: Read<unknown>, reason: string): Measured<T> =>
+  !read.ok && read.pending
+    ? { ok: false, reason: REASONS.pending, pending: true }
+    : gap(reason);
+
 /** How many top skills the derived mix names before folding into "other". */
 export const SKILL_MIX_TOP = 5;
 /** The label the folded remainder carries. */
@@ -77,6 +87,7 @@ export const REASONS = {
   trustScale: "Trust was reported on a scale this console doesn't know",
   settledUnreported: "This backend doesn't report settled workflows yet",
   settledUnreadable: "Couldn't read settlements right now",
+  pending: "Still reading — the backend may be waking up",
 } as const;
 
 /** "2,481" — every count on every surface, in one locale. */
@@ -193,7 +204,7 @@ export function deriveNetworkStats(reads: {
   const { agents, adoption, reputation } = reads;
 
   const fromRegistry = <T>(pick: (list: Agent[]) => T): Measured<T> =>
-    agents.ok ? measured(pick(agents.value)) : gap(REASONS.registry);
+    agents.ok ? measured(pick(agents.value)) : gapFor(agents, REASONS.registry);
   const count = (keep: (a: Agent) => boolean) =>
     fromRegistry((list) => list.filter(keep).length);
 
@@ -225,18 +236,29 @@ export function deriveNetworkStats(reads: {
     bound: count((a) => a.bound === true),
     external: adoption.ok
       ? measured(adoption.value.totals.external_agents)
-      : gap(REASONS.adoption),
+      : gapFor(adoption, REASONS.adoption),
     operatorWallets: adoption.ok
       ? measured(adoption.value.totals.unique_operator_wallets)
-      : gap(REASONS.adoption),
+      : gapFor(adoption, REASONS.adoption),
     settled: gap(REASONS.settledUnreported),
     series: gap(REASONS.settledUnreported),
     trust: reputation.ok
       ? onchainTrust(reputation.value)
-      : gap(REASONS.reputation),
+      : gapFor(reputation, REASONS.reputation),
     skills: fromRegistry((list) => deriveSkillMix(list)),
     notes,
   };
+}
+
+/** Whether any figure is waiting on a read still in flight. */
+export function hasPendingReads(s: NetworkStats): boolean {
+  return Object.values(s).some(
+    (v) =>
+      typeof v === "object" &&
+      v !== null &&
+      "pending" in v &&
+      v.pending === true,
+  );
 }
 
 /** "13 on-chain · 12 seeded", or null when the split is not known. */
