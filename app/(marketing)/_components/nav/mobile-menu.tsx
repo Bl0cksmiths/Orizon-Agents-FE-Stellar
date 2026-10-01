@@ -19,7 +19,6 @@
  */
 
 import Link from "next/link";
-import { m } from "framer-motion";
 import {
   useEffect,
   useId,
@@ -46,6 +45,25 @@ const DESKTOP_QUERY = "(min-width: 1024px)";
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/**
+ * The sheet's entrance, played on the panel each time it opens. The panel's
+ * own style is already the end state, so the animation only ever adds
+ * motion: a browser without the Web Animations API, a reader who asked for
+ * less motion, or an open that races the page's hydration all still get a
+ * fully visible sheet — never one stuck at its first frame.
+ */
+function slideIn(panel: HTMLElement | null) {
+  if (!panel || typeof panel.animate !== "function") return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  panel.animate(
+    [
+      { opacity: 0, transform: "translateX(24px)" },
+      { opacity: 1, transform: "none" },
+    ],
+    { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+  );
+}
+
 export type MobileMenuProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -56,6 +74,7 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const firstLinkRef = useRef<HTMLAnchorElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const pressedOnBackdrop = useRef(false);
   const titleId = useId();
 
@@ -65,6 +84,7 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
     if (!dialog) return;
     if (!dialog.open) dialog.showModal();
     firstLinkRef.current?.focus();
+    slideIn(panelRef.current);
     const releaseScroll = lockPageScroll();
     const toggle = toggleRef.current;
     const desktop = window.matchMedia?.(DESKTOP_QUERY);
@@ -170,10 +190,8 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
           "backdrop:bg-bg/70 backdrop:backdrop-blur-sm",
         )}
       >
-        <m.div
-          initial={false}
-          animate={open ? { opacity: 1, x: 0 } : { opacity: 0, x: 24 }}
-          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        <div
+          ref={panelRef}
           className="relative flex h-full flex-col bg-surface sm:border-l sm:border-border"
         >
           <div
@@ -262,7 +280,7 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
               Launch App <span aria-hidden>▸</span>
             </ButtonLink>
           </div>
-        </m.div>
+        </div>
       </dialog>
     </>
   );
