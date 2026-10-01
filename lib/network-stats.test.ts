@@ -188,6 +188,22 @@ describe("statsFromOverview (the measured shape)", () => {
     expect(s.series).toEqual({ ok: true, value: [] });
   });
 
+  it("reads each part the backend could not read as a gap, never a zero", () => {
+    const s = statsFromOverview({
+      ...overviewV2,
+      agents: { ...overviewV2.agents, external: null, bound: null },
+      operators: { external_wallets: null },
+      trust: { avg: null, rated_agents: null },
+      degraded: true,
+    });
+    expect(s.external).toEqual({ ok: false, reason: REASONS.owners });
+    expect(s.operatorWallets).toEqual({ ok: false, reason: REASONS.owners });
+    expect(s.bound).toEqual({ ok: false, reason: REASONS.bindings });
+    expect(s.trust).toEqual({ ok: false, reason: REASONS.reputation });
+    expect(s.registered).toEqual({ ok: true, value: 25 });
+    expect(statedNumbers(s)).not.toContain(0);
+  });
+
   it("says no ratings yet when nobody is rated, and unreadable otherwise", () => {
     expect(
       statsFromOverview({
