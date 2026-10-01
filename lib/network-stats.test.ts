@@ -219,6 +219,15 @@ describe("statsFromOverview (the measured shape)", () => {
     ).toEqual({ ok: false, reason: REASONS.reputation });
   });
 
+  it("does not state an average whose rated-agent count is unknown", () => {
+    expect(
+      statsFromOverview({
+        ...overviewV2,
+        trust: { avg: 3.2, rated_agents: null },
+      }).trust,
+    ).toEqual({ ok: false, reason: REASONS.reputation });
+  });
+
   it("refuses a trust average off the 0–5 scale rather than printing it", () => {
     expect(
       statsFromOverview({
