@@ -106,7 +106,7 @@ export function Hero() {
               <span className="text-muted">$</span>{" "}
               <span className="text-cyan">orizon</span>{" "}
               <span className="text-text">run</span>{" "}
-              <span className="text-violet">
+              <span className="text-violet-readable">
                 "build me a landing page for pulse ai"
               </span>
               {"\n\n"}
