@@ -705,9 +705,12 @@ test.describe("the flow graph", () => {
   // Nodes are at least 140px wide and placed by percentage, so on a narrow
   // canvas two neighbours land on top of each other. Below xl the graph is a
   // list; wherever the canvas does show, no two nodes may touch.
-  test("draws no node over another at any width", async ({ page }) => {
+  // With motion on, deliberately: the entrance animates `scale`, and that is
+  // what used to overwrite the centring transform. Reduced motion skips it.
+  test("draws every node inside the canvas and none over another at any width", async ({
+    page,
+  }) => {
     await mockConsole(page);
-    await page.emulateMedia({ reducedMotion: "reduce" });
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/app/flow");
@@ -720,6 +723,17 @@ test.describe("the flow graph", () => {
           .map((el) => el.getBoundingClientRect())
           .filter((r) => r.width > 0);
         const hits: string[] = [];
+        const canvas = document
+          .querySelector("main .h-\\[520px\\]")
+          ?.getBoundingClientRect();
+        nodes.forEach((n, i) => {
+          if (
+            canvas &&
+            (n.left < canvas.left - 1 || n.right > canvas.right + 1)
+          ) {
+            hits.push(`node ${i} runs past the canvas`);
+          }
+        });
         nodes.forEach((a, i) =>
           nodes.slice(i + 1).forEach((b, j) => {
             if (
