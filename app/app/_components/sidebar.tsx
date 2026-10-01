@@ -522,7 +522,9 @@ export function Sidebar() {
         )}
       >
         <div className="flex h-16 items-center justify-between px-5 border-b border-border">
-          <Logo />
+          {/* min-h-11: a 44px target in the drawer, like everything else
+              in it; the mark itself is 32px. */}
+          <Logo className="min-h-11" />
           {/* The backdrop also closes the drawer, but on a phone it is a
               sliver to the right of a 240px panel; this is the control a
               thumb finds. Drawer-only, so it never shows on the rail. */}
