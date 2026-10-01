@@ -902,7 +902,6 @@
           "id": "6.1-RD-e",
           "claim": "The API is live at orizon-agents-be-stellar.onrender.com and reports testnet.",
           "status": "present",
-          "note": "The API runs on a free plan, so the first request can take up to a minute while it wakes. It is updated by a manual deploy and was last deployed on 2026-09-29 (see the notes).",
           "links": [
             {
               "label": "Live API: the network (testnet) and the four contract addresses it uses (on a free plan, so the first request can take up to a minute; see the notes)",
