@@ -210,7 +210,7 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
               aria-label="Close menu"
               onClick={() => onOpenChange(false)}
               className={cn(
-                "chamfer-edges chamfer-edges-sm relative clip-cyber-sm grid h-9 w-9 place-items-center border border-[color:var(--edge)] text-muted transition [--edge:rgba(176,38,255,0.18)] hover:text-text hover:[--edge:rgba(176,38,255,0.6)]",
+                "chamfer-edges chamfer-edges-sm relative clip-cyber-sm grid h-9 w-9 place-items-center [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11 border border-[color:var(--edge)] text-muted transition [--edge:rgba(176,38,255,0.18)] hover:text-text hover:[--edge:rgba(176,38,255,0.6)]",
                 focusRing,
               )}
             >
@@ -268,14 +268,14 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
               <ConnectWallet
                 size="md"
                 variant="outline"
-                className="w-full justify-center [&>button]:flex-1"
+                className="w-full justify-center [&>button]:flex-1 [@media(pointer:coarse)]:[&>button]:min-h-11"
               />
             </div>
             <ButtonLink
               href="/app"
               size="md"
               variant="primary"
-              className="w-full whitespace-nowrap"
+              className="w-full whitespace-nowrap [@media(pointer:coarse)]:min-h-11"
             >
               Launch App <span aria-hidden>▸</span>
             </ButtonLink>
