@@ -37,7 +37,7 @@ export function Hero() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.05 }}
-              className="text-4xl md:text-6xl lg:text-7xl font-semibold leading-[1.02] tracking-tight"
+              className="text-[clamp(2.25rem,1.2rem+4.4vw,4.5rem)] font-semibold leading-[1.02] tracking-tight"
             >
               The orchestration{" "}
               <span className="relative">
