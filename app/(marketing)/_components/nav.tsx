@@ -74,7 +74,7 @@ export function Nav() {
                 href={GUIDE.href}
                 aria-current={guideCurrent ? "page" : undefined}
                 className={cn(
-                  "relative flex h-9 items-center whitespace-nowrap px-3 font-mono text-[11px] uppercase tracking-[0.22em] transition-colors",
+                  "relative flex h-9 items-center whitespace-nowrap px-3 font-mono text-[11px] uppercase tracking-[0.22em] transition-colors [@media(pointer:coarse)]:min-h-11",
                   guideCurrent ? "text-text" : "text-muted hover:text-text",
                   focusRing,
                 )}
@@ -94,7 +94,7 @@ export function Nav() {
             size="sm"
             variant="outline"
             showWalletName={false}
-            className="hidden lg:flex"
+            className="hidden lg:flex [@media(pointer:coarse)]:[&>button]:min-h-11"
           />
           <ButtonLink
             href="/app"

@@ -112,7 +112,7 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
         onKeyDown={onButtonKeyDown}
         data-current={current || undefined}
         className={cn(
-          "group relative flex h-9 items-center gap-1.5 whitespace-nowrap px-3 font-mono text-[11px] uppercase tracking-[0.22em] transition-colors",
+          "group relative flex h-9 items-center gap-1.5 whitespace-nowrap px-3 font-mono text-[11px] uppercase tracking-[0.22em] transition-colors [@media(pointer:coarse)]:min-h-11",
           open || current ? "text-text" : "text-muted hover:text-text",
           focusRing,
         )}
