@@ -408,6 +408,15 @@ async function topBarProblems(page: Page): Promise<string[]> {
       ) {
         bad.push(`wrapped: «${what}»`);
       }
+      // The page's own crumb is the bar's one piece of content; it may not
+      // be ellipsised away (at 768px it read "OVER…").
+      if (
+        h.closest("nav") &&
+        getComputedStyle(h).textOverflow === "ellipsis" &&
+        h.scrollWidth > h.clientWidth + 1
+      ) {
+        bad.push(`crumb cut to ${h.clientWidth}px: «${what}»`);
+      }
       // Content wider than its box runs under its neighbour: the crumbs
       // used to slide beneath the wallet controls.
       if (
