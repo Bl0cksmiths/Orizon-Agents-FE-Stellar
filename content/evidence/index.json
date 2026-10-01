@@ -571,7 +571,6 @@
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
           "status": "present",
-          "note": "Seven wallets the team does not control have registered agents on-chain (on 2026-09-29 and 2026-09-30). The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
           "links": [
             {
               "label": "Registration of Powerbot by an outside operator's wallet GCVOW…KQKX — 2026-09-29",
