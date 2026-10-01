@@ -48,17 +48,16 @@ export function UnboundNotice({
   agentName: string;
 }) {
   return (
-    // The panel is capped by the viewport as well as by a comfortable
-    // measure: it lives in a cell as wide as the whole table, which scrolls
-    // sideways on a phone, so an uncapped panel would lay its text and its
-    // action out past the right edge of the screen.
-    <div className="clip-cyber-sm max-w-[min(72ch,calc(100vw-5rem))] border border-magenta/40 bg-magenta/5 px-4 py-3">
+    // Capped by a comfortable measure and by its parent. The registry holds
+    // it to the scroller's visible width; a viewport-based cap guessed at the
+    // page's padding and still left a long name running past a phone's edge.
+    <div className="clip-cyber-sm max-w-[min(72ch,100%)] border border-magenta/40 bg-magenta/5 px-4 py-3">
       {/* Left-aligned rather than spread apart: this panel lives in a cell as
           wide as the whole table, and `justify-between` would pin the action to
           the table's right edge — off the side of the screen whenever the
           registry is scrolled. */}
       <div className="flex flex-wrap items-center gap-3">
-        <p className="font-mono text-[11px] leading-relaxed text-magenta">
+        <p className="min-w-0 font-mono text-[11px] leading-relaxed text-magenta [overflow-wrap:anywhere]">
           ⚠ <span className="text-text">{agentName}</span> — {UNBOUND_WARNING}
         </p>
         <ButtonLink
@@ -67,7 +66,7 @@ export function UnboundNotice({
           href={bindHref(agentId)}
           className="max-w-full shrink-0"
         >
-          bind {agentId}
+          <span className="min-w-0 truncate">bind {agentId}</span>
         </ButtonLink>
       </div>
     </div>
