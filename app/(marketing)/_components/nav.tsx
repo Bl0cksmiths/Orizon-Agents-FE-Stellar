@@ -100,7 +100,8 @@ export function Nav() {
             href="/app"
             size="sm"
             variant="primary"
-            className="whitespace-nowrap"
+            // 44px tall on a touch screen; a mouse keeps the compact bar.
+            className="whitespace-nowrap [@media(pointer:coarse)]:min-h-11"
           >
             Launch App{" "}
             <span aria-hidden className="hidden sm:inline">
