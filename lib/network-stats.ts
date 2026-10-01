@@ -143,14 +143,16 @@ function trustFromOverview(t: OverviewV2["trust"]): Measured<Trust> {
 }
 
 /**
- * Average trust over the agents rated on-chain, on the 0–5 scale. Agents
- * whose score is the prior are left out — the prior is an assumption, not a
- * rating — and so are entries the batch marks degraded, whose `source` cannot
- * be trusted to mean what it says.
+ * Average trust over the agents with on-chain rating evidence, on the 0–5
+ * scale — the backend overview's own definition (`_trust` in
+ * app/routers/metrics.py), seeded agents included when rated. An agent whose
+ * score is the flat prior is left out: the prior is an assumption, not a
+ * rating. With none rated the average is a gap — "no ratings yet" when that
+ * is the measured state, unreadable when a read degraded to the prior.
  */
 export function onchainTrust(batch: ReputationBatch): Measured<Trust> {
   const entries = Object.values(batch.reputations);
-  const rated = entries.filter((r) => r.source === "onchain" && !r.degraded);
+  const rated = entries.filter((r) => r.source === "onchain");
   if (rated.length === 0) {
     return gap(
       entries.some((r) => r.degraded) ? REASONS.reputation : REASONS.noRatings,
@@ -163,39 +165,68 @@ export function onchainTrust(batch: ReputationBatch): Measured<Trust> {
 
 const skillKey = (s: string) => s.trim().toLowerCase();
 
+/** Whole percentages of `weights` that sum to exactly 100: each share
+ * floored, the points left over to the largest remainders (ties to the
+ * earlier entry) — the backend's `_largest_remainder`. */
+function largestRemainder(weights: number[]): number[] {
+  const total = weights.reduce((a, b) => a + b, 0);
+  const pcts = weights.map((w) => Math.floor((w * 100) / total));
+  const order = weights
+    .map((w, i) => ({ i, r: (w * 100) % total }))
+    .sort((a, b) => b.r - a.r || a.i - b.i);
+  for (const { i } of order.slice(0, 100 - pcts.reduce((a, b) => a + b, 0))) {
+    pcts[i] += 1;
+  }
+  return pcts;
+}
+
 /**
- * The registry's skill mix: the `top` skills listed by the most agents, then
- * one "other" row for the agents that list none of them. `pct` is a share of
- * every registered agent, so the rows do not sum to 100 — an agent can list
- * several skills. Ties break by name so the order cannot shuffle between
- * polls.
+ * The registry's skill mix, by the backend overview's own definition
+ * (`_skills` in app/routers/metrics.py), so the two paths cannot disagree:
+ * the `top` skills held by the most agents, then one "other" row for every
+ * remaining skill (a skill literally named "other" included). `agents` is how
+ * many agents hold the skill — for "other", how many hold any of the rest —
+ * and `pct` is the row's share of every skill TAG in the registry, summing
+ * to 100. Ties break by name so the order cannot shuffle between polls.
  */
 export function deriveSkillMix(
   agents: readonly Agent[],
   top = SKILL_MIX_TOP,
 ): SkillShare[] {
-  const total = agents.length;
-  if (total === 0) return [];
-  const perAgent = agents.map(
-    (a) => new Set(a.skills.map(skillKey).filter(Boolean)),
-  );
-  const counts = new Map<string, number>();
-  for (const skills of perAgent) {
-    for (const s of skills) counts.set(s, (counts.get(s) ?? 0) + 1);
+  const holders = new Map<string, Set<string>>();
+  for (const a of agents) {
+    for (const skill of new Set(a.skills.map(skillKey).filter(Boolean))) {
+      const set = holders.get(skill) ?? new Set<string>();
+      set.add(a.id);
+      holders.set(skill, set);
+    }
   }
-  const ranked = Array.from(counts, ([name, n]) => ({ name, agents: n }))
-    .sort((a, b) => b.agents - a.agents || a.name.localeCompare(b.name))
-    .slice(0, top);
-  const named = new Set(ranked.map((r) => r.name));
-  const rest = perAgent.filter(
-    (skills) => !Array.from(skills).some((s) => named.has(s)),
-  ).length;
-  const rows =
-    rest > 0 ? [...ranked, { name: OTHER_SKILLS, agents: rest }] : ranked;
-  return rows.map((r) => ({
-    ...r,
-    pct: Math.round((r.agents / total) * 100),
+  const size = (s: string) => holders.get(s)?.size ?? 0;
+  const ranked = Array.from(holders.keys())
+    .filter((s) => s !== OTHER_SKILLS)
+    .sort((a, b) => size(b) - size(a) || (a < b ? -1 : a > b ? 1 : 0));
+  const named = ranked.slice(0, top);
+  const rest = ranked.slice(top);
+  if (holders.has(OTHER_SKILLS)) rest.push(OTHER_SKILLS);
+
+  const rows = named.map((name) => ({
+    name,
+    agents: size(name),
+    tags: size(name),
   }));
+  if (rest.length > 0) {
+    const anyOfRest = new Set(
+      rest.flatMap((s) => Array.from(holders.get(s) ?? [])),
+    );
+    rows.push({
+      name: OTHER_SKILLS,
+      agents: anyOfRest.size,
+      tags: rest.reduce((sum, s) => sum + size(s), 0),
+    });
+  }
+  if (rows.length === 0) return [];
+  const pcts = largestRemainder(rows.map((r) => r.tags));
+  return rows.map((r, i) => ({ name: r.name, agents: r.agents, pct: pcts[i] }));
 }
 
 /**
