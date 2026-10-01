@@ -30,7 +30,7 @@ export function Personas() {
           title="Three audiences. One coordination layer."
         />
 
-        <div className="mt-14 grid gap-5 md:grid-cols-3">
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {personas.map((p, i) => (
             <m.div
               key={p.label}
@@ -38,6 +38,8 @@ export function Personas() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.5, delay: i * 0.08 }}
+              // Two across on a tablet, the third card full width beneath.
+              className="sm:last:col-span-2 lg:last:col-span-1"
             >
               <Card className="h-full">
                 <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-cyan mb-4">
