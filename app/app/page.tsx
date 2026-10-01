@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
+import { Composition } from "@/components/network/composition";
 import { NetworkTiles } from "@/components/network/network-tiles";
 import { SettledChart } from "@/components/network/settled-chart";
-import { SkillMix } from "@/components/network/skill-mix";
 import { getStellarNetwork, listTasks } from "@/lib/api";
 import type { NetworkStats } from "@/lib/network-stats";
 import { formatSpent } from "@/lib/trace-amounts";
@@ -170,13 +170,13 @@ export default function OverviewPage() {
         <Card>
           <h2 className="text-lg font-semibold mb-1">Network composition</h2>
           <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted mb-5">
-            share of registered agents per skill
+            registered agents by source
           </p>
           {stats ? (
-            <SkillMix stats={stats} />
+            <Composition stats={stats} />
           ) : error ? (
             <p className="font-mono text-[11px] text-muted">
-              skill mix unavailable — backend unreachable
+              composition unavailable — backend unreachable
             </p>
           ) : (
             <div className="space-y-3">
