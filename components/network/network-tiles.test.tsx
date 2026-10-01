@@ -50,7 +50,9 @@ describe("NetworkTiles", () => {
       "13 on-chain · 12 seeded",
     );
     expect(tile("External agents").textContent).toContain("11");
-    expect(tile("Settled workflows").textContent).toContain("3");
+    expect(tile("Settled workflows").textContent).toBe(
+      "Settled workflows3all time, all payers (team runs included) · testnet",
+    );
     expect(tile("Avg trust (on-chain)").textContent).toContain("3.49/ 5");
     expect(tile("Avg trust (on-chain)").textContent).toContain(
       "across 12 rated agents",
