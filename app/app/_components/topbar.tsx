@@ -94,7 +94,7 @@ export function Topbar() {
               left the right-hand controls no room (on a phone the wallet
               address wrapped onto two lines inside a 32px chip, and on a
               tablet the page name was cut to "OVER…"). */}
-          <nav className="flex min-w-0 items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted">
+          <nav className="flex min-w-0 items-center gap-2 font-mono text-[11px] uppercase tracking-[0.1em] text-muted sm:tracking-[0.22em]">
             {meta.b.map((crumb, i) => {
               const last = i === meta.b.length - 1;
               return (
@@ -171,19 +171,33 @@ export function Topbar() {
                 aria-label={`backend unreachable — ${backendError}. Retry`}
                 className={`disabled:opacity-50 ${focusRing}`}
               >
+                {/* On a phone the pill is its dot (and the ↻ that makes it
+                    a retry): the words stay for screen readers, and the
+                    page's own crumb gets the room. */}
                 <Badge tone="magenta" dot>
-                  {backendRechecking ? "checking…" : "offline ↻"}
+                  {backendRechecking ? (
+                    <span className="max-sm:sr-only">checking…</span>
+                  ) : (
+                    <>
+                      <span className="max-sm:sr-only">offline </span>↻
+                    </>
+                  )}
                 </Badge>
               </button>
             ) : backend ? (
               <span title={`backend reachable · ${backend.network}`}>
                 <Badge tone="success" dot>
-                  live
+                  <span className="max-sm:sr-only">live</span>
                 </Badge>
               </span>
             ) : (
               <span title="checking backend…">
-                <Badge tone="muted">checking…</Badge>
+                <Badge tone="muted">
+                  <span aria-hidden="true" className="sm:hidden">
+                    …
+                  </span>
+                  <span className="max-sm:sr-only">checking…</span>
+                </Badge>
               </span>
             )}
           </div>
