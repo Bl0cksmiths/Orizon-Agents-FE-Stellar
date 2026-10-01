@@ -28,7 +28,7 @@ const cols = [
       ["Registry", "/app/agents"],
       [
         "Contracts",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-Smart-Contract-Stellar#readme",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar#readme",
       ],
     ],
   },
