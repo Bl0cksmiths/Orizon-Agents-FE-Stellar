@@ -59,43 +59,43 @@ export function ScrollRegion({
   }, []);
 
   const overflowing = edges.left || edges.right;
+  // The edge fades are a mask on the scroller, not a gradient laid over it.
+  // An overlay sat on top of the table's text, so axe measured that text
+  // against the overlay and failed its contrast wherever the fade fell; a
+  // mask fades the pixels without putting anything in front of them.
+  const mask = edges.left
+    ? edges.right
+      ? "linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2.5rem), transparent)"
+      : "linear-gradient(to right, transparent, #000 2rem)"
+    : edges.right
+      ? "linear-gradient(to right, #000 calc(100% - 2.5rem), transparent)"
+      : undefined;
 
   return (
     <div className={className}>
-      <div className="relative">
-        <div
-          ref={ref}
-          role="region"
-          aria-label={label}
-          tabIndex={0}
-          data-scroll-region
-          data-overflowing={overflowing ? "true" : "false"}
-          // `relative` keeps absolutely positioned descendants (every sr-only
-          // header label) inside the scroller. Without it they took the card
-          // as their containing block, escaped the clip, and widened the page
-          // to the table's full width behind the body's overflow-x: hidden.
-          className={cn(
-            "relative overflow-x-auto",
-            focusRing,
-            scrollerClassName,
-          )}
-        >
-          {children}
-        </div>
-        <div
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-surface to-transparent transition-opacity",
-            edges.left ? "opacity-100" : "opacity-0",
-          )}
-        />
-        <div
-          aria-hidden="true"
-          className={cn(
-            "pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface to-transparent transition-opacity",
-            edges.right ? "opacity-100" : "opacity-0",
-          )}
-        />
+      <div
+        ref={ref}
+        role="region"
+        aria-label={label}
+        tabIndex={0}
+        data-scroll-region
+        data-overflowing={overflowing ? "true" : "false"}
+        // Through a variable so focus can drop the mask: a faded edge would
+        // fade the focus ring with it.
+        style={
+          mask ? ({ "--scroll-mask": mask } as React.CSSProperties) : undefined
+        }
+        // `relative` keeps absolutely positioned descendants (every sr-only
+        // header label) inside the scroller. Without it they took the card
+        // as their containing block, escaped the clip, and widened the page
+        // to the table's full width behind the body's overflow-x: hidden.
+        className={cn(
+          "relative overflow-x-auto [-webkit-mask-image:var(--scroll-mask,none)] [mask-image:var(--scroll-mask,none)] focus-visible:[-webkit-mask-image:none] focus-visible:[mask-image:none]",
+          focusRing,
+          scrollerClassName,
+        )}
+      >
+        {children}
       </div>
       {overflowing && (
         <p
