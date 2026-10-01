@@ -36,9 +36,11 @@ export function GuideToc({ toc }: { toc: TocEntry[] }) {
       >
         On this page
       </h2>
-      <ol className="space-y-1 border-l border-border pl-4">
+      {/* Two columns between sm and lg, where the list sits above the guide
+          rather than beside it, so it takes half the scroll. */}
+      <ol className="space-y-1 border-l border-border pl-4 sm:columns-2 sm:gap-10 sm:border-l-0 sm:pl-0 lg:columns-1 lg:border-l lg:pl-4">
         {nestToc(toc).map(({ entry, children }) => (
-          <li key={entry.id}>
+          <li key={entry.id} className="break-inside-avoid">
             <a href={`#${entry.id}`} className={link}>
               {entry.text}
             </a>
