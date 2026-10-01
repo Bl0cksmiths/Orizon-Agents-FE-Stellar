@@ -45,7 +45,7 @@ function AnchorLink({ id, title }: { id: string; title: string }) {
     <a
       href={`#${id}`}
       className={cn(
-        "font-mono text-xs text-muted transition-colors hover:text-cyan",
+        "font-mono text-xs text-muted transition-colors hover:text-cyan [@media(pointer:coarse)]:inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:justify-center",
         focusRing,
       )}
     >

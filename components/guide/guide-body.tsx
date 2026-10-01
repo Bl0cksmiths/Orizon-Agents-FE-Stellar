@@ -75,7 +75,7 @@ function heading(Tag: "h2" | "h3" | "h4" | "h5" | "h6", className: string) {
           <a
             href={`#${info.id}`}
             className={cn(
-              "shrink-0 font-mono text-[0.8em] font-normal text-muted no-underline transition-colors hover:text-cyan",
+              "shrink-0 font-mono text-[0.8em] font-normal text-muted no-underline transition-colors hover:text-cyan [@media(pointer:coarse)]:-my-2 [@media(pointer:coarse)]:inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:justify-center",
               focusRing,
             )}
           >
