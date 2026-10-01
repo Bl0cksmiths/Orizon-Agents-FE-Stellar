@@ -16,7 +16,6 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
-import { CyberBorder } from "@/components/ui/button";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import { isCurrent, groupIsCurrent, type NavGroup } from "./links";
@@ -161,7 +160,7 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
         {/* Opaque, not frosted: the header's own backdrop-filter becomes the
             panel's backdrop root, so a blur here would see only the header
             and the hero's headline would read straight through. */}
-        <div className="clip-cyber relative w-[24rem] border border-transparent bg-surface p-2 shadow-inner-glow">
+        <div className="clip-cyber relative w-[24rem] border border-border bg-surface p-2 shadow-inner-glow">
           <div
             aria-hidden
             data-decor
@@ -179,7 +178,6 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
               </li>
             ))}
           </ul>
-          <CyberBorder className="bg-border" />
         </div>
       </div>
     </div>
