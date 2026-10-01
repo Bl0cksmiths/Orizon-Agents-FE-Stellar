@@ -564,7 +564,7 @@ export function Sidebar() {
                 onClick={() => setOpen(false)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-all",
+                  "relative flex min-h-11 items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-all lg:min-h-0",
                   focusRing,
                   active
                     ? "bg-violet/10 text-text"
