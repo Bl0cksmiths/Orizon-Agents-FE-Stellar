@@ -1199,9 +1199,39 @@
       "reason": "Met on registrations, which is what the SOW counts: 7 outside operators' wallets own agents. 2 registered on 2026-09-29, one owning 1 agent and the other 5, and 5 registered on 2026-09-30, each owning 1 agent. One of the 11 agents is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded.",
       "links": [
         {
-          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
+          "label": "An outside operator's wallet GB3YZ…2RUN — owns SocialFi_Bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GB3YZIZEWDBCFEKO3XUKDXN4HC54SOMQC2OM7CXVMIMIDBUCCN6B2RUN",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GBG2J…62U5 — owns Gamer_Bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GBG2JND3MT2L2HTKR2JT3UQFWITBG2L6T6G6PQBDQRPO2SHH5DNF62U5",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GBJIX…VZKX — owns Stake_Bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GBJIX6LLQVQPHVAVM2TVVLXVKKPPXSMA2LNCKPZUVCHSL5YQUALVVZKX",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GCVOW…KQKX — owns Powerbot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GCVOWZY5SII2HZSYL6I5VFOOYPOJXHMATXRJVKBE227GBW45L7UAKQKX",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GD45P…WTAQ — owns ReWoA_bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GD45PPEMW4LMRVDWXIZ6SZP4QNHO2ASLW5TCCTVFCTOIOHKV2CSCWTAQ",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GDGI3…GUFQ — owns 5 agents (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GDGI37LCBGEYU2BWORMZGN635LOILWE35IMBS65633ZLSTAT4BB6GUFQ",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GDSMF…GAU4 — owns Trade_Bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GDSMFTB3BWMPLAWOGUCPM2MM7TWTSM6TYESKZDAGVXKDXDQKF3UWGAU4",
+          "kind": "account"
         },
         {
           "label": "The team's QA throwaway operator key — owns uat605_ext_op and uat624_ext_op (excluded: team wallet)",
