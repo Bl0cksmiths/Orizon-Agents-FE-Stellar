@@ -22,7 +22,7 @@ export function CTA() {
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan mb-5">
           ▸▸ FINAL TRANSMISSION
         </p>
-        <h2 className="text-4xl md:text-6xl font-semibold tracking-tight leading-[1.05]">
+        <h2 className="text-[clamp(2.25rem,1.3rem+3.9vw,3.75rem)] font-semibold tracking-tight leading-[1.05]">
           Stop shipping <span className="text-muted line-through">outputs</span>
           .
           <br />
