@@ -304,15 +304,18 @@ export function RoutingStanding({
                     base, and the id rides in the href so an id that reached us
                     from the chain is never retyped by hand. The label repeats
                     it so several of these on one page are told apart aloud.
-                    Capped and breakable because an agent id is one unbreakable
-                    token and this panel has to survive a 320px viewport. */}
+                    Capped and ellipsised because an agent id is one
+                    unbreakable token and this panel has to survive a 320px
+                    viewport. It used to break instead, which wrapped the label
+                    out of the bottom of a 32px button; the accessible name is
+                    still the whole id. */}
                 <ButtonLink
                   variant="outline"
                   size="sm"
                   href={bindHref(agentId)}
-                  className="max-w-full break-all"
+                  className="max-w-full"
                 >
-                  bind {agentId}
+                  <span className="min-w-0 truncate">bind {agentId}</span>
                 </ButtonLink>
               </p>
             </>
