@@ -302,7 +302,8 @@ export default function SendPage() {
                       <button
                         type="button"
                         onClick={() => setAmount("1")}
-                        className={`hover:text-text transition ${focusRing}`}
+                        // 24px tall (WCAG 2.5.8): the bare label was 15px.
+                        className={`inline-flex min-h-6 items-center hover:text-text transition ${focusRing}`}
                       >
                         ▸ 1 XLM
                       </button>
