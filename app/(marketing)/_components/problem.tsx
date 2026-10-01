@@ -23,7 +23,7 @@ const pains = [
 
 export function Problem() {
   return (
-    <section id="problem" className="relative py-28">
+    <section id="problem" className="relative py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="THE GAP"
@@ -31,7 +31,7 @@ export function Problem() {
           subtitle="Every team is building vertical agents. Nobody is building the connective tissue between them."
         />
 
-        <div className="mt-14 grid gap-5 md:grid-cols-3">
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {pains.map((p, i) => (
             <m.div
               key={p.code}
@@ -39,6 +39,8 @@ export function Problem() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.5, delay: i * 0.08 }}
+              // Two across on a tablet, the third card full width beneath.
+              className="sm:last:col-span-2 lg:last:col-span-1"
             >
               <Card className="h-full">
                 <div className="mb-5 flex items-center justify-between">

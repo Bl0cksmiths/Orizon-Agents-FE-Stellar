@@ -72,7 +72,7 @@ export function UseCases() {
   }
 
   return (
-    <section id="use-cases" className="relative py-28">
+    <section id="use-cases" className="relative py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="IN MOTION"
@@ -83,7 +83,7 @@ export function UseCases() {
         <div
           role="tablist"
           aria-label="Use cases"
-          className="mt-12 flex flex-wrap gap-2"
+          className="mt-12 grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap"
         >
           {cases.map((c, i) => {
             const selected = active === c.id;
@@ -101,7 +101,7 @@ export function UseCases() {
                 onClick={() => setActive(c.id)}
                 onKeyDown={(e) => onTabKeyDown(e, i)}
                 className={cn(
-                  "clip-cyber-sm border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] transition",
+                  "clip-cyber-sm min-h-11 border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] transition",
                   focusRing,
                   selected
                     ? "bg-violet/20 border-violet text-text shadow-neon-violet"
@@ -158,7 +158,7 @@ export function UseCases() {
                 </div>
               </div>
 
-              <div className="text-right md:text-right">
+              <div className="md:text-right">
                 <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-magenta mb-2">
                   Outcome ▸
                 </div>

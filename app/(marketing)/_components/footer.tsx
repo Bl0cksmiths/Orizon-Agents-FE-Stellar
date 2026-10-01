@@ -28,7 +28,7 @@ const cols = [
       ["Registry", "/app/agents"],
       [
         "Contracts",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-Smart-Contract-Stellar#readme",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar#readme",
       ],
     ],
   },
@@ -39,31 +39,34 @@ const cols = [
       ["Demo", DEMO_PATH],
       ["Evidence", EVIDENCE_PATH],
       ["Litepaper", LITEPAPER_PATH],
-      ["Docs", "https://github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar#readme"],
+      [
+        "Docs",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar#readme",
+      ],
       ["API", "https://orizon-agents-be-stellar.onrender.com/docs"],
       ["Status", "https://orizon-agents-be-stellar.onrender.com/health"],
       [
         "Changelog",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-FE-Stellar/commits",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/commits",
       ],
     ],
   },
   {
     h: "Team",
     l: [
-      ["GitHub", "https://github.com/ALGOREX-PH"],
+      ["GitHub", "https://github.com/Bl0cksmiths"],
       ["LinkedIn", "https://www.linkedin.com/in/algorexph/"],
       [
         "Frontend repo",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-FE-Stellar",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar",
       ],
       [
         "Backend repo",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar",
       ],
       [
         "Contracts repo",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-Smart-Contract-Stellar",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar",
       ],
     ],
   },
@@ -73,8 +76,10 @@ export function Footer() {
   return (
     <footer className="relative border-t border-border bg-surface/40">
       <div className="mx-auto max-w-7xl px-6 py-16">
-        <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr_1.2fr]">
-          <div>
+        {/* Two link columns on a phone and four on a tablet, with the brand
+            block on its own row above them; one row of five from lg. */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1.2fr]">
+          <div className="col-span-2 sm:col-span-4 lg:col-span-1">
             <Logo />
             <p className="mt-5 max-w-xs text-sm text-muted leading-relaxed">
               The orchestration layer for autonomous digital labor.
@@ -88,7 +93,9 @@ export function Footer() {
               <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-cyan mb-5">
                 {c.h}
               </div>
-              <ul className="space-y-3">
+              {/* On a touch screen every link is a 44px row, so the list
+                  drops its gaps; with a mouse it keeps the tighter rhythm. */}
+              <ul className="space-y-3 [@media(pointer:coarse)]:space-y-0">
                 {c.l.map(([label, href]) => {
                   const external = href.startsWith("http");
                   return (
@@ -97,7 +104,7 @@ export function Footer() {
                         href={href}
                         target={external ? "_blank" : undefined}
                         rel={external ? "noreferrer" : undefined}
-                        className="text-sm text-muted hover:text-text transition-colors"
+                        className="text-sm text-muted hover:text-text transition-colors [@media(pointer:coarse)]:inline-flex [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:items-center"
                       >
                         {label}
                       </Link>

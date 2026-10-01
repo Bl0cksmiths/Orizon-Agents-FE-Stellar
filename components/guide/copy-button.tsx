@@ -75,7 +75,7 @@ export function CopyButton({
         disabled={!ready}
         aria-label={`Copy ${title}`}
         className={cn(
-          "border border-input px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-text transition-colors hover:border-cyan hover:text-cyan disabled:cursor-not-allowed disabled:opacity-50",
+          "border border-input px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-text transition-colors hover:border-cyan hover:text-cyan disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:px-3",
           focusRing,
         )}
       >
