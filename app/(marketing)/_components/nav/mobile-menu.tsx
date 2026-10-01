@@ -158,7 +158,7 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
         aria-label="Open menu"
         onClick={() => onOpenChange(true)}
         className={cn(
-          "grid h-9 w-9 place-items-center text-muted transition-colors hover:text-text lg:hidden",
+          "grid h-9 w-9 place-items-center text-muted transition-colors hover:text-text lg:hidden [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11",
           focusRing,
         )}
       >
