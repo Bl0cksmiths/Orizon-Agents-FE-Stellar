@@ -391,7 +391,7 @@
           "note": "On 2026-09-30 the platform's adjudicator upheld the first dispute on the live deployment: dispute dsp_15acee279ac02852a5877ac1696ec4b5, which the team's test harness raised against the single step of the team's third settled run (calculatorai's 0.01 XLM payout; see Deliverable 4). Upholding it wrote a dispute rating against calculatorai on the live ReputationLedger. Its score fell from 7004 to 6999 basis points, its lower bound from 5683 to 5678, and its dispute count went from 0 to 1. The ledger now holds 41 ratings, and this is the only dispute rating. The dispute is the team's own: the buyer, GCNQA…A2GP, is a team key, and calculatorai is owned by the team's admin wallet GA7AI…5OQV. A test run on a separate drill ledger proved the mechanism earlier, and it is not offered as evidence (see the notes).",
           "links": [
             {
-              "label": "Dispute rating for agent calculatorai on Stellar testnet — 2026-09-30",
+              "label": "Dispute rating for agent calculatorai on the team's own test run (team buyer key, agent owned by the team's admin wallet), on Stellar testnet — 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/tx/b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
               "kind": "tx",
               "tx_hash": "b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
