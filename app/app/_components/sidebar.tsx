@@ -493,14 +493,17 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile-only backdrop, visible when the drawer is open. */}
+      {/* Drawer-only backdrop, visible when the drawer is open. z-[35]:
+          above the sticky top bar (z-30), which it used to sit level with and
+          so lose to by DOM order, leaving the bar bright and clickable-looking
+          over a dimmed page; below the drawer itself (z-40). */}
       <button
         aria-label="close menu"
         aria-hidden={!open}
         tabIndex={open ? 0 : -1}
         onClick={() => setOpen(false)}
         className={cn(
-          "fixed inset-0 z-30 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity",
+          "fixed inset-0 z-[35] bg-black/60 backdrop-blur-sm lg:hidden transition-opacity",
           focusRing,
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
