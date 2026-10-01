@@ -54,19 +54,19 @@ const cols = [
   {
     h: "Team",
     l: [
-      ["GitHub", "https://github.com/ALGOREX-PH"],
+      ["GitHub", "https://github.com/Bl0cksmiths"],
       ["LinkedIn", "https://www.linkedin.com/in/algorexph/"],
       [
         "Frontend repo",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-FE-Stellar",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar",
       ],
       [
         "Backend repo",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-BE-Stellar",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar",
       ],
       [
         "Contracts repo",
-        "https://github.com/ALGOREX-PH/Orizon-Agents-Smart-Contract-Stellar",
+        "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar",
       ],
     ],
   },
