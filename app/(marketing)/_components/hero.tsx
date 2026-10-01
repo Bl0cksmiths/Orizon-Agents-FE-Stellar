@@ -23,12 +23,12 @@ export function Hero() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="mb-6 flex items-center gap-3"
+              className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2"
             >
-              <Badge tone="cyan" dot>
+              <Badge tone="cyan" dot className="whitespace-nowrap">
                 System online · v0.1
               </Badge>
-              <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
+              <span className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.3em] text-muted">
                 {"// ORIZON AGENTS"}
               </span>
             </m.div>
