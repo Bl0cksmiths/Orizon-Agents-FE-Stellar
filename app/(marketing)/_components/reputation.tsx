@@ -160,9 +160,15 @@ export function Reputation() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.5, delay: 0.16 }}
-          className="mt-10 flex flex-wrap gap-4"
+          className="mt-10 flex flex-col gap-4 sm:flex-row sm:flex-wrap"
         >
-          <ButtonLink href="/app/reputation" size="lg">
+          {/* On a phone the label runs to two lines, so the button grows
+              with it instead of clipping at the fixed height. */}
+          <ButtonLink
+            href="/app/reputation"
+            size="lg"
+            className="h-auto min-h-12 py-3 text-center"
+          >
             Explore the Reputation System ▸
           </ButtonLink>
           <a
