@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import { m } from "framer-motion";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ErrorNote } from "@/components/ui/error-note";
@@ -340,8 +341,8 @@ export default function OverviewPage() {
                 : "loading…"}
           </span>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <ScrollRegion label="Recent tasks table, scrolls horizontally">
+          <table className="w-full min-w-[40rem] text-sm">
             {/* The heading above already names this table on screen, so the
                 caption carries the same name for assistive tech only. */}
             <caption className="sr-only">
@@ -380,11 +381,19 @@ export default function OverviewPage() {
                       cell's existing look against the th defaults. */}
                   <th
                     scope="row"
-                    className="py-3 text-left font-mono text-xs font-normal text-muted"
+                    className="py-3 pr-4 text-left font-mono text-xs font-normal text-muted"
                   >
-                    {t.id}
+                    {/* Capped like the registry's id column; the whole id
+                        stays in the cell and in the title. */}
+                    <span title={t.id} className="block max-w-[10rem] truncate">
+                      {t.id}
+                    </span>
                   </th>
-                  <td className="py-3 max-w-md truncate">{t.intent}</td>
+                  <td className="py-3 pr-4">
+                    <span title={t.intent} className="block max-w-md truncate">
+                      {t.intent}
+                    </span>
+                  </td>
                   <td className="py-3 font-mono text-xs">{t.agents}</td>
                   <td className="py-3 font-mono text-xs text-cyan">
                     {formatSpent(t.spent, network?.asset)}
@@ -436,7 +445,7 @@ export default function OverviewPage() {
                 ))}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </Card>
     </div>
   );
