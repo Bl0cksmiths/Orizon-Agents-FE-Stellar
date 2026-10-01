@@ -150,7 +150,7 @@ export default function OverviewPage() {
           <div className="mb-4">
             <h2 className="text-lg font-semibold">Throughput</h2>
             <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-              settled workflows per day · last 14 days
+              settled workflows per day · all payers · last 14 days (UTC)
             </p>
           </div>
           {stats ? (
