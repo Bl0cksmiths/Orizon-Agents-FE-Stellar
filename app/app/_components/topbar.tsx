@@ -79,7 +79,7 @@ export function Topbar() {
           <button
             aria-label="open menu"
             onClick={toggle}
-            className={`lg:hidden flex items-center justify-center h-9 w-9 -ml-1 clip-cyber-sm border border-border hover:border-violet/60 hover:bg-violet/5 transition ${focusRing}`}
+            className={`lg:hidden flex shrink-0 items-center justify-center h-11 w-11 -ml-1.5 clip-cyber-sm border border-border hover:border-violet/60 hover:bg-violet/5 transition ${focusRing}`}
           >
             <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
               <path
