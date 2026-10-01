@@ -280,7 +280,7 @@
               "kind": "page"
             },
             {
-              "label": "Registration of the deliberate faulty test agent faulty_test_v2 by team key GB4K6…YKAYKK — 2026-09-30 (team wallet)",
+              "label": "Registration of the deliberate faulty test agent faulty_test_v2, set to hang without delivering, by team key GB4K6…YKAYKK — 2026-09-30 (team wallet)",
               "url": "https://stellar.expert/explorer/testnet/tx/2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
               "kind": "tx",
               "tx_hash": "2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
