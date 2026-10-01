@@ -79,8 +79,10 @@ export default function FlowPage() {
 
         {/* Nodes are positioned by percentage inside a clipped canvas and are
             each ≥140px wide, so a node near x=96% has nowhere to render on a
-            narrow viewport. Below md the same graph is listed instead. */}
-        <div className="relative hidden h-[520px] w-full bg-[#060010] overflow-hidden md:block">
+            narrow viewport, and two nodes 24% apart overlap below a ~740px
+            canvas (at 768px and beside the sidebar at 1024px they did). Below
+            xl the same graph is listed instead. */}
+        <div className="relative hidden h-[520px] w-full bg-[#060010] overflow-hidden xl:block">
           <div className="absolute inset-0 grid-bg opacity-60" />
           {!flow && !error && (
             <div className="absolute inset-0 grid place-items-center">
@@ -173,7 +175,7 @@ export default function FlowPage() {
           )}
         </div>
 
-        <div className="bg-[#060010] p-4 md:hidden">
+        <div className="bg-[#060010] p-4 xl:hidden">
           {!flow && !error && <Skeleton className="h-40 w-full" />}
           {error && (
             <ErrorNote onRetry={reload} retrying={reconnecting}>
