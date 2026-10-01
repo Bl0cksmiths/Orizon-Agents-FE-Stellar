@@ -129,17 +129,33 @@ curl -s https://orizons.xyz/demo | grep -o 'data-demo="[a-z]*"'
 
 ## 2. After the backend deploys (Render, by hand)
 
-### `6.1-RD-e`: the live API
+### `6.1-RD-e` and the `live_backend` note: the live API
 
-- `note`: replace "currently runs a build from before 2026-09-25" with the date
-  of the deploy you checked.
+RD-e is `present`, so it has no note (see "Present items carry no note"
+below). The API's deploy history lives in the `live_backend` note, and RD-e's
+labels name what its status check shows.
 
-### `live_backend` (a note)
+- `live_backend` `text`: after every deploy, redeploy or restart, say what
+  happened and when (2026-09-29 deploy; 2026-09-30 switch to escrow v2 with
+  refunds on, then a redeploy; 2026-10-01 restart), then what `/api/health`
+  and `/readiness` show when read. Name only merged work you have confirmed is
+  live. Do not date a restart from `uptime_seconds`: the free plan sleeps and
+  wakes, which resets it.
+- RD-e's status check label: keep it to what `/readiness` shows today.
 
-- `text`: replace "It currently runs a build from before 2026-09-25. Merged work
-  waiting for the next deploy includes settlement through escrow v2 (backend
-  pull request #88) and the adoption counter (backend pull request #89)." with
-  the deploy date, and name whatever merged work is still waiting, if any.
+## Present items carry no note
+
+An item whose `status` is `present` has no `note` (the validator makes it
+optional there; the page renders the claim and links alone).
+`partial` and `missing` items keep a note of one or two plain sentences.
+Before you drop a note, move any material fact a reviewer needs and cannot
+find elsewhere, in one short clause or sentence, to the matching disclosure
+or note (`team_wallets`, `escrow_custody`, `platform_credits`,
+`reputation_weighting`, `permissionless_scope`, `live_backend`) or into the
+link's label: that a run used team wallets, that the faulty agent is a
+deliberate team test agent, that a dispute or refund was team-internal, the
+escrow custody change. `scripts/evidence-check/static.test.mjs` fails a
+present item with a note and a longer note on any other item.
 
 ### Outside operators: `6.1-D1-c`, `6.1-D4-c`, `m01`, `m02`, `m06`
 
