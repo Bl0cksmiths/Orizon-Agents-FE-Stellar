@@ -34,6 +34,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const PORT = Number(process.env.HERO_ISR_PORT ?? 3741);
 const BACKEND_PORT = Number(process.env.HERO_ISR_BACKEND_PORT ?? 3742);
 const DIST = ".next/hero-isr";
+const NEXT = "node_modules/next/dist/bin/next";
 const REVALIDATE_MS = 300_000;
 const COLD = process.argv.includes("--cold");
 
@@ -107,7 +108,19 @@ async function expectRow(want, label) {
   return r;
 }
 
+/** Whether something already answers on `port`. */
+const taken = (port) =>
+  fetch(`http://127.0.0.1:${port}/`).then(
+    () => true,
+    () => false,
+  );
+
 async function main() {
+  for (const port of [PORT, BACKEND_PORT]) {
+    if (await taken(port)) {
+      throw new Error(`port ${port} is in use; stop what holds it first`);
+    }
+  }
   const backend = await startStatsBackend(BACKEND_PORT);
   const set = (s) => Object.assign(backend.state, s);
   rmSync(`${root}/${DIST}`, { recursive: true, force: true });
@@ -122,7 +135,7 @@ async function main() {
     ["scripts/litepaper-assets.mjs"],
     join(tmpdir(), "hero-isr-assets.log"),
   );
-  await run("npx", ["next", "build"], buildLog);
+  await run("node", [NEXT, "build"], buildLog);
   const builtAt = Date.now();
   const built = readFileSync(buildLog, "utf8");
   const manifest = JSON.parse(
@@ -142,7 +155,9 @@ async function main() {
   // ── serve ──
   const serverLog = join(tmpdir(), "hero-isr-server.log");
   const out = createWriteStream(serverLog);
-  const server = spawn("npx", ["next", "start", "-p", String(PORT)], {
+  // Next's own binary, not npx: killing an npx wrapper leaves the server it
+  // started holding the port, and the next run then reads the old server.
+  const server = spawn("node", [NEXT, "start", "-p", String(PORT)], {
     cwd: root,
     env: { ...env, NODE_ENV: "production" },
   });
@@ -195,6 +210,7 @@ async function main() {
       fail("the complete figures never replaced the page");
   } finally {
     server.kill();
+    await new Promise((r) => server.once("exit", r));
     await backend.close();
   }
 
