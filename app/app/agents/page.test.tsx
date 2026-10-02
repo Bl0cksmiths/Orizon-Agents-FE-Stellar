@@ -98,3 +98,39 @@ describe("AgentsPage — freshness", () => {
     expect(api.listReputation).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("AgentsPage — rows named by agent", () => {
+  // Two agents sharing a name: the id kept in each row header's name is what
+  // still tells them apart once there is no id column to read it from.
+  const TWIN = { ...AGENT, id: "agt_02k4" };
+
+  it("has no id column", async () => {
+    render(<AgentsPage />);
+    await screen.findAllByRole("rowheader");
+    const headers = screen
+      .getAllByRole("columnheader")
+      .map((th) => th.textContent?.trim());
+    expect(headers).not.toContain("id");
+    expect(headers[0]).toBe("agent");
+  });
+
+  it("heads each row with the agent's name and its id", async () => {
+    api.listAgents.mockResolvedValue([AGENT, TWIN]);
+    render(<AgentsPage />);
+    expect(await screen.findAllByRole("rowheader")).toHaveLength(2);
+    expect(
+      screen.getByRole("rowheader", { name: "copywrite.v3 (id: agt_01h8)" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("rowheader", { name: "copywrite.v3 (id: agt_02k4)" }),
+    ).toBeTruthy();
+  });
+
+  it("keeps the id on the name's title and in screen-reader text", async () => {
+    render(<AgentsPage />);
+    const header = await screen.findByRole("rowheader");
+    const name = header.querySelector('[title="id: agt_01h8"]');
+    expect(name?.textContent).toBe("copywrite.v3 (id: agt_01h8)");
+    expect(name?.querySelector(".sr-only")?.textContent).toBe("(id: agt_01h8)");
+  });
+});
