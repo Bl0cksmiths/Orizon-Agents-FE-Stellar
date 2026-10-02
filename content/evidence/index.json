@@ -1571,10 +1571,10 @@
       "category": "Technical milestones",
       "metric": "3–5 min demo video published",
       "target": "Yes",
-      "achieved": "No",
-      "status": "not_met",
-      "reason": "The /demo page is live but says the video has not been published yet.",
-      "method": "Opened the /demo page on the live dApp with no login and read the published marker the page renders (data-demo=\"published\") and the video's running time, which must be 3 to 5 minutes.",
+      "achieved": "Yes",
+      "status": "met",
+      "reason": "Published on YouTube in two parts, 4 min 20 s together, both on the /demo page: the operator's side (3 min 9 s, published 2026-10-02) and the buyer's side (1 min 11 s, published 2026-07-24 and recorded on the console as it was then, before the sprint).",
+      "method": "Read each part's running time and publication date from its YouTube page, and checked the /demo page's manifest by the page's own build rules (npm run demo:check), which hold the parts together to 3 to 5 minutes.",
       "links": [
         {
           "label": "Demo page",
