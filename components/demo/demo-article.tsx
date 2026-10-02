@@ -1,22 +1,18 @@
 /**
  * The whole /demo page, in either state.
  *
- * Published: the video behind its facade, the chapters, the on-chain
- * evidence, the limitations, the transcript and where to go next.
+ * Published: the demo's parts in order, each with its own player, details
+ * and chapters, then the sprint's on-chain evidence, the limitations, every
+ * part's transcript and where to go next.
  * Unpublished: the notice and how to verify each deliverable, the
  * limitations, and where to go next. Nothing that exists only once the video
  * does (a player, a poster, an evidence row) is drawn before it does.
  */
 
 import type { LoadedDemo } from "@/lib/demo/load";
-import {
-  formatDemoDate,
-  formatDuration,
-  isoDuration,
-} from "@/lib/demo/display";
-import { inlineLink } from "@/lib/ui";
+import { formatDuration, isoDuration } from "@/lib/demo/display";
 import { DemoLinks } from "./demo-links";
-import { DemoPlayer } from "./demo-player";
+import { DemoPart } from "./demo-part";
 import { EvidenceTable } from "./evidence-table";
 import { Limitations } from "./limitations";
 import { DemoTranscript } from "./transcript";
@@ -39,55 +35,51 @@ export function DemoArticle({ demo }: { demo: LoadedDemo }) {
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl">
           Orizon Agents, end to end
         </h1>
-        <p className="mt-4 max-w-2xl leading-relaxed text-muted">
-          A three-to-five-minute walkthrough from both sides: an operator
-          registering an agent and getting paid, and a buyer routing, paying and
-          disputing, on Stellar testnet.
-        </p>
-        {demo.status === "published" && (
-          <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3">
-            <div>
-              <dt className={term}>Video</dt>
-              <dd className={value}>{demo.video.title}</dd>
-            </div>
-            <div>
-              <dt className={term}>Running time</dt>
-              <dd className={value}>
-                <time dateTime={isoDuration(demo.video.duration_seconds)}>
-                  {formatDuration(demo.video.duration_seconds)}
-                </time>
-              </dd>
-            </div>
-            <div>
-              <dt className={term}>Published</dt>
-              <dd className={value}>
-                <time dateTime={demo.video.published_at}>
-                  {formatDemoDate(demo.video.published_at)}
-                </time>
-              </dd>
-            </div>
-            <div>
-              <dt className={term}>Network</dt>
-              <dd className={value}>testnet</dd>
-            </div>
-            <div>
-              <dt className={term}>Captions</dt>
-              <dd className={value}>
-                <a href={demo.captionsHref} className={inlineLink} download>
-                  English (WebVTT)
-                </a>
-              </dd>
-            </div>
-          </dl>
+        {demo.status === "published" ? (
+          <>
+            <p className="mt-4 max-w-2xl leading-relaxed text-muted">
+              The demo in {demo.parts.length} parts, each its own video: the
+              operator&rsquo;s side and the buyer&rsquo;s, on Stellar testnet.
+              Nothing loads from YouTube until you press play, and the player is
+              YouTube&rsquo;s privacy-enhanced embed.
+            </p>
+            <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3">
+              <div>
+                <dt className={term}>Parts</dt>
+                <dd className={value}>{demo.parts.length}</dd>
+              </div>
+              <div>
+                <dt className={term}>Running time</dt>
+                <dd className={value}>
+                  <time dateTime={isoDuration(demo.duration_seconds)}>
+                    {formatDuration(demo.duration_seconds)}
+                  </time>{" "}
+                  together
+                </dd>
+              </div>
+              <div>
+                <dt className={term}>Network</dt>
+                <dd className={value}>testnet</dd>
+              </div>
+            </dl>
+          </>
+        ) : (
+          <p className="mt-4 max-w-2xl leading-relaxed text-muted">
+            A three-to-five-minute walkthrough from both sides: an operator
+            registering an agent and getting paid, and a buyer routing, paying
+            and disputing, on Stellar testnet.
+          </p>
         )}
       </header>
 
       {demo.status === "published" ? (
         <>
-          <DemoPlayer video={demo.video} chapters={demo.chapters} />
+          {demo.parts.map((part, i) => (
+            <DemoPart key={part.id} part={part} index={i} />
+          ))}
           <EvidenceTable evidence={demo.evidence} />
           <Limitations />
-          <DemoTranscript tree={demo.transcript} />
+          <DemoTranscript parts={demo.parts} />
         </>
       ) : (
         <>
