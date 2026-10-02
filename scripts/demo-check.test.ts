@@ -68,7 +68,7 @@ describe("demo-check: the manifest", () => {
     const { status, out } = run([], published);
     expect(status).toBe(0);
     expect(out).toContain(
-      "published — youtube fixtureVid0, 252 s, 6 chapters, 5 evidence items",
+      "published — part 1 operator: youtube fixtureOpr1, 150 s, 3 chapters; part 2 buyer: youtube fixtureBuy2, 102 s, 3 chapters; 252 s together, 5 evidence items",
     );
   });
 
@@ -77,18 +77,15 @@ describe("demo-check: the manifest", () => {
       path.join(tmp, "demo.json"),
       JSON.stringify({
         status: "unpublished",
-        video: { id: "x" },
-        chapters: [],
+        parts: [{ id: "x" }],
         evidence: { generated_at: null, network: "public", items: [{}] },
-        transcript_file: null,
-        captions_file: null,
       }),
     );
     const { status, out } = run([], { DEMO_CONTENT_DIR: tmp });
     expect(status).toBe(1);
     expect(out).toContain("the demo page cannot be published");
     expect(out).toContain(
-      "  - video must be null while the demo is unpublished",
+      "  - parts must be empty while the demo is unpublished; it has 1",
     );
     expect(out).toContain('  - evidence.network must be "testnet"');
     expect(out).toContain("  - evidence.items must be empty");

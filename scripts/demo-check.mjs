@@ -118,13 +118,20 @@ function main() {
     return 1;
   }
   if (raw.status === "published") {
-    const { video, chapters, evidence } = raw;
+    const { parts, evidence } = raw;
+    const each = parts
+      .map(
+        (p, i) =>
+          `part ${i + 1} ${p.role}: youtube ${p.id}, ${p.duration_seconds} s, ${p.chapters.length} chapters`,
+      )
+      .join("; ");
+    const total = parts.reduce((sum, p) => sum + p.duration_seconds, 0);
     console.log(
-      `  ok  ${shown}: published — youtube ${video.id}, ${video.duration_seconds} s, ${chapters.length} chapters, ${evidence.items.length} evidence items`,
+      `  ok  ${shown}: published — ${each}; ${total} s together, ${evidence.items.length} evidence items`,
     );
   } else {
     console.log(
-      `  ok  ${shown}: unpublished — no video and no evidence, so the page shows neither`,
+      `  ok  ${shown}: unpublished — no part and no evidence, so the page shows neither`,
     );
   }
 
