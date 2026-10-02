@@ -13,6 +13,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockAgents, mockApi, mockWallet, mockWalletAddress } from "./mocks";
 import { bindHref, UNBOUND_WARNING } from "../lib/binding-status";
+import { registryRow } from "./registry-rows";
 
 /** The seeded catalog row: no owner, no endpoint, and nothing wrong with it. */
 const SEEDED_ID = "agt_11c0";
@@ -110,13 +111,12 @@ async function setUpMarketplace(page: Page): Promise<string[]> {
  * inside it would be ambiguous.
  */
 function row(page: Page, agentId: string) {
-  return page.getByRole("row").filter({
-    has: page.getByRole("rowheader", { name: agentId, exact: true }),
-  });
+  return registryRow(page, agentId);
 }
 
-/** The badge itself — `exact` because the row header carries the agent id
- *  (`unbound_bot`), which a substring match would hit first. */
+/** The badge itself — `exact` because the row header carries the agent's
+ *  name (`Unbound Bot`) and its hidden id (`unbound_bot`), either of which a
+ *  substring match would hit first. */
 function unboundBadge(scope: ReturnType<typeof row>) {
   return scope.getByText("unbound", { exact: true });
 }
