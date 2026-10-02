@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deriveNetworkStats,
   statsFromOverview,
+  withRegistrySync,
   type NetworkStats,
 } from "@/lib/network-stats";
 import type { OverviewV2 } from "@/lib/types";
@@ -119,5 +120,49 @@ describe("Sidebar network line", () => {
     renderSidebar();
     expect(footer().textContent).toContain("network metrics unavailable");
     expect(footer().textContent).not.toContain("agents registered");
+  });
+});
+
+describe("Sidebar network line while the registry syncs", () => {
+  const midRefill = statsFromOverview({
+    ...measured,
+    agents: { ...measured.agents, registered: 31, external: 4 },
+    registry_synced: false,
+  });
+  const complete = statsFromOverview(measured);
+  const note = () => footer().querySelector("[data-registry-syncing]");
+
+  it("keeps the last complete count beside a syncing note", () => {
+    hook.result = {
+      ...hook.result,
+      data: withRegistrySync(midRefill, false, complete),
+    };
+    renderSidebar();
+    expect(footer().textContent).toContain(
+      "25 agents registered · 11 external",
+    );
+    expect(note()?.textContent).toBe("syncing registry…");
+    expect(note()?.querySelector("[data-spinner]")).not.toBeNull();
+    expect(footer().textContent).not.toMatch(/\b31\b/);
+  });
+
+  it("shows dashes, not the partial count, with nothing complete yet", () => {
+    hook.result = {
+      ...hook.result,
+      data: withRegistrySync(midRefill, false, null),
+    };
+    renderSidebar();
+    expect(footer().textContent).toContain("— agents registered · — external");
+    expect(note()).not.toBeNull();
+    expect(footer().textContent).not.toMatch(/\b31\b/);
+  });
+
+  it("has no syncing note once the registry is complete", () => {
+    hook.result = {
+      ...hook.result,
+      data: withRegistrySync(complete, true, null),
+    };
+    renderSidebar();
+    expect(note()).toBeNull();
   });
 });

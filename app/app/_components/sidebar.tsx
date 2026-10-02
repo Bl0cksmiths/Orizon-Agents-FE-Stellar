@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { SyncingNote } from "@/components/network/syncing-note";
 import { ErrorNote } from "@/components/ui/error-note";
 import { Logo } from "@/components/ui/logo";
 import { StaleBadge } from "@/components/ui/stale-badge";
@@ -608,6 +609,11 @@ export function Sidebar() {
               <div className="font-mono text-[11px] text-muted leading-5">
                 {sidebarLine(stats)}
               </div>
+            )}
+            {/* The line above is the last complete count, or dashes, while
+                the backend's registry refills; never the partial count. */}
+            {stats?.syncing && (
+              <SyncingNote className="font-mono text-[10px] leading-4" />
             )}
             {/* These counters ride every console route, so a failed refresh
                 leaves them frozen in the corner of a page the operator is
