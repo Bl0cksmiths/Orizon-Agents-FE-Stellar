@@ -23,6 +23,7 @@ import {
   mockReputationBatchDegraded,
 } from "./mocks";
 import { scoreOutOfFive } from "../lib/reputation-math";
+import { registryRow, registryRowName } from "./registry-rows";
 
 /** Seeded catalog, and `real: true` — the provenance trap. Nothing about it is
  *  external, and `real` is the field that says otherwise. */
@@ -70,9 +71,7 @@ const ROUTABLE_FILTER = /routable|eligible/i;
  *  `e2e/agents-unbound.spec.ts` uses, and for the same reason: a name filter
  *  would also match any notice row repeating that name. */
 function row(page: Page, agentId: string) {
-  return page.getByRole("row").filter({
-    has: page.getByRole("rowheader", { name: agentId, exact: true }),
-  });
+  return registryRow(page, agentId);
 }
 
 /**
@@ -350,7 +349,13 @@ test.describe("agent standing in the marketplace", () => {
     // `rated_down_bot` is back in, and `unbound_bot` is still out for want of
     // an endpoint. A count alone passed with the wrong agents dropped.
     const rows = page.getByRole("rowheader");
-    await expect(rows).toHaveText([SEEDED_ID, BOUND_ID, BELOW_FLOOR_ID]);
+    const kept = [SEEDED_ID, BOUND_ID, BELOW_FLOOR_ID];
+    await expect(rows).toHaveCount(kept.length);
+    for (const [i, id] of kept.entries()) {
+      const agent = mockAgents.find((a) => a.id === id);
+      if (agent === undefined) throw new Error(`missing fixture ${id}`);
+      await expect(rows.nth(i)).toHaveAccessibleName(registryRowName(agent));
+    }
 
     // `e2e/a11y.spec.ts` only ever sweeps this route in its default state, so
     // neither the degraded notice nor a filtered table has reached axe before.
