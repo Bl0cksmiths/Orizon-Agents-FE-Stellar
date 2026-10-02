@@ -24,7 +24,7 @@
  */
 
 import { useEffect } from "react";
-import { getNetworkOverview, listAgents, listReputation } from "./api";
+import { getNetworkOverview, listAgentsWithSync, listReputation } from "./api";
 import { getEcosystemAdoption, type EcosystemAdoption } from "./ecosystem";
 import { isOverviewV2 } from "./guards";
 import {
@@ -35,7 +35,12 @@ import {
   type NetworkStats,
   type Read,
 } from "./network-stats";
-import { InterimCountTracker, overviewSyncSignal } from "./registry-sync";
+import {
+  INTERIM_READ_GAP_MS,
+  InterimCountTracker,
+  overviewSyncSignal,
+  type SyncSignal,
+} from "./registry-sync";
 import type {
   Agent,
   LegacyOverview,
@@ -53,14 +58,15 @@ export const PENDING_RECHECK_MS = 5_000;
 
 export type NetworkStatsReaders = {
   overview: () => Promise<LegacyOverview | OverviewV2>;
-  agents: () => Promise<Agent[]>;
+  /** The registry, with its `X-Registry-Synced` signal. */
+  agents: () => Promise<{ agents: Agent[]; signal: SyncSignal }>;
   adoption: () => Promise<EcosystemAdoption>;
   reputation: () => Promise<ReputationBatch>;
 };
 
 const READERS: NetworkStatsReaders = {
   overview: getNetworkOverview,
-  agents: listAgents,
+  agents: listAgentsWithSync,
   adoption: getEcosystemAdoption,
   reputation: listReputation,
 };
@@ -75,6 +81,10 @@ let lastComplete: NetworkStats | null = null;
  * for a backend that sends no sync signal. */
 const overviewCounts = new InterimCountTracker();
 const registryCounts = new InterimCountTracker();
+/** Whether the last registry read was known complete. Until it is, the
+ * registry is read again every INTERIM_READ_GAP_MS rather than shared for
+ * the full DERIVED_READ_TTL_MS, so the interim rule can confirm it sooner. */
+let registryConfirmed = false;
 
 /** Drops every shared read and the session's sync memory — for tests. */
 export function clearNetworkStatsCache(): void {
@@ -82,6 +92,7 @@ export function clearNetworkStatsCache(): void {
   lastComplete = null;
   overviewCounts.reset();
   registryCounts.reset();
+  registryConfirmed = false;
 }
 
 /** Holds a read's registry figures until the registry is known complete,
@@ -104,14 +115,16 @@ function overviewComplete(o: OverviewV2): boolean {
   });
 }
 
-/** One in-flight or recent read per key. A rejection is dropped at once, so
- * the next poll asks again instead of replaying a failure. */
-function sharedRead<T>(key: string, read: () => Promise<T>): Promise<T> {
+/** One in-flight or recent read per key, shared for `ttlMs`. A rejection is
+ * dropped at once, so the next poll asks again instead of replaying a
+ * failure. */
+function sharedRead<T>(
+  key: string,
+  read: () => Promise<T>,
+  ttlMs: number = DERIVED_READ_TTL_MS,
+): Promise<T> {
   const hit = shared.get(key);
-  if (
-    hit &&
-    (hit.settledAt === null || Date.now() - hit.settledAt < DERIVED_READ_TTL_MS)
-  ) {
+  if (hit && (hit.settledAt === null || Date.now() - hit.settledAt < ttlMs)) {
     return hit.promise as Promise<T>;
   }
   const entry: Shared = { promise: read(), settledAt: null };
@@ -180,17 +193,21 @@ export async function loadNetworkStats(
   // answer, so the interim rule never mistakes one read for two.
   const [dated, adoption, reputation] = await Promise.all([
     settle(
-      sharedRead("agents", async () => {
-        const at = Date.now();
-        return { list: await readers.agents(), at };
-      }),
+      sharedRead(
+        "agents",
+        async () => {
+          const at = Date.now();
+          return { ...(await readers.agents()), at };
+        },
+        registryConfirmed ? DERIVED_READ_TTL_MS : INTERIM_READ_GAP_MS,
+      ),
       waitMs,
     ),
     settle(sharedRead("adoption", readers.adoption), waitMs),
     settle(sharedRead("reputation", readers.reputation), waitMs),
   ]);
   const agents: Read<Agent[]> & { cause?: unknown } = dated.ok
-    ? { ok: true, value: dated.value.list }
+    ? { ok: true, value: dated.value.agents }
     : dated;
   const failed = (r: { ok: boolean; pending?: boolean }) => !r.ok && !r.pending;
   if (failed(agents) && failed(adoption)) {
@@ -201,8 +218,12 @@ export async function loadNetworkStats(
   const stats = deriveNetworkStats({ agents, adoption, reputation });
   // No registry read, no registry figure to hold: those are gaps already.
   if (!dated.ok) return stats;
-  const { list, at } = dated.value;
-  return settled(stats, registryCounts.observe({ count: list.length, at }));
+  const { agents: list, signal, at } = dated.value;
+  registryConfirmed =
+    signal === "unknown"
+      ? registryCounts.observe({ count: list.length, at })
+      : signal === "synced";
+  return settled(stats, registryConfirmed);
 }
 
 /**

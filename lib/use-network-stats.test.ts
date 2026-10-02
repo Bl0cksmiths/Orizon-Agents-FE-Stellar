@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EcosystemAdoption } from "./ecosystem";
 import { REASONS, type NetworkStats } from "./network-stats";
+import { INTERIM_READ_GAP_MS, type SyncSignal } from "./registry-sync";
 import type {
   Agent,
   LegacyOverview,
@@ -97,10 +98,16 @@ const reputation: ReputationBatch = {
   prior_bps: 7000,
 };
 
+/** A registry read as the backend answers it, with its sync header. */
+const listed = (list: Agent[], signal: SyncSignal = "unknown") => ({
+  agents: list,
+  signal,
+});
+
 function readers(over: Partial<NetworkStatsReaders> = {}) {
   return {
     overview: vi.fn(async () => legacy as LegacyOverview | OverviewV2),
-    agents: vi.fn(async () => agents),
+    agents: vi.fn(async () => listed(agents)),
     adoption: vi.fn(async () => adoption),
     reputation: vi.fn(async () => reputation),
     ...over,
@@ -217,9 +224,9 @@ describe("loadNetworkStats", () => {
 
   it("shares a derived read between callers, but never a failure", async () => {
     const flaky = vi
-      .fn<() => Promise<Agent[]>>()
+      .fn<NetworkStatsReaders["agents"]>()
       .mockRejectedValueOnce(new Error("→ 503"))
-      .mockResolvedValue(agents);
+      .mockResolvedValue(listed(agents));
     const r = readers({ agents: flaky });
 
     const failedOnce = await loadNetworkStats(r);
@@ -325,7 +332,7 @@ describe("loadNetworkStats — the registry sync", () => {
   it("on the derived path, never counts one shared registry read twice", async () => {
     const r = readers();
     await loadNetworkStats(r);
-    clockMs += DERIVED_READ_TTL_MS - 1;
+    clockMs += INTERIM_READ_GAP_MS - 1;
     const s = await loadNetworkStats(r);
     expect(r.agents).toHaveBeenCalledTimes(1);
     expect(s.syncing).toBe(true);
@@ -335,9 +342,41 @@ describe("loadNetworkStats — the registry sync", () => {
   it("on the derived path, holds a registry that grew between reads", async () => {
     const r = readers({
       agents: vi
-        .fn<() => Promise<Agent[]>>()
-        .mockResolvedValueOnce(agents.slice(0, 1))
-        .mockResolvedValue(agents),
+        .fn<NetworkStatsReaders["agents"]>()
+        .mockResolvedValueOnce(listed(agents.slice(0, 1)))
+        .mockResolvedValue(listed(agents)),
+    });
+    await loadNetworkStats(r);
+    clockMs += DERIVED_READ_TTL_MS + 1;
+    const s = await loadNetworkStats(r);
+    expect(s.syncing).toBe(true);
+    expect(s.registered).toMatchObject({ pending: true });
+  });
+
+  it("on the derived path, re-reads an unconfirmed registry after the gap", async () => {
+    const r = readers();
+    await loadNetworkStats(r);
+    clockMs += INTERIM_READ_GAP_MS;
+    const s = await loadNetworkStats(r);
+    expect(r.agents).toHaveBeenCalledTimes(2);
+    expect(s.syncing).toBe(false);
+    expect(s.registered).toEqual({ ok: true, value: 2 });
+    // Confirmed: the registry is shared for the full window again.
+    clockMs += INTERIM_READ_GAP_MS;
+    await loadNetworkStats(r);
+    expect(r.agents).toHaveBeenCalledTimes(2);
+  });
+
+  it("on the derived path, takes the agents header's word at once", async () => {
+    const r = readers({ agents: vi.fn(async () => listed(agents, "synced")) });
+    const s = await loadNetworkStats(r);
+    expect(s.syncing).toBe(false);
+    expect(s.registered).toEqual({ ok: true, value: 2 });
+  });
+
+  it("on the derived path, holds a registry the header says is syncing", async () => {
+    const r = readers({
+      agents: vi.fn(async () => listed(agents, "syncing")),
     });
     await loadNetworkStats(r);
     clockMs += DERIVED_READ_TTL_MS + 1;
