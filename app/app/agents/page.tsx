@@ -487,8 +487,11 @@ export default function AgentsPage() {
                             breaks anywhere: one long name otherwise set the
                             column to its full width and starved the numeric
                             columns, running their headers together. Long
-                            names wrap here, inside their own column. */}
-                        <div className="flex max-w-[18rem] flex-wrap items-center gap-2">
+                            names wrap here, inside their own column. The
+                            floor is the standing marks' own 14rem cap, so at
+                            the table's narrowest a mark such as "below floor ·
+                            not eligible" is never folded inside its chip. */}
+                        <div className="flex min-w-[14rem] max-w-[18rem] flex-wrap items-center gap-2">
                           <span
                             id={`${uid}-agent-${i}`}
                             title={`id: ${a.id}`}
