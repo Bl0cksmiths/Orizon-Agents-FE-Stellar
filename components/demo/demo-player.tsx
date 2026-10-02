@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * The demo video behind a facade, and its chapters.
+ * One part's video behind a facade, and that part's chapters. Each part has
+ * its own player, so a chapter only ever seeks the video it belongs to.
  *
  * Nothing from YouTube loads until the viewer asks for it: the page paints a
  * poster (YouTube's thumbnail, fetched and re-served by our own image
@@ -16,7 +17,7 @@
  *
  * Before hydration the poster is a link to YouTube too, so a click before the
  * JavaScript arrives, or without it at all, still reaches the video. The
- * plain "Watch on YouTube" link under the player is always there.
+ * plain "Watch part N on YouTube" link under the player is always there.
  */
 
 import Image from "next/image";
@@ -49,13 +50,14 @@ function PlayGlyph() {
   );
 }
 
-function Poster({ video }: { video: DemoVideo }) {
+function Poster({ video, first }: { video: DemoVideo; first: boolean }) {
   return (
     <Image
       src={youtubePosterUrl(video.id)}
       alt=""
       fill
-      priority
+      // Only the first part's poster is above the fold.
+      priority={first}
       sizes="(min-width: 896px) 832px, 100vw"
       className="object-cover opacity-80 transition-opacity group-hover:opacity-100"
     />
@@ -65,9 +67,12 @@ function Poster({ video }: { video: DemoVideo }) {
 export function DemoPlayer({
   video,
   chapters,
+  index,
 }: {
   video: DemoVideo;
   chapters: DemoChapter[];
+  /** Which part this is, from 0: it names the links and the headings' ids. */
+  index: number;
 }) {
   const [hydrated, setHydrated] = useState(false);
   const [playing, setPlaying] = useState<Playing | null>(null);
@@ -134,7 +139,7 @@ export function DemoPlayer({
                 focusRing,
               )}
             >
-              <Poster video={video} />
+              <Poster video={video} first={index === 0} />
               <span className="relative">
                 <PlayGlyph />
               </span>
@@ -149,35 +154,31 @@ export function DemoPlayer({
               tabIndex={-1}
               className="group absolute inset-0 grid h-full w-full place-items-center bg-bg"
             >
-              <Poster video={video} />
+              <Poster video={video} first={index === 0} />
               <span className="relative">
                 <PlayGlyph />
               </span>
             </a>
           )}
         </div>
-        <p className="mt-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 text-sm text-muted">
-          <span>
-            Nothing loads from YouTube until you press play; the player is
-            YouTube&rsquo;s privacy-enhanced embed.
-          </span>
+        <p className="mt-3 text-right text-sm">
           <a
             href={youtubeWatchUrl(video.id)}
             rel="noreferrer"
-            className={cn(inlineLink, "shrink-0")}
+            className={inlineLink}
           >
-            Watch on YouTube
+            Watch part {index + 1} on YouTube
           </a>
         </p>
       </div>
 
-      <section aria-labelledby="demo-chapters">
-        <h2
-          id="demo-chapters"
-          className="text-2xl font-semibold tracking-tight text-text"
+      <section aria-labelledby={`demo-part-${index + 1}-chapters`}>
+        <h3
+          id={`demo-part-${index + 1}-chapters`}
+          className="text-lg font-semibold tracking-tight text-text"
         >
           Chapters
-        </h2>
+        </h3>
         <p className="mt-2 text-sm text-muted">
           A chapter is tagged with the funded deliverable it shows, and left
           untagged when it shows none. Choosing one plays the video from that
