@@ -4,9 +4,9 @@
  * A Markdown transcript goes through the guide's pipeline (remark-parse and
  * remark-gfm, remark-rehype with raw HTML dropped, then rehype-sanitize with
  * GitHub's schema), so nothing in it can put script or an unsafe link on the
- * page. Its headings are pushed down two levels: the page already has its h1
- * and the transcript sits under an h2, so a "# Transcript" in the file
- * becomes an h3 and the outline stays whole.
+ * page. Its headings are pushed down three levels: the page already has its
+ * h1, the transcripts sit under an h2 and each part's under its own h3, so a
+ * "# Registering" in a part's file becomes an h4 and the outline stays whole.
  *
  * A plain-text transcript becomes paragraphs at blank lines, with each line
  * break kept, which is how narration is usually written.
@@ -31,7 +31,7 @@ function demoteHeadings(node: Root | Element): void {
   for (const child of node.children) {
     if (child.type !== "element") continue;
     const m = HEADING.exec(child.tagName);
-    if (m) child.tagName = `h${Math.min(6, Number(m[1]) + 2)}`;
+    if (m) child.tagName = `h${Math.min(6, Number(m[1]) + 3)}`;
     demoteHeadings(child);
   }
 }

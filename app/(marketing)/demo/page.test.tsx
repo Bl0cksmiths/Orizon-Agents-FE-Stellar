@@ -29,11 +29,11 @@ describe("demo route metadata", () => {
     expect(meta.alternates).toEqual({ canonical: "/demo" });
   });
 
-  it("describes a published demo by its running time, with a share card", () => {
+  it("describes a published demo by its parts' running time together, with a share card", () => {
     state("published");
     const meta = generateMetadata();
     expect(meta.description).toBe(
-      "A 4 min 12 s walkthrough of Orizon Agents on Stellar testnet, from the operator's side and the buyer's, with every transaction linked on Stellar Expert.",
+      "A 4 min 12 s walkthrough of Orizon Agents on Stellar testnet in 2 parts, the operator's side and the buyer's, with the sprint's own transactions linked on Stellar Expert.",
     );
     expect(meta.openGraph).toMatchObject({
       title: "Demo: Orizon Agents, end to end",

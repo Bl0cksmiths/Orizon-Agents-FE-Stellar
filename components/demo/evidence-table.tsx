@@ -1,5 +1,7 @@
 /**
- * Every on-chain transaction the demo shows, each linked to Stellar Expert.
+ * The sprint's on-chain transactions, each linked to Stellar Expert. They
+ * prove on the ledger what the videos walk through on screen; they are not
+ * the payments in the videos, and the copy says so.
  *
  * The rows are the evidence tool's output, checked at build: testnet, real
  * transaction hashes, each re-read on the network. The link is rebuilt from
@@ -33,8 +35,10 @@ export function EvidenceTable({ evidence }: { evidence: DemoEvidence }) {
         On-chain evidence
       </h2>
       <p className="mt-2 text-muted">
-        Every transaction the video shows, on Stellar testnet. Each was re-read
-        on the network on{" "}
+        The sprint&rsquo;s own transactions on Stellar testnet: the team&rsquo;s
+        runs through the live payment escrow, from payment to settlement, and a
+        dispute that was upheld and refunded. They are not the payments seen in
+        the videos. Each was re-read on the network on{" "}
         <time dateTime={new Date(evidence.generated_at * 1000).toISOString()}>
           {formatUnixUtc(evidence.generated_at)}
         </time>

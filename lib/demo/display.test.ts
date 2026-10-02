@@ -6,12 +6,13 @@
 import { describe, expect, it } from "vitest";
 import {
   deliverableLabel,
-  deliverableTag,
+  earlierConsoleNote,
   formatDemoDate,
   formatDuration,
   formatTimestamp,
   formatUnixUtc,
   isoDuration,
+  partHeading,
   truncateHash,
   youtubeEmbedUrl,
   youtubePosterUrl,
@@ -43,13 +44,21 @@ describe("times", () => {
 });
 
 describe("deliverables", () => {
-  it("tags a chapter and names its deliverable in full", () => {
-    expect(deliverableTag("D2")).toBe("D2");
-    expect(deliverableTag("all")).toBe("All");
+  it("heads each part by its number and whose side it shows", () => {
+    expect(partHeading(0, "operator")).toBe("Part 1: The operator's side");
+    expect(partHeading(1, "buyer")).toBe("Part 2: The buyer's side");
+  });
+
+  it("says plainly when a part shows an earlier console", () => {
+    expect(earlierConsoleNote("2026-07-24")).toBe(
+      "This part was recorded on July 24, 2026, on an earlier version of the console than the one live now.",
+    );
+  });
+
+  it("names a deliverable in full", () => {
     expect(deliverableLabel("D3")).toBe(
       "Deliverable D3: Dispute window and partial-credit refund",
     );
-    expect(deliverableLabel("all")).toBe("All four deliverables");
   });
 });
 

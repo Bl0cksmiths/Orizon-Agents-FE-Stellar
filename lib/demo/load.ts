@@ -10,8 +10,8 @@
  * the guide. The Playwright suite uses them to serve fixture manifests in each
  * state without touching the real one:
  *
- *   DEMO_CONTENT_DIR  the directory holding demo.json and its transcript
- *                     (default content/demo)
+ *   DEMO_CONTENT_DIR  the directory holding demo.json and its parts'
+ *                     transcripts (default content/demo)
  *   DEMO_PUBLIC_DIR   the static directory whose demo/ holds the captions
  *                     (default public)
  */
@@ -27,6 +27,10 @@ export const DEFAULT_DEMO_DIR = "content/demo";
 export const DEFAULT_PUBLIC_DIR = "public";
 export const MANIFEST_NAME = "demo.json";
 
+/** Whose side of Orizon a part shows. */
+export type DemoRole = "operator" | "buyer";
+
+/** One part's video on YouTube. */
 export type DemoVideo = {
   provider: "youtube";
   id: string;
@@ -56,15 +60,28 @@ export type DemoEvidence = {
   items: EvidenceItem[];
 };
 
+/** One part of the demo as the page draws it: its video, chapters and files. */
+export type DemoPart = DemoVideo & {
+  role: DemoRole;
+  /**
+   * The day it was recorded when it shows an earlier version of the console
+   * than the one live now; null when it shows the console as it is.
+   */
+  recorded_on_earlier_console: string | null;
+  chapters: DemoChapter[];
+  /** The part's transcript, parsed and sanitised. */
+  transcript: Root;
+  /** Where its captions are served, e.g. /demo/operator.en.vtt. */
+  captionsHref: string;
+};
+
 export type PublishedDemo = {
   status: "published";
-  video: DemoVideo;
-  chapters: DemoChapter[];
+  /** In the order they are watched. */
+  parts: DemoPart[];
+  /** The parts' running times added up. */
+  duration_seconds: number;
   evidence: DemoEvidence;
-  /** The transcript, parsed and sanitised. */
-  transcript: Root;
-  /** Where the captions are served, e.g. /demo/orizon-demo.en.vtt. */
-  captionsHref: string;
 };
 
 export type UnpublishedDemo = { status: "unpublished" };
@@ -130,34 +147,45 @@ export function loadDemo(paths: DemoPaths = demoPaths()): LoadedDemo {
       `it is not valid JSON: ${(error as Error).message}`,
     ]);
   }
-  const { problems, transcriptPath, captionsPath } = validateDemoManifest(
-    raw,
-    paths,
-  );
+  const { problems, parts: files } = validateDemoManifest(raw, paths);
   if (problems.length) throw new DemoContentError(shown, problems);
 
   const manifest = raw as {
     status: "published" | "unpublished";
-    video: DemoVideo;
-    chapters: DemoChapter[];
+    parts: (DemoVideo & {
+      role: DemoRole;
+      recorded_on_earlier_console: string | null;
+      chapters: DemoChapter[];
+    })[];
     evidence: DemoEvidence;
   };
   if (manifest.status === "unpublished") return { status: "unpublished" };
 
-  // Validation passed, so both files exist inside their directories.
-  const transcript = parseTranscript(
-    readFileSync(transcriptPath!, "utf8"),
-    transcriptFormat(transcriptPath!),
-  );
-  const captionsHref =
-    "/" +
-    path.relative(paths.publicDir, captionsPath!).split(path.sep).join("/");
+  // Validation passed, so every part's files exist inside their directories.
+  const parts = manifest.parts.map((part, i): DemoPart => {
+    const { transcriptPath, captionsPath } = files[i];
+    return {
+      role: part.role,
+      provider: part.provider,
+      id: part.id,
+      title: part.title,
+      duration_seconds: part.duration_seconds,
+      published_at: part.published_at,
+      recorded_on_earlier_console: part.recorded_on_earlier_console,
+      chapters: part.chapters,
+      transcript: parseTranscript(
+        readFileSync(transcriptPath!, "utf8"),
+        transcriptFormat(transcriptPath!),
+      ),
+      captionsHref:
+        "/" +
+        path.relative(paths.publicDir, captionsPath!).split(path.sep).join("/"),
+    };
+  });
   return {
     status: "published",
-    video: manifest.video,
-    chapters: manifest.chapters,
+    parts,
+    duration_seconds: parts.reduce((sum, p) => sum + p.duration_seconds, 0),
     evidence: manifest.evidence,
-    transcript,
-    captionsHref,
   };
 }

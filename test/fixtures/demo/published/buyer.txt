@@ -1,0 +1,4 @@
+The buyer's plan card shows each agent's reputation,
+and one agent is excluded for being below the floor.
+
+The buyer disputes a step and is credited.

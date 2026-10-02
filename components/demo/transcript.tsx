@@ -1,5 +1,6 @@
 /**
- * The transcript, rendered from its already-sanitised tree on the server.
+ * The transcript of each part, in order, each under its own heading,
+ * rendered from its already-sanitised tree on the server.
  * No client JavaScript: it is plain HTML in the page, readable with scripts
  * off and findable by search.
  */
@@ -8,6 +9,8 @@ import type { Root } from "hast";
 import { toJsxRuntime, type Components } from "hast-util-to-jsx-runtime";
 import type { ComponentPropsWithoutRef } from "react";
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
+import { partHeading } from "@/lib/demo/display";
+import type { DemoRole } from "@/lib/demo/load";
 import { inlineLink } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +97,11 @@ const components = {
   hr: () => <hr className="my-8 border-border" />,
 } as unknown as Components;
 
-export function DemoTranscript({ tree }: { tree: Root }) {
+export function DemoTranscript({
+  parts,
+}: {
+  parts: { role: DemoRole; title: string; transcript: Root }[];
+}) {
   return (
     <section aria-labelledby="demo-transcript">
       <h2
@@ -103,15 +110,28 @@ export function DemoTranscript({ tree }: { tree: Root }) {
       >
         Transcript
       </h2>
-      <div className="mt-2 min-w-0">
-        {toJsxRuntime(tree, {
-          Fragment,
-          jsx,
-          jsxs,
-          components,
-          passNode: true,
-        })}
-      </div>
+      {parts.map((part, i) => (
+        <section
+          key={i}
+          aria-labelledby={`demo-transcript-${i + 1}`}
+          className="mt-6 min-w-0"
+        >
+          <h3
+            id={`demo-transcript-${i + 1}`}
+            className="text-lg font-semibold tracking-tight text-text"
+          >
+            {partHeading(i, part.role)}
+          </h3>
+          <p className="mt-1 text-sm text-muted">{part.title}</p>
+          {toJsxRuntime(part.transcript, {
+            Fragment,
+            jsx,
+            jsxs,
+            components,
+            passNode: true,
+          })}
+        </section>
+      ))}
     </section>
   );
 }

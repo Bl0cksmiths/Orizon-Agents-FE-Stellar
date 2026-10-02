@@ -33,7 +33,7 @@ export function generateMetadata(): Metadata {
   const demo = loadDemo();
   const description =
     demo.status === "published"
-      ? `A ${formatDuration(demo.video.duration_seconds)} walkthrough of Orizon Agents on Stellar testnet, from the operator's side and the buyer's, with every transaction linked on Stellar Expert.`
+      ? `A ${formatDuration(demo.duration_seconds)} walkthrough of Orizon Agents on Stellar testnet in ${demo.parts.length} parts, the operator's side and the buyer's, with the sprint's own transactions linked on Stellar Expert.`
       : "The Orizon Agents demo video has not been recorded yet. Until it is, verify each funded deliverable yourself on Stellar testnet.";
   return {
     title: `${TITLE} — Orizon Agents`,

@@ -5,11 +5,13 @@
  */
 
 import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
+import type { DemoRole } from "./load";
 
 export const DEMO_PATH = "/demo";
 
 export type Deliverable = "D1" | "D2" | "D3" | "D4";
-export type ChapterDeliverable = Deliverable | "all";
+/** What a chapter shows: one deliverable, or null when it shows none. */
+export type ChapterDeliverable = Deliverable | null;
 
 /** The four deliverables the award funds, as the sprint board names them. */
 export const DELIVERABLE_NAMES: Record<Deliverable, string> = {
@@ -19,16 +21,28 @@ export const DELIVERABLE_NAMES: Record<Deliverable, string> = {
   D4: "Ecosystem validation",
 };
 
-/** The short tag shown beside a chapter or an evidence row. */
-export function deliverableTag(d: ChapterDeliverable): string {
-  return d === "all" ? "All" : d;
+/** Whose side each part shows, as its heading names it. */
+export const ROLE_LABEL: Record<DemoRole, string> = {
+  operator: "The operator's side",
+  buyer: "The buyer's side",
+};
+
+/** "Part 2: The buyer's side"; a part's heading, numbered from 1. */
+export function partHeading(index: number, role: DemoRole): string {
+  return `Part ${index + 1}: ${ROLE_LABEL[role]}`;
 }
 
-/** The tag's full meaning, for screen readers and tooltips alike. */
-export function deliverableLabel(d: ChapterDeliverable): string {
-  return d === "all"
-    ? "All four deliverables"
-    : `Deliverable ${d}: ${DELIVERABLE_NAMES[d]}`;
+/**
+ * The one plain sentence under a part recorded on an earlier console, so it
+ * is never taken for the console as it is now.
+ */
+export function earlierConsoleNote(recordedOn: string): string {
+  return `This part was recorded on ${formatDemoDate(recordedOn)}, on an earlier version of the console than the one live now.`;
+}
+
+/** A deliverable tag's full meaning, for screen readers and tooltips alike. */
+export function deliverableLabel(d: Deliverable): string {
+  return `Deliverable ${d}: ${DELIVERABLE_NAMES[d]}`;
 }
 
 export type EvidenceKind =

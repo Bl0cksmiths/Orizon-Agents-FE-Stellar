@@ -9,7 +9,7 @@
   "snapshot": {
     "as_of": "2026-09-30",
     "network": "testnet",
-    "method": "Every on-chain link was re-read on 2026-09-30, after escrow v2 was deployed and the live API switched to it that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. The 21 transactions of the team's test runs, including the first dispute's refund and dispute rating, were also re-verified successful by the backend's evidence tool (demo_evidence), and the screenshots and recordings of 2026-09-30 were taken from the live site with no wallet connected. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json), is declared for it in an open pull request that this index names, or holds a platform role on the contracts. The metrics were re-measured the same day, at 10:42 UTC, by the backend's read-only generator (scripts/sow_metrics). Metrics 5 and 8 were measured again at 15:30 UTC, after the first dispute was refunded, and metrics 1 and 2 at 15:48 UTC, after five more outside wallets registered agents; their rows are from those runs, and the other rows are as measured at 10:42. Metric m03 was removed from the sprint's requirements on 2026-09-30, so its row from the generator was left out and the other ten are shown. The platform lists outside operators publicly, with their wallets and agent ids, so this index links each outside registration and wallet. Those links were added on 2026-10-01 from a fresh read-only run of the same generator, and the live adoption counter was re-read that day to confirm them: 11 outside agents from 7 wallets, one bound to an endpoint and none settled. Nothing was signed, paid or submitted to make this snapshot."
+    "method": "Every on-chain link was re-read on 2026-09-30, after escrow v2 was deployed and the live API switched to it that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. The 21 transactions of the team's test runs, including the first dispute's refund and dispute rating, were also re-verified successful by the backend's evidence tool (demo_evidence), and the screenshots and recordings of 2026-09-30 were taken from the live site with no wallet connected. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json), is declared for it in an open pull request that this index names, or holds a platform role on the contracts. The metrics were re-measured the same day, at 10:42 UTC, by the backend's read-only generator (scripts/sow_metrics). Metrics 5 and 8 were measured again at 15:30 UTC, after the first dispute was refunded, and metrics 1 and 2 at 15:48 UTC, after five more outside wallets registered agents; their rows are from those runs, and the other rows are as measured at 10:42. Metric m03 was removed from the sprint's requirements on 2026-09-30, so its row from the generator was left out and the other ten are shown. The platform lists outside operators publicly, with their wallets and agent ids, so this index links each outside registration and wallet. Those links were added on 2026-10-01 from a fresh read-only run of the same generator, and the live adoption counter was re-read that day to confirm them: 11 outside agents from 7 wallets, one bound to an endpoint and none settled. The demo video item (6.1-D4-a) and metric m10 were updated on 2026-10-03, when the demo was published on the /demo page in two parts; each part's length and date were read from YouTube that day. Nothing was signed, paid or submitted to make this snapshot."
   },
   "deliverables": [
     {
@@ -520,19 +520,24 @@
         {
           "id": "6.1-D4-a",
           "claim": "A 3–5 minute demo video showing both an operator and a buyer.",
-          "status": "missing",
-          "note": "Missing: the video has not been recorded, and orizons.xyz/demo is live with its script merged but no video yet. It waits for a working outside agent and settled payments to show; the one-minute video in the frontend README predates the sprint and is not it.",
+          "status": "present",
           "links": [
             {
-              "label": "The demo page on orizons.xyz, where the video will be published",
+              "label": "The demo page on orizons.xyz: both parts, 4 min 20 s together, with chapters and transcripts",
               "url": "https://orizons.xyz/demo",
               "kind": "page"
             },
             {
-              "label": "Frontend pull request #97 (merged): the demo script and the /demo page that will host the video",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-              "kind": "pr",
-              "date": "2026-09-29"
+              "label": "Part 1, the operator's side on YouTube: registering an agent from a Freighter wallet (3 min 9 s)",
+              "url": "https://www.youtube.com/watch?v=LM7iecSviSI",
+              "kind": "video",
+              "date": "2026-10-02"
+            },
+            {
+              "label": "Part 2, the buyer's side on YouTube: ordering a workflow, authorizing its payment and receiving the result, recorded on an earlier console (1 min 11 s)",
+              "url": "https://www.youtube.com/watch?v=6NfblJwVEXg",
+              "kind": "video",
+              "date": "2026-07-24"
             }
           ]
         },
@@ -1566,21 +1571,27 @@
       "category": "Technical milestones",
       "metric": "3–5 min demo video published",
       "target": "Yes",
-      "achieved": "No",
-      "status": "not_met",
-      "reason": "The /demo page is live but says the video has not been published yet.",
-      "method": "Opened the /demo page on the live dApp with no login and read the published marker the page renders (data-demo=\"published\") and the video's running time, which must be 3 to 5 minutes.",
+      "achieved": "Yes",
+      "status": "met",
+      "reason": "Published on YouTube in two parts, 4 min 20 s together, both on the /demo page: the operator's side (3 min 9 s, published 2026-10-02) and the buyer's side (1 min 11 s, published 2026-07-24 and recorded on the console as it was then, before the sprint).",
+      "method": "Read each part's running time and publication date from its YouTube page, and checked the /demo page's manifest by the page's own build rules (npm run demo:check), which hold the parts together to 3 to 5 minutes.",
       "links": [
         {
-          "label": "Demo page",
+          "label": "Demo page, with both parts, their chapters and transcripts",
           "url": "https://orizons.xyz/demo",
           "kind": "page"
         },
         {
-          "label": "Frontend pull request #97 (merged): the demo script and the /demo page",
-          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-          "kind": "pr",
-          "date": "2026-09-29"
+          "label": "Part 1 on YouTube, the operator's side (3 min 9 s)",
+          "url": "https://www.youtube.com/watch?v=LM7iecSviSI",
+          "kind": "video",
+          "date": "2026-10-02"
+        },
+        {
+          "label": "Part 2 on YouTube, the buyer's side (1 min 11 s)",
+          "url": "https://www.youtube.com/watch?v=6NfblJwVEXg",
+          "kind": "video",
+          "date": "2026-07-24"
         }
       ]
     },

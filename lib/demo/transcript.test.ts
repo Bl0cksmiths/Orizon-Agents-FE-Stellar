@@ -25,12 +25,12 @@ describe("transcriptFormat", () => {
 });
 
 describe("a Markdown transcript", () => {
-  it("pushes headings two levels down, under the page's h2", () => {
+  it("pushes headings three levels down, under its part's h3", () => {
     const tree = parseTranscript(
-      "# One\n\n## Two\n\n##### Five\n\n###### Six\n",
+      "# One\n\n## Two\n\n### Three\n\n###### Six\n",
       "markdown",
     );
-    expect(tags(tree)).toEqual(["h3", "h4", "h6", "h6"]);
+    expect(tags(tree)).toEqual(["h4", "h5", "h6", "h6"]);
   });
 
   it("drops raw HTML and unsafe links", () => {

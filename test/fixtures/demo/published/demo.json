@@ -1,42 +1,61 @@
 {
   "status": "published",
-  "video": {
-    "provider": "youtube",
-    "id": "fixtureVid0",
-    "title": "Fixture: Orizon Agents on Stellar testnet",
-    "duration_seconds": 252,
-    "published_at": "2026-10-02"
-  },
-  "chapters": [
+  "parts": [
     {
-      "t": 0,
-      "title": "What Orizon is",
-      "deliverable": "all"
+      "role": "operator",
+      "provider": "youtube",
+      "id": "fixtureOpr1",
+      "title": "Fixture: an operator registers an agent",
+      "duration_seconds": 150,
+      "published_at": "2026-10-02",
+      "recorded_on_earlier_console": null,
+      "chapters": [
+        {
+          "t": 0,
+          "title": "What Orizon is",
+          "deliverable": null
+        },
+        {
+          "t": 25,
+          "title": "An operator registers and binds an agent",
+          "deliverable": "D1"
+        },
+        {
+          "t": 75,
+          "title": "External operators on the ecosystem page",
+          "deliverable": "D4"
+        }
+      ],
+      "transcript_file": "test/fixtures/demo/published/operator.md",
+      "captions_file": "test/fixtures/demo/public/demo/operator.en.vtt"
     },
     {
-      "t": 25,
-      "title": "An operator registers and binds an agent",
-      "deliverable": "D1"
-    },
-    {
-      "t": 75,
-      "title": "A buyer's plan excludes a sub-floor agent",
-      "deliverable": "D2"
-    },
-    {
-      "t": 140,
-      "title": "A dispute is credited and the score falls",
-      "deliverable": "D3"
-    },
-    {
-      "t": 200,
-      "title": "External operators on the ecosystem page",
-      "deliverable": "D4"
-    },
-    {
-      "t": 232,
-      "title": "Limitations",
-      "deliverable": "all"
+      "role": "buyer",
+      "provider": "youtube",
+      "id": "fixtureBuy2",
+      "title": "Fixture: a buyer pays for a workflow",
+      "duration_seconds": 102,
+      "published_at": "2026-07-24",
+      "recorded_on_earlier_console": "2026-07-20",
+      "chapters": [
+        {
+          "t": 0,
+          "title": "A buyer connects a wallet",
+          "deliverable": null
+        },
+        {
+          "t": 20,
+          "title": "A buyer's plan excludes a sub-floor agent",
+          "deliverable": "D2"
+        },
+        {
+          "t": 80,
+          "title": "A dispute is credited and the score falls",
+          "deliverable": "D3"
+        }
+      ],
+      "transcript_file": "test/fixtures/demo/published/buyer.txt",
+      "captions_file": "test/fixtures/demo/public/demo/buyer.en.vtt"
     }
   ],
   "evidence": {
@@ -84,7 +103,5 @@
         "verified": true
       }
     ]
-  },
-  "transcript_file": "test/fixtures/demo/published/transcript.md",
-  "captions_file": "test/fixtures/demo/public/demo/demo.en.vtt"
+  }
 }
