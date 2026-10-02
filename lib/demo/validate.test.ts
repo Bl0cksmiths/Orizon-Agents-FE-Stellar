@@ -28,51 +28,66 @@ function item(kind: string, c: string, deliverable = "D3") {
   };
 }
 
-type Manifest = Record<string, unknown> & {
-  video: Record<string, unknown>;
+type Part = Record<string, unknown> & {
   chapters: Record<string, unknown>[];
+};
+type Manifest = Record<string, unknown> & {
+  parts: Part[];
   evidence: Record<string, unknown> & { items: Record<string, unknown>[] };
 };
 
 function published(): Manifest {
   return {
     status: "published",
-    video: {
-      provider: "youtube",
-      id: "abcDEF12_-x",
-      title: "Orizon Agents on Stellar testnet",
-      duration_seconds: 240,
-      published_at: "2026-10-02",
-    },
-    chapters: [
-      { t: 0, title: "Intro", deliverable: null },
-      { t: 20, title: "Register", deliverable: "D1" },
-      { t: 70, title: "Route", deliverable: "D2" },
-      { t: 130, title: "Dispute", deliverable: "D3" },
-      { t: 190, title: "Ecosystem", deliverable: "D4" },
+    parts: [
+      {
+        role: "operator",
+        provider: "youtube",
+        id: "abcDEF12_-x",
+        title: "Registering an agent",
+        duration_seconds: 150,
+        published_at: "2026-10-02",
+        recorded_on_earlier_console: null,
+        chapters: [
+          { t: 0, title: "Intro", deliverable: null },
+          { t: 20, title: "Register", deliverable: "D1" },
+        ],
+        transcript_file: "content/demo/operator.md",
+        captions_file: "public/demo/operator.en.vtt",
+      },
+      {
+        role: "buyer",
+        provider: "youtube",
+        id: "zyxWVU98-_q",
+        title: "Buying a workflow",
+        duration_seconds: 90,
+        published_at: "2026-07-24",
+        recorded_on_earlier_console: "2026-07-24",
+        chapters: [
+          { t: 0, title: "Connect", deliverable: null },
+          { t: 30, title: "Pay", deliverable: "D4" },
+        ],
+        transcript_file: "content/demo/buyer.md",
+        captions_file: "public/demo/buyer.en.vtt",
+      },
     ],
     evidence: {
       generated_at: 1790000000,
       network: "testnet",
       items: [
         item("register", "a", "D1"),
-        item("settle", "b", "D2"),
+        item("settle", "b", "D4"),
         item("dispute_rating", "c"),
         item("refund", "d"),
       ],
     },
-    transcript_file: "content/demo/transcript.md",
-    captions_file: "public/demo/demo.en.vtt",
   };
 }
 
 const unpublished = () => ({
   status: "unpublished",
-  video: null,
-  chapters: [],
+  parts: [],
   evidence: { generated_at: null, network: "testnet", items: [] },
-  transcript_file: null,
-  captions_file: null,
 });
 
 let root: string;
@@ -82,11 +97,13 @@ beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), "demo-"));
   mkdirSync(path.join(root, "content/demo"), { recursive: true });
   mkdirSync(path.join(root, "public/demo"), { recursive: true });
-  writeFileSync(path.join(root, "content/demo/transcript.md"), "Hello.\n");
-  writeFileSync(
-    path.join(root, "public/demo/demo.en.vtt"),
-    "WEBVTT\n\n00:00.000 --> 00:02.000\nHello.\n",
-  );
+  for (const role of ["operator", "buyer"]) {
+    writeFileSync(path.join(root, `content/demo/${role}.md`), "Hello.\n");
+    writeFileSync(
+      path.join(root, `public/demo/${role}.en.vtt`),
+      "WEBVTT\n\n00:00.000 --> 00:02.000\nHello.\n",
+    );
+  }
   options = {
     root,
     contentDir: path.join(root, "content/demo"),
@@ -104,21 +121,31 @@ describe("a manifest that passes", () => {
     expect(problems(unpublished())).toEqual([]);
   });
 
-  it("accepts a complete published manifest and resolves its files", () => {
+  it("accepts a complete published manifest and resolves each part's files, in order", () => {
     const result = validateDemoManifest(published(), options);
     expect(result.problems).toEqual([]);
-    expect(result.transcriptPath).toBe(
-      path.join(root, "content/demo/transcript.md"),
-    );
-    expect(result.captionsPath).toBe(
-      path.join(root, "public/demo/demo.en.vtt"),
-    );
+    expect(result.parts).toEqual([
+      {
+        transcriptPath: path.join(root, "content/demo/operator.md"),
+        captionsPath: path.join(root, "public/demo/operator.en.vtt"),
+      },
+      {
+        transcriptPath: path.join(root, "content/demo/buyer.md"),
+        captionsPath: path.join(root, "public/demo/buyer.en.vtt"),
+      },
+    ]);
   });
 
   it("accepts a plain-text transcript", () => {
     writeFileSync(path.join(root, "content/demo/narration.txt"), "Hi.\n");
     const m = published();
-    m.transcript_file = "content/demo/narration.txt";
+    m.parts[0].transcript_file = "content/demo/narration.txt";
+    expect(problems(m)).toEqual([]);
+  });
+
+  it("accepts the buyer first: the order is the author's", () => {
+    const m = published();
+    m.parts.reverse();
     expect(problems(m)).toEqual([]);
   });
 });
@@ -135,24 +162,34 @@ describe("status", () => {
 
   it("rejects an unknown key anywhere in the contract", () => {
     const m = published();
-    m.chapter = [];
-    m.video.length = 1;
+    m.video = {};
+    m.parts[0].length = 1;
+    m.parts[1].chapters[0].start = 0;
     m.evidence.items[0].url = "x";
     expect(problems(m)).toEqual([
-      expect.stringContaining('the manifest has an unknown key "chapter"'),
-      expect.stringContaining('video has an unknown key "length"'),
+      expect.stringContaining('the manifest has an unknown key "video"'),
+      expect.stringContaining('parts[0] has an unknown key "length"'),
+      expect.stringContaining(
+        'parts[1].chapters[0] has an unknown key "start"',
+      ),
       expect.stringContaining('evidence.items[0] has an unknown key "url"'),
     ]);
   });
 });
 
 describe("while unpublished nothing may be shown as real", () => {
-  it("rejects a video", () => {
-    const m = { ...unpublished(), video: published().video };
+  it("rejects a part", () => {
+    const m = { ...unpublished(), parts: published().parts };
     expect(problems(m)).toEqual([
-      expect.stringMatching(
-        /^video must be null while the demo is unpublished/,
-      ),
+      "parts must be empty while the demo is unpublished; it has 2. Publish a part only once it is uploaded",
+    ]);
+  });
+
+  it("requires the parts list itself", () => {
+    const m: Record<string, unknown> = unpublished();
+    delete m.parts;
+    expect(problems(m)).toEqual([
+      "parts must be an empty array while the demo is unpublished, not missing",
     ]);
   });
 
@@ -175,57 +212,135 @@ describe("while unpublished nothing may be shown as real", () => {
   });
 });
 
-describe("duration (acceptance criterion 1: 3 to 5 minutes)", () => {
+describe("duration (acceptance criterion 1: 3 to 5 minutes, the parts together)", () => {
   it.each([MIN_DURATION_SECONDS, MAX_DURATION_SECONDS])(
-    "accepts %i s",
+    "accepts %i s together",
     (seconds) => {
       const m = published();
-      m.video.duration_seconds = seconds;
-      // Keep every chapter inside the shortest allowed video.
-      m.chapters[4].t = 170;
+      m.parts[0].duration_seconds = seconds - 90;
       expect(problems(m)).toEqual([]);
     },
   );
 
-  it.each([179, 301])("rejects %i s", (seconds) => {
+  it("accepts the published demo's 189 s and 71 s", () => {
     const m = published();
-    m.video.duration_seconds = seconds;
-    m.chapters[4].t = 170;
+    m.parts[0].duration_seconds = 189;
+    m.parts[1].duration_seconds = 71;
+    expect(problems(m)).toEqual([]);
+  });
+
+  it.each([179, 301])("rejects %i s together", (seconds) => {
+    const m = published();
+    m.parts[0].duration_seconds = seconds - 90;
     expect(problems(m)).toEqual([
-      `video.duration_seconds is ${seconds}; the demo must run 3 to 5 minutes (180–300 s inclusive)`,
+      `the parts run ${seconds} s together; the demo must run 3 to 5 minutes (180–300 s inclusive)`,
     ]);
   });
 
-  it("rejects a fractional or missing duration", () => {
+  it("holds no single part to 3 to 5 minutes", () => {
     const m = published();
-    m.video.duration_seconds = 240.5;
+    m.parts[0].duration_seconds = 170;
+    m.parts[1].duration_seconds = 31;
+    expect(problems(m)).toEqual([]);
+  });
+
+  it("rejects a fractional, zero or missing duration, and adds up nothing it cannot", () => {
+    const m = published();
+    m.parts[0].duration_seconds = 150.5;
+    delete m.parts[1].duration_seconds;
     expect(problems(m)).toEqual([
-      "video.duration_seconds must be a whole number of seconds, not 240.5 (number)",
+      "parts[0].duration_seconds must be a whole number of seconds above 0, not 150.5 (number)",
+      "parts[1].duration_seconds must be a whole number of seconds above 0, not missing",
     ]);
   });
 });
 
-describe("video", () => {
+describe("parts", () => {
+  it("must be a non-empty list once published", () => {
+    const m = published();
+    m.parts = [];
+    expect(problems(m)).toEqual([
+      "parts must list at least one part when published",
+    ]);
+    expect(problems({ ...published(), parts: {} })).toEqual([
+      "parts must be an array, not an object",
+    ]);
+  });
+
+  it("must show both the operator's side and the buyer's", () => {
+    const m = published();
+    m.parts[1].role = "operator";
+    expect(problems(m)).toEqual([
+      "parts must show both the operator's side and the buyer's; none has the role buyer",
+    ]);
+  });
+
+  it("rejects an unknown role", () => {
+    const m = published();
+    m.parts[1].role = "viewer";
+    expect(problems(m)).toEqual([
+      'parts[1].role must be one of operator, buyer, not "viewer"',
+      "parts must show both the operator's side and the buyer's; none has the role buyer",
+    ]);
+  });
+
+  it("must each be their own video", () => {
+    const m = published();
+    m.parts[1].id = m.parts[0].id;
+    expect(problems(m)).toEqual([
+      'parts[1].id "abcDEF12_-x" is the same video as parts[0]; each part is its own video',
+    ]);
+  });
+
   it.each(["abc", "abcDEF12_-xy", "abcDEF12_-!", ""])(
     "rejects the id %j",
     (id) => {
       const m = published();
-      m.video.id = id;
+      m.parts[0].id = id;
       expect(problems(m)).toEqual([
-        `video.id must be an 11-character YouTube id (letters, digits, - and _), not ${JSON.stringify(id)}`,
+        `parts[0].id must be an 11-character YouTube id (letters, digits, - and _), not ${JSON.stringify(id)}`,
       ]);
     },
   );
 
   it("rejects another provider, a blank title and an impossible date", () => {
     const m = published();
-    m.video.provider = "vimeo";
-    m.video.title = " ";
-    m.video.published_at = "2026-02-30";
+    m.parts[0].provider = "vimeo";
+    m.parts[0].title = " ";
+    m.parts[0].published_at = "2026-02-30";
     expect(problems(m)).toEqual([
-      'video.provider must be "youtube", not "vimeo"',
-      'video.title must be a non-empty string, not " "',
-      'video.published_at must be a calendar date like 2026-10-02, not "2026-02-30"',
+      'parts[0].provider must be "youtube", not "vimeo"',
+      'parts[0].title must be a non-empty string, not " "',
+      'parts[0].published_at must be a calendar date like 2026-10-02, not "2026-02-30"',
+    ]);
+  });
+
+  it("rejects a part that is not an object", () => {
+    const m = published();
+    (m.parts as unknown[])[1] = "buyer";
+    expect(problems(m)).toEqual([
+      'parts[1] must be an object, not "buyer"',
+      "parts must show both the operator's side and the buyer's; none has the role buyer",
+    ]);
+  });
+});
+
+describe("a part recorded on an earlier console", () => {
+  it("must say so with null or the day it was recorded", () => {
+    const m = published();
+    m.parts[1].recorded_on_earlier_console = true;
+    delete m.parts[0].recorded_on_earlier_console;
+    expect(problems(m)).toEqual([
+      "parts[0].recorded_on_earlier_console must be null (it shows the console as it is now) or the calendar date it was recorded, not missing",
+      "parts[1].recorded_on_earlier_console must be null (it shows the console as it is now) or the calendar date it was recorded, not true (boolean)",
+    ]);
+  });
+
+  it("cannot have been recorded after it was published", () => {
+    const m = published();
+    m.parts[1].recorded_on_earlier_console = "2026-07-25";
+    expect(problems(m)).toEqual([
+      "parts[1].recorded_on_earlier_console is 2026-07-25, after the part was published on 2026-07-24",
     ]);
   });
 });
@@ -233,55 +348,55 @@ describe("video", () => {
 describe("chapters", () => {
   it("must start at 0", () => {
     const m = published();
-    m.chapters[0].t = 5;
+    m.parts[0].chapters[0].t = 5;
     expect(problems(m)).toEqual([
-      "chapters must start at 0; the first starts at 5",
+      "parts[0].chapters must start at 0; the first starts at 5",
     ]);
   });
 
   it("must ascend strictly", () => {
     const m = published();
-    m.chapters[2].t = 20;
+    m.parts[0].chapters[1].t = 0;
     expect(problems(m)).toEqual([
-      "chapters[2].t is 20, not after the chapter before it (20); chapters must be in ascending order",
+      "parts[0].chapters[1].t is 0, not after the chapter before it (0); chapters must be in ascending order",
     ]);
   });
 
-  it("must sit inside the video", () => {
+  it("must sit inside their own part, not the demo as a whole", () => {
     const m = published();
-    m.chapters[4].t = 240;
+    // 100 s is inside the 240 s demo, but past the end of the 90 s buyer part.
+    m.parts[1].chapters[1].t = 100;
     expect(problems(m)).toEqual([
-      "chapters[4].t is 240, at or past the end of the 240 s video",
+      "parts[1].chapters[1].t is 100, at or past the end of its 90 s part",
     ]);
   });
 
   it("must carry a known tag", () => {
     const m = published();
-    m.chapters[4].deliverable = "D5";
+    m.parts[0].chapters[1].deliverable = "D5";
     expect(problems(m)).toEqual([
-      'chapters[4].deliverable must be one of D1, D2, D3, D4, or null when the chapter shows none of them, not "D5"',
+      'parts[0].chapters[1].deliverable must be one of D1, D2, D3, D4, or null when the chapter shows none of them, not "D5"',
     ]);
   });
 
   it("rejects the old all-four tag, which no one chapter shows", () => {
     const m = published();
-    m.chapters[0].deliverable = "all";
+    m.parts[0].chapters[0].deliverable = "all";
     expect(problems(m)).toEqual([
-      'chapters[0].deliverable must be one of D1, D2, D3, D4, or null when the chapter shows none of them, not "all"',
+      'parts[0].chapters[0].deliverable must be one of D1, D2, D3, D4, or null when the chapter shows none of them, not "all"',
     ]);
   });
 
-  it("need not tag every deliverable: one the video does not show stays untagged", () => {
-    const m = published();
-    m.chapters = m.chapters.filter((c) => c.deliverable !== "D3");
-    expect(problems(m)).toEqual([]);
+  it("need not tag every deliverable: one the videos do not show stays untagged", () => {
+    // The fixture tags only D1 and D4; D2 and D3 have no chapter.
+    expect(problems(published())).toEqual([]);
   });
 
-  it("must not be empty once published", () => {
+  it("must not be empty in a part", () => {
     const m = published();
-    m.chapters = [];
+    m.parts[1].chapters = [];
     expect(problems(m)).toEqual([
-      "chapters must list at least one chapter when published",
+      "parts[1].chapters must list at least one chapter",
     ]);
   });
 });
@@ -361,67 +476,77 @@ describe("evidence", () => {
   });
 });
 
-describe("transcript and captions files", () => {
+describe("each part's transcript and captions", () => {
   it("must exist", () => {
-    rmSync(path.join(root, "content/demo/transcript.md"));
-    rmSync(path.join(root, "public/demo/demo.en.vtt"));
+    rmSync(path.join(root, "content/demo/buyer.md"));
+    rmSync(path.join(root, "public/demo/buyer.en.vtt"));
     expect(problems(published())).toEqual([
-      'transcript_file names "content/demo/transcript.md", which does not exist',
-      'captions_file names "public/demo/demo.en.vtt", which does not exist',
+      'parts[1].transcript_file names "content/demo/buyer.md", which does not exist',
+      'parts[1].captions_file names "public/demo/buyer.en.vtt", which does not exist',
     ]);
   });
 
-  it("must be named once published", () => {
+  it("must be named", () => {
     const m = published();
-    m.transcript_file = null;
-    m.captions_file = null;
+    m.parts[0].transcript_file = null;
+    m.parts[0].captions_file = null;
     expect(problems(m)).toEqual([
-      "transcript_file must name a file when published, not null",
-      "captions_file must name a file when published, not null",
+      "parts[0].transcript_file must name a file, not null",
+      "parts[0].captions_file must name a file, not null",
+    ]);
+  });
+
+  it("must not be shared between parts", () => {
+    const m = published();
+    m.parts[1].transcript_file = m.parts[0].transcript_file;
+    m.parts[1].captions_file = m.parts[0].captions_file;
+    expect(problems(m)).toEqual([
+      "parts[1].transcript_file is the same file as parts[0].transcript_file; each part has its own",
+      "parts[1].captions_file is the same file as parts[0].captions_file; each part has its own",
     ]);
   });
 
   it("must stay in their directories", () => {
     writeFileSync(path.join(root, "notes.md"), "x");
     const m = published();
-    m.transcript_file = "content/demo/../../notes.md";
-    m.captions_file = "content/demo/transcript.md";
+    m.parts[0].transcript_file = "content/demo/../../notes.md";
+    m.parts[0].captions_file = "content/demo/operator.md";
     expect(problems(m)).toEqual([
-      'transcript_file must be a file under content/demo/, not "content/demo/../../notes.md"',
-      'captions_file must be a file under public/demo/, not "content/demo/transcript.md"',
+      'parts[0].transcript_file must be a file under content/demo/, not "content/demo/../../notes.md"',
+      'parts[0].captions_file must be a file under public/demo/, not "content/demo/operator.md"',
     ]);
   });
 
   it("must have the right type", () => {
-    writeFileSync(path.join(root, "content/demo/transcript.html"), "<p>x</p>");
-    writeFileSync(path.join(root, "public/demo/demo.srt"), "1\n");
+    writeFileSync(path.join(root, "content/demo/operator.html"), "<p>x</p>");
+    writeFileSync(path.join(root, "public/demo/operator.srt"), "1\n");
     writeFileSync(
       path.join(root, "public/demo/fake.vtt"),
       "1\n00:00 --> 00:01\n",
     );
     const m = published();
-    m.transcript_file = "content/demo/transcript.html";
-    m.captions_file = "public/demo/demo.srt";
+    m.parts[0].transcript_file = "content/demo/operator.html";
+    m.parts[0].captions_file = "public/demo/operator.srt";
     expect(problems(m)).toEqual([
-      'transcript_file must end in .md or .txt, not "content/demo/transcript.html"',
-      'captions_file must end in .vtt, not "public/demo/demo.srt"',
+      'parts[0].transcript_file must end in .md or .txt, not "content/demo/operator.html"',
+      'parts[0].captions_file must end in .vtt, not "public/demo/operator.srt"',
     ]);
-    m.transcript_file = "content/demo/transcript.md";
-    m.captions_file = "public/demo/fake.vtt";
+    m.parts[0].transcript_file = "content/demo/operator.md";
+    m.parts[0].captions_file = "public/demo/fake.vtt";
     const result = validateDemoManifest(m, options);
     expect(result.problems).toEqual([
-      'captions_file names "public/demo/fake.vtt", which is not WebVTT (it must start with "WEBVTT")',
+      'parts[0].captions_file names "public/demo/fake.vtt", which is not WebVTT (it must start with "WEBVTT")',
     ]);
-    expect(result.captionsPath).toBeNull();
+    expect(result.parts[0].captionsPath).toBeNull();
   });
 
   it("rejects an absolute path and an empty file", () => {
-    writeFileSync(path.join(root, "content/demo/transcript.md"), "  \n");
+    writeFileSync(path.join(root, "content/demo/operator.md"), "  \n");
     const m = published();
-    m.captions_file = path.join(root, "public/demo/demo.en.vtt");
+    m.parts[0].captions_file = path.join(root, "public/demo/operator.en.vtt");
     expect(problems(m)).toEqual([
-      'transcript_file names "content/demo/transcript.md", which is empty',
-      `captions_file must be a repository-relative path, not ${JSON.stringify(m.captions_file)}`,
+      'parts[0].transcript_file names "content/demo/operator.md", which is empty',
+      `parts[0].captions_file must be a repository-relative path, not ${JSON.stringify(m.parts[0].captions_file)}`,
     ]);
   });
 });
@@ -429,7 +554,7 @@ describe("transcript and captions files", () => {
 describe("reporting", () => {
   it("lists every problem at once, not just the first", () => {
     const m = published();
-    m.video.duration_seconds = 301;
+    m.parts[0].duration_seconds = 211;
     m.evidence.items[1].tx_hash = "nope";
     m.evidence.items = m.evidence.items.filter((i) => i.kind !== "refund");
     expect(problems(m)).toHaveLength(3);
