@@ -377,8 +377,9 @@ export default function AgentsPage() {
               the runs figures clipped. The container is already a keyboard-
               reachable horizontal scroller, so below this width the right
               answer is to scroll rather than to squeeze columns a buyer is
-              trying to compare. */}
-          <table className="w-full min-w-[60rem] text-sm">
+              trying to compare. It was 60rem with the id column; that column
+              took up to 13rem, so the six left keep the same room at 48rem. */}
+          <table className="w-full min-w-[48rem] text-sm">
             {/* The page heading names this table on screen; the caption
                 repeats it for assistive tech only. */}
             <caption className="sr-only">
