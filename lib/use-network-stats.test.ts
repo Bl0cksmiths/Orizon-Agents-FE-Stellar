@@ -4,13 +4,16 @@
  * backend serves it; otherwise the registry, adoption and reputation reads —
  * shared between callers, never awaited past a short wait, and never
  * allowed to turn the legacy overview's invented figures into a display.
+ * And never a mid-refill registry count: the registry's figures wait for the
+ * overview's `registry_synced` or, with no flag, for the count to hold.
  */
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EcosystemAdoption } from "./ecosystem";
-import { REASONS } from "./network-stats";
+import { REASONS, type NetworkStats } from "./network-stats";
+import { INTERIM_READ_GAP_MS, type SyncSignal } from "./registry-sync";
 import type {
   Agent,
   LegacyOverview,
@@ -18,6 +21,7 @@ import type {
   ReputationBatch,
 } from "./types";
 import {
+  DERIVED_READ_TTL_MS,
   PENDING_RECHECK_MS,
   clearNetworkStatsCache,
   loadNetworkStats,
@@ -50,6 +54,7 @@ const measured: OverviewV2 = {
   trust: { avg: null, rated_agents: 0 },
   skills: [],
   degraded: false,
+  registry_synced: true,
 };
 
 const agents: Agent[] = [
@@ -93,18 +98,41 @@ const reputation: ReputationBatch = {
   prior_bps: 7000,
 };
 
+/** A registry read as the backend answers it, with its sync header. */
+const listed = (list: Agent[], signal: SyncSignal = "unknown") => ({
+  agents: list,
+  signal,
+});
+
 function readers(over: Partial<NetworkStatsReaders> = {}) {
   return {
     overview: vi.fn(async () => legacy as LegacyOverview | OverviewV2),
-    agents: vi.fn(async () => agents),
+    agents: vi.fn(async () => listed(agents)),
     adoption: vi.fn(async () => adoption),
     reputation: vi.fn(async () => reputation),
     ...over,
   };
 }
 
-beforeEach(() => clearNetworkStatsCache());
-afterEach(() => vi.useRealTimers());
+let clockMs = 1_790_900_000_000;
+beforeEach(() => {
+  clearNetworkStatsCache();
+  clockMs = 1_790_900_000_000;
+  vi.spyOn(Date, "now").mockImplementation(() => clockMs);
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+/** Against a backend with no sync signal, the derived registry counts once
+ * it has held across two reads: one now, one after the shared read expires. */
+async function confirmed(r: NetworkStatsReaders, waitMs?: number) {
+  const first = await loadNetworkStats(r, waitMs);
+  expect(first.syncing).toBe(true);
+  clockMs += DERIVED_READ_TTL_MS + 1;
+  return loadNetworkStats(r, waitMs);
+}
 
 describe("loadNetworkStats", () => {
   it("reads the measured overview alone", async () => {
@@ -118,7 +146,7 @@ describe("loadNetworkStats", () => {
 
   it("derives from measured reads against the legacy overview, ignoring its figures", async () => {
     const r = readers();
-    const s = await loadNetworkStats(r);
+    const s = await confirmed(r);
     expect(s.source).toBe("derived");
     expect(s.registered).toEqual({ ok: true, value: 2 });
     expect(s.external).toEqual({ ok: true, value: 1 });
@@ -128,7 +156,7 @@ describe("loadNetworkStats", () => {
   });
 
   it("still derives when the overview itself failed", async () => {
-    const s = await loadNetworkStats(
+    const s = await confirmed(
       readers({ overview: vi.fn(() => Promise.reject(new Error("→ 503"))) }),
     );
     expect(s.registered).toEqual({ ok: true, value: 2 });
@@ -180,7 +208,7 @@ describe("loadNetworkStats", () => {
     );
     const r = readers({ adoption: slow });
 
-    const first = await loadNetworkStats(r, 5);
+    const first = await confirmed(r, 5);
     expect(first.external).toEqual({
       ok: false,
       reason: REASONS.pending,
@@ -196,9 +224,9 @@ describe("loadNetworkStats", () => {
 
   it("shares a derived read between callers, but never a failure", async () => {
     const flaky = vi
-      .fn<() => Promise<Agent[]>>()
+      .fn<NetworkStatsReaders["agents"]>()
       .mockRejectedValueOnce(new Error("→ 503"))
-      .mockResolvedValue(agents);
+      .mockResolvedValue(listed(agents));
     const r = readers({ agents: flaky });
 
     const failedOnce = await loadNetworkStats(r);
@@ -209,8 +237,158 @@ describe("loadNetworkStats", () => {
   });
 });
 
+describe("loadNetworkStats — the registry sync", () => {
+  /** A measured overview of `registered` agents, snapshot at `at` seconds. */
+  const snap = (registered: number, at: number, flag?: boolean): OverviewV2 => {
+    const { registry_synced: _drop, ...rest } = measured;
+    return {
+      ...rest,
+      generated_at: at,
+      agents: { ...measured.agents, registered, onchain: registered - 12 },
+      ...(flag === undefined ? {} : { registry_synced: flag }),
+    };
+  };
+  const overviewReads = (...seq: OverviewV2[]) => {
+    const fn = vi.fn<() => Promise<LegacyOverview | OverviewV2>>();
+    for (const o of seq) fn.mockResolvedValueOnce(o);
+    fn.mockResolvedValue(seq[seq.length - 1]);
+    return readers({ overview: fn });
+  };
+  const shown = (s: NetworkStats) =>
+    s.registered.ok ? s.registered.value : null;
+
+  it("takes the flagged overview at once", async () => {
+    const s = await loadNetworkStats(overviewReads(snap(278, 1000, true)));
+    expect(s.syncing).toBe(false);
+    expect(shown(s)).toBe(278);
+  });
+
+  it("holds the registry while the overview says it is syncing", async () => {
+    const s = await loadNetworkStats(overviewReads(snap(31, 1000, false)));
+    expect(s.syncing).toBe(true);
+    expect(s.registered).toEqual({
+      ok: false,
+      reason: REASONS.syncing,
+      pending: true,
+    });
+    expect(s.external).toMatchObject({ pending: true });
+    expect(JSON.stringify(s)).not.toMatch(/"value":31\b/);
+  });
+
+  it("keeps holding while the flag says syncing, however long the count holds", async () => {
+    const r = overviewReads(snap(226, 1000, false), snap(226, 1060, false));
+    expect((await loadNetworkStats(r)).syncing).toBe(true);
+    const s = await loadNetworkStats(r);
+    expect(s.syncing).toBe(true);
+    expect(shown(s)).toBeNull();
+  });
+
+  it("shows the last complete figures, never the mid-refill ones, after a restart", async () => {
+    const r = overviewReads(
+      snap(278, 1000, true),
+      snap(31, 2000, false),
+      snap(266, 2015, false),
+      snap(278, 2030, true),
+    );
+    const seen: (number | null)[] = [];
+    const flags: boolean[] = [];
+    for (let i = 0; i < 4; i++) {
+      const s = await loadNetworkStats(r);
+      seen.push(shown(s));
+      flags.push(s.syncing);
+    }
+    expect(seen).toEqual([278, 278, 278, 278]);
+    expect(flags).toEqual([false, true, true, false]);
+  });
+
+  it("with no flag, confirms a count only across snapshots the gap apart", async () => {
+    // Today's live backend: no registry_synced. The overview is cached on
+    // the backend for 15s, so polls see the same snapshot more than once.
+    const r = overviewReads(
+      snap(31, 1000),
+      snap(31, 1000),
+      snap(226, 1015),
+      snap(278, 1030),
+      snap(278, 1030),
+      snap(278, 1045),
+    );
+    const seen: (number | null)[] = [];
+    for (let i = 0; i < 6; i++) seen.push(shown(await loadNetworkStats(r)));
+    expect(seen).toEqual([null, null, null, null, null, 278]);
+  });
+
+  it("with no flag, holds the last complete count when it moves again", async () => {
+    const r = overviewReads(
+      snap(278, 1000),
+      snap(278, 1015),
+      snap(12, 1100),
+      snap(150, 1115),
+    );
+    const seen: (number | null)[] = [];
+    for (let i = 0; i < 4; i++) seen.push(shown(await loadNetworkStats(r)));
+    expect(seen).toEqual([null, 278, 278, 278]);
+  });
+
+  it("on the derived path, never counts one shared registry read twice", async () => {
+    const r = readers();
+    await loadNetworkStats(r);
+    clockMs += INTERIM_READ_GAP_MS - 1;
+    const s = await loadNetworkStats(r);
+    expect(r.agents).toHaveBeenCalledTimes(1);
+    expect(s.syncing).toBe(true);
+    expect(s.registered).toMatchObject({ pending: true });
+  });
+
+  it("on the derived path, holds a registry that grew between reads", async () => {
+    const r = readers({
+      agents: vi
+        .fn<NetworkStatsReaders["agents"]>()
+        .mockResolvedValueOnce(listed(agents.slice(0, 1)))
+        .mockResolvedValue(listed(agents)),
+    });
+    await loadNetworkStats(r);
+    clockMs += DERIVED_READ_TTL_MS + 1;
+    const s = await loadNetworkStats(r);
+    expect(s.syncing).toBe(true);
+    expect(s.registered).toMatchObject({ pending: true });
+  });
+
+  it("on the derived path, re-reads an unconfirmed registry after the gap", async () => {
+    const r = readers();
+    await loadNetworkStats(r);
+    clockMs += INTERIM_READ_GAP_MS;
+    const s = await loadNetworkStats(r);
+    expect(r.agents).toHaveBeenCalledTimes(2);
+    expect(s.syncing).toBe(false);
+    expect(s.registered).toEqual({ ok: true, value: 2 });
+    // Confirmed: the registry is shared for the full window again.
+    clockMs += INTERIM_READ_GAP_MS;
+    await loadNetworkStats(r);
+    expect(r.agents).toHaveBeenCalledTimes(2);
+  });
+
+  it("on the derived path, takes the agents header's word at once", async () => {
+    const r = readers({ agents: vi.fn(async () => listed(agents, "synced")) });
+    const s = await loadNetworkStats(r);
+    expect(s.syncing).toBe(false);
+    expect(s.registered).toEqual({ ok: true, value: 2 });
+  });
+
+  it("on the derived path, holds a registry the header says is syncing", async () => {
+    const r = readers({
+      agents: vi.fn(async () => listed(agents, "syncing")),
+    });
+    await loadNetworkStats(r);
+    clockMs += DERIVED_READ_TTL_MS + 1;
+    const s = await loadNetworkStats(r);
+    expect(s.syncing).toBe(true);
+    expect(s.registered).toMatchObject({ pending: true });
+  });
+});
+
 describe("useNetworkStats", () => {
-  it("asks again shortly while a figure is pending", async () => {
+  it("asks again shortly while a figure is pending, or the registry unconfirmed", async () => {
+    vi.restoreAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
     let answer!: (a: EcosystemAdoption) => void;
     const r = readers({
@@ -220,20 +398,26 @@ describe("useNetworkStats", () => {
     });
     const { result } = renderHook(() => useNetworkStats(r));
 
-    // The first read waits DERIVED_READ_WAIT_MS on the adoption answer.
+    // The first read waits DERIVED_READ_WAIT_MS on the adoption answer, and
+    // the registry has been read once: held, not yet confirmed.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
-    await waitFor(() =>
-      expect(result.current.data?.external).toMatchObject({ pending: true }),
-    );
+    await waitFor(() => expect(result.current.data?.syncing).toBe(true));
+    expect(result.current.data?.registered).toMatchObject({ pending: true });
 
     answer(adoption);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(PENDING_RECHECK_MS);
-    });
+    // No focus, no reload by hand: the hook asks again every
+    // PENDING_RECHECK_MS until the shared registry read is renewed and agrees.
+    for (let i = 0; i < 8; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PENDING_RECHECK_MS);
+      });
+    }
     await waitFor(() =>
       expect(result.current.data?.external).toEqual({ ok: true, value: 1 }),
     );
+    expect(result.current.data?.registered).toEqual({ ok: true, value: 2 });
+    expect(result.current.data?.syncing).toBe(false);
   });
 });

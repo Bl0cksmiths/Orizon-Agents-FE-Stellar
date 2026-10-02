@@ -329,6 +329,13 @@ describe("isOverviewV2", () => {
     expect(isOverviewV2({ ...valid, degraded: "false" })).toBe(false);
   });
 
+  it("accepts the registry sync flag as a boolean or absent, nothing else", () => {
+    expect(isOverviewV2({ ...valid, registry_synced: true })).toBe(true);
+    expect(isOverviewV2({ ...valid, registry_synced: false })).toBe(true);
+    expect(isOverviewV2({ ...valid, registry_synced: "true" })).toBe(false);
+    expect(isOverviewV2({ ...valid, registry_synced: 1 })).toBe(false);
+  });
+
   it("rejects non-objects", () => {
     expect(isOverviewV2(null)).toBe(false);
     expect(isOverviewV2("<html>proxy error</html>")).toBe(false);

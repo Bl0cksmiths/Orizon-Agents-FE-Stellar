@@ -327,6 +327,11 @@ export type OverviewV2 = {
   /** `pct` is a share of all skill TAGS in the registry, not of agents. */
   skills: SkillShare[];
   degraded: boolean;
+  /** Whether the registry has finished refilling from the chain since the
+   * backend started (lib/registry-sync.ts). While false every registry count
+   * above is partial and `degraded` is set. Absent on a backend from before
+   * the flag. */
+  registry_synced?: boolean;
 };
 
 /** Where a reputation score comes from: on-chain evidence or the Bayesian

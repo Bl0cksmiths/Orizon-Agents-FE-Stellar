@@ -11,13 +11,23 @@ import { CTA } from "./(marketing)/_components/cta";
 import { Footer } from "./(marketing)/_components/footer";
 import { Marquee } from "@/components/ui/marquee";
 import { BackendWarmup } from "@/components/backend-warmup";
-import { getPublicNetworkStats } from "@/lib/public-network-stats";
+import { getHeroStats } from "@/lib/public-network-stats";
 
 // The hero's network figures are read on the server and the page is
 // regenerated at most every five minutes (PUBLIC_STATS_REVALIDATE_S — Next
-// needs the literal here). A read that fails leaves the figures out until
-// the next regeneration; it never fails the build.
+// needs the literal here). They are complete or absent, never partial: a
+// regeneration that cannot read complete figures throws, and Next keeps
+// serving the last page it generated; a build retries for about two minutes
+// and then renders the hero without them (lib/public-network-stats.ts).
 export const revalidate = 300;
+// The stats reads are `no-store` so the registry is read afresh on every
+// regeneration, never from Next's data cache. `force-static` keeps those
+// reads from turning the page dynamic; the page reads no headers, cookies or
+// search params, so it gives nothing else up.
+export const dynamic = "force-static";
+// A regeneration reads the registry twice, 10s apart, when the backend sends
+// no sync signal; room for that and a slow read or two.
+export const maxDuration = 60;
 
 // Structured data for search engines. Serialized into a JSON-LD script tag
 // below; the page stays a server component so this ships as static HTML.
@@ -60,7 +70,7 @@ const agentTags = [
 ];
 
 export default async function Home() {
-  const stats = await getPublicNetworkStats();
+  const stats = await getHeroStats();
   return (
     <>
       <script

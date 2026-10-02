@@ -23,6 +23,7 @@ import {
   screenDecomposeResponse,
   screenReputationBatch,
 } from "./guards";
+import { headerSyncSignal, type SyncSignal } from "./registry-sync";
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
 import type {
   Agent,
@@ -390,6 +391,26 @@ export { ensure, httpError, post, taskAuthHeaders };
 
 export const listAgents = () =>
   get<Agent[]>("/agents", ensureScreened("/agents", screenAgentList));
+/**
+ * GET /api/agents with what the backend says about its registry: the
+ * `X-Registry-Synced` header (lib/registry-sync.ts), "unknown" on a backend
+ * from before it. Not deduped — the network figures share it themselves, and
+ * the interim rule needs each read to be a read.
+ */
+export async function listAgentsWithSync(): Promise<{
+  agents: Agent[];
+  signal: SyncSignal;
+}> {
+  const res = await fetchWithTimeout(
+    "GET",
+    "/agents",
+    { cache: "no-store" },
+    GET_TIMEOUT_MS,
+  );
+  if (!res.ok) throw await httpError("GET", "/agents", res);
+  const agents = ensureScreened("/agents", screenAgentList)(await res.json());
+  return { agents, signal: headerSyncSignal(res.headers) };
+}
 export const listTasks = () =>
   get<Task[]>("/tasks", ensure("/tasks", isTaskList));
 /** GET /api/metrics/overview in either shape the backend serves: the

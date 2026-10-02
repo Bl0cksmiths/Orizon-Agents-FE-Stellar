@@ -60,6 +60,10 @@ export type NetworkStats = {
   skills: Measured<SkillShare[]>;
   /** Sentences naming gaps in a read that otherwise succeeded. */
   notes: string[];
+  /** True while the backend's registry is not known to be complete
+   * (lib/registry-sync.ts). The registry's figures are then either the last
+   * complete ones this session read, or gaps — never the partial count. */
+  syncing: boolean;
 };
 
 const measured = <T>(value: T): Measured<T> => ({ ok: true, value });
@@ -90,6 +94,7 @@ export const REASONS = {
   owners: "Couldn't verify agent owners right now",
   bindings: "The binding set hasn't loaded yet",
   pending: "Still reading — the backend may be waking up",
+  syncing: "syncing registry…",
 } as const;
 
 /** "2,481" — every count on every surface, in one locale. */
@@ -128,6 +133,7 @@ export function statsFromOverview(o: OverviewV2): NetworkStats {
           "The backend couldn't read part of the network just now — some figures may be low until it can.",
         ]
       : [],
+    syncing: false,
   };
 }
 
@@ -288,11 +294,54 @@ export function deriveNetworkStats(reads: {
       : gapFor(reputation, REASONS.reputation),
     skills: fromRegistry((list) => deriveSkillMix(list)),
     notes,
+    syncing: false,
   };
 }
 
-/** Whether any figure is waiting on a read still in flight. */
+/** Every figure counted over the registry, so partial while it refills.
+ * Settled workflows come from the settlement store and are not among them. */
+export const REGISTRY_FIGURES = [
+  "registered",
+  "onchain",
+  "seeded",
+  "online",
+  "bound",
+  "external",
+  "operatorWallets",
+  "trust",
+  "skills",
+] as const satisfies readonly (keyof NetworkStats)[];
+
+/**
+ * The figures to show for a read whose registry may be partial. A complete
+ * read stands as it is. Otherwise every registry figure is the last complete
+ * one this session read, or, with none, a pending gap saying the registry is
+ * syncing — never the mid-refill count. Settled workflows are kept: they do
+ * not come from the registry.
+ */
+export function withRegistrySync(
+  stats: NetworkStats,
+  complete: boolean,
+  lastComplete: NetworkStats | null,
+): NetworkStats {
+  if (complete) return { ...stats, syncing: false };
+  const out: NetworkStats = { ...stats, syncing: true };
+  const held: Measured<unknown> = {
+    ok: false,
+    reason: REASONS.syncing,
+    pending: true,
+  };
+  for (const key of REGISTRY_FIGURES) {
+    Object.assign(out, { [key]: lastComplete ? lastComplete[key] : held });
+  }
+  out.notes = lastComplete ? lastComplete.notes : [];
+  return out;
+}
+
+/** Whether any figure is waiting on a read still in flight, or on the
+ * registry to finish syncing. */
 export function hasPendingReads(s: NetworkStats): boolean {
+  if (s.syncing) return true;
   return Object.values(s).some(
     (v) =>
       typeof v === "object" &&

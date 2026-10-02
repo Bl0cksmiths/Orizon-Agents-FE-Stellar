@@ -11,6 +11,7 @@ import {
   type NetworkStats,
 } from "@/lib/network-stats";
 import { focusRing } from "@/lib/ui";
+import { SyncingNote } from "./syncing-note";
 
 /** The tile labels, in order. Static, so they render while the figures load
  * and stay put when the read fails — only the value slot changes. */
@@ -27,6 +28,8 @@ type Tile = {
   unit?: string;
   /** Shown under a measured value. A gap shows its reason here instead. */
   caption?: ReactNode;
+  /** Counted over the registry, so held while it syncs. */
+  registry?: boolean;
 };
 
 const fmt = (m: Measured<number>): Measured<string> =>
@@ -39,10 +42,12 @@ function tiles(s: NetworkStats): Tile[] {
       label: "Registered agents",
       value: fmt(s.registered),
       caption: provenanceCaption(s),
+      registry: true,
     },
     {
       label: "External agents",
       value: fmt(s.external),
+      registry: true,
       caption: wallets && (
         <Link
           href="/app/ecosystem"
@@ -62,6 +67,7 @@ function tiles(s: NetworkStats): Tile[] {
     },
     {
       label: "Avg trust (on-chain)",
+      registry: true,
       // The 0–5 scale; the suffix is the unit, not a trend.
       value: s.trust.ok
         ? { ok: true, value: s.trust.value.avg.toFixed(2) }
@@ -128,6 +134,13 @@ export function NetworkTiles({
                 )}
               </div>
               {t.caption && <div className={CAPTION}>{t.caption}</div>}
+              {/* The figure above is the last complete one; say it is not
+                  current until the registry has caught up. */}
+              {stats.syncing && t.registry && (
+                <div className={CAPTION}>
+                  <SyncingNote />
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -135,7 +148,9 @@ export function NetworkTiles({
                 <span aria-hidden>—</span>
                 <span className="sr-only">not available</span>
               </div>
-              <p className={CAPTION}>{t.value.reason}</p>
+              <p className={CAPTION}>
+                {stats.syncing && t.registry ? <SyncingNote /> : t.value.reason}
+              </p>
             </>
           )}
         </Card>

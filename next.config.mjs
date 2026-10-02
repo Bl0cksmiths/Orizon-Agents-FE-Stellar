@@ -30,6 +30,11 @@ const nextConfig = {
   ...(process.env.E2E_DIST_DIR ? { distDir: process.env.E2E_DIST_DIR } : {}),
   reactStrictMode: true,
   poweredByHeader: false,
+  // The home page waits up to 120s at build for the backend's registry to
+  // finish syncing before it renders the hero without its figures
+  // (lib/public-network-stats.ts, BUILD_RETRY_BUDGET_MS). Next's default of
+  // 60s per page would kill that wait and fail the build instead.
+  staticPageGenerationTimeout: 180,
   images: {
     // The /demo poster is YouTube's thumbnail. Our image optimiser fetches it
     // and serves it from our own origin, so the page makes no third-party

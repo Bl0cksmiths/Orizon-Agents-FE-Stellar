@@ -69,6 +69,26 @@ export const mockOverviewV2: import("../lib/types").OverviewV2 = {
     { name: "other", agents: 23, pct: 96 },
   ],
   degraded: false,
+  // The registry has finished syncing since the backend started (BE #113).
+  registry_synced: true,
+};
+
+/** The measured overview mid-refill, just after a restart: a partial
+ * registry, flagged as such. Its figures must never reach a screen. */
+export const mockOverviewV2Syncing: import("../lib/types").OverviewV2 = {
+  ...mockOverviewV2,
+  agents: {
+    registered: 3,
+    onchain: 1,
+    seeded: 2,
+    external: 1,
+    bound: 0,
+    online: 3,
+  },
+  operators: { external_wallets: 1 },
+  trust: { avg: 4.9, rated_agents: 1 },
+  degraded: true,
+  registry_synced: false,
 };
 
 /** The measured overview with every part the backend may fail to read

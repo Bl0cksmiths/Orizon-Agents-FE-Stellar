@@ -11,6 +11,7 @@ import { screenAgentList } from "./guards";
 import {
   OTHER_SKILLS,
   REASONS,
+  REGISTRY_FIGURES,
   deriveNetworkStats,
   deriveSkillMix,
   hasPendingReads,
@@ -20,6 +21,7 @@ import {
   sidebarLine,
   statsFromOverview,
   walletsCaption,
+  withRegistrySync,
   type NetworkStats,
   type Read,
 } from "./network-stats";
@@ -609,5 +611,87 @@ describe("captions", () => {
       "1 agent registered · 11 external",
     );
     expect(sidebarLine(blank)).toBe("— agents registered · — external");
+  });
+});
+
+describe("withRegistrySync — never a mid-refill figure as final", () => {
+  const complete = statsFromOverview(overviewV2);
+  const midRefill = statsFromOverview({
+    ...overviewV2,
+    agents: {
+      registered: 31,
+      onchain: 19,
+      seeded: 12,
+      external: 4,
+      bound: 1,
+      online: 31,
+    },
+    operators: { external_wallets: 3 },
+    trust: { avg: 4.1, rated_agents: 2 },
+    workflows: { settled: 5, series: [] },
+    degraded: true,
+    registry_synced: false,
+  });
+
+  it("lets a complete read stand", () => {
+    const out = withRegistrySync(complete, true, null);
+    expect(out).toEqual({ ...complete, syncing: false });
+    expect(hasPendingReads(out)).toBe(false);
+  });
+
+  it("shows the last complete figures, marked syncing, over a partial read", () => {
+    const out = withRegistrySync(midRefill, false, complete);
+    expect(out.syncing).toBe(true);
+    for (const key of REGISTRY_FIGURES) expect(out[key]).toEqual(complete[key]);
+    expect(out.registered).toEqual({ ok: true, value: 25 });
+    expect(out.external).toEqual({ ok: true, value: 11 });
+    expect(out.operatorWallets).toEqual({ ok: true, value: 7 });
+    expect(JSON.stringify(out)).not.toMatch(/"value":31\b/);
+    expect(sidebarLine(out)).toBe("25 agents registered · 11 external");
+  });
+
+  it("keeps the settled figures, which do not come from the registry", () => {
+    const out = withRegistrySync(midRefill, false, complete);
+    expect(out.settled).toEqual({ ok: true, value: 5 });
+  });
+
+  it("holds every registry figure as syncing when the session has none", () => {
+    const out = withRegistrySync(midRefill, false, null);
+    expect(out.syncing).toBe(true);
+    for (const key of REGISTRY_FIGURES) {
+      expect(out[key]).toEqual({
+        ok: false,
+        reason: REASONS.syncing,
+        pending: true,
+      });
+    }
+    expect(out.notes).toEqual([]);
+    expect(sidebarLine(out)).toBe("— agents registered · — external");
+    expect(JSON.stringify(out)).not.toMatch(/"value":(31|19|4|3)\b/);
+  });
+
+  it("asks again while the registry is syncing", () => {
+    expect(hasPendingReads(withRegistrySync(midRefill, false, complete))).toBe(
+      true,
+    );
+    expect(hasPendingReads(withRegistrySync(midRefill, false, null))).toBe(
+      true,
+    );
+  });
+
+  it("counts every registry-derived figure among the held ones", () => {
+    expect([...REGISTRY_FIGURES].sort()).toEqual(
+      [
+        "bound",
+        "external",
+        "onchain",
+        "online",
+        "operatorWallets",
+        "registered",
+        "seeded",
+        "skills",
+        "trust",
+      ].sort(),
+    );
   });
 });
