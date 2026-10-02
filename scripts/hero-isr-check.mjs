@@ -163,13 +163,16 @@ async function main() {
   });
   server.stdout.pipe(out);
   server.stderr.pipe(out);
-  for (let i = 0; i < 60; i++) {
-    try {
-      await fetch(`http://127.0.0.1:${PORT}/`);
-      break;
-    } catch {
-      await sleep(1000);
-    }
+  // A `next dev` started meanwhile in this checkout wipes .next, this build
+  // included, and the server dies at once; say so rather than hang.
+  let up = false;
+  for (let i = 0; i < 60 && !up && server.exitCode === null; i++) {
+    up = await taken(PORT);
+    if (!up) await sleep(1000);
+  }
+  if (!up) {
+    server.kill();
+    throw new Error(`next start never answered; see ${serverLog}`);
   }
 
   try {
@@ -213,7 +216,9 @@ async function main() {
       fail("the complete figures never replaced the page");
   } finally {
     server.kill();
-    await new Promise((r) => server.once("exit", r));
+    if (server.exitCode === null && server.signalCode === null) {
+      await new Promise((r) => server.once("exit", r));
+    }
     await backend.close();
   }
 
