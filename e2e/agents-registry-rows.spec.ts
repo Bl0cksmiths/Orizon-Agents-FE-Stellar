@@ -177,6 +177,11 @@ async function openLongRegistry(page: Page, width: number): Promise<void> {
   await expect(
     page.getByRole("heading", { name: "Selection floor" }),
   ).toBeVisible();
+  // The binding lookup lands after the registry: until its "unbound" mark and
+  // bind notice are drawn, the long row has not reached its widest.
+  await expect(
+    page.getByRole("link", { name: `bind ${LONG_ID}` }),
+  ).toBeVisible();
 }
 
 /**
