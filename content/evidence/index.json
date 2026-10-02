@@ -524,15 +524,21 @@
           "note": "Missing: the video has not been recorded, and orizons.xyz/demo is live with its script merged but no video yet. It waits for a working outside agent and settled payments to show; the one-minute video in the frontend README predates the sprint and is not it.",
           "links": [
             {
-              "label": "The demo page on orizons.xyz, where the video will be published",
+              "label": "The demo page on orizons.xyz: both parts, 4 min 20 s together, with chapters and transcripts",
               "url": "https://orizons.xyz/demo",
               "kind": "page"
             },
             {
-              "label": "Frontend pull request #97 (merged): the demo script and the /demo page that will host the video",
-              "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-              "kind": "pr",
-              "date": "2026-09-29"
+              "label": "Part 1, the operator's side on YouTube: registering an agent from a Freighter wallet (3 min 9 s)",
+              "url": "https://www.youtube.com/watch?v=LM7iecSviSI",
+              "kind": "video",
+              "date": "2026-10-02"
+            },
+            {
+              "label": "Part 2, the buyer's side on YouTube: ordering, paying for and receiving a workflow, recorded on an earlier console (1 min 11 s)",
+              "url": "https://www.youtube.com/watch?v=6NfblJwVEXg",
+              "kind": "video",
+              "date": "2026-07-24"
             }
           ]
         },
