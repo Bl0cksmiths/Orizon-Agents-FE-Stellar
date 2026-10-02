@@ -386,7 +386,8 @@ export default function AgentsPage() {
               Agent registry — agent, skills, price, reputation, runs and status
             </caption>
             <thead>
-              <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
+              {/* Each header on one line: "price / call" broke over three. */}
+              <tr className="whitespace-nowrap border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 <th scope="col" className="pb-3 text-left">
                   agent
                 </th>
