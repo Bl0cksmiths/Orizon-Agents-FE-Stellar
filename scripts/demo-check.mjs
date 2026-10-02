@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
  * Checks the demo manifest, content/demo/demo.json, by the same rules
- * `next build` applies (lib/demo/validate.mjs), and optionally a local video
- * file's running time.
+ * `next build` applies (lib/demo/validate.mjs), and optionally the running
+ * time of the local video files, one per part.
  *
  *   npm run demo:check
- *   npm run demo:check -- --video ~/renders/orizon-demo.mp4
+ *   npm run demo:check -- --video ~/renders/operator.mp4 --video ~/renders/buyer.mp4
  *
- * With --video, ffprobe measures the file. It must run 180–300 s inclusive
- * (the story's 3–5 minutes), and when the manifest is published its
- * `duration_seconds` must match the file to the second. Without ffprobe the
- * duration is NOT verified: the script says so and exits 3, never 0, so a
- * missing tool cannot read as a pass.
+ * With --video, ffprobe measures each file. Together they must run 180–300 s
+ * inclusive (the story's 3–5 minutes), and when the manifest is published
+ * there is one file per part, in order, and each part's `duration_seconds`
+ * must match its file to the second. Without ffprobe the duration is NOT
+ * verified: the script says so and exits 3, never 0, so a missing tool cannot
+ * read as a pass.
  *
  * DEMO_CONTENT_DIR and DEMO_PUBLIC_DIR point it elsewhere, as for the page.
  *
@@ -28,18 +29,20 @@ import {
   validateDemoManifest,
 } from "../lib/demo/validate.mjs";
 
-const USAGE = "usage: demo-check [--video <file>]";
+const USAGE = "usage: demo-check [--video <file>]...";
 
 function parseArgs(argv) {
-  const args = { video: null };
+  /** @type {{ videos: string[] }} */
+  const args = { videos: [] };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--video") {
       const file = argv[++i];
       if (!file || file.startsWith("--")) return null;
-      args.video = file;
+      args.videos.push(file);
     } else if (argv[i].startsWith("--video=")) {
-      args.video = argv[i].slice("--video=".length);
-      if (!args.video) return null;
+      const file = argv[i].slice("--video=".length);
+      if (!file) return null;
+      args.videos.push(file);
     } else {
       return null;
     }
@@ -135,44 +138,55 @@ function main() {
     );
   }
 
-  if (!args.video) return 0;
+  if (args.videos.length === 0) return 0;
 
-  const file = path.resolve(args.video);
-  if (!existsSync(file)) {
-    console.error(`FAIL  video: ${args.video} does not exist`);
-    return 1;
-  }
-  const measured = probe(file);
-  if (measured.missingTool) {
+  const parts = raw.status === "published" ? raw.parts : null;
+  if (parts && args.videos.length !== parts.length) {
     console.error(
-      `NOT VERIFIED  video: ffprobe is not installed, so the running time of ${args.video} was not checked. Install ffmpeg and run this again.`,
-    );
-    return 3;
-  }
-  if (measured.error) {
-    console.error(
-      `FAIL  video: ffprobe could not read ${args.video}: ${measured.error}`,
+      `FAIL  video: give one --video per part, in order; the manifest has ${parts.length} parts and ${args.videos.length} files were given`,
     );
     return 1;
   }
-  const { seconds } = measured;
-  const shownSeconds = seconds.toFixed(2);
-  if (seconds < MIN_DURATION_SECONDS || seconds > MAX_DURATION_SECONDS) {
+
+  let total = 0;
+  for (const [i, video] of args.videos.entries()) {
+    const file = path.resolve(video);
+    if (!existsSync(file)) {
+      console.error(`FAIL  video: ${video} does not exist`);
+      return 1;
+    }
+    const measured = probe(file);
+    if (measured.missingTool) {
+      console.error(
+        `NOT VERIFIED  video: ffprobe is not installed, so the running time of ${video} was not checked. Install ffmpeg and run this again.`,
+      );
+      return 3;
+    }
+    if (measured.error) {
+      console.error(
+        `FAIL  video: ffprobe could not read ${video}: ${measured.error}`,
+      );
+      return 1;
+    }
+    const { seconds } = measured;
+    const shownSeconds = seconds.toFixed(2);
+    if (parts && Math.abs(seconds - parts[i].duration_seconds) > 1) {
+      console.error(
+        `FAIL  video: ${video} runs ${shownSeconds} s but the manifest says part ${i + 1} runs ${parts[i].duration_seconds} s`,
+      );
+      return 1;
+    }
+    console.log(`  ok  video: ${video} runs ${shownSeconds} s`);
+    total += seconds;
+  }
+  const shownTotal = total.toFixed(2);
+  if (total < MIN_DURATION_SECONDS || total > MAX_DURATION_SECONDS) {
     console.error(
-      `FAIL  video: ${args.video} runs ${shownSeconds} s; the demo must run 3 to 5 minutes (${MIN_DURATION_SECONDS}–${MAX_DURATION_SECONDS} s inclusive)`,
+      `FAIL  video: the files run ${shownTotal} s together; the demo must run 3 to 5 minutes (${MIN_DURATION_SECONDS}–${MAX_DURATION_SECONDS} s inclusive)`,
     );
     return 1;
   }
-  if (
-    raw.status === "published" &&
-    Math.abs(seconds - raw.video.duration_seconds) > 1
-  ) {
-    console.error(
-      `FAIL  video: ${args.video} runs ${shownSeconds} s but the manifest says ${raw.video.duration_seconds} s`,
-    );
-    return 1;
-  }
-  console.log(`  ok  video: ${args.video} runs ${shownSeconds} s`);
+  console.log(`  ok  video: the files run ${shownTotal} s together`);
   return 0;
 }
 

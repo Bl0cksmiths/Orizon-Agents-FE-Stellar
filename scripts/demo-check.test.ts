@@ -30,14 +30,35 @@ afterEach(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
-/** A PATH holding only a fake ffprobe that reports `seconds`. */
-function fakeFfprobe(seconds: string): string {
+/**
+ * A PATH holding only a fake ffprobe that reports `seconds` for every file,
+ * or, given a map, the seconds for each file's name (its last argument).
+ */
+function fakeFfprobe(seconds: string | Record<string, string>): string {
   const bin = path.join(tmp, "bin");
   mkdirSync(bin, { recursive: true });
   const exe = path.join(bin, "ffprobe");
-  writeFileSync(exe, `#!/bin/sh\necho ${seconds}\n`);
+  const body =
+    typeof seconds === "string"
+      ? `echo ${seconds}`
+      : [
+          "for f; do :; done",
+          'case "${f##*/}" in',
+          ...Object.entries(seconds).map(
+            ([name, s]) => `  ${name}) echo ${s} ;;`,
+          ),
+          "esac",
+        ].join("\n");
+  writeFileSync(exe, `#!/bin/sh\n${body}\n`);
   chmodSync(exe, 0o755);
   return bin;
+}
+
+/** A stand-in video file named `name` in the temp directory. */
+function file(name: string): string {
+  const p = path.join(tmp, name);
+  writeFileSync(p, "not really a video");
+  return p;
 }
 
 function run(
@@ -121,19 +142,53 @@ describe("demo-check: the video's running time", () => {
     expect(out).toContain("the demo must run 3 to 5 minutes");
   });
 
-  it("holds a published manifest's duration to the file's", () => {
-    const off = run(["--video", video], {
-      ...published,
-      PATH: fakeFfprobe("240"),
-    });
-    expect(off.status).toBe(1);
-    expect(off.out).toContain("runs 240.00 s but the manifest says 252 s");
+  it("adds the files' running times together", () => {
+    const a = file("a.mp4");
+    const b = file("b.mp4");
+    const PATH = fakeFfprobe({ "a.mp4": "189.2", "b.mp4": "70.8" });
+    const { status, out } = run(["--video", a, `--video=${b}`], { PATH });
+    expect(status).toBe(0);
+    expect(out).toContain("the files run 260.00 s together");
 
-    const on = run(["--video", video], {
+    // One part alone is too short to be the demo.
+    const short = run(["--video", b], { PATH });
+    expect(short.status).toBe(1);
+    expect(short.out).toContain(
+      "the files run 70.80 s together; the demo must run 3 to 5 minutes",
+    );
+  });
+
+  it("holds each published part's duration to its own file, in order", () => {
+    const operator = file("operator.mp4");
+    const buyer = file("buyer.mp4");
+    const PATH = fakeFfprobe({ "operator.mp4": "150.4", "buyer.mp4": "101.6" });
+
+    const on = run(["--video", operator, "--video", buyer], {
       ...published,
-      PATH: fakeFfprobe("252.4"),
+      PATH,
     });
     expect(on.status).toBe(0);
+    expect(on.out).toContain("the files run 252.00 s together");
+
+    const swapped = run(["--video", buyer, "--video", operator], {
+      ...published,
+      PATH,
+    });
+    expect(swapped.status).toBe(1);
+    expect(swapped.out).toContain(
+      "runs 101.60 s but the manifest says part 1 runs 150 s",
+    );
+  });
+
+  it("wants one file per published part", () => {
+    const { status, out } = run(["--video", video], {
+      ...published,
+      PATH: fakeFfprobe("252"),
+    });
+    expect(status).toBe(1);
+    expect(out).toContain(
+      "give one --video per part, in order; the manifest has 2 parts and 1 files were given",
+    );
   });
 
   it("fails on a file that is not there", () => {
