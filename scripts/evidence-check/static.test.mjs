@@ -205,6 +205,76 @@ describe("evidence-check --static on removed metrics", () => {
   });
 });
 
+describe("the real index on outside operators and item notes", () => {
+  const REAL = new URL("../../content/evidence/index.json", import.meta.url);
+  const raw = () => readFileSync(REAL, "utf8");
+  const real = () => JSON.parse(raw());
+  /** @param {any} index @param {string} id */
+  const item = (index, id) =>
+    index.deliverables
+      .flatMap((/** @type {any} */ d) => d.items)
+      .find((/** @type {any} */ i) => i.id === id);
+  /** @param {any} index @param {string} id */
+  const metric = (index, id) =>
+    index.metrics.find((/** @type {any} */ m) => m.id === id);
+  /** @param {any[]} links */
+  const outsideRegistrations = (links) =>
+    links
+      .filter(
+        (l) =>
+          l.kind === "tx" &&
+          /^Registration of \S+ (?:by|signed by) an outside operator's wallet G[A-Z2-7]{4}…[A-Z2-7]{4}\b/.test(
+            l.label,
+          ),
+      )
+      .map((l) => l.tx_hash)
+      .sort();
+
+  it("holds nothing back for consent: the platform lists outside operators publicly", () => {
+    assert.doesNotMatch(raw(), /consent|held back until|withheld/i);
+    assert.doesNotMatch(raw(), /orizons\.xyz\/app\/ecosystem/);
+  });
+
+  it("links every outside registration as a transaction in D1-c, D4-c, m01 and m06", () => {
+    const index = real();
+    const d1c = outsideRegistrations(item(index, "6.1-D1-c").links);
+    assert.ok(
+      d1c.length >= 2,
+      `D1-c links ${d1c.length} outside registrations`,
+    );
+    assert.deepEqual(outsideRegistrations(item(index, "6.1-D4-c").links), d1c);
+    assert.deepEqual(outsideRegistrations(metric(index, "m01").links), d1c);
+    assert.deepEqual(outsideRegistrations(metric(index, "m06").links), d1c);
+    assert.equal(String(d1c.length), metric(index, "m01").achieved);
+  });
+
+  it("links every outside operator's wallet in m02", () => {
+    const index = real();
+    const wallets = metric(index, "m02").links.filter(
+      (/** @type {any} */ l) =>
+        l.kind === "account" &&
+        l.label.startsWith("An outside operator's wallet G"),
+    );
+    assert.equal(String(wallets.length), metric(index, "m02").achieved);
+  });
+
+  it("gives a present item no note, and every other item a short one", () => {
+    for (const d of real().deliverables) {
+      for (const i of d.items) {
+        if (i.status === "present") {
+          assert.equal(i.note, undefined, `${i.id} is present but has a note`);
+        } else {
+          const sentences = i.note.split(/(?<=\.)\s+(?=[A-Z])/).length;
+          assert.ok(
+            sentences <= 2,
+            `${i.id}'s note has ${sentences} sentences`,
+          );
+        }
+      }
+    }
+  });
+});
+
 describe("loadValidator", () => {
   it("imports lib/evidence/validate.mjs when it exists", async () => {
     const lib = join(dir, "lib-ok");

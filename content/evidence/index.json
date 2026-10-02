@@ -9,7 +9,7 @@
   "snapshot": {
     "as_of": "2026-09-30",
     "network": "testnet",
-    "method": "Every on-chain link was re-read on 2026-09-30, after escrow v2 was deployed and the live API switched to it that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. The 21 transactions of the team's test runs, including the first dispute's refund and dispute rating, were also re-verified successful by the backend's evidence tool (demo_evidence), and the screenshots and recordings of 2026-09-30 were taken from the live site with no wallet connected. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json), is declared for it in an open pull request that this index names, or holds a platform role on the contracts. The metrics were re-measured the same day, at 10:42 UTC, by the backend's read-only generator (scripts/sow_metrics). Metrics 5 and 8 were measured again at 15:30 UTC, after the first dispute was refunded, and metrics 1 and 2 at 15:48 UTC, after five more outside wallets registered agents; their rows are from those runs, and the other rows are as measured at 10:42. Metric m03 was removed from the sprint's requirements on 2026-09-30, so its row from the generator was left out and the other ten are shown. An outside operator's agent ids, wallet and transaction hashes appear here only once that operator's consent to publish them is recorded. Nothing was signed, paid or submitted to make this snapshot."
+    "method": "Every on-chain link was re-read on 2026-09-30, after escrow v2 was deployed and the live API switched to it that day, from Stellar's public testnet record (Horizon, horizon-testnet.stellar.org). Each transaction was confirmed successful, and the date beside it is the day the ledger recorded it, in UTC. Contract activity was cross-checked on Stellar Expert. The 21 transactions of the team's test runs, including the first dispute's refund and dispute rating, were also re-verified successful by the backend's evidence tool (demo_evidence), and the screenshots and recordings of 2026-09-30 were taken from the live site with no wallet connected. Every web link was opened without logging in and returned a working page. A wallet counts as the team's when it is in the team wallet register (backend repository, app/data/team_wallets.json), is declared for it in an open pull request that this index names, or holds a platform role on the contracts. The metrics were re-measured the same day, at 10:42 UTC, by the backend's read-only generator (scripts/sow_metrics). Metrics 5 and 8 were measured again at 15:30 UTC, after the first dispute was refunded, and metrics 1 and 2 at 15:48 UTC, after five more outside wallets registered agents; their rows are from those runs, and the other rows are as measured at 10:42. Metric m03 was removed from the sprint's requirements on 2026-09-30, so its row from the generator was left out and the other ten are shown. The platform lists outside operators publicly, with their wallets and agent ids, so this index links each outside registration and wallet. Those links were added on 2026-10-01 from a fresh read-only run of the same generator, and the live adoption counter was re-read that day to confirm them: 11 outside agents from 7 wallets, one bound to an endpoint and none settled. Nothing was signed, paid or submitted to make this snapshot."
   },
   "deliverables": [
     {
@@ -22,7 +22,6 @@
           "id": "6.1-D1-a",
           "claim": "The registration flow is built and merged: the Register an Agent page, signing in the operator's own wallet, and the backend endpoints that build, check and list a registration.",
           "status": "present",
-          "note": "The contract's register call was already open to any wallet. Story 1.01 audited it and needed no contract change, so there is no contracts pull request for this item.",
           "links": [
             {
               "label": "Frontend pull request #39: the Register an Agent form, its input checks and wallet signing (merged)",
@@ -77,12 +76,83 @@
           "id": "6.1-D1-c",
           "claim": "An agent registered by a wallet the team does not control, with its transaction on Stellar Expert.",
           "status": "present",
-          "note": "Seven wallets the team does not control have registered agents on-chain (on 2026-09-29 and 2026-09-30). The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
           "links": [
             {
-              "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
-              "url": "https://orizons.xyz/app/ecosystem",
-              "kind": "page"
+              "label": "Registration of Powerbot by an outside operator's wallet GCVOW…KQKX — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+              "kind": "tx",
+              "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of fitness_autobot by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+              "kind": "tx",
+              "tx_hash": "3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of game_fi by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+              "kind": "tx",
+              "tx_hash": "3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of messaging_bot by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+              "kind": "tx",
+              "tx_hash": "0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of Data_Autobot by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+              "kind": "tx",
+              "tx_hash": "3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of Learning_Bot by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+              "kind": "tx",
+              "tx_hash": "d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of Gamer_Bot by an outside operator's wallet GBG2J…62U5 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+              "kind": "tx",
+              "tx_hash": "3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Registration of SocialFi_Bot by an outside operator's wallet GB3YZ…2RUN — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+              "kind": "tx",
+              "tx_hash": "4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Registration of Stake_Bot by an outside operator's wallet GBJIX…VZKX — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+              "kind": "tx",
+              "tx_hash": "42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Registration of Trade_Bot by an outside operator's wallet GDSMF…GAU4 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+              "kind": "tx",
+              "tx_hash": "4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Registration of ReWoA_bot by an outside operator's wallet GD45P…WTAQ — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+              "kind": "tx",
+              "tx_hash": "8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+              "date": "2026-09-30"
             },
             {
               "label": "AgentRegistry contract on Stellar Expert: all 25 registrations, 14 by team wallets and 11 by 7 outside operators",
@@ -108,10 +178,9 @@
           "id": "6.1-D2-a",
           "claim": "Screenshots or a recording of the plan card showing each agent's on-chain reputation before the buyer pays.",
           "status": "present",
-          "note": "Present. Captures of the live plan card on orizons.xyz, taken on 2026-09-30 at 09:45 UTC with no wallet connected, show Calculator AI (calculatorai) planned with an earned on-chain reputation of ★ 3.50 from 2 rated jobs, not the starting estimate: its chip carries no '≈' estimate mark, and the plan's own data gives the score's source as on-chain (7004 of 10000, with a lower bound of 5683 against the 5500 floor). The two ratings behind it, 95 out of 100 each, were written on 2026-09-30 after two of the team's settled escrow v2 test runs (see Deliverable 4), and are linked here with the third run's rating, for keyboardai. Both agents are owned by the team's admin wallet. There is a desktop and a phone capture; no recording of the plan card exists. The 2026-09-19 screenshot is kept for history: every agent in it still had the starting estimate of about 3.50, because the platform only began writing ratings later that day.",
           "links": [
             {
-              "label": "Screenshot of the live plan card at desktop width: Calculator AI with an on-chain reputation of 3.50 from 2 rated jobs, captured 2026-09-30",
+              "label": "Screenshot of the live plan card at desktop width: Calculator AI with an on-chain reputation of 3.50 from 2 rated jobs, the same figure as the starting estimate but without its '≈' mark (see the disclosures), captured 2026-09-30",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/e2caf45c9beb517b2c68015267052fe7c39d1cde/Week-4-Tranche-Submission/screenshots/d2a-plan-card-onchain-score-desktop-1440.png",
               "kind": "doc",
               "date": "2026-09-30"
@@ -190,7 +259,6 @@
           "id": "6.1-D2-b",
           "claim": "A routing example where an agent below the reputation floor is left out of the plan.",
           "status": "present",
-          "note": "Present. A live plan on orizons.xyz, decomposed on 2026-09-30 at 09:45 UTC with no wallet connected, left out an agent below the reputation floor: 'Faulty test agent (deliberate, team-run)' (faulty_test_v2) is marked Excluded, 'below routing floor (5443 < 5500 bps)', a lower bound of 2.72 against the 2.75 floor, resting on 3 ratings. Disclosure: this is a deliberate test agent the team built and ran to show the floor at work, not an outside operator's agent. It was registered on 2026-09-30 by the team key GB4K6…YKAYKK and is set to hang without delivering (FAULT_MODE=hang_after:0). The team's admin wallet GA7AI…5OQV authorized three paid runs against it; each failed, nothing was charged, and the platform rated each run 20 out of 100. Its reputation lower bound fell from 5677 to 5596, 5518 and then 5443, below the 5500 floor, and the next live plan excluded it. The captures are cropped just below the excluded agent's row, because the rest of that list names agents with no endpoint bound, some of them outside operators' agents, whose names are held back until consent is recorded. The earlier QA frame RF-17 used a plan written by a test and is still not offered as evidence.",
           "links": [
             {
               "label": "Screenshot of a live plan at desktop width: the deliberate faulty test agent excluded below the routing floor (5443 < 5500), captured 2026-09-30",
@@ -210,7 +278,7 @@
               "kind": "page"
             },
             {
-              "label": "Registration of the deliberate faulty test agent faulty_test_v2 by team key GB4K6…YKAYKK — 2026-09-30 (team wallet)",
+              "label": "Registration of the deliberate faulty test agent faulty_test_v2, set to hang without delivering, by team key GB4K6…YKAYKK — 2026-09-30 (team wallet)",
               "url": "https://stellar.expert/explorer/testnet/tx/2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
               "kind": "tx",
               "tx_hash": "2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
@@ -276,10 +344,9 @@
           "id": "6.1-D2-c",
           "claim": "A link to the routing code that applies the reputation floor.",
           "status": "present",
-          "note": "The code links are pinned to the backend merge of 2026-09-18 (pull request #58), when this routing shipped. The floor check itself is unchanged in the later build the live API runs. The floor is judged on a cautious lower estimate of each agent's on-chain average, so a new agent with few ratings is not over-trusted or over-punished.",
           "links": [
             {
-              "label": "Routing code: the floor check on each agent's reputation (backend, pinned to the Week-2 merge)",
+              "label": "Routing code: the floor check on each agent's reputation (backend, pinned to the Week-2 merge; unchanged in the build the live API runs)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/f45aa2e8ee2755a6dfa016a02a6a8c9a977163e1/app/services/reputation_svc.py#L213-L224",
               "kind": "repo",
               "date": "2026-09-18"
@@ -321,10 +388,9 @@
           "id": "6.1-D3-a",
           "claim": "A dispute transaction on Stellar Expert: the negative on-chain rating written when a buyer's dispute is upheld.",
           "status": "present",
-          "note": "On 2026-09-30 the platform's adjudicator upheld the first dispute on the live deployment: dispute dsp_15acee279ac02852a5877ac1696ec4b5, which the team's test harness raised against the single step of the team's third settled run (calculatorai's 0.01 XLM payout; see Deliverable 4). Upholding it wrote a dispute rating against calculatorai on the live ReputationLedger. Its score fell from 7004 to 6999 basis points, its lower bound from 5683 to 5678, and its dispute count went from 0 to 1. The ledger now holds 41 ratings, and this is the only dispute rating. The dispute is the team's own: the buyer, GCNQA…A2GP, is a team key, and calculatorai is owned by the team's admin wallet GA7AI…5OQV. A test run on a separate drill ledger proved the mechanism earlier, and it is not offered as evidence (see the notes).",
           "links": [
             {
-              "label": "Dispute rating for agent calculatorai on Stellar testnet — 2026-09-30",
+              "label": "Dispute rating for agent calculatorai on the team's own test run (team buyer key, agent owned by the team's admin wallet), on Stellar testnet — 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/tx/b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
               "kind": "tx",
               "tx_hash": "b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
@@ -358,7 +424,6 @@
           "id": "6.1-D3-b",
           "claim": "The matching partial-refund transaction on Stellar Expert.",
           "status": "present",
-          "note": "On 2026-09-30, when the dispute above was upheld, the platform's signing key GDB4N…CDHP paid the buyer, the team key GCNQA…A2GP, 0.01 XLM. That is the disputed step's full charge: the live credit policy (dispute_credited_fraction) is 1.0, so the credit equals the step's price. The credit comes from the platform's own balance, not from the agent's owner and not from the escrow (see the disclosures). It is the first refund paid on the live deployment. The 0.054 XLM transfer of 2026-09-12 that the Week-1 bundle showed as a refund was a test transfer and is not this evidence (see the corrections note).",
           "links": [
             {
               "label": "Dispute credit refund for agent calculatorai of 0.0100000 XLM (native), the step's full charge, on Stellar testnet — 2026-09-30",
@@ -395,10 +460,9 @@
           "id": "6.1-D3-c",
           "claim": "A recording of the dispute controls on the trace and receipt view.",
           "status": "present",
-          "note": "A 13-second recording and two screenshots of the live receipt for the team's third settled run, captured on 2026-09-30 at 15:30 UTC with no wallet connected, show the dispute controls on real data through to the end of a dispute: the receipt marked Settled with its charge and seal, the 24-hour dispute window open with its countdown, the dispute action gated behind the paying wallet ('If you paid for this workflow, connect that wallet to dispute a step'), and the step's dispute receipt marked Refunded, with the 0.01 XLM credit paid from the platform's funds and the refund and dispute rating transactions, each confirmed on Stellar and linked to Stellar Expert. The dispute was opened by the team's test harness through the API, not with the Dispute button, which appears only once the paying wallet is connected. An earlier screenshot of the same receipt, taken at 09:45 UTC while the dispute was under review, is kept to show it before the decision. The Week-3 bundle's dispute screenshots were taken on a local copy with test data and are still not offered as evidence.",
           "links": [
             {
-              "label": "Recording of the live receipt: settled, dispute window open, the wallet-gated dispute action and the step's dispute receipt refunded, with its refund and rating transactions, captured 2026-09-30",
+              "label": "Recording of the live receipt: settled, dispute window open, the wallet-gated dispute action and the step's dispute receipt refunded, with its refund and rating transactions, captured 2026-09-30 (the team's test harness opened the dispute through the API, not with the Dispute button)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/blob/010960190f9f143a9ee588bb27f7f3d22bb40593/Week-4-Tranche-Submission/screenshots/d3c-dispute-refunded-video-desktop-1440.webm",
               "kind": "video",
               "date": "2026-09-30"
@@ -439,7 +503,7 @@
               "date": "2026-09-22"
             },
             {
-              "label": "Week-3 evidence bundle on GitHub: what shipped for disputes",
+              "label": "Week-3 evidence bundle on GitHub: what shipped for disputes (its dispute screenshots used test data on a local copy and are not offered as evidence)",
               "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/tree/main/Week-3-Tranche-Submission",
               "kind": "doc"
             }
@@ -457,7 +521,7 @@
           "id": "6.1-D4-a",
           "claim": "A 3–5 minute demo video showing both an operator and a buyer.",
           "status": "missing",
-          "note": "Missing. The video has not been recorded. Its script is merged, and the public page that will host it, orizons.xyz/demo, is live but says the video has not been published yet. The video needs a working outside agent and settled payments to show, so it waits for those. The one-minute video in the frontend README predates the sprint and is not this video.",
+          "note": "Missing: the video has not been recorded, and orizons.xyz/demo is live with its script merged but no video yet. It waits for a working outside agent and settled payments to show; the one-minute video in the frontend README predates the sprint and is not it.",
           "links": [
             {
               "label": "The demo page on orizons.xyz, where the video will be published",
@@ -476,7 +540,6 @@
           "id": "6.1-D4-b",
           "claim": "The public \"List your agent on Orizon\" integration guide.",
           "status": "present",
-          "note": "The guide is public at orizons.xyz/guide/list-your-agent, with every sample in it checked.",
           "links": [
             {
               "label": "The 'List your agent on Orizon' guide on orizons.xyz",
@@ -500,12 +563,83 @@
           "id": "6.1-D4-c",
           "claim": "At least 2 registration transactions by outside operators, on Stellar Expert.",
           "status": "present",
-          "note": "Seven wallets the team does not control have registered agents on-chain (on 2026-09-29 and 2026-09-30). The platform's public ecosystem page lists them, each linked to its wallet on Stellar Expert, where the registration transactions appear.",
           "links": [
             {
-              "label": "The ecosystem page on orizons.xyz: outside operators and their agents, as the platform lists them",
-              "url": "https://orizons.xyz/app/ecosystem",
-              "kind": "page"
+              "label": "Registration of Powerbot by an outside operator's wallet GCVOW…KQKX — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+              "kind": "tx",
+              "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of fitness_autobot by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+              "kind": "tx",
+              "tx_hash": "3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of game_fi by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+              "kind": "tx",
+              "tx_hash": "3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of messaging_bot by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+              "kind": "tx",
+              "tx_hash": "0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of Data_Autobot by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+              "kind": "tx",
+              "tx_hash": "3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of Learning_Bot by an outside operator's wallet GDGI3…GUFQ — 2026-09-29",
+              "url": "https://stellar.expert/explorer/testnet/tx/d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+              "kind": "tx",
+              "tx_hash": "d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+              "date": "2026-09-29"
+            },
+            {
+              "label": "Registration of Gamer_Bot by an outside operator's wallet GBG2J…62U5 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+              "kind": "tx",
+              "tx_hash": "3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Registration of SocialFi_Bot by an outside operator's wallet GB3YZ…2RUN — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+              "kind": "tx",
+              "tx_hash": "4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Registration of Stake_Bot by an outside operator's wallet GBJIX…VZKX — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+              "kind": "tx",
+              "tx_hash": "42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Registration of Trade_Bot by an outside operator's wallet GDSMF…GAU4 — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+              "kind": "tx",
+              "tx_hash": "4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "Registration of ReWoA_bot by an outside operator's wallet GD45P…WTAQ — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+              "kind": "tx",
+              "tx_hash": "8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+              "date": "2026-09-30"
             },
             {
               "label": "AgentRegistry contract on Stellar Expert: all 25 registrations, 14 by team wallets and 11 by 7 outside operators",
@@ -534,7 +668,6 @@
           "id": "6.1-D4-d",
           "claim": "At least 3 settlement transactions on Stellar Expert, each with its on-chain receipt and attestation.",
           "status": "present",
-          "note": "Present: 3 of 3. On 2026-09-30 three workflows settled on the live escrow v2 (CCNO5…5VC4), each with its settlement and its attestation seal on Stellar Expert. All three are the team's own test runs, not outside operators' work. The buyers were team keys: GB4K6…YKAYKK paid for run 1 and GCNQA…A2GP for runs 2 and 3. Both agents, calculatorai and keyboardai, are owned by the team's admin wallet GA7AI…5OQV, which received each payout. The settlements and seals were signed by the platform's production key GDB4N…CDHP. Run 1 paid 0.01 XLM to calculatorai, run 2 paid 0.2 XLM to keyboardai and run 3 paid 0.01 XLM to calculatorai, and the test harness's settlement checks passed for each. The buyer key GCNQA…A2GP was created for these runs on 2026-09-30; backend pull request #96 added it to the team wallet register the same day. No outside operator's agent was paid. Before escrow v2 no payment settled during the sprint: the v1 escrow could not move a buyer's funds to a different wallet (defect D-039, contracts issue #3), so none of its authorizations since 2026-09-07 was charged. Its 8 older 'charged' events are pre-sprint self-payments and do not count (see the notes).",
           "links": [
             {
               "label": "PaymentEscrow v2 contract on Stellar Expert: live since 2026-09-30, where the three runs settled",
@@ -662,7 +795,6 @@
           "id": "6.1-D4-e",
           "claim": "The protocol litepaper, with its §6 updated for open registration, public on orizons.xyz (SOW §5.1, Week 4 output).",
           "status": "present",
-          "note": "Version 0.5 of the litepaper is written, with §6 updated for open registration, reputation-gated routing and the dispute window, and every format is regenerated from its source. The page offers the litepaper as a PDF, a web page, a Word document and Markdown, with no account needed.",
           "links": [
             {
               "label": "The Orizon Agents litepaper (v0.5) on orizons.xyz",
@@ -699,7 +831,6 @@
           "id": "6.1-RD-a",
           "claim": "Frontend source code is public on GitHub and released under the MIT licence.",
           "status": "present",
-          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Frontend source code on GitHub (Bl0cksmiths/Orizon-Agents-FE-Stellar)",
@@ -718,7 +849,6 @@
           "id": "6.1-RD-b",
           "claim": "Backend source code is public on GitHub and released under the MIT licence.",
           "status": "present",
-          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Backend source code on GitHub (Bl0cksmiths/Orizon-Agents-BE-Stellar)",
@@ -737,7 +867,6 @@
           "id": "6.1-RD-c",
           "claim": "Smart-contract source code is public on GitHub and released under the MIT licence.",
           "status": "present",
-          "note": "The repository is public, and GitHub detects its MIT licence. The SOW's address on github.com/ALGOREX-PH redirects to this repository.",
           "links": [
             {
               "label": "Smart-contract source code on GitHub (Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar)",
@@ -756,7 +885,6 @@
           "id": "6.1-RD-d",
           "claim": "The dApp is live at orizons.xyz and runs on Stellar testnet.",
           "status": "present",
-          "note": "orizons.xyz points at testnet for this sprint and is due to switch back to mainnet afterwards, so a visit after the sprint may show mainnet (see the notes).",
           "links": [
             {
               "label": "The live Orizon app on orizons.xyz (testnet during the sprint)",
@@ -774,15 +902,14 @@
           "id": "6.1-RD-e",
           "claim": "The API is live at orizon-agents-be-stellar.onrender.com and reports testnet.",
           "status": "present",
-          "note": "The API runs on a free plan, so the first request can take up to a minute while it wakes. It is updated by a manual deploy and was last deployed on 2026-09-29 (see the notes).",
           "links": [
             {
-              "label": "Live API: the network (testnet) and the four contract addresses it uses",
+              "label": "Live API: the network (testnet) and the four contract addresses it uses (on a free plan, so the first request can take up to a minute; see the notes)",
               "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/network",
               "kind": "page"
             },
             {
-              "label": "Live API status check: ready, with the platform's scoring key",
+              "label": "Live API status check: ready, on escrow v2 with refund reconciliation on, with the platform's scoring key",
               "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
               "kind": "page"
             },
@@ -797,7 +924,6 @@
           "id": "6.1-RD-f",
           "claim": "Every registration, settlement and attestation is viewable on Stellar Expert (testnet) under the four live contract IDs.",
           "status": "present",
-          "note": "These are the live contracts the API reports. On 2026-09-30 the payment escrow changed: escrow v2 (CCNO5…5VC4), deployed that day, replaced the v1 escrow as the one the API settles through, and v1 stays on-chain with its history. Each contract page has an Events tab that lists everything it has recorded. They now show the sprint's first settlements and attestations, three team test runs of 2026-09-30 (see Deliverable 4).",
           "links": [
             {
               "label": "AgentRegistry contract on Stellar Expert (testnet): every agent registration",
@@ -862,7 +988,7 @@
       "achieved": "11",
       "status": "met",
       "method": "Read every agent the AgentRegistry contract lists, with its owner, straight from testnet. An agent counts only if its owner is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
-      "reason": "Met on registrations, which is what the SOW counts: 11 agents registered from 7 outside operators' wallets, 6 on 2026-09-29 and 5 on 2026-09-30. One of them is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their ids and registration hashes are held back here until each operator's consent to publish them is recorded.",
+      "reason": "Met on registrations, which is what the SOW counts: 11 agents registered from 7 outside operators' wallets, 6 on 2026-09-29 and 5 on 2026-09-30. One of them, Powerbot, is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. The outside operators were recruited through the Blocksmiths community and onboarding sessions. The platform lists outside operators publicly, so each registration is linked here.",
       "links": [
         {
           "label": "AgentRegistry contract (every registered agent)",
@@ -961,9 +1087,81 @@
           "date": "2026-09-29"
         },
         {
-          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
+          "label": "Registration of Data_Autobot by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+          "kind": "tx",
+          "tx_hash": "3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Learning_Bot by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+          "kind": "tx",
+          "tx_hash": "d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Powerbot by an outside operator's wallet GCVOW…KQKX (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "kind": "tx",
+          "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of fitness_autobot by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+          "kind": "tx",
+          "tx_hash": "3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of game_fi by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+          "kind": "tx",
+          "tx_hash": "3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of messaging_bot by an outside operator's wallet GDGI3…GUFQ (counted: outside operator) — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+          "kind": "tx",
+          "tx_hash": "0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Gamer_Bot by an outside operator's wallet GBG2J…62U5 (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+          "kind": "tx",
+          "tx_hash": "3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of ReWoA_bot by an outside operator's wallet GD45P…WTAQ (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+          "kind": "tx",
+          "tx_hash": "8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of SocialFi_Bot by an outside operator's wallet GB3YZ…2RUN (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+          "kind": "tx",
+          "tx_hash": "4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of Stake_Bot by an outside operator's wallet GBJIX…VZKX (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+          "kind": "tx",
+          "tx_hash": "42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of Trade_Bot by an outside operator's wallet GDSMF…GAU4 (counted: outside operator) — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+          "kind": "tx",
+          "tx_hash": "4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+          "date": "2026-09-30"
         },
         {
           "label": "Registration of faulty_test_v2 by the team's x402 escrow spike key (2026-09-15), random throwaway — 2026-09-30 (excluded: team wallet)",
@@ -982,12 +1180,42 @@
       "achieved": "7",
       "status": "met",
       "method": "The distinct owner wallets of the registered agents, each checked the same way as the row above. A wallet counts only if it is neither one of the team's wallets (the committed register) nor a key the platform runs (network admin, dispatch signer, ratings signer and scorer, registry admin, escrow settler and admin, ledger scorer, attestation sealer).",
-      "reason": "Met on registrations, which is what the SOW counts: 7 outside operators' wallets own agents. 2 registered on 2026-09-29, one owning 1 agent and the other 5, and 5 registered on 2026-09-30, each owning 1 agent. One of the 11 agents is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. Their addresses are held back here until each operator's consent to publish them is recorded.",
+      "reason": "Met on registrations, which is what the SOW counts: 7 outside operators' wallets own agents. 2 registered on 2026-09-29, one owning 1 agent and the other 5, and 5 registered on 2026-09-30, each owning 1 agent. One of the 11 agents is bound to an endpoint, and that endpoint is a parked web page; the other 10 are not bound to any endpoint. None has run or settled. The outside operators were recruited through the Blocksmiths community and onboarding sessions. The platform lists outside operators publicly, so each wallet is linked here.",
       "links": [
         {
-          "label": "Outside operators' agents, on the Ecosystem page. Their agent ids, wallets and transaction hashes are held back until each operator's consent to publish them is recorded",
-          "url": "https://orizons.xyz/app/ecosystem",
-          "kind": "page"
+          "label": "An outside operator's wallet GB3YZ…2RUN — owns SocialFi_Bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GB3YZIZEWDBCFEKO3XUKDXN4HC54SOMQC2OM7CXVMIMIDBUCCN6B2RUN",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GBG2J…62U5 — owns Gamer_Bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GBG2JND3MT2L2HTKR2JT3UQFWITBG2L6T6G6PQBDQRPO2SHH5DNF62U5",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GBJIX…VZKX — owns Stake_Bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GBJIX6LLQVQPHVAVM2TVVLXVKKPPXSMA2LNCKPZUVCHSL5YQUALVVZKX",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GCVOW…KQKX — owns Powerbot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GCVOWZY5SII2HZSYL6I5VFOOYPOJXHMATXRJVKBE227GBW45L7UAKQKX",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GD45P…WTAQ — owns ReWoA_bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GD45PPEMW4LMRVDWXIZ6SZP4QNHO2ASLW5TCCTVFCTOIOHKV2CSCWTAQ",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GDGI3…GUFQ — owns 5 agents (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GDGI37LCBGEYU2BWORMZGN635LOILWE35IMBS65633ZLSTAT4BB6GUFQ",
+          "kind": "account"
+        },
+        {
+          "label": "An outside operator's wallet GDSMF…GAU4 — owns Trade_Bot (counted: outside operator)",
+          "url": "https://stellar.expert/explorer/testnet/account/GDSMFTB3BWMPLAWOGUCPM2MM7TWTSM6TYESKZDAGVXKDXDQKF3UWGAU4",
+          "kind": "account"
         },
         {
           "label": "The team's QA throwaway operator key — owns uat605_ext_op and uat624_ext_op (excluded: team wallet)",
@@ -1183,6 +1411,83 @@
           "kind": "tx",
           "tx_hash": "2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191",
           "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of Powerbot signed by an outside operator's wallet GCVOW…KQKX, not the registry admin — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "kind": "tx",
+          "tx_hash": "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of fitness_autobot signed by an outside operator's wallet GDGI3…GUFQ, not the registry admin — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+          "kind": "tx",
+          "tx_hash": "3a74719f22fafa6fcf4a6f2c4d02aebc0eb3b7dbf81fa2f43f87425a3b6b3e32",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of game_fi signed by an outside operator's wallet GDGI3…GUFQ, not the registry admin — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+          "kind": "tx",
+          "tx_hash": "3ae5f5891e0ad0d9409cfeb4614b12b1ae605fd65744b298c0f8796e86aa4feb",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of messaging_bot signed by an outside operator's wallet GDGI3…GUFQ, not the registry admin — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+          "kind": "tx",
+          "tx_hash": "0508059c00c82f85450c1190df889b19b0517864002a8a855f1297634e3f070f",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Data_Autobot signed by an outside operator's wallet GDGI3…GUFQ, not the registry admin — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+          "kind": "tx",
+          "tx_hash": "3daa955bb807cd4a24b28c6766b722956dcbdd057366c76da2637b9d99bfe89e",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Learning_Bot signed by an outside operator's wallet GDGI3…GUFQ, not the registry admin — 2026-09-29",
+          "url": "https://stellar.expert/explorer/testnet/tx/d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+          "kind": "tx",
+          "tx_hash": "d4ecf78a616521044cc3a9c8cf4e9ce8e4923923f3dc786fc392bff9dfae77aa",
+          "date": "2026-09-29"
+        },
+        {
+          "label": "Registration of Gamer_Bot signed by an outside operator's wallet GBG2J…62U5, not the registry admin — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+          "kind": "tx",
+          "tx_hash": "3c22546932c1185e1ca1a0d7e1eeed85eaff52157cc411fb0315d54f3c0413bb",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of SocialFi_Bot signed by an outside operator's wallet GB3YZ…2RUN, not the registry admin — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+          "kind": "tx",
+          "tx_hash": "4459e4953d3ed30b541adb69788e1b087b6f08a2c1786fd5c1876200d5961cb9",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of Stake_Bot signed by an outside operator's wallet GBJIX…VZKX, not the registry admin — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+          "kind": "tx",
+          "tx_hash": "42d2073094c95c62d5915bd2329f1abed1973c4188ed3236e47df106d689cadf",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of Trade_Bot signed by an outside operator's wallet GDSMF…GAU4, not the registry admin — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+          "kind": "tx",
+          "tx_hash": "4a822e5803fa3b69ba767ed29011b2e9e74d4bf842301f0ecf1132d0d7011c42",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Registration of ReWoA_bot signed by an outside operator's wallet GD45P…WTAQ, not the registry admin — 2026-09-30",
+          "url": "https://stellar.expert/explorer/testnet/tx/8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+          "kind": "tx",
+          "tx_hash": "8bcbf49425ad4552f2317031817c447c781686c644b21bd289a9b68d87201cd7",
+          "date": "2026-09-30"
         }
       ]
     },
@@ -1347,7 +1652,7 @@
     {
       "id": "permissionless_scope",
       "title": "Anyone can register; payment is still run by the platform",
-      "text": "SOW §3.8: \"Deliverable 1 makes registration permissionless; it does not make settlement permissionless.\" Any wallet can register an agent without asking Orizon. Paying agents, writing ratings and deciding disputes are still done by keys the platform holds.",
+      "text": "SOW §3.8: \"Deliverable 1 makes registration permissionless; it does not make settlement permissionless.\" Any wallet can register an agent without asking Orizon. Paying agents, writing ratings and deciding disputes are still done by keys the platform holds. The contract's register call was already open to any wallet: story 1.01 audited it and needed no contract change, so Deliverable 1 has no contracts pull request.",
       "sow_ref": "§3.8"
     },
     {
@@ -1362,7 +1667,7 @@
       "title": "How payment works, and why no payment settled before escrow v2",
       "text": "SOW §3.8: \"the settler executes charge, which moves USDC directly from the buyer to the agent owner's wallet through the Stellar Asset Contract, the platform never takes custody of funds.\" On the v1 escrow, the live escrow until 2026-09-30, this did not work: charge could not move funds from a buyer who was not also the settler (defect D-039, contracts issue #3). No payment between two different wallets ever settled on it.",
       "sow_ref": "§3.8",
-      "changed_since_sow": "Escrow v2 fixes this by holding the buyer's authorized amount from the moment the buyer authorizes, then paying each operator at settlement and returning the rest to the buyer. That means the platform's contract does hold funds for a while, which changes the SOW's \"never takes custody\" statement. v2 was merged in the contracts repository (pull request #4, 2026-09-28) and deployed to testnet on 2026-09-30 as CCNO5…5VC4 (recorded in contracts pull request #6). The live backend settles through it (pull request #88), and its readiness report shows escrow version 2. The first three settlements through it are team test runs (see Deliverable 4)."
+      "changed_since_sow": "This is a change from the SOW. The SOW says the escrow never takes custody of funds; escrow v2, live since 2026-09-30, takes custody of the buyer's authorized amount when the buyer authorizes. It was changed to fix defect D-039, because the v1 escrow could not move a buyer's funds. Escrow v2 then pays each operator at settlement and returns the rest to the buyer. v2 was merged in the contracts repository (pull request #4, 2026-09-28) and deployed to testnet on 2026-09-30 as CCNO5…5VC4 (recorded in contracts pull request #6). The live backend settles through it (pull request #88), and its readiness report shows escrow version 2. The first three settlements through it are team test runs (see Deliverable 4)."
     },
     {
       "id": "platform_credits",
@@ -1383,6 +1688,11 @@
       "text": "SOW §3.8: \"reputation ratings can only be submitted by the platform's scorer key. Settlement, rating submission, and dispute resolution are therefore trusted, permissioned operations today.\" This is still true. Only the platform's production key writes ratings, and disputes are decided by the platform's operator: the first, on a team test run, was upheld on 2026-09-30.",
       "sow_ref": "§3.8",
       "changed_since_sow": "The SOW says a rating is recorded once per settled job. The platform now rates every paid run whether or not its payment settles, so that failed deliveries are also recorded (backend pull request #57). Of the 40 ratings written during the sprint, 36 come from runs whose payment did not settle, including the three failed runs of the team's deliberate faulty test agent, 3 from the team's settled escrow v2 test runs of 2026-09-30, and 1 is the dispute rating written when the first dispute was upheld that day."
+    },
+    {
+      "id": "reputation_weighting",
+      "title": "Small payments barely move a reputation score",
+      "text": "Every agent starts from a prior score of 7000 of 10000 (3.50 stars), which counts as much as 12 XLM of rated jobs, and each rating is weighted by what its job was paid (the live settings: /api/stellar/reputation/params). So ratings on 0.01 XLM jobs barely move a score: calculatorai's two ratings of 95 out of 100 on 2026-09-30 took it from 7000 to 7004, and the upheld dispute's rating later that day took it to 6999 (Deliverable 3). The ★ 3.50 on the Deliverable 2 plan card is that on-chain score, but it is numerically the same as the starting estimate; what differs on the card is the missing '≈' estimate mark. The stronger proof that reputation gates routing is the deliberate faulty test agent left out below the floor in Deliverable 2."
     }
   ],
   "notes": [
@@ -1429,7 +1739,7 @@
     {
       "id": "live_backend",
       "title": "The live API is updated by hand",
-      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It was deployed on 2026-09-29 with everything merged to the backend's main branch up to pull request #94, including the adoption counter (backend pull request #89) and settlement through escrow v2 (backend pull request #88). Until 2026-09-30 that settlement could not run, because escrow v2 was not yet on testnet and the live escrow was v1. On 2026-09-30 escrow v2 was deployed and the live API's escrow setting (STELLAR_PAYMENT_ESCROW) was pointed at it; its readiness report now shows escrow version 2 and refunds switched on, with disputes stored in Postgres."
+      "text": "The live API on Render does not update itself when code merges; the team deploys it by hand. It runs on a free plan, so the first request after a quiet spell can take up to a minute while it wakes. It was deployed on 2026-09-29 with everything merged to the backend's main branch up to pull request #94, including the adoption counter (backend pull request #89) and settlement through escrow v2 (backend pull request #88). Until 2026-09-30 that settlement could not run, because escrow v2 was not yet on testnet and the live escrow was v1. On 2026-09-30 escrow v2 was deployed, the live API's settings were switched to it (STELLAR_PAYMENT_ESCROW) with dispute refunds on (DISPUTE_REFUNDS_ENABLED and REFUND_RECONCILE_ENABLED), and the API was redeployed. It was restarted on 2026-10-01. Read that day, its health check answers ok, and its readiness report shows escrow version 2 (CCNO5…5VC4), refund reconciliation on, disputes stored in Postgres and the production key GDB4N…CDHP writing ratings."
     },
     {
       "id": "network_switch",
