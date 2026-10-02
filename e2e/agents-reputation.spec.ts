@@ -25,6 +25,7 @@ import {
   mockUnratedCatalogReputation,
   mockUnscoredAgent,
 } from "./mocks";
+import { registryRow } from "./registry-rows";
 
 /** The registry these tests read: the shared rows plus an unrated catalog
  *  agent that the batch carries at the live prior. */
@@ -39,9 +40,7 @@ const BATCH = {
 
 /** The agent's own row, by the id in its row header (see agents-unbound). */
 function row(page: Page, agentId: string) {
-  return page.getByRole("row").filter({
-    has: page.getByRole("rowheader", { name: agentId, exact: true }),
-  });
+  return registryRow(page, agentId);
 }
 
 async function registryLoaded(page: Page, count: number) {
