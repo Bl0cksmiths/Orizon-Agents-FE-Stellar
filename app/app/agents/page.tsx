@@ -479,8 +479,17 @@ export default function AgentsPage() {
                         aria-labelledby={`${uid}-agent-${i}`}
                         className="py-3 text-left font-mono font-normal"
                       >
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span id={`${uid}-agent-${i}`} title={`id: ${a.id}`}>
+                        {/* Capped, and a name with no break opportunity
+                            breaks anywhere: one long name otherwise set the
+                            column to its full width and starved the numeric
+                            columns, running their headers together. Long
+                            names wrap here, inside their own column. */}
+                        <div className="flex max-w-[18rem] flex-wrap items-center gap-2">
+                          <span
+                            id={`${uid}-agent-${i}`}
+                            title={`id: ${a.id}`}
+                            className="min-w-0 [overflow-wrap:anywhere]"
+                          >
                             {a.name}{" "}
                             <span className="sr-only">(id: {a.id})</span>
                           </span>
