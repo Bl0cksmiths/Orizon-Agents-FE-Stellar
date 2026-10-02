@@ -1577,15 +1577,21 @@
       "method": "Read each part's running time and publication date from its YouTube page, and checked the /demo page's manifest by the page's own build rules (npm run demo:check), which hold the parts together to 3 to 5 minutes.",
       "links": [
         {
-          "label": "Demo page",
+          "label": "Demo page, with both parts, their chapters and transcripts",
           "url": "https://orizons.xyz/demo",
           "kind": "page"
         },
         {
-          "label": "Frontend pull request #97 (merged): the demo script and the /demo page",
-          "url": "https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97",
-          "kind": "pr",
-          "date": "2026-09-29"
+          "label": "Part 1 on YouTube, the operator's side (3 min 9 s)",
+          "url": "https://www.youtube.com/watch?v=LM7iecSviSI",
+          "kind": "video",
+          "date": "2026-10-02"
+        },
+        {
+          "label": "Part 2 on YouTube, the buyer's side (1 min 11 s)",
+          "url": "https://www.youtube.com/watch?v=6NfblJwVEXg",
+          "kind": "video",
+          "date": "2026-07-24"
         }
       ]
     },
