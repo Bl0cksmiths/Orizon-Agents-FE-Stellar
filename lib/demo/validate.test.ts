@@ -255,13 +255,18 @@ describe("chapters", () => {
     ]);
   });
 
-  it("must map onto all four deliverables with a known tag", () => {
+  it("must carry a known tag", () => {
     const m = published();
     m.chapters[4].deliverable = "D5";
     expect(problems(m)).toEqual([
       'chapters[4].deliverable must be one of D1, D2, D3, D4, all, not "D5"',
-      "chapters must map onto all four deliverables; none is tagged D4",
     ]);
+  });
+
+  it("need not tag every deliverable: one the video does not show stays untagged", () => {
+    const m = published();
+    m.chapters = m.chapters.filter((c) => c.deliverable !== "D3");
+    expect(problems(m)).toEqual([]);
   });
 
   it("must not be empty once published", () => {
