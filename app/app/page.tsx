@@ -242,8 +242,8 @@ export default function OverviewPage() {
                     scope="row"
                     className="py-3 pr-4 text-left font-mono text-xs font-normal text-muted"
                   >
-                    {/* Capped like the registry's id column; the whole id
-                        stays in the cell and in the title. */}
+                    {/* Capped and ellipsised; the whole id stays in the
+                        cell and in the title. */}
                     <span title={t.id} className="block max-w-[10rem] truncate">
                       {t.id}
                     </span>
