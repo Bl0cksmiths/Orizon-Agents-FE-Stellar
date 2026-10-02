@@ -5,6 +5,7 @@
  */
 
 import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
+import type { DemoRole } from "./load";
 
 export const DEMO_PATH = "/demo";
 
@@ -19,6 +20,25 @@ export const DELIVERABLE_NAMES: Record<Deliverable, string> = {
   D3: "Dispute window and partial-credit refund",
   D4: "Ecosystem validation",
 };
+
+/** Whose side each part shows, as its heading names it. */
+export const ROLE_LABEL: Record<DemoRole, string> = {
+  operator: "The operator's side",
+  buyer: "The buyer's side",
+};
+
+/** "Part 2: The buyer's side"; a part's heading, numbered from 1. */
+export function partHeading(index: number, role: DemoRole): string {
+  return `Part ${index + 1}: ${ROLE_LABEL[role]}`;
+}
+
+/**
+ * The one plain sentence under a part recorded on an earlier console, so it
+ * is never taken for the console as it is now.
+ */
+export function earlierConsoleNote(recordedOn: string): string {
+  return `This part was recorded on ${formatDemoDate(recordedOn)}, on an earlier version of the console than the one live now.`;
+}
 
 /** A deliverable tag's full meaning, for screen readers and tooltips alike. */
 export function deliverableLabel(d: Deliverable): string {
