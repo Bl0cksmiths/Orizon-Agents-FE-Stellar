@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useId, useMemo, useState } from "react";
 import { m } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,8 @@ function readAt(ms: number): string {
 }
 
 export default function AgentsPage() {
+  // Each row header is named by its agent's name; this keeps those ids unique.
+  const uid = useId();
   const {
     data: agents,
     error,
@@ -375,19 +377,17 @@ export default function AgentsPage() {
               the runs figures clipped. The container is already a keyboard-
               reachable horizontal scroller, so below this width the right
               answer is to scroll rather than to squeeze columns a buyer is
-              trying to compare. */}
-          <table className="w-full min-w-[60rem] text-sm">
+              trying to compare. It was 60rem with the id column; that column
+              took up to 13rem, so the six left keep the same room at 48rem. */}
+          <table className="w-full min-w-[48rem] text-sm">
             {/* The page heading names this table on screen; the caption
                 repeats it for assistive tech only. */}
             <caption className="sr-only">
-              Agent registry — identity, skills, price, reputation, runs and
-              status
+              Agent registry — agent, skills, price, reputation, runs and status
             </caption>
             <thead>
-              <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-                <th scope="col" className="pb-3 text-left">
-                  id
-                </th>
+              {/* Each header on one line: "price / call" broke over three. */}
+              <tr className="whitespace-nowrap border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 <th scope="col" className="pb-3 text-left">
                   agent
                 </th>
@@ -397,13 +397,16 @@ export default function AgentsPage() {
                 <th scope="col" className="pb-3 text-right">
                   price / call
                 </th>
-                <th scope="col" className="pb-3 text-right">
+                {/* `pl-4` on reputation, runs and status: each is aligned
+                    against its neighbour, and with no gutter the chip, the
+                    runs figure and the badge ran into one another. */}
+                <th scope="col" className="pb-3 pl-4 text-right">
                   reputation
                 </th>
-                <th scope="col" className="pb-3 text-right">
+                <th scope="col" className="pb-3 pl-4 text-right">
                   runs
                 </th>
-                <th scope="col" className="pb-3 text-left">
+                <th scope="col" className="pb-3 pl-4 text-left">
                   status
                 </th>
                 {/* The actions column is unlabelled by design — name it for
@@ -421,7 +424,7 @@ export default function AgentsPage() {
                 !error &&
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50">
-                    <td colSpan={8} className="py-3">
+                    <td colSpan={7} className="py-3">
                       <Skeleton className="h-5 w-full" />
                       {i === 0 && <LoadingStatus label="Loading agents…" />}
                     </td>
@@ -431,7 +434,7 @@ export default function AgentsPage() {
               {!agents && error && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={7}
                     className="py-10 text-center text-muted font-mono text-xs"
                   >
                     no agents to show — the registry could not be read.
@@ -464,28 +467,39 @@ export default function AgentsPage() {
                       }}
                       className="border-b border-border/50 last:border-0 hover:bg-violet/5 transition"
                     >
-                      {/* The agent id identifies the row, so it is the row
-                      header; `text-left font-normal` only holds the cell's
-                      existing look against the th defaults. */}
+                      {/* The agent's name identifies the row, so it is the row
+                          header; `text-left font-normal` only holds the cell's
+                          existing look against the th defaults.
+
+                          Named by the name alone, plus the id out of sight
+                          (`aria-labelledby`): the cell also holds the binding
+                          and standing marks, and a header that recited them
+                          would be read again on every cell a screen reader
+                          moves to down the table. The id is in that name so
+                          two agents sharing a name are still told apart, and
+                          in the name's title for a pointer. */}
                       <th
                         scope="row"
-                        className="py-3 pr-4 text-left font-mono text-xs font-normal text-muted"
+                        aria-labelledby={`${uid}-agent-${i}`}
+                        className="py-3 text-left font-mono font-normal"
                       >
-                        {/* Capped and ellipsised: one 64-character id set the
-                            column to its full width and pushed every other
-                            column off a phone. The text is all still in the
-                            cell, so the row header's name is the whole id;
-                            the title shows it on hover. */}
-                        <span
-                          title={a.id}
-                          className="block max-w-[12rem] truncate"
-                        >
-                          {a.id}
-                        </span>
-                      </th>
-                      <td className="py-3 font-mono">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {a.name}
+                        {/* Capped, and a name with no break opportunity
+                            breaks anywhere: one long name otherwise set the
+                            column to its full width and starved the numeric
+                            columns, running their headers together. Long
+                            names wrap here, inside their own column. The
+                            floor is the standing marks' own 14rem cap, so at
+                            the table's narrowest a mark such as "below floor ·
+                            not eligible" is never folded inside its chip. */}
+                        <div className="flex min-w-[14rem] max-w-[18rem] flex-wrap items-center gap-2">
+                          <span
+                            id={`${uid}-agent-${i}`}
+                            title={`id: ${a.id}`}
+                            className="min-w-0 [overflow-wrap:anywhere]"
+                          >
+                            {a.name}{" "}
+                            <span className="sr-only">(id: {a.id})</span>
+                          </span>
                           {/* The `LIVE` badge that used to sit here has been
                               removed rather than relabelled.
 
@@ -525,7 +539,7 @@ export default function AgentsPage() {
                             bindingLookup={bindingState !== null}
                           />
                         </div>
-                      </td>
+                      </th>
                       <td className="py-3">
                         <div className="flex flex-wrap gap-1.5">
                           {a.skills.map((s) => (
@@ -538,21 +552,26 @@ export default function AgentsPage() {
                       <td className="py-3 text-right font-mono text-cyan">
                         {a.price.toFixed(3)}
                       </td>
-                      <td className="py-3 text-right">
+                      <td className="whitespace-nowrap py-3 pl-4 text-right">
                         <ReputationCell
                           agentName={a.name}
                           rep={repBatch?.reputations[a.id] ?? null}
                           read={repRead}
                         />
                       </td>
-                      <td className="py-3 text-right font-mono text-xs text-muted">
+                      <td className="whitespace-nowrap py-3 pl-4 text-right font-mono text-xs text-muted">
                         {a.runs.toLocaleString()}
                       </td>
-                      <td className="py-3">
+                      <td className="py-3 pl-4">
+                        {/* No `break-all`: it let the table squeeze a badge to
+                            one letter wide, and "online" broke as "onlin / e".
+                            `break-word` only breaks a word that cannot fit
+                            the 10rem cap, which is a status this build does
+                            not know, sent at some unforeseen length. */}
                         <Badge
                           tone={toneOf(a.status)}
                           dot={a.status === "online"}
-                          className="max-w-[10rem] whitespace-normal break-all"
+                          className="max-w-[10rem] [overflow-wrap:break-word]"
                         >
                           {a.status}
                         </Badge>
@@ -591,7 +610,7 @@ export default function AgentsPage() {
                         endpoint for whenever it is relisted. */}
                     {bindingState === "unbound" && isListed(a) && (
                       <tr className="border-b border-border/50 bg-bg/20">
-                        <td colSpan={8} className="px-1 pb-4">
+                        <td colSpan={7} className="px-1 pb-4">
                           <PinnedToView>
                             <UnboundNotice agentId={a.id} agentName={a.name} />
                           </PinnedToView>
@@ -604,7 +623,7 @@ export default function AgentsPage() {
                         out. */}
                     {bindingState === "error" && (
                       <tr className="border-b border-border/50 bg-bg/20">
-                        <td colSpan={8} className="px-1 pb-4">
+                        <td colSpan={7} className="px-1 pb-4">
                           <PinnedToView>
                             <ErrorNote
                               className="clip-cyber-sm"
@@ -621,7 +640,7 @@ export default function AgentsPage() {
                     )}
                     {open && (
                       <tr className="border-b border-border/50 bg-bg/20">
-                        <td colSpan={8} className="px-1 pb-4">
+                        <td colSpan={7} className="px-1 pb-4">
                           <PinnedToView>
                             <ManagePanel
                               agent={a}
@@ -638,7 +657,7 @@ export default function AgentsPage() {
               {agents && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={7}
                     className="py-10 text-center text-muted font-mono text-xs"
                   >
                     no agents match your filters.
@@ -656,11 +675,11 @@ export default function AgentsPage() {
 /**
  * A full-width row's content, held to the visible part of the scroller.
  *
- * The notice and manage rows span all eight columns, so they were as wide as
- * the 60rem table: on a phone their sentences ran off past the card edge and
- * the bind button sat out of sight, a sideways scroll away. Sticky at the
- * left and one scroller wide (`100cqw`), they stay put while the columns
- * above them scroll.
+ * The notice and manage rows span all seven columns, so they were as wide as
+ * the table at its 48rem floor: on a phone their sentences ran off past the
+ * card edge and the bind button sat out of sight, a sideways scroll away.
+ * Sticky at the left and one scroller wide (`100cqw`), they stay put while
+ * the columns above them scroll.
  */
 function PinnedToView({ children }: { children: React.ReactNode }) {
   return (

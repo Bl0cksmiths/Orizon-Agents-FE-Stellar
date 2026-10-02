@@ -42,6 +42,7 @@ import {
 } from "./mocks";
 import { motionSettled } from "./motion-settled";
 import { mockNetwork } from "./plan-fixtures";
+import { registryRowHeader, registryRowName } from "./registry-rows";
 
 const WIDTHS = [360, 768, 1024, 1440, 1920] as const;
 /** Where the sidebar stops being a drawer (DESKTOP_NAV_QUERY). */
@@ -618,23 +619,21 @@ test.describe("the console drawer", () => {
 });
 
 test.describe("long values stay readable", () => {
-  test("a capped id keeps its whole value in the title and the accessible name", async ({
+  // The registry has no id column; a long id lives on whole in the name's
+  // title and in the row header's accessible name, never on screen.
+  test("a long id keeps its whole value in the title and the accessible name", async ({
     page,
   }) => {
     await mockConsole(page);
     await page.setViewportSize({ width: 360, height: 900 });
     await page.goto("/app/agents");
-    const header = page.getByRole("rowheader", { name: LONG_ID, exact: true });
+    const header = registryRowHeader(page, LONG_ID);
     await expect(header).toHaveCount(1);
-    await expect(header.locator(`[title="${LONG_ID}"]`)).toHaveCount(1);
-    // Ellipsised on screen: the box is narrower than the text in it.
-    const cut = await header
-      .locator(`[title="${LONG_ID}"]`)
-      .evaluate((el) => el.scrollWidth > el.clientWidth);
-    expect(cut).toBe(true);
+    await expect(header).toHaveAccessibleName(registryRowName(longAgent));
+    await expect(header.locator(`[title="id: ${LONG_ID}"]`)).toHaveCount(1);
   });
 
-  // The unbound notice spans every column of a 60rem table. Held to the
+  // The unbound notice spans every column of a 48rem table. Held to the
   // scroller's visible width, its bind action is on screen however far the
   // columns above it are scrolled.
   test("a full-width registry row stays in view while the table scrolls", async ({

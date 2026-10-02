@@ -25,6 +25,7 @@ import {
   mockWalletAddress,
 } from "./mocks";
 import { UNBOUND_WARNING } from "../lib/binding-status";
+import { registryRow } from "./registry-rows";
 
 const DELISTED_ID = mockDelistedAgent.id;
 const AGENTS = [...mockAgents, mockDelistedAgent];
@@ -87,9 +88,7 @@ async function accessibleAt390(page: Page) {
 
 /** The agent's own row, by the id in its row header (see agents-unbound). */
 function row(page: Page, agentId: string) {
-  return page.getByRole("row").filter({
-    has: page.getByRole("rowheader", { name: agentId, exact: true }),
-  });
+  return registryRow(page, agentId);
 }
 
 test.describe("a delisted agent in the marketplace", () => {
