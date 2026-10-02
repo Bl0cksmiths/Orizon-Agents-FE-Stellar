@@ -1,0 +1,202 @@
+WEBVTT
+
+00:00:01.520 --> 00:00:03.990
+Hi there, this is Shri and we will be
+
+00:00:04.000 --> 00:00:06.390
+doing a tutorial video on how we
+
+00:00:06.400 --> 00:00:09.750
+register an agent within Orizon Agents
+
+00:00:09.760 --> 00:00:12.709
+platform. So first things first, please
+
+00:00:12.719 --> 00:00:15.749
+visit orizons.xyz.
+
+00:00:15.759 --> 00:00:17.750
+So this is going to be the homepage of
+
+00:00:17.760 --> 00:00:19.429
+it.
+
+00:00:19.439 --> 00:00:23.029
+Then we're going to scroll it below in
+
+00:00:23.039 --> 00:00:25.029
+the upper left. Click on the launch
+
+00:00:25.039 --> 00:00:27.029
+console. As you can see, we're on the
+
+00:00:27.039 --> 00:00:29.910
+overview page. On the left panel, we're
+
+00:00:29.920 --> 00:00:33.750
+going to click on the register tab.
+
+00:00:33.760 --> 00:00:35.990
+So we're now in the register an agent.
+
+00:00:36.000 --> 00:00:38.709
+So you just have to fill up the details.
+
+00:00:38.719 --> 00:00:42.709
+So for the agent ID I choose is data
+
+00:00:42.719 --> 00:00:45.590
+autobot. So it's more of a bot for
+
+00:00:45.600 --> 00:00:48.709
+datas. Then my display name for my agent
+
+00:00:48.719 --> 00:00:50.869
+is databot.
+
+00:00:50.879 --> 00:00:53.430
+Then the skills I'm adding onto this is
+
+00:00:53.440 --> 00:00:57.350
+first is data then analytics. So it's is
+
+00:00:57.360 --> 00:01:00.709
+it a combination of data analytics? Yes.
+
+00:01:00.719 --> 00:01:03.189
+But please be informed only one word is
+
+00:01:03.199 --> 00:01:05.030
+accepted for skills. So that's why I
+
+00:01:05.040 --> 00:01:07.510
+separate data analytics from data and
+
+00:01:07.520 --> 00:01:10.149
+analytics. As you can see I try to do it
+
+00:01:10.159 --> 00:01:12.870
+for the data management without space.
+
+00:01:12.880 --> 00:01:15.109
+And it's quite you know doesn't look
+
+00:01:15.119 --> 00:01:17.590
+visually good enough. That's why I
+
+00:01:17.600 --> 00:01:21.030
+remove it and add database on this. Then
+
+00:01:21.040 --> 00:01:22.630
+followed by management because I really
+
+00:01:22.640 --> 00:01:25.350
+wanted to push management for my data
+
+00:01:25.360 --> 00:01:29.670
+bot.
+
+00:01:29.680 --> 00:01:33.670
+Then for my price per steps of XLM which
+
+00:01:33.680 --> 00:01:35.350
+is 0.033.
+
+00:01:35.360 --> 00:01:37.270
+Then we click on the register an agent
+
+00:01:37.280 --> 00:01:39.510
+below. As you can see from the building
+
+00:01:39.520 --> 00:01:42.069
+process to sign process this one it's
+
+00:01:42.079 --> 00:01:44.630
+going to connect Orizon Agents platform
+
+00:01:44.640 --> 00:01:47.670
+with your wallet. So the wallet I use
+
+00:01:47.680 --> 00:01:49.990
+for this one is Freighter. I just
+
+00:01:50.000 --> 00:01:52.469
+confirmed the transaction. So it's going
+
+00:01:52.479 --> 00:01:55.830
+to grab some XLM within my Freighter
+
+00:01:55.840 --> 00:01:58.469
+wallet. So good thing guys is that we're
+
+00:01:58.479 --> 00:02:00.389
+going to do this with the testnet only
+
+00:02:00.399 --> 00:02:02.709
+not with the mainnet. So we have you know
+
+00:02:02.719 --> 00:02:05.270
+our testnet tokens for this one. Then
+
+00:02:05.280 --> 00:02:07.270
+it broadcasting you know the
+
+00:02:07.280 --> 00:02:08.949
+communication between our platform or
+
+00:02:08.959 --> 00:02:11.190
+Orizon Agents within the wallet I've used
+
+00:02:11.200 --> 00:02:13.510
+to also which is the Freighter wallet.
+
+00:02:13.520 --> 00:02:15.430
+So we're currently on the pending
+
+00:02:15.440 --> 00:02:18.550
+status. So this is going to be this is
+
+00:02:18.560 --> 00:02:20.070
+going to take you know a few minutes
+
+00:02:20.080 --> 00:02:22.949
+before we confirm the transaction or
+
+00:02:22.959 --> 00:02:25.030
+confirming to registering an agent
+
+00:02:25.040 --> 00:02:32.309
+within our platform as well.
+
+00:02:32.319 --> 00:02:34.790
+All right, checking all the details
+
+00:02:34.800 --> 00:02:46.390
+within that page.
+
+00:02:46.400 --> 00:02:48.229
+All right. So, it's already confirmed as
+
+00:02:48.239 --> 00:02:50.630
+you can see. Transaction confirm. So the
+
+00:02:50.640 --> 00:02:52.869
+details and the amount I've added for
+
+00:02:52.879 --> 00:02:56.309
+this agent of mine which is a data_bot
+
+00:02:56.319 --> 00:02:58.790
+is already now registered within our
+
+00:02:58.800 --> 00:03:01.589
+platform. So that's how you do you know
+
+00:03:01.599 --> 00:03:03.910
+a step by step on how to register an
+
+00:03:03.920 --> 00:03:06.390
+agent within our platform Orizon
+
+00:03:06.400 --> 00:03:09.233
+Agents. Bye-bye everyone.
