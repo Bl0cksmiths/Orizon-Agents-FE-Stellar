@@ -10,13 +10,15 @@
  * Asserted:
  *   - unpublished: the agreed notice, the verify-it-yourself links and the
  *     limitations; no player, poster or evidence, and nothing third-party;
- *   - published: YouTube stays off the page until Play (not one request to
- *     any other origin before the click), then the privacy-enhanced embed
- *     loads, holding focus and sending only our origin as its referrer;
- *     chapters seek by reloading at their time; every evidence row links to
- *     its own testnet transaction; the frame source is allowed on /demo only;
+ *   - published: both parts in order, the earlier-console sentence on the
+ *     part that needs it; YouTube stays off the page until Play (not one
+ *     request to any other origin before the click), then the privacy-enhanced
+ *     embed loads, holding focus and sending only our origin as its referrer;
+ *     chapters seek their own part's player by reloading at their time; every
+ *     evidence row links to its own testnet transaction; the frame source is
+ *     allowed on /demo only;
  *   - both: no sideways scroll at 360px, axe clean, readable with JavaScript
- *     off (the "Watch on YouTube" fallback is there).
+ *     off (each part's "Watch part N on YouTube" fallback is there).
  *
  * The YouTube embed and the poster are stubbed at the network edge, so the
  * suite never depends on YouTube being reachable.
@@ -37,9 +39,14 @@ const PUBLISHED = `http://localhost:${DEMO_PUBLISHED_PORT}/demo`;
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 360, height: 780 };
 
-const TITLE = "Fixture: Orizon Agents on Stellar testnet";
-const EMBED =
-  "https://www.youtube-nocookie.com/embed/fixtureVid0?autoplay=1&rel=0&cc_load_policy=1";
+const OPERATOR = "Fixture: an operator registers an agent";
+const BUYER = "Fixture: a buyer pays for a workflow";
+const embed = (id: string) =>
+  `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&cc_load_policy=1`;
+const EMBED = embed("fixtureOpr1");
+const BUYER_EMBED = embed("fixtureBuy2");
+const EARLIER =
+  "This part was recorded on July 20, 2026, on an earlier version of the console than the one live now.";
 const NOTICE =
   "The demo video has not been recorded yet. It will show only real testnet transactions. Until then, here is how to verify each deliverable yourself.";
 
@@ -254,12 +261,21 @@ for (const [name, viewport] of [
       );
       const response = await page.goto(PUBLISHED);
       expect(response?.status()).toBe(200);
+      await expect(
+        page.getByRole("heading", { level: 2, name: /^Part \d: / }),
+      ).toHaveText(["Part 1: The operator's side", "Part 2: The buyer's side"]);
+      await expect(page.locator("[data-earlier-console]")).toHaveText(EARLIER);
+      await expect(
+        page.getByRole("button", {
+          name: `Play video: ${BUYER} (1 min 42 s)`,
+        }),
+      ).toBeAttached();
       const play = page.getByRole("button", {
-        name: `Play video: ${TITLE} (4 min 12 s)`,
+        name: `Play video: ${OPERATOR} (2 min 30 s)`,
       });
       await expect(play).toBeVisible();
       await page.waitForLoadState("networkidle");
-      // The poster came through our own optimiser; YouTube was never asked.
+      // The posters came through our own optimiser; YouTube was never asked.
       expect(thirdParty).toEqual([]);
       await expect(page.locator("iframe")).toHaveCount(0);
 
@@ -268,7 +284,7 @@ for (const [name, viewport] of [
       await expect(frame).toHaveAttribute("src", EMBED);
       await expect(frame).toHaveAttribute(
         "title",
-        `YouTube video player: ${TITLE}`,
+        `YouTube video player: ${OPERATOR}`,
       );
       await expect(frame).toBeFocused();
       await expect(
@@ -291,7 +307,7 @@ for (const [name, viewport] of [
       await page.goto(PUBLISHED);
       await expect(
         page.getByRole("button", { name: /^Play video/ }),
-      ).toBeVisible();
+      ).toHaveCount(2);
       expect(await sidewaysOverflow(page)).toEqual([]);
       expect(await axeProblems(page)).toEqual([]);
       if (name === "phone") {
@@ -316,35 +332,60 @@ test.describe("published demo: player, chapters and evidence", () => {
   }) => {
     const { page } = await stranger(browser, { viewport: DESKTOP });
     await page.goto(PUBLISHED);
-    const play = page.getByRole("button", { name: /^Play video/ });
+    const play = page.getByRole("button", {
+      name: `Play video: ${BUYER} (1 min 42 s)`,
+    });
     await play.focus();
     await page.keyboard.press("Enter");
+    await expect(page.locator("iframe")).toHaveAttribute("src", BUYER_EMBED);
     await expect(page.locator("iframe")).toBeFocused();
     await page.context().close();
   });
 
-  test("a chapter reloads the player at its time", async ({ browser }) => {
+  test("a chapter reloads its own part's player at its time", async ({
+    browser,
+  }) => {
     const { page, thirdParty } = await stranger(browser, { viewport: PHONE });
     await page.goto(PUBLISHED);
     await expect(
-      page.getByRole("button", { name: /^Play video/ }),
+      page.getByRole("button", { name: /^Play video/ }).first(),
     ).toBeVisible();
+    const part = (n: number) =>
+      page.locator("section", {
+        has: page.getByRole("heading", {
+          level: 2,
+          name: new RegExp(`^Part ${n}: `),
+        }),
+      });
+
     const chapter = page.getByRole("link", { name: /^1:15 / });
     await expect(chapter).toHaveAttribute(
       "href",
-      "https://www.youtube.com/watch?v=fixtureVid0&t=75s",
+      "https://www.youtube.com/watch?v=fixtureOpr1&t=75s",
     );
     await chapter.click();
     await expect(page).toHaveURL(PUBLISHED);
-    const frame = page.locator("iframe");
-    await expect(frame).toHaveAttribute("src", `${EMBED}&start=75`);
-    await expect(frame).toBeFocused();
-    await expect(frame).toBeInViewport();
+    const operatorFrame = part(1).locator("iframe");
+    await expect(operatorFrame).toHaveAttribute("src", `${EMBED}&start=75`);
+    await expect(operatorFrame).toBeFocused();
+    await expect(operatorFrame).toBeInViewport();
     await expect(chapter).toHaveAttribute("aria-current", "true");
 
-    await page.getByRole("link", { name: /^2:20 / }).click();
-    await expect(frame).toHaveAttribute("src", `${EMBED}&start=140`);
-    expect(thirdParty).toEqual([`${EMBED}&start=75`, `${EMBED}&start=140`]);
+    // A buyer chapter plays the buyer's video, in the buyer's player.
+    const buyerChapter = page.getByRole("link", { name: /^1:20 / });
+    await expect(buyerChapter).toHaveAttribute(
+      "href",
+      "https://www.youtube.com/watch?v=fixtureBuy2&t=80s",
+    );
+    await buyerChapter.click();
+    const buyerFrame = part(2).locator("iframe");
+    await expect(buyerFrame).toHaveAttribute("src", `${BUYER_EMBED}&start=80`);
+    await expect(buyerFrame).toBeFocused();
+    await expect(operatorFrame).toHaveAttribute("src", `${EMBED}&start=75`);
+    expect(thirdParty).toEqual([
+      `${EMBED}&start=75`,
+      `${BUYER_EMBED}&start=80`,
+    ]);
     await page.context().close();
   });
 
@@ -391,7 +432,7 @@ test.describe("published demo: player, chapters and evidence", () => {
 });
 
 test.describe("demo with JavaScript disabled", () => {
-  test("published: reads in full, and Watch on YouTube is the way to the video", async ({
+  test("published: reads in full, and Watch on YouTube is the way to each part", async ({
     browser,
   }) => {
     const { page, thirdParty } = await stranger(browser, {
@@ -400,8 +441,11 @@ test.describe("demo with JavaScript disabled", () => {
     });
     await page.goto(PUBLISHED);
     await expect(
-      page.getByRole("link", { name: "Watch on YouTube" }),
-    ).toHaveAttribute("href", "https://www.youtube.com/watch?v=fixtureVid0");
+      page.getByRole("link", { name: "Watch part 1 on YouTube" }),
+    ).toHaveAttribute("href", "https://www.youtube.com/watch?v=fixtureOpr1");
+    await expect(
+      page.getByRole("link", { name: "Watch part 2 on YouTube" }),
+    ).toHaveAttribute("href", "https://www.youtube.com/watch?v=fixtureBuy2");
     // No dead button: before hydration the poster is a link, not a control.
     await expect(page.getByRole("button", { name: /^Play video/ })).toHaveCount(
       0,
@@ -409,8 +453,13 @@ test.describe("demo with JavaScript disabled", () => {
     await expect(page.locator("iframe")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /^1:15 / })).toHaveAttribute(
       "href",
-      "https://www.youtube.com/watch?v=fixtureVid0&t=75s",
+      "https://www.youtube.com/watch?v=fixtureOpr1&t=75s",
     );
+    await expect(page.getByRole("link", { name: /^1:20 / })).toHaveAttribute(
+      "href",
+      "https://www.youtube.com/watch?v=fixtureBuy2&t=80s",
+    );
+    await expect(page.locator("[data-earlier-console]")).toHaveText(EARLIER);
     await expect(
       page.getByRole("region", { name: "On-chain evidence table" }),
     ).toBeVisible();
