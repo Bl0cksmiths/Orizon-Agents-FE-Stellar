@@ -557,10 +557,15 @@ export default function AgentsPage() {
                         {a.runs.toLocaleString()}
                       </td>
                       <td className="py-3">
+                        {/* No `break-all`: it let the table squeeze a badge to
+                            one letter wide, and "online" broke as "onlin / e".
+                            `break-word` only breaks a word that cannot fit
+                            the 10rem cap, which is a status this build does
+                            not know, sent at some unforeseen length. */}
                         <Badge
                           tone={toneOf(a.status)}
                           dot={a.status === "online"}
-                          className="max-w-[10rem] whitespace-normal break-all"
+                          className="max-w-[10rem] [overflow-wrap:break-word]"
                         >
                           {a.status}
                         </Badge>
