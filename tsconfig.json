@@ -21,13 +21,15 @@
     }
   },
   // .next/e2e-demo is the build directory of Playwright's second dev server
-  // (see playwright.config.ts). It is listed so `next dev` finds nothing to add.
+  // (see playwright.config.ts), and .next/hero-isr that of
+  // scripts/hero-isr-check.mjs. They are listed so Next finds nothing to add.
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/e2e-demo/types/**/*.ts"
+    ".next/e2e-demo/types/**/*.ts",
+    ".next/hero-isr/types/**/*.ts"
   ],
   // The weekly tranche bundles are submission evidence, not application
   // sources: they carry the capture scripts the screenshots were made with,

@@ -18,6 +18,7 @@
     "check:addresses": "node scripts/check-contract-addresses.mjs",
     "lighthouse": "npx --yes @lhci/cli autorun",
     "smoke": "node scripts/smoke-deploy.mjs",
+    "hero:isr": "node scripts/hero-isr-check.mjs",
     "test:parity": "node --test scripts/live-contract-parity.test.mjs scripts/check-contract-addresses.test.mjs scripts/smoke-deploy.test.mjs scripts/guide-samples/*.test.mjs && npm run guide:check && npm run evidence:check",
     "guide:check": "node scripts/guide-samples/cli.mjs --static",
     "guide:live": "node scripts/guide-samples/cli.mjs --live",
