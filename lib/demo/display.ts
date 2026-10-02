@@ -9,7 +9,8 @@ import { LIST_YOUR_AGENT_PATH } from "@/lib/guide/display";
 export const DEMO_PATH = "/demo";
 
 export type Deliverable = "D1" | "D2" | "D3" | "D4";
-export type ChapterDeliverable = Deliverable | "all";
+/** What a chapter shows: one deliverable, or null when it shows none. */
+export type ChapterDeliverable = Deliverable | null;
 
 /** The four deliverables the award funds, as the sprint board names them. */
 export const DELIVERABLE_NAMES: Record<Deliverable, string> = {
@@ -19,16 +20,9 @@ export const DELIVERABLE_NAMES: Record<Deliverable, string> = {
   D4: "Ecosystem validation",
 };
 
-/** The short tag shown beside a chapter or an evidence row. */
-export function deliverableTag(d: ChapterDeliverable): string {
-  return d === "all" ? "All" : d;
-}
-
-/** The tag's full meaning, for screen readers and tooltips alike. */
-export function deliverableLabel(d: ChapterDeliverable): string {
-  return d === "all"
-    ? "All four deliverables"
-    : `Deliverable ${d}: ${DELIVERABLE_NAMES[d]}`;
+/** A deliverable tag's full meaning, for screen readers and tooltips alike. */
+export function deliverableLabel(d: Deliverable): string {
+  return `Deliverable ${d}: ${DELIVERABLE_NAMES[d]}`;
 }
 
 export type EvidenceKind =

@@ -6,7 +6,6 @@
 import { describe, expect, it } from "vitest";
 import {
   deliverableLabel,
-  deliverableTag,
   formatDemoDate,
   formatDuration,
   formatTimestamp,
@@ -43,13 +42,10 @@ describe("times", () => {
 });
 
 describe("deliverables", () => {
-  it("tags a chapter and names its deliverable in full", () => {
-    expect(deliverableTag("D2")).toBe("D2");
-    expect(deliverableTag("all")).toBe("All");
+  it("names a deliverable in full", () => {
     expect(deliverableLabel("D3")).toBe(
       "Deliverable D3: Dispute window and partial-credit refund",
     );
-    expect(deliverableLabel("all")).toBe("All four deliverables");
   });
 });
 

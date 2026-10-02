@@ -257,12 +257,12 @@ describe("chapters", () => {
     }).parentElement!;
     const links = within(list).getAllByRole("link");
     expect(links.map(text)).toEqual([
-      "0:00 What Orizon is All four deliverablesAll",
+      "0:00 What Orizon is",
       "0:25 An operator registers and binds an agent Deliverable D1: Permissionless agent registrationD1",
       "1:15 A buyer's plan excludes a sub-floor agent Deliverable D2: Reputation-gated routingD2",
       "2:20 A dispute is credited and the score falls Deliverable D3: Dispute window and partial-credit refundD3",
       "3:20 External operators on the ecosystem page Deliverable D4: Ecosystem validationD4",
-      "3:52 Limitations All four deliverablesAll",
+      "3:52 Limitations",
     ]);
     expect(links[2].getAttribute("href")).toBe(
       "https://www.youtube.com/watch?v=fixtureVid0&t=75s",

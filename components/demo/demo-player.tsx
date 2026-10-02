@@ -24,7 +24,6 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { DemoChapter, DemoVideo } from "@/lib/demo/load";
 import {
   deliverableLabel,
-  deliverableTag,
   formatDuration,
   formatTimestamp,
   isoDuration,
@@ -180,8 +179,9 @@ export function DemoPlayer({
           Chapters
         </h2>
         <p className="mt-2 text-sm text-muted">
-          Each chapter is tagged with the funded deliverable it shows. Choosing
-          one plays the video from that point.
+          A chapter is tagged with the funded deliverable it shows, and left
+          untagged when it shows none. Choosing one plays the video from that
+          point.
         </p>
         <ol className="mt-5 divide-y divide-border border-y border-border">
           {chapters.map((chapter) => {
@@ -206,18 +206,21 @@ export function DemoPlayer({
                   </time>{" "}
                   <span className="min-w-0 flex-1 text-text">
                     {chapter.title}
-                  </span>{" "}
-                  <span
-                    title={deliverableLabel(chapter.deliverable)}
-                    className="shrink-0 border border-violet/60 px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-widest text-violet-readable"
-                  >
-                    <span className="sr-only">
-                      {deliverableLabel(chapter.deliverable)}
-                    </span>
-                    <span aria-hidden="true">
-                      {deliverableTag(chapter.deliverable)}
-                    </span>
                   </span>
+                  {chapter.deliverable && (
+                    <>
+                      {" "}
+                      <span
+                        title={deliverableLabel(chapter.deliverable)}
+                        className="shrink-0 border border-violet/60 px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-widest text-violet-readable"
+                      >
+                        <span className="sr-only">
+                          {deliverableLabel(chapter.deliverable)}
+                        </span>
+                        <span aria-hidden="true">{chapter.deliverable}</span>
+                      </span>
+                    </>
+                  )}
                 </a>
               </li>
             );

@@ -45,7 +45,7 @@ function published(): Manifest {
       published_at: "2026-10-02",
     },
     chapters: [
-      { t: 0, title: "Intro", deliverable: "all" },
+      { t: 0, title: "Intro", deliverable: null },
       { t: 20, title: "Register", deliverable: "D1" },
       { t: 70, title: "Route", deliverable: "D2" },
       { t: 130, title: "Dispute", deliverable: "D3" },
@@ -259,7 +259,15 @@ describe("chapters", () => {
     const m = published();
     m.chapters[4].deliverable = "D5";
     expect(problems(m)).toEqual([
-      'chapters[4].deliverable must be one of D1, D2, D3, D4, all, not "D5"',
+      'chapters[4].deliverable must be one of D1, D2, D3, D4, or null when the chapter shows none of them, not "D5"',
+    ]);
+  });
+
+  it("rejects the old all-four tag, which no one chapter shows", () => {
+    const m = published();
+    m.chapters[0].deliverable = "all";
+    expect(problems(m)).toEqual([
+      'chapters[0].deliverable must be one of D1, D2, D3, D4, or null when the chapter shows none of them, not "all"',
     ]);
   });
 
