@@ -13,6 +13,7 @@ import {
   mockReputationBatchDegraded,
   type AgentFixture,
 } from "./mocks";
+import { registryRowHeader } from "./registry-rows";
 
 /** The seeded, healthy row every generated agent is cloned from. */
 const TEMPLATE: AgentFixture = mockAgents[0];
@@ -47,7 +48,7 @@ test.describe("the registry at scale", () => {
     // see it. An uncapped stagger gave row 400 a twelve-second delay, so it
     // sat at opacity 0 long after it rendered.
     const last = page.getByRole("row").filter({
-      has: page.getByRole("rowheader", { name: `bulk_${N - 1}`, exact: true }),
+      has: registryRowHeader(page, `bulk_${N - 1}`),
     });
     await expect
       .poll(() => last.evaluate((el) => getComputedStyle(el).opacity), {
@@ -98,7 +99,7 @@ test.describe("the registry at scale", () => {
     // Its marks — external, not yet operational, provisional — all present,
     // and wrapped inside the 14rem cap instead of stretching the column.
     const row = page.getByRole("row").filter({
-      has: page.getByRole("rowheader", { name: LONG_ID, exact: true }),
+      has: registryRowHeader(page, LONG_ID),
     });
     for (const mark of ["external", "not yet operational", "provisional"]) {
       await expect(row.getByText(new RegExp(`^. ${mark}$`))).toBeVisible();
