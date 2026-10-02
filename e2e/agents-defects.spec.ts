@@ -17,11 +17,10 @@ import {
   mockRawReputation,
   unknownStatusAgent,
 } from "./agents-guard-fixtures";
+import { registryRow } from "./registry-rows";
 
 function row(page: Page, agentId: string) {
-  return page.getByRole("row").filter({
-    has: page.getByRole("rowheader", { name: agentId, exact: true }),
-  });
+  return registryRow(page, agentId);
 }
 
 /** The batch has landed once its floor is stated above the table. */
