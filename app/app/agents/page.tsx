@@ -397,13 +397,16 @@ export default function AgentsPage() {
                 <th scope="col" className="pb-3 text-right">
                   price / call
                 </th>
-                <th scope="col" className="pb-3 text-right">
+                {/* `pl-4` on reputation, runs and status: each is aligned
+                    against its neighbour, and with no gutter the chip, the
+                    runs figure and the badge ran into one another. */}
+                <th scope="col" className="pb-3 pl-4 text-right">
                   reputation
                 </th>
-                <th scope="col" className="pb-3 text-right">
+                <th scope="col" className="pb-3 pl-4 text-right">
                   runs
                 </th>
-                <th scope="col" className="pb-3 text-left">
+                <th scope="col" className="pb-3 pl-4 text-left">
                   status
                 </th>
                 {/* The actions column is unlabelled by design — name it for
@@ -546,17 +549,17 @@ export default function AgentsPage() {
                       <td className="py-3 text-right font-mono text-cyan">
                         {a.price.toFixed(3)}
                       </td>
-                      <td className="py-3 text-right">
+                      <td className="py-3 pl-4 text-right">
                         <ReputationCell
                           agentName={a.name}
                           rep={repBatch?.reputations[a.id] ?? null}
                           read={repRead}
                         />
                       </td>
-                      <td className="py-3 text-right font-mono text-xs text-muted">
+                      <td className="py-3 pl-4 text-right font-mono text-xs text-muted">
                         {a.runs.toLocaleString()}
                       </td>
-                      <td className="py-3">
+                      <td className="py-3 pl-4">
                         {/* No `break-all`: it let the table squeeze a badge to
                             one letter wide, and "online" broke as "onlin / e".
                             `break-word` only breaks a word that cannot fit
