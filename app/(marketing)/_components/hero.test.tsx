@@ -2,11 +2,13 @@
 /**
  * The hero's stat row. It used to hard-code "2,481" agents, "1.2k" tasks a
  * second and "99.3%" trust — none of them measured. It now states only what
- * the server read (lib/public-network-stats.ts), leaves out a figure it could
- * not read, and has no row at all when it read nothing.
+ * the server read (lib/public-network-stats.ts): all three figures together,
+ * or no row at all — never a subset.
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import type { PublicNetworkStats } from "@/lib/public-network-stats";
 
 import { Hero } from "./hero";
 
@@ -76,13 +78,38 @@ describe("Hero stat row", () => {
     expect(figures(container)["External agents"]).toBe("0");
   });
 
-  it("leaves out a figure it could not read", () => {
+  it("never states a subset: a figure that is not a count drops the row", () => {
+    // The server never sends one (lib/public-network-stats.ts types all
+    // three as numbers); this is the last line against a partial row.
+    for (const broken of [
+      { registered: 49, external: null, operatorWallets: null },
+      { registered: 49, external: 24, operatorWallets: undefined },
+      { registered: 49, external: Number.NaN, operatorWallets: 20 },
+      { registered: -1, external: 24, operatorWallets: 20 },
+      { registered: 49.5, external: 24, operatorWallets: 20 },
+    ]) {
+      const { container } = render(
+        <Hero stats={broken as unknown as PublicNetworkStats} />,
+      );
+      expect(statRow(container)).toBeNull();
+      expect(container.querySelector("dl")).toBeNull();
+      cleanup();
+    }
+  });
+
+  it("states all three figures, never fewer, when it states any", () => {
     const { container } = render(
-      <Hero
-        stats={{ registered: 49, external: null, operatorWallets: null }}
-      />,
+      <Hero stats={{ registered: 278, external: 253, operatorWallets: 248 }} />,
     );
-    expect(figures(container)).toEqual({ "Registered agents": "49" });
+    expect(container.querySelectorAll("[data-hero-stats] dt")).toHaveLength(3);
+    expect(figures(container)).toEqual({
+      "Registered agents": "278",
+      "External agents": "253",
+      "Operator wallets": "248",
+    });
+    expect(statRow(container)?.textContent).toContain(
+      "Read from the Stellar testnet registry · refreshed every 5 minutes",
+    );
   });
 
   it("renders no stat row, and no invented figure, without data", () => {

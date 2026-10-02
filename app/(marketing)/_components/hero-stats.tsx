@@ -2,20 +2,24 @@ import { NETWORK_LABEL } from "@/components/ui/stellar-link";
 import { formatCount } from "@/lib/network-stats";
 import type { PublicNetworkStats } from "@/lib/public-network-stats";
 
+/** A figure fit to print: a whole, non-negative count. */
+const isCount = (v: unknown): v is number =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0;
+
 /**
- * The hero's figures, as the server read them (lib/public-network-stats.ts).
- * A figure that could not be read is left out, and with none the row is not
- * rendered at all: an empty hero is honest, a placeholder number is not.
+ * The hero's figures, as the server read them (lib/public-network-stats.ts):
+ * all three together, or no row at all. Never a subset — a hero that states
+ * the registered count beside no external figure invites reading the gap as
+ * zero — and never a placeholder number.
  */
 export function HeroStats({ stats }: { stats: PublicNetworkStats | null }) {
-  const items = stats
-    ? [
-        { k: "Registered agents", v: stats.registered },
-        { k: "External agents", v: stats.external },
-        { k: "Operator wallets", v: stats.operatorWallets },
-      ].filter((s): s is { k: string; v: number } => s.v !== null)
-    : [];
-  if (items.length === 0) return null;
+  if (!stats) return null;
+  const items = [
+    { k: "Registered agents", v: stats.registered },
+    { k: "External agents", v: stats.external },
+    { k: "Operator wallets", v: stats.operatorWallets },
+  ];
+  if (!items.every((s) => isCount(s.v))) return null;
   return (
     <div data-hero-stats>
       <dl className="grid max-w-md grid-cols-3 gap-4 sm:gap-6">
