@@ -549,14 +549,14 @@ export default function AgentsPage() {
                       <td className="py-3 text-right font-mono text-cyan">
                         {a.price.toFixed(3)}
                       </td>
-                      <td className="py-3 pl-4 text-right">
+                      <td className="whitespace-nowrap py-3 pl-4 text-right">
                         <ReputationCell
                           agentName={a.name}
                           rep={repBatch?.reputations[a.id] ?? null}
                           read={repRead}
                         />
                       </td>
-                      <td className="py-3 pl-4 text-right font-mono text-xs text-muted">
+                      <td className="whitespace-nowrap py-3 pl-4 text-right font-mono text-xs text-muted">
                         {a.runs.toLocaleString()}
                       </td>
                       <td className="py-3 pl-4">
