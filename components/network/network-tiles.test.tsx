@@ -11,6 +11,7 @@ import {
   REASONS,
   deriveNetworkStats,
   statsFromOverview,
+  withRegistrySync,
 } from "@/lib/network-stats";
 import type { OverviewV2 } from "@/lib/types";
 import { NetworkTiles, TILE_LABELS } from "./network-tiles";
@@ -119,5 +120,65 @@ describe("NetworkTiles", () => {
 
     rerender(<NetworkTiles stats={null} failed />);
     expect(screen.getAllByText("unavailable")).toHaveLength(4);
+  });
+});
+
+describe("NetworkTiles while the registry syncs", () => {
+  const midRefill = statsFromOverview({
+    ...overview,
+    agents: { ...overview.agents, registered: 31, external: 4 },
+    operators: { external_wallets: 3 },
+    registry_synced: false,
+  });
+  const complete = statsFromOverview({ ...overview, registry_synced: true });
+  const syncing = (t: HTMLElement) =>
+    t.querySelector("[data-registry-syncing]");
+
+  it("shows the last complete figures with a spinner, never the partial ones", () => {
+    const { container } = render(
+      <NetworkTiles
+        stats={withRegistrySync(midRefill, false, complete)}
+        failed={false}
+      />,
+    );
+    expect(tile("Registered agents").textContent).toContain("2,481");
+    expect(tile("External agents").textContent).toContain("11");
+    for (const label of [
+      "Registered agents",
+      "External agents",
+      "Avg trust (on-chain)",
+    ]) {
+      const note = syncing(tile(label));
+      expect(note?.textContent).toBe("syncing registry…");
+      expect(note?.querySelector("[data-spinner]")).not.toBeNull();
+    }
+    // Settled workflows come from the settlement store, not the registry.
+    expect(syncing(tile("Settled workflows"))).toBeNull();
+    expect(container.textContent).not.toMatch(/\b31\b/);
+  });
+
+  it("shows dashes with a spinner when the session has no complete figures", () => {
+    const { container } = render(
+      <NetworkTiles
+        stats={withRegistrySync(midRefill, false, null)}
+        failed={false}
+      />,
+    );
+    const registered = tile("Registered agents");
+    expect(within(registered).getByText("not available")).toBeTruthy();
+    expect(syncing(registered)?.textContent).toBe("syncing registry…");
+    expect(syncing(tile("External agents"))).not.toBeNull();
+    expect(container.textContent).not.toMatch(/\b31\b|\b4 external/);
+  });
+
+  it("drops the spinner once the registry is complete", () => {
+    const { container } = render(
+      <NetworkTiles
+        stats={withRegistrySync(complete, true, null)}
+        failed={false}
+      />,
+    );
+    expect(container.querySelector("[data-registry-syncing]")).toBeNull();
+    expect(container.querySelector("[data-spinner]")).toBeNull();
   });
 });
