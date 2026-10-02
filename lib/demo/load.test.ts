@@ -63,11 +63,20 @@ describe("loadDemo", () => {
     expect(loadDemo(fixture("unpublished"))).toEqual({ status: "unpublished" });
   });
 
-  it("loads a published manifest with its transcript and captions", () => {
+  it("loads a published manifest's parts, in order, each with its transcript and captions", () => {
     const demo = loadDemo(fixture("published"));
     if (demo.status !== "published") throw new Error("expected published");
-    expect(demo.video.id).toBe("fixtureVid0");
-    expect(demo.chapters).toHaveLength(6);
+    expect(
+      demo.parts.map((p) => [p.role, p.id, p.chapters.length, p.captionsHref]),
+    ).toEqual([
+      ["operator", "fixtureOpr1", 3, "/demo/operator.en.vtt"],
+      ["buyer", "fixtureBuy2", 3, "/demo/buyer.en.vtt"],
+    ]);
+    expect(demo.parts.map((p) => p.recorded_on_earlier_console)).toEqual([
+      null,
+      "2026-07-20",
+    ]);
+    expect(demo.duration_seconds).toBe(252);
     expect(demo.evidence.items.map((i) => i.kind)).toEqual([
       "register",
       "authorize",
@@ -75,9 +84,13 @@ describe("loadDemo", () => {
       "dispute_rating",
       "refund",
     ]);
-    expect(demo.captionsHref).toBe("/demo/demo.en.vtt");
-    expect(demo.transcript.type).toBe("root");
-    expect(demo.transcript.children.length).toBeGreaterThan(0);
+    for (const part of demo.parts) {
+      expect(part.transcript.type).toBe("root");
+      expect(part.transcript.children.length).toBeGreaterThan(0);
+      // The page gets the parsed files, never the manifest's raw paths.
+      expect(part).not.toHaveProperty("transcript_file");
+      expect(part).not.toHaveProperty("captions_file");
+    }
   });
 
   it("fails the build when the manifest is missing", () => {
@@ -97,11 +110,8 @@ describe("loadDemo", () => {
     const paths = tmpManifest(
       JSON.stringify({
         status: "unpublished",
-        video: { id: "x" },
-        chapters: [],
+        parts: [{ id: "x" }],
         evidence: { generated_at: null, network: "mainnet", items: [{}] },
-        transcript_file: null,
-        captions_file: null,
       }),
     );
     let error: unknown;
@@ -114,7 +124,7 @@ describe("loadDemo", () => {
     const { problems, message } = error as DemoContentError;
     expect(problems).toHaveLength(3);
     for (const p of problems) expect(message).toContain(`  - ${p}`);
-    expect(problems[0]).toMatch(/^video must be null/);
+    expect(problems[0]).toMatch(/^parts must be empty/);
     expect(problems[1]).toMatch(/^evidence\.network must be "testnet"/);
     expect(problems[2]).toMatch(/^evidence\.items must be empty/);
   });
