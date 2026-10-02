@@ -481,8 +481,8 @@ export default function AgentsPage() {
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <span id={`${uid}-agent-${i}`} title={`id: ${a.id}`}>
-                            {a.name}
-                            <span className="sr-only"> (id: {a.id})</span>
+                            {a.name}{" "}
+                            <span className="sr-only">(id: {a.id})</span>
                           </span>
                           {/* The `LIVE` badge that used to sit here has been
                               removed rather than relabelled.
