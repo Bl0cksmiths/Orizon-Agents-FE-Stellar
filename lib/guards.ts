@@ -223,7 +223,9 @@ export function isOverviewV2(v: unknown): v is OverviewV2 {
     v.skills.every(
       (s) => isRecord(s) && isStr(s.name) && isCount(s.agents) && isNum(s.pct),
     ) &&
-    isOptionalBool(v.degraded)
+    isOptionalBool(v.degraded) &&
+    // Absent on a backend from before the registry sync signal.
+    isOptionalBool(v.registry_synced)
   );
 }
 
