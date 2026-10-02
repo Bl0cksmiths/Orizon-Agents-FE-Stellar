@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useId, useMemo, useState } from "react";
 import { m } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,8 @@ function readAt(ms: number): string {
 }
 
 export default function AgentsPage() {
+  // Each row header is named by its agent's name; this keeps those ids unique.
+  const uid = useId();
   const {
     data: agents,
     error,
@@ -464,13 +466,7 @@ export default function AgentsPage() {
                       }}
                       className="border-b border-border/50 last:border-0 hover:bg-violet/5 transition"
                     >
-                      {/* The agent id identifies the row, so it is the row
-                      header; `text-left font-normal` only holds the cell's
-                      existing look against the th defaults. */}
-                      <th
-                        scope="row"
-                        className="py-3 pr-4 text-left font-mono text-xs font-normal text-muted"
-                      >
+                      <td className="py-3 pr-4 font-mono text-xs text-muted">
                         {/* Capped and ellipsised: one 64-character id set the
                             column to its full width and pushed every other
                             column off a phone. The text is all still in the
@@ -482,10 +478,28 @@ export default function AgentsPage() {
                         >
                           {a.id}
                         </span>
-                      </th>
-                      <td className="py-3 font-mono">
+                      </td>
+                      {/* The agent's name identifies the row, so it is the row
+                          header; `text-left font-normal` only holds the cell's
+                          existing look against the th defaults.
+
+                          Named by the name alone, plus the id out of sight
+                          (`aria-labelledby`): the cell also holds the binding
+                          and standing marks, and a header that recited them
+                          would be read again on every cell a screen reader
+                          moves to down the table. The id is in that name so
+                          two agents sharing a name are still told apart, and
+                          in the name's title for a pointer. */}
+                      <th
+                        scope="row"
+                        aria-labelledby={`${uid}-agent-${i}`}
+                        className="py-3 text-left font-mono font-normal"
+                      >
                         <div className="flex flex-wrap items-center gap-2">
-                          {a.name}
+                          <span id={`${uid}-agent-${i}`} title={`id: ${a.id}`}>
+                            {a.name}
+                            <span className="sr-only"> (id: {a.id})</span>
+                          </span>
                           {/* The `LIVE` badge that used to sit here has been
                               removed rather than relabelled.
 
@@ -525,7 +539,7 @@ export default function AgentsPage() {
                             bindingLookup={bindingState !== null}
                           />
                         </div>
-                      </td>
+                      </th>
                       <td className="py-3">
                         <div className="flex flex-wrap gap-1.5">
                           {a.skills.map((s) => (
