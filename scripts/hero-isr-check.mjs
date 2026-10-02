@@ -13,8 +13,8 @@
  *     budget, renders the hero without the row, and the first complete
  *     regeneration adds it.
  *
- * It waits out the page's real 300s revalidate window (twice), so a run
- * takes about 13 minutes, 16 with --cold. Not part of `npm test`; run it
+ * It waits out the page's real 300s revalidate window three times, so a
+ * run takes about 18 minutes, 21 with --cold. Not part of `npm test`; run it
  * when the ISR path changes:
  *
  *   npm run hero:isr            # stale-on-error
@@ -180,14 +180,17 @@ async function main() {
     log("backend now mid-refill (31 agents, registry_synced: false)");
     await sleep(Math.max(0, builtAt + REVALIDATE_MS + 5_000 - Date.now()));
     await expectRow(COLD ? null : A, "first request past the window (stale)");
+    const failedAt = Date.now();
     await sleep(8_000);
     await expectRow(COLD ? null : A, "after the failed regeneration");
 
-    // Past Next's retry delay after a failed regeneration, so the next
-    // request regenerates against a backend that is not there at all.
+    // Next 14.2 re-dates the kept page when a regeneration fails, so the
+    // next attempt comes a whole window later (measured: ~300s, not the 30s
+    // its response cache asks for). Wait it out, so the next request
+    // regenerates against a backend that is not there at all.
     set({ down: true });
     log("backend now down (503)");
-    await sleep(35_000);
+    await sleep(Math.max(0, failedAt + REVALIDATE_MS + 5_000 - Date.now()));
     await expectRow(COLD ? null : A, "backend down");
     await sleep(8_000);
     await expectRow(COLD ? null : A, "after a regeneration against it");
