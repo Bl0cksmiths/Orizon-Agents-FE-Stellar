@@ -49,7 +49,7 @@ describe("sitemap", () => {
     ]);
   });
 
-  it("lists the demo undated until it is published, then dated by its video", () => {
+  it("lists the demo undated until it is published, then dated by its newest part", () => {
     const fixtures = path.resolve(__dirname, "../test/fixtures/demo");
     vi.stubEnv("DEMO_CONTENT_DIR", path.join(fixtures, "unpublished"));
     const before = sitemap().find((e) => e.url === "https://orizons.xyz/demo");

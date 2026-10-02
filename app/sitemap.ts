@@ -42,7 +42,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${base}${DEMO_PATH}`,
       ...(demo.status === "published"
-        ? { lastModified: new Date(`${demo.video.published_at}T00:00:00Z`) }
+        ? {
+            // Dated by its newest part: ISO dates sort as strings.
+            lastModified: new Date(
+              `${demo.parts
+                .map((p) => p.published_at)
+                .sort()
+                .at(-1)}T00:00:00Z`,
+            ),
+          }
         : {}),
       changeFrequency: "monthly" as const,
       priority: 0.8,
