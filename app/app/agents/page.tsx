@@ -420,7 +420,7 @@ export default function AgentsPage() {
                 !error &&
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50">
-                    <td colSpan={8} className="py-3">
+                    <td colSpan={7} className="py-3">
                       <Skeleton className="h-5 w-full" />
                       {i === 0 && <LoadingStatus label="Loading agents…" />}
                     </td>
@@ -430,7 +430,7 @@ export default function AgentsPage() {
               {!agents && error && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={7}
                     className="py-10 text-center text-muted font-mono text-xs"
                   >
                     no agents to show — the registry could not be read.
@@ -589,7 +589,7 @@ export default function AgentsPage() {
                         endpoint for whenever it is relisted. */}
                     {bindingState === "unbound" && isListed(a) && (
                       <tr className="border-b border-border/50 bg-bg/20">
-                        <td colSpan={8} className="px-1 pb-4">
+                        <td colSpan={7} className="px-1 pb-4">
                           <PinnedToView>
                             <UnboundNotice agentId={a.id} agentName={a.name} />
                           </PinnedToView>
@@ -602,7 +602,7 @@ export default function AgentsPage() {
                         out. */}
                     {bindingState === "error" && (
                       <tr className="border-b border-border/50 bg-bg/20">
-                        <td colSpan={8} className="px-1 pb-4">
+                        <td colSpan={7} className="px-1 pb-4">
                           <PinnedToView>
                             <ErrorNote
                               className="clip-cyber-sm"
@@ -619,7 +619,7 @@ export default function AgentsPage() {
                     )}
                     {open && (
                       <tr className="border-b border-border/50 bg-bg/20">
-                        <td colSpan={8} className="px-1 pb-4">
+                        <td colSpan={7} className="px-1 pb-4">
                           <PinnedToView>
                             <ManagePanel
                               agent={a}
@@ -636,7 +636,7 @@ export default function AgentsPage() {
               {agents && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={7}
                     className="py-10 text-center text-muted font-mono text-xs"
                   >
                     no agents match your filters.
