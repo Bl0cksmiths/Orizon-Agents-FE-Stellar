@@ -654,8 +654,8 @@ export default function AgentsPage() {
 /**
  * A full-width row's content, held to the visible part of the scroller.
  *
- * The notice and manage rows span all eight columns, so they were as wide as
- * the 60rem table: on a phone their sentences ran off past the card edge and
+ * The notice and manage rows span all seven columns, so they were as wide as
+ * the table at its 48rem floor: on a phone their sentences ran off past the card edge and
  * the bind button sat out of sight, a sideways scroll away. Sticky at the
  * left and one scroller wide (`100cqw`), they stay put while the columns
  * above them scroll.
