@@ -24,13 +24,16 @@ test.describe("console overview", () => {
     }
 
     // The mocked overview is the legacy shape, so every figure is derived
-    // from the registry, the adoption read and the reputation batch.
+    // from the registry, the adoption read and the reputation batch. With no
+    // sync signal the registry counts only once two reads 10s apart agree
+    // (lib/registry-sync.ts), so the first figures take a poll or two.
     const tile = (label: string) =>
       page.locator("main [data-stat-tile]").filter({ hasText: label });
     const onchain = mockAgents.filter((a) => a.source === "onchain").length;
     const seeded = mockAgents.filter((a) => a.source === "seeded").length;
     await expect(tile("Registered agents")).toContainText(
       `${mockAgents.length}${onchain} on-chain · ${seeded} seeded`,
+      { timeout: 30_000 },
     );
     await expect(tile("External agents")).toContainText(
       "0from 0 operator wallets",
@@ -45,6 +48,7 @@ test.describe("console overview", () => {
     );
     await expect(sidebar).toContainText(
       `${mockAgents.length} agents registered · 0 external`,
+      { timeout: 15_000 },
     );
     // None of the legacy overview's invented figures reaches the screen.
     await expect(page.locator("body")).not.toContainText(LEGACY_FIGURES);
