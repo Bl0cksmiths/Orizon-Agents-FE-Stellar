@@ -67,8 +67,15 @@ function run(
 ): { status: number | null; out: string } {
   const result = spawnSync(process.execPath, [SCRIPT, ...args], {
     encoding: "utf8",
-    // An empty PATH by default: no ffprobe, whatever the machine has.
-    env: { NODE_ENV: "test", PATH: path.join(tmp, "empty"), ...env },
+    env: {
+      NODE_ENV: "test",
+      // An empty PATH by default: no ffprobe, whatever the machine has.
+      PATH: path.join(tmp, "empty"),
+      // The unpublished fixture by default, so a lone --video is measured
+      // against the length rule alone, not held to the committed parts.
+      DEMO_CONTENT_DIR: path.join(FIXTURES, "unpublished"),
+      ...env,
+    },
   });
   return { status: result.status, out: result.stdout + result.stderr };
 }
@@ -79,10 +86,21 @@ const published = {
 };
 
 describe("demo-check: the manifest", () => {
-  it("passes the committed, unpublished manifest", () => {
+  it("passes the committed manifest, published in two parts", () => {
+    // An empty DEMO_CONTENT_DIR falls back to content/demo.
+    const { status, out } = run([], { DEMO_CONTENT_DIR: "" });
+    expect(status).toBe(0);
+    expect(out).toContain(
+      "content/demo/demo.json: published — part 1 operator: youtube LM7iecSviSI, 189 s, 6 chapters; part 2 buyer: youtube 6NfblJwVEXg, 71 s, 8 chapters; 260 s together, 14 evidence items",
+    );
+  });
+
+  it("passes an unpublished manifest", () => {
     const { status, out } = run([]);
     expect(status).toBe(0);
-    expect(out).toContain("content/demo/demo.json: unpublished");
+    expect(out).toContain(
+      "unpublished — no part and no evidence, so the page shows neither",
+    );
   });
 
   it("passes a complete published manifest", () => {

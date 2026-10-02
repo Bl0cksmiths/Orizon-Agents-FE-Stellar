@@ -55,8 +55,21 @@ describe("demoPaths", () => {
 });
 
 describe("loadDemo", () => {
-  it("passes the committed manifest, which is unpublished until the video exists", () => {
-    expect(loadDemo(demoPaths({}))).toEqual({ status: "unpublished" });
+  it("passes the committed manifest: published in two parts, operator then buyer, on testnet", () => {
+    const demo = loadDemo(demoPaths({}));
+    if (demo.status !== "published") throw new Error("expected published");
+    expect(demo.parts.map((p) => [p.role, p.id])).toEqual([
+      ["operator", "LM7iecSviSI"],
+      ["buyer", "6NfblJwVEXg"],
+    ]);
+    expect(demo.duration_seconds).toBe(260);
+    // The buyer part predates the sprint, and says so.
+    expect(demo.parts.map((p) => p.recorded_on_earlier_console)).toEqual([
+      null,
+      "2026-07-24",
+    ]);
+    expect(demo.evidence.network).toBe("testnet");
+    expect(demo.evidence.items.every((i) => i.verified)).toBe(true);
   });
 
   it("hands an unpublished page nothing but its state", () => {
