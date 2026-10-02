@@ -388,9 +388,6 @@ export default function AgentsPage() {
             <thead>
               <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 <th scope="col" className="pb-3 text-left">
-                  id
-                </th>
-                <th scope="col" className="pb-3 text-left">
                   agent
                 </th>
                 <th scope="col" className="pb-3 text-left">
@@ -466,19 +463,6 @@ export default function AgentsPage() {
                       }}
                       className="border-b border-border/50 last:border-0 hover:bg-violet/5 transition"
                     >
-                      <td className="py-3 pr-4 font-mono text-xs text-muted">
-                        {/* Capped and ellipsised: one 64-character id set the
-                            column to its full width and pushed every other
-                            column off a phone. The text is all still in the
-                            cell, so the row header's name is the whole id;
-                            the title shows it on hover. */}
-                        <span
-                          title={a.id}
-                          className="block max-w-[12rem] truncate"
-                        >
-                          {a.id}
-                        </span>
-                      </td>
                       {/* The agent's name identifies the row, so it is the row
                           header; `text-left font-normal` only holds the cell's
                           existing look against the th defaults.
