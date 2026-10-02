@@ -37,6 +37,7 @@ import {
   getReputationParams,
   getTrace,
   listAgents,
+  listAgentsWithSync,
   listReputation,
   openTraceStream,
   submitSigned,
@@ -111,6 +112,60 @@ const agentFixture = {
   status: "online",
   runs: 1284,
 };
+
+describe("listAgentsWithSync", () => {
+  const withHeader = (value?: string) =>
+    new Response(JSON.stringify([agentFixture]), {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        ...(value === undefined
+          ? {}
+          : { "X-Registry-Synced": value, "X-Registry-Count": "1" }),
+      },
+    });
+
+  it("reads the registry and its sync header", async () => {
+    fetchMock.mockResolvedValueOnce(withHeader("true"));
+    await expect(listAgentsWithSync()).resolves.toEqual({
+      agents: [agentFixture],
+      signal: "synced",
+    });
+    fetchMock.mockResolvedValueOnce(withHeader("false"));
+    await expect(listAgentsWithSync()).resolves.toMatchObject({
+      signal: "syncing",
+    });
+  });
+
+  it("says nothing about a backend that sends no header", async () => {
+    fetchMock.mockResolvedValueOnce(withHeader());
+    await expect(listAgentsWithSync()).resolves.toMatchObject({
+      signal: "unknown",
+    });
+  });
+
+  it("asks the network every time, never the GET dedupe", async () => {
+    fetchMock
+      .mockResolvedValueOnce(withHeader())
+      .mockResolvedValueOnce(withHeader());
+    await listAgentsWithSync();
+    await listAgentsWithSync();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/agents",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("rejects a non-OK or malformed answer like every read", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(503, { detail: "waking" }));
+    await expect(listAgentsWithSync()).rejects.toThrow("GET /agents → 503");
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { not: "a list" }));
+    await expect(listAgentsWithSync()).rejects.toThrow(
+      "malformed response from /agents",
+    );
+  });
+});
 
 describe("get (via listAgents)", () => {
   it("hits the /api prefix with no-store and resolves parsed JSON", async () => {
