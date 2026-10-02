@@ -12,11 +12,22 @@
  *     it up: on the name's title, and as screen-reader text that takes no
  *     room on screen;
  *   - axe is clean and nothing reaches past the page's right edge at 360px
- *     and 1280px, and at 1280px the narrower table fits without scrolling.
+ *     and 1280px, and at 1280px the narrower table fits without scrolling;
+ *   - an agent with a long, unbreakable name wraps inside its own column
+ *     rather than starving the others: every header stays on one line, apart
+ *     from its neighbours, the reputation chip, runs and status never touch,
+ *     and the status badge reads on one line.
  */
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockAgents, mockApi, mockWallet } from "./mocks";
+import {
+  mockAgents,
+  mockApi,
+  mockReputationBatch,
+  mockWallet,
+  mockWalletAddress,
+  type AgentFixture,
+} from "./mocks";
 import { WCAG_TAGS } from "./dispute-axe";
 import { registryRowHeader, registryRowName } from "./registry-rows";
 
@@ -133,4 +144,177 @@ test.describe("the registry without an id column", () => {
     );
     expect(fits).toBe(true);
   });
+});
+
+/** One name with no break opportunity but an underscore, owned and unbound,
+ *  so its row carries every mark the name cell can hold. */
+const LONG_ID = `${"a".repeat(20)}_${"b".repeat(43)}`;
+const longAgent: AgentFixture = {
+  ...mockAgents[2],
+  id: LONG_ID,
+  name: `LongIdAgent_${"x".repeat(40)}`,
+  owner: mockWalletAddress,
+};
+
+async function openLongRegistry(page: Page, width: number): Promise<void> {
+  await mockWallet(page);
+  await mockApi(page, {
+    agents: [...mockAgents, longAgent],
+    reputation: {
+      ...mockReputationBatch,
+      reputations: {
+        ...mockReputationBatch.reputations,
+        [LONG_ID]: {
+          ...mockReputationBatch.reputations.unbound_bot,
+          agent_id: LONG_ID,
+        },
+      },
+    },
+  });
+  await page.setViewportSize({ width, height: 900 });
+  await page.goto("/app/agents");
+  await expect(page.getByRole("rowheader")).toHaveCount(mockAgents.length + 1);
+  await expect(
+    page.getByRole("heading", { name: "Selection floor" }),
+  ).toBeVisible();
+}
+
+/**
+ * Everything crushed in the registry, in words. Measured on what is drawn:
+ * the visible text and inline boxes of each cell, with screen-reader-only
+ * runs left out (they sit at a 1px point that would skew every box).
+ */
+async function crushed(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const GAP = 8;
+    const found: string[] = [];
+    const hidden = (n: Node) =>
+      (n instanceof Element ? n : n.parentElement)?.closest(".sr-only");
+    const textNodes = (el: Element): Text[] => {
+      const out: Text[] = [];
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        if (!hidden(n) && (n.textContent ?? "").trim()) out.push(n as Text);
+      }
+      return out;
+    };
+    const rectsOf = (t: Text) => {
+      const r = document.createRange();
+      r.selectNodeContents(t);
+      return Array.from(r.getClientRects()).filter((b) => b.width > 0);
+    };
+    /** How many lines the visible text of `el` takes. */
+    const lines = (el: Element) => {
+      const tops = textNodes(el)
+        .flatMap(rectsOf)
+        .map((b) => b.top + b.height / 2)
+        .sort((a, b) => a - b);
+      let n = tops.length ? 1 : 0;
+      for (let i = 1; i < tops.length; i++) if (tops[i] - tops[i - 1] > 4) n++;
+      return n;
+    };
+    /** The drawn extent of `el`'s content: its text and inline boxes. */
+    const extent = (el: Element) => {
+      const boxes = textNodes(el).flatMap(rectsOf);
+      for (const c of Array.from(el.querySelectorAll("*"))) {
+        if (hidden(c)) continue;
+        if (!getComputedStyle(c).display.startsWith("inline")) continue;
+        const b = c.getBoundingClientRect();
+        if (b.width > 0) boxes.push(b);
+      }
+      return {
+        left: Math.min(...boxes.map((b) => b.left)),
+        right: Math.max(...boxes.map((b) => b.right)),
+      };
+    };
+    const label = (el: Element) => `«${(el.textContent ?? "").trim()}»`;
+
+    const table = document.querySelector("table");
+    if (!table) return ["no table"];
+    const heads = Array.from(table.querySelectorAll("thead th")).filter(
+      (th) => textNodes(th).length > 0,
+    );
+    for (const th of heads) {
+      const n = lines(th);
+      if (n !== 1) found.push(`header ${label(th)} on ${n} lines`);
+    }
+    for (let i = 0; i + 1 < heads.length; i++) {
+      const gap = extent(heads[i + 1]).left - extent(heads[i]).right;
+      if (gap < GAP) {
+        found.push(
+          `headers ${label(heads[i])} and ${label(heads[i + 1])} ${Math.round(gap)}px apart`,
+        );
+      }
+    }
+    for (const tr of Array.from(table.querySelectorAll("tbody tr"))) {
+      if (!tr.querySelector('th[scope="row"]')) continue;
+      const cells = Array.from(tr.children);
+      const name = label(cells[0].querySelector("[title]") ?? cells[0]);
+      // price | reputation | runs | status, each pair apart.
+      for (const [a, b] of [
+        [2, 3],
+        [3, 4],
+        [4, 5],
+      ]) {
+        const gap = extent(cells[b]).left - extent(cells[a]).right;
+        if (gap < GAP) {
+          found.push(
+            `${name}: columns ${a} and ${b} ${Math.round(gap)}px apart`,
+          );
+        }
+      }
+      const status = cells[5];
+      const n = lines(status);
+      if (n !== 1) found.push(`${name}: status ${label(status)} on ${n} lines`);
+    }
+    return found;
+  });
+}
+
+test.describe("the registry with a long agent name", () => {
+  for (const width of [768, 1280, 1440]) {
+    test(`keeps every column readable at ${width}px`, async ({ page }) => {
+      await openLongRegistry(page, width);
+      expect(await crushed(page)).toEqual([]);
+
+      // The long name wraps inside its own column, under its cap, and its
+      // marks sit inside the same cell, clear of the name's text.
+      const header = registryRowHeader(page, LONG_ID);
+      const layout = await header.evaluate((th, id) => {
+        const name = th.querySelector(`[title="id: ${id}"]`) as HTMLElement;
+        const range = document.createRange();
+        range.selectNodeContents(name.firstChild as Node);
+        const text = Array.from(range.getClientRects());
+        const cell = th.getBoundingClientRect();
+        const marks = Array.from(th.querySelectorAll("span"))
+          .filter(
+            (el) =>
+              /^(unbound|. external)$/i.test((el.textContent ?? "").trim()) &&
+              !el.closest(".sr-only"),
+          )
+          .map((el) => el.getBoundingClientRect());
+        const hits = (a: DOMRect, b: DOMRect) =>
+          a.left < b.right &&
+          b.left < a.right &&
+          a.top < b.bottom &&
+          b.top < a.bottom;
+        return {
+          nameWidth: name.getBoundingClientRect().width,
+          textRight: Math.max(...text.map((r) => r.right)),
+          cellLeft: cell.left,
+          cellRight: cell.right,
+          marks: marks.length,
+          marksOutside: marks.filter(
+            (m) => m.left < cell.left - 1 || m.right > cell.right + 1,
+          ).length,
+          marksOnName: marks.filter((m) => text.some((t) => hits(m, t))).length,
+        };
+      }, LONG_ID);
+      expect(layout.nameWidth).toBeLessThanOrEqual(18 * 16);
+      expect(layout.textRight).toBeLessThanOrEqual(layout.cellRight + 1);
+      expect(layout.marks).toBe(2);
+      expect(layout.marksOutside).toBe(0);
+      expect(layout.marksOnName).toBe(0);
+    });
+  }
 });
