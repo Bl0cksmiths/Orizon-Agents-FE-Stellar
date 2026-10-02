@@ -382,8 +382,7 @@ export default function AgentsPage() {
             {/* The page heading names this table on screen; the caption
                 repeats it for assistive tech only. */}
             <caption className="sr-only">
-              Agent registry — identity, skills, price, reputation, runs and
-              status
+              Agent registry — agent, skills, price, reputation, runs and status
             </caption>
             <thead>
               <tr className="border-b border-border font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
