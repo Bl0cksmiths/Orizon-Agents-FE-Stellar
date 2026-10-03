@@ -108,3 +108,13 @@ QA's register records both as resolved on 2026-10-01, together with D-050 (no se
 ### D1 — Permissionless registration, now evidenced live
 
 SOW §6.1 asks for "an externally owned agent's registration tx hash on Stellar Expert". The eleven outside registrations listed above are exactly that, each signed by its owner's wallet with no admin involved, and the [Register an Agent page](https://orizons.xyz/app/register) is live and open to any wallet. The operator half of the demo records the same flow end to end in Freighter.
+
+### D2 — Reputation-gated routing, now evidenced live
+
+SOW §6.1 asks for the plan card showing on-chain reputation per agent, a routing example where a sub-floor agent is excluded, and the routing code. On 2026-09-30, on the live site:
+
+- **The plan card shows each agent's on-chain reputation before the buyer pays** — captured at desktop and phone width: [`d2a-plan-card-onchain-score-desktop-1440.png`](./screenshots/d2a-plan-card-onchain-score-desktop-1440.png), [`d2a-plan-card-onchain-score-phone-390.png`](./screenshots/d2a-plan-card-onchain-score-phone-390.png).
+- **A sub-floor agent is left out of a live plan.** The team registered a deliberately faulty test agent ([`2f01f2c8…36a81191`](https://stellar.expert/explorer/testnet/tx/2f01f2c88205a26263ee4b17e5331ba48ecfccb44b9e9cd690202cd036a81191)) set to hang without delivering, using the reference agent's new fault mode, and paid for three runs of it. Each failed, nothing was charged — escrow v2 returned the custody each time — and each wrote a 20/100 rating on-chain ([`e7885bf1…fa0b9663`](https://stellar.expert/explorer/testnet/tx/e7885bf192688ed4b65006abe82b5b5f58737b15fd06bfaa9c54de13fa0b9663), [`2980361e…fa1aa388`](https://stellar.expert/explorer/testnet/tx/2980361e248b6a1284e17a2a7ec38d354991afc25f6f982270eb0710fa1aa388), [`cc83982b…bbf4e30f`](https://stellar.expert/explorer/testnet/tx/cc83982bd11e39fe61f3446df7f9cfa4a30a741d77ab717abf204894bbf4e30f)). The agent's lower-bound score, which the router computes from those on-chain ratings, fell from 5,677 to 5,443 bps — below the 5,500 floor — and the next live plan excluded it: [`d2b-routing-exclusion-desktop-1440.png`](./screenshots/d2b-routing-exclusion-desktop-1440.png), [`d2b-routing-exclusion-phone-390.png`](./screenshots/d2b-routing-exclusion-phone-390.png).
+- **The routing code** is linked from the evidence index, pinned to the Week-2 merge and unchanged in the build the live API runs.
+
+QA's 6.02 re-check of this path on 2026-10-02 is **GO** on all seventeen of its criteria.
