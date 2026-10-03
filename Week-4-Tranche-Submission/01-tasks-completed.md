@@ -104,4 +104,4 @@ Titles, severities and statuses as her register ([`docs/uat/defects.md`](https:/
 
 (In D-085 the agent's name is left out here; it is in her register.) Where the severity column in her register also carries a story-6.04 grade, only the first grade is shown.
 
-**Her Week-3 defects, re-checked on 2026-10-01.** Nine are recorded as resolved — among them **D-039** (the v1 escrow could not move a buyer's funds), **D-050** (no settlement record, so nothing to dispute) and **D-051** (dispute refunds switched off), the two blockers of the Week-3 bundle — fourteen as fixed in code, one as fixed and deployed, and three still open. Two older defects remain held privately while their fixes are confirmed.
+**Her Week-3 defects, re-checked on 2026-10-01.** Nine are recorded as resolved — among them **D-039** (the v1 escrow could not move a buyer's funds), **D-050** (no settlement record, so nothing to dispute) and **D-051** (dispute refunds switched off), the two blockers of the Week-3 bundle — fourteen as fixed in code, one as fixed and deployed, and three still open. Two older defects are held privately, as in Week 3.
