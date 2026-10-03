@@ -73,3 +73,16 @@ index, which links them by commit. They are left exactly as they were.
 | `d2b-routing-exclusion-desktop-1440.png`, `…-phone-390.png`                             | D2: a live plan leaving out the deliberately faulty test agent, below the floor (5,443 < 5,500 bps)                                                |
 | `d3c-dispute-receipt-desktop-1440.png`, `…-phone-390.png`, `…-video-desktop-1440.webm`  | D3: the live receipt with the dispute under review, before the decision                                                                            |
 | `d3c-dispute-refunded-desktop-1440.png`, `…-phone-390.png`, `…-video-desktop-1440.webm` | D3: the live receipt with the dispute refunded, its credit and dispute rating linked; the dispute was opened through the API by the team's harness |
+
+## Reproduce
+
+```bash
+node Week-4-Tranche-Submission/screenshots/capture-screenshots.mjs        # all 28
+node Week-4-Tranche-Submission/screenshots/capture-screenshots.mjs 10 19  # just some
+node Week-4-Tranche-Submission/screenshots/build-proof-pdf.mjs           # the PDF
+```
+
+The capture script never connects a wallet, authorizes or pays. It wakes the
+Render backend before the first shot needs it and retries each shot once with
+doubled waits. Under WSL, run it with Playwright's own Chromium (the default),
+not a Windows Chrome. The size pass needs Python's Pillow.
