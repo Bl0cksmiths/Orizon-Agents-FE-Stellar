@@ -93,3 +93,13 @@ Rie's register (see [`01`](./01-tasks-completed.md#defects-logged-this-week--d-0
 - **D-084** — "The planner routes to an agent its own readiness probe reports unreachable, and the buyer pays the fees." ([backend #108](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/108))
 
 Each is a public issue, and the fixes will be reported in the next bundle.
+
+## Verify it yourself
+
+| Check                                                | Where                                                                                                                                                                              |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The live API is on escrow v2                         | [`GET /readiness`](https://orizon-agents-be-stellar.onrender.com/readiness) → `escrow.version: 2`, `escrow.contract: CCNO5TEN…5VC4`                                                |
+| The escrow's every call, in order                    | [Escrow v2 on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4) — History tab                             |
+| The recorded deployment                              | [`addresses.json`](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/blob/main/addresses.json) in the contracts repository: escrow v2, its settler and its admin |
+| The contract source and its 47 tests                 | [`contract/`](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/tree/main/contract) in the contracts repository                                                  |
+| Every run's transactions, read back from the network | [`docs/evidence/5.01/`](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/tree/main/docs/evidence/5.01) in the backend repository                                            |
