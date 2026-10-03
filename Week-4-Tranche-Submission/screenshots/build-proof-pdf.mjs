@@ -1,8 +1,8 @@
-// Build Week-3-Tranche-Submission/Proof-of-Deliverables.pdf from the
+// Build Week-4-Tranche-Submission/Proof-of-Deliverables.pdf from the
 // screenshots in this folder, the same way the Week-1 PDF was made: write an
 // HTML document, then print it with Chromium (Playwright `page.pdf`).
 // Run from the frontend repo root, after capture-screenshots.mjs:
-//   node Week-3-Tranche-Submission/screenshots/build-proof-pdf.mjs
+//   node Week-4-Tranche-Submission/screenshots/build-proof-pdf.mjs
 // Writes screenshots/Proof-of-Deliverables.html (kept for inspection) and
 // ../Proof-of-Deliverables.pdf. A screenshot missing from this folder is
 // skipped with a warning, never replaced by anything else.
@@ -347,8 +347,8 @@ const SHOTS = [
 const COVER = {
   programme: "Stellar Instawards (Cohort 2026)",
   milestone:
-    "M3 · Week 3 — Dispute Window & Partial-Credit Refund (Deliverable D3, Epic 4)",
-  week: "Mon 2026-09-21 → Fri 2026-09-25",
+    "M4 · Week 4 — Ecosystem Validation Package (Deliverable D4, Epic 5)",
+  week: "Mon 2026-09-28 → Fri 2026-10-02 (evidence assembled 2026-10-03)",
   network: "Stellar testnet only",
   team: [
     ["Danielle Bagaforo Meer", "lead engineer", "ALGOREX-PH"],
@@ -364,8 +364,8 @@ const COVER = {
       "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
     ],
     [
-      "PaymentEscrow",
-      "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
+      "PaymentEscrow v2",
+      "CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4",
     ],
     [
       "AttestationRegistry",
@@ -511,7 +511,7 @@ function summaryPage(s) {
 const cover = `
 <section class="page cover">
   <div class="kicker">${esc(COVER.programme)}</div>
-  <h1>Orizon Agents — Week 3 Tranche Submission</h1>
+  <h1>Orizon Agents — Week 4 Tranche Submission</h1>
   <div class="sub">Proof of Deliverables</div>
   <table class="facts">
     <tr><th>Programme</th><td>${esc(COVER.programme)}</td></tr>
@@ -519,7 +519,7 @@ const cover = `
     <tr><th>Sprint week</th><td>${esc(COVER.week)}</td></tr>
     <tr><th>Network</th><td><b>${esc(COVER.network)}</b></td></tr>
     <tr><th>Team</th><td>${COVER.team.map(([n, r, g]) => `${esc(n)} — ${esc(r)} (GitHub <span class="mono">${esc(g)}</span>)`).join("<br>")}</td></tr>
-    <tr><th>Evidence captured</th><td>2026-09-26 — from the live testnet API, public GitHub and Stellar Expert pages, and a local run of the shipped interface against the test suite's fixtures. Every page states which of these it is, and its source URL.</td></tr>
+    <tr><th>Evidence captured</th><td>2026-10-03 — from the live site, the live testnet API, and public GitHub and Stellar Expert pages; four frames of the live receipt and plan card were captured from the live site on 2026-09-30 for the public evidence index. Every page states its source URL and when it was captured.</td></tr>
   </table>
   <h3>Deployed testnet contract ids</h3>
   <table class="ids">
@@ -538,7 +538,7 @@ const html = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Orizon Agents — Week 3 Proof of Deliverables</title>
+<title>Orizon Agents — Week 4 Proof of Deliverables</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -657,7 +657,7 @@ await page.pdf({
   preferCSSPageSize: true,
   displayHeaderFooter: true,
   headerTemplate: "<span></span>",
-  footerTemplate: `<div style="width:100%;font-family:Inter,'DejaVu Sans',sans-serif;font-size:7.5px;color:#7a8394;padding:0 15mm;display:flex;justify-content:space-between"><span>Orizon Agents — Week 3 Tranche Submission · Proof of Deliverables · Stellar testnet</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
+  footerTemplate: `<div style="width:100%;font-family:Inter,'DejaVu Sans',sans-serif;font-size:7.5px;color:#7a8394;padding:0 15mm;display:flex;justify-content:space-between"><span>Orizon Agents — Week 4 Tranche Submission · Proof of Deliverables · Stellar testnet</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
 });
 await browser.close();
 const pages = (
