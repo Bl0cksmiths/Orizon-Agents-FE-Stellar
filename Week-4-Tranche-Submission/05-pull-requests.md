@@ -120,3 +120,13 @@ The full list for each repo follows.
 | PR                                                                              | Deliverable                                                 | Merged (UTC) | head → base                     | Commits | Lines     |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------ | ------------------------------- | ------- | --------- |
 | [#6](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar/pull/6) | **5.01 AC5** Opt-in fault injection for integration testing | 2026-09-28   | `feat/5.01-fault-mode` → `main` | 11      | +776 / −9 |
+
+### UAT — [Orizon-Agents-UAT-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar) · 1 PR · 404 commits · +8,816 / −288
+
+| PR                                                                    | Deliverable                                                                                                                                         | Merged (UTC) | head → base    | Commits                                | Lines         |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | -------------- | -------------------------------------- | ------------- |
+| [#5](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/5) | **Rie's Week-4 QA** — 6.04 independent on-chain verification, the 6.02 re-check, the 6.03 re-run on escrow v2, 6.08 and 6.09, defects D-077 → D-092 | 2026-10-03   | `uat` → `main` | 403 (**all by `rie-hash14`**), 1–3 Oct | +8,816 / −288 |
+
+What UAT #5 contains (66 files): eight new Playwright specs and six updated ones; four new verification tools (`tools/attestation-verify/`, `tools/onchain-verify/`, `tools/sow-metrics-verify/`, `tools/e2e-run/`); nine new evidence reports under `docs/uat/evidence/`; a phone and onboarding checklist; and the defect register, test plan, traceability matrix and sign-off report brought up to 2026-10-02. [`01-tasks-completed.md`](./01-tasks-completed.md) describes each card and her verdicts. Her story 6.07 and 6.10 work is on branches not yet merged, and is not counted here.
+
+---
