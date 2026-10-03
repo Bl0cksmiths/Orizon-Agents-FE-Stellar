@@ -45,3 +45,9 @@ Every transaction below is on Stellar testnet, re-read from the network by the b
 | 3 — 0.01 XLM | [`9f9e99c2…caeac655`](https://stellar.expert/explorer/testnet/tx/9f9e99c2aadcbf3b06cfe4738012dcc302fcee9358f092cfab4dc7f5caeac655) | [`785428bf…04ca554b`](https://stellar.expert/explorer/testnet/tx/785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b) | [`efca274f…da37c0a8`](https://stellar.expert/explorer/testnet/tx/efca274fb83b50865cfc20dc40b6949e5abd1ae23ed3e7a7622e6c9eda37c0a8) |
 
 **What it proves:** the buyer's own signature moves funds into the escrow, the platform's settler pays the agent's on-chain owner out of it, and the attestation seal ties the payout to the job — the flow v1 could never complete. Screenshot [21](./screenshots/21-settlement-tx-stellar-expert.png) shows the first settlement on Stellar Expert.
+
+### 2. A failed run charges nothing
+
+Three runs against a deliberately faulty test agent ([authorizations `f10d0f48…`](https://stellar.expert/explorer/testnet/tx/f10d0f48669d0f1de97d4ae5841f10c4fc27ab60747d1425ad77f16f3c34befb), [`55f23322…`](https://stellar.expert/explorer/testnet/tx/55f233224e00d96d4e56579fa8077f797c9c3f3c578638a80139eeb5c82c8949), [`6af4f1c3…`](https://stellar.expert/explorer/testnet/tx/6af4f1c3afd8ee50fa25e478897eab9a1563d743a3a112db26d0d560b03b4463)): each failed and nothing was charged, and each failure wrote a 20/100 rating that pushed the agent below the routing floor — the live exclusion in [`03`](./03-deliverable-D4-ecosystem-validation.md#d2--reputation-gated-routing-now-evidenced-live).
+
+**What it proves:** a buyer does not pay for work that was not delivered, and the agent's reputation records it.
