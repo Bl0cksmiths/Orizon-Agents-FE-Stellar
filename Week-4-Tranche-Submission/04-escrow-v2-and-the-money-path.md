@@ -31,3 +31,7 @@ The contracts now carry **47 tests, 32 of them for the escrow, and none uses `mo
 ### In the console
 
 [FE #89](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/89) makes the console's words match what v2 does: the Authorize step says the plan's maximum moves into escrow and the unused part comes back at settlement, checks the buyer's balance first, and shows the cap exactly. The receipt shows the settlement state and each step's payout with its Stellar Expert link, and offers Reclaim after expiry. The frontend pins the escrow id it expects ([FE #101](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/101)) and checks it against the contracts repository's address book in CI.
+
+## What each live transaction proves
+
+Every transaction below is on Stellar testnet, re-read from the network by the backend's evidence tool (21 of 21 in the team-run sheet, 11 of 11 in the acceptance-run sheet, all successful) and listed in the backend repository under [`docs/evidence/5.01/`](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/tree/main/docs/evidence/5.01). All were made on 2026-09-30 by the team's own keys, buying from agents the team operates, in native XLM.
