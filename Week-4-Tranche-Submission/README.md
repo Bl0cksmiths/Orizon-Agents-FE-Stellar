@@ -24,3 +24,17 @@
 | [Orizon-Agents-UAT-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar)                       | Rie's end-to-end UAT suite (Playwright) against the live deployment | —       |
 
 All four code repositories the SOW names (and the reference agent) now carry an MIT licence that GitHub detects — added this week by frontend [#97](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97), backend [#94](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/94) and contracts [#5](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/5).
+
+## Deployed testnet contract ids
+
+Read live from [`GET /api/stellar/network`](https://orizon-agents-be-stellar.onrender.com/api/stellar/network) on 2026-10-03 at 07:37 UTC. One id changed this week: **PaymentEscrow is now escrow v2**, deployed on 2026-09-30 and switched on by the live API the same day.
+
+| Contract            | Id                                                                                                                                                                      | Change this week                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| AgentRegistry       | [`CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ`](https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ) | unchanged                                                                                                      |
+| ReputationLedger    | [`CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT`](https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT) | unchanged                                                                                                      |
+| PaymentEscrow (v2)  | [`CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4`](https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4) | **new** — replaces v1 `CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI`, created 2026-09-30 08:31 UTC |
+| AttestationRegistry | [`CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK`](https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK) | unchanged                                                                                                      |
+| Asset SAC (native)  | [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) | unchanged — testnet settles in native XLM, and the app labels amounts XLM on testnet                           |
+
+The live readiness report ([`GET /readiness`](https://orizon-agents-be-stellar.onrender.com/readiness)) confirms the switch: `escrow.version: 2`, `escrow.contract: CCNO5TEN…5VC4`, dispute store `postgres`, refund reconciliation enabled and running.
