@@ -108,3 +108,9 @@ Authored — not `Co-authored-by:` — so they satisfy the "the commit author mu
 **Work in progress, not counted.** A further 75 of her commits sit on branches not yet merged to `main` — 67 for story 6.07 (the escrow v2 payment path on the live dApp) on the `uat-607-*` branches, and 8 for 6.10 (re-verifying the public evidence index) pushed on 2026-10-03, four of them to `uat` after PR #5 merged. They are public on those branches; they are not in the figures above because they are not on `main`.
 
 **Where to see them:** [UAT PR #5 → Commits](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/5/commits) — GitHub's banner there says it shows the most recent 250 of the 403. The full listing, filtered on her commit address, is [here](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/commits/main?author=276933516%2Brie-hash14%40users.noreply.github.com); GitHub's `?author=<login>` filter does not return her commits.
+
+## What counts / doesn't (per the rule)
+
+- **Counts:** commits and PRs in the public repos, authored by an approved member, relevant to their role. Met by both.
+- **Does not count:** private repos, unpushed work, tracker-only activity, or a co-author trailer. None relied on here.
+- **Not counted as Week-4 work:** unmerged branches (Rie's 75 above), and the commits of the two Week-3 consolidation PRs that were authored before the window (see Dan's section).
