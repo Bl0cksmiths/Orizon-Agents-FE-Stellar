@@ -71,7 +71,12 @@ const prettyJson =
 // shot can be clipped from just above it, for `maxHeight` px. The manifest
 // records the offset, so the crop is stated rather than hidden.
 const fromText = (text) => async (page) => {
-  const el = page.getByText(text, { exact: true }).first();
+  // A RegExp names a heading by how it starts (a defect's long title).
+  const el = (
+    text instanceof RegExp
+      ? page.getByRole("heading", { name: text })
+      : page.getByText(text, { exact: true })
+  ).first();
   await el.waitFor({ timeout: 30000 });
   const y = await el.evaluate(
     (n) => n.getBoundingClientRect().top + window.scrollY,
@@ -143,6 +148,8 @@ const TX = {
   disputeRating:
     "b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
   outsideReg: "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+  ac4Refund: "01c3175a881658808e15dc9a284439f2fbce4091a3566bfe3894ecedc1efa5be",
+  ac5Settle: "0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b",
 };
 const LIVE_JSON = { waitUntil: "load", timeout: 120000, settle: 500 };
 const EXPERT_PAGE = { settle: 6000 };
@@ -236,6 +243,23 @@ const SHOTS = [
     "25-contracts-issue-3-resolved.png",
     `${GH}/Orizon-Agents-Smart-Contract-Stellar/issues/3`,
     { maxHeight: 3000 },
+  ],
+  // ---- story 5.01's two acceptance runs (backend docs/evidence/5.01/)
+  [
+    "26-restart-dispute-refund-tx-stellar-expert.png",
+    `${EXPERT}/tx/${TX.ac4Refund}`,
+    EXPERT_PAGE,
+  ],
+  [
+    "27-partial-delivery-settle-tx-stellar-expert.png",
+    `${EXPERT}/tx/${TX.ac5Settle}`,
+    EXPERT_PAGE,
+  ],
+  // ---- independent QA
+  [
+    "28-uat-epic-6-status.png",
+    `${GH}/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/signoff-report.md`,
+    { clipFrom: fromText("Epic 6 status, 2026-10-02"), maxHeight: 1800 },
   ],
 ];
 
