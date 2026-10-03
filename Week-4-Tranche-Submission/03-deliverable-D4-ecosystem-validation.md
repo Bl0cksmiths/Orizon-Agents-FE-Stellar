@@ -104,3 +104,7 @@ Weeks 1 to 3 built Deliverables D1, D2 and D3, and the Week-3 bundle said plainl
 | **D-051** — dispute refunds switched off on the deployment                                  | Switched on with escrow v2, on the current build, with the dispute store on Postgres and the refund reconcile sweep running                            | Live [`/readiness`](https://orizon-agents-be-stellar.onrender.com/readiness): `escrow.version: 2`, `disputes.store: postgres`, `disputes.reconcile.enabled: true` (screenshot [18](./screenshots/18-be-readiness.png)); the two credits below                                                              |
 
 QA's register records both as resolved on 2026-10-01, together with D-050 (no settlement record was ever written, so nothing could be disputed); the GitHub issue that tracks D-050, [backend #67](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/67), is still open and will be closed against her re-check.
+
+### D1 — Permissionless registration, now evidenced live
+
+SOW §6.1 asks for "an externally owned agent's registration tx hash on Stellar Expert". The eleven outside registrations listed above are exactly that, each signed by its owner's wallet with no admin involved, and the [Register an Agent page](https://orizons.xyz/app/register) is live and open to any wallet. The operator half of the demo records the same flow end to end in Freighter.
