@@ -79,6 +79,42 @@ const fromText = (text) => async (page) => {
   return Math.max(0, Math.floor(y) - 24);
 };
 
+// The evidence index's metrics table carries, per row, how it was measured and
+// every proof link — dozens of links in the adoption rows — so the ten rows run
+// to ~9,000 px. To show all ten in one frame, the "How measured" notes and the
+// Proof column are given `display:none` in the browser. Nothing is rewritten or
+// re-ordered, the status notes stay in, and a line at the top of the frame says
+// what was hidden. Every hidden link is at the URL.
+async function metricsAtAGlance(page) {
+  const section = page.locator('section[aria-labelledby="success-metrics"]');
+  await section.waitFor({ timeout: 30000 });
+  const rows = await section.locator("tbody tr").count();
+  if (rows !== 10) throw new Error(`expected 10 metric rows, saw ${rows}`);
+  await section.evaluate((sec) => {
+    for (const row of sec.querySelectorAll("tr")) {
+      const last = row.lastElementChild;
+      if (last) last.style.display = "none";
+    }
+    for (const span of sec.querySelectorAll("span"))
+      if (span.textContent.startsWith("How measured:"))
+        span.style.display = "none";
+    const note = document.createElement("p");
+    note.style.cssText =
+      "margin:0 0 14px;font:13px/1.5 ui-monospace,monospace;color:#9aa3b5";
+    note.textContent = `${location.href} — the "How measured" notes and the Proof column are hidden here so all ten rows fit one frame; both are on the live page.`;
+    sec.prepend(note);
+    sec.style.padding = "16px";
+    // The site header is sticky; an element screenshot scrolls, so it would
+    // be painted across the middle of the frame. Take it out of the flow.
+    for (const el of document.querySelectorAll("body *")) {
+      const pos = getComputedStyle(el).position;
+      if ((pos === "sticky" || pos === "fixed") && !sec.contains(el))
+        el.style.display = "none";
+    }
+  });
+  await page.waitForTimeout(500);
+}
+
 // ------------------------------------------------------------------- shot list
 // [filename, url, options]
 //   waitUntil  — goto lifecycle event (default "networkidle")
@@ -95,85 +131,110 @@ const fromText = (text) => async (page) => {
 //                (with maxHeight, the clip is that tall from y)
 const BE_PR = (n) => `${GH}/Orizon-Agents-BE-Stellar/pull/${n}`;
 const FE_PR = (n) => `${GH}/Orizon-Agents-FE-Stellar/pull/${n}`;
-const MERGED = "pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-21..2026-09-26";
+const SC_PR = (n) => `${GH}/Orizon-Agents-Smart-Contract-Stellar/pull/${n}`;
+const EA_PR = (n) => `${GH}/Orizon-Agents-Example-Agent-Stellar/pull/${n}`;
+const SITE = "https://orizons.xyz";
+const EXPERT = "https://stellar.expert/explorer/testnet";
+const MERGED = "pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-27..2026-10-03";
+const ESCROW_V2 = "CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4";
+const TX = {
+  settle1: "f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+  refund: "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+  disputeRating:
+    "b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
+  outsideReg: "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+};
+const LIVE_JSON = { waitUntil: "load", timeout: 120000, settle: 500 };
+const EXPERT_PAGE = { settle: 6000 };
 
 const SHOTS = [
-  ["01-be-pr-60-dispute-window.png", BE_PR(60), { maxHeight: 2600 }],
-  ["02-be-pr-62-partial-credit-refund.png", BE_PR(62), { maxHeight: 2600 }],
-  ["03-be-pr-63-dispute-rating.png", BE_PR(63), { maxHeight: 2600 }],
-  ["04-be-pr-65-receipt-record.png", BE_PR(65), { maxHeight: 2600 }],
-  ["05-fe-pr-68-dispute-action.png", FE_PR(68), { maxHeight: 2600 }],
-  ["06-fe-pr-69-dispute-receipt.png", FE_PR(69), { maxHeight: 2600 }],
-  ["07-be-pr-75-hardening.png", BE_PR(75), { maxHeight: 2600 }],
-  ["08-fe-pr-76-hardening.png", FE_PR(76), { maxHeight: 2600 }],
-  ["09-be-pull-requests-week3.png", `${GH}/Orizon-Agents-BE-Stellar/${MERGED}`],
-  ["10-fe-pull-requests-week3.png", `${GH}/Orizon-Agents-FE-Stellar/${MERGED}`],
+  // ---- the week's pull requests: escrow v2, its deployment, the switch
+  ["01-contracts-pr-4-escrow-v2.png", SC_PR(4), { maxHeight: 2600 }],
+  ["02-contracts-pr-6-escrow-v2-deployed.png", SC_PR(6), { maxHeight: 2600 }],
+  ["03-be-pr-88-settle-through-escrow-v2.png", BE_PR(88), { maxHeight: 2600 }],
+  ["04-fe-pr-89-escrow-v2-console.png", FE_PR(89), { maxHeight: 2600 }],
+  ["05-fe-pr-97-guide-evidence-litepaper.png", FE_PR(97), { maxHeight: 2600 }],
+  ["06-example-agent-pr-6-fault-injection.png", EA_PR(6), { maxHeight: 2600 }],
+  ["07-be-pull-requests-week4.png", `${GH}/Orizon-Agents-BE-Stellar/${MERGED}`],
+  ["08-fe-pull-requests-week4.png", `${GH}/Orizon-Agents-FE-Stellar/${MERGED}`],
   [
-    "11-uat-pr-4-rie-commits.png",
-    `${GH}/Orizon-Agents-UAT-Stellar/pull/4/commits`,
+    "09-uat-pr-5-rie-commits.png",
+    `${GH}/Orizon-Agents-UAT-Stellar/pull/5/commits`,
     { maxHeight: 3200 },
   ],
+  // ---- the live site
   [
-    "12-be-stellar-network.png",
+    "10-orizons-home-live-stats.png",
+    `${SITE}/`,
+    { maxHeight: 1100, ready: "text=REGISTERED AGENTS" },
+  ],
+  [
+    "11-orizons-evidence-checklist.png",
+    `${SITE}/evidence`,
+    { clipFrom: fromText("Checklist summary (SOW §6.2)"), maxHeight: 1100 },
+  ],
+  [
+    "12-orizons-evidence-metrics.png",
+    `${SITE}/evidence`,
+    {
+      action: metricsAtAGlance,
+      element: (page) =>
+        page.locator('section[aria-labelledby="success-metrics"]'),
+    },
+  ],
+  ["13-orizons-demo.png", `${SITE}/demo`, { maxHeight: 2600 }],
+  [
+    "14-orizons-demo-transactions.png",
+    `${SITE}/demo`,
+    { clipFrom: fromText("On-chain evidence"), maxHeight: 1500 },
+  ],
+  [
+    "15-orizons-guide-list-your-agent.png",
+    `${SITE}/guide/list-your-agent`,
+    { maxHeight: 2000 },
+  ],
+  ["16-orizons-litepaper.png", `${SITE}/litepaper`, { maxHeight: 1800 }],
+  // ---- the live API
+  [
+    "17-be-stellar-network.png",
     `${BE}/api/stellar/network`,
-    {
-      waitUntil: "load",
-      timeout: 120000,
-      settle: 500,
-      action: prettyJson(["network", "contracts", "asset_sac"]),
-    },
+    { ...LIVE_JSON, action: prettyJson(["network", "contracts", "asset_sac"]) },
   ],
   [
-    "13-be-readiness.png",
+    "18-be-readiness.png",
     `${BE}/readiness`,
-    {
-      waitUntil: "load",
-      timeout: 120000,
-      settle: 500,
-      action: prettyJson(["cold_start", "ratings"]),
-    },
+    { ...LIVE_JSON, action: prettyJson(["escrow", "disputes", "ratings"]) },
   ],
   [
-    "14-be-dispute-routes-openapi.png",
-    `${BE}/docs`,
-    {
-      waitUntil: "load",
-      timeout: 120000,
-      settle: 2500,
-      action: disputesSectionOnly,
-    },
+    "19-be-metrics-overview.png",
+    `${BE}/api/metrics/overview`,
+    { ...LIVE_JSON, action: prettyJson(["agents", "operators", "workflows"]) },
   ],
-  // The shell page is the deployment's own /readiness, so the fetch() below is
-  // same-origin (a cross-origin shell is refused by CORS before it is answered).
-  // Its body is then replaced by the request/response transcript.
+  // ---- the chain
   [
-    "15-be-refunds-disabled.png",
-    `${BE}/readiness`,
-    { waitUntil: "load", timeout: 120000, settle: 500, action: upholdRefused },
+    "20-escrow-v2-contract-stellar-expert.png",
+    `${EXPERT}/contract/${ESCROW_V2}`,
+    EXPERT_PAGE,
   ],
   [
-    "16-drill-refund-tx-stellar-expert.png",
-    "https://stellar.expert/explorer/testnet/tx/a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8",
-    { settle: 6000 },
+    "21-settlement-tx-stellar-expert.png",
+    `${EXPERT}/tx/${TX.settle1}`,
+    EXPERT_PAGE,
+  ],
+  ["22-refund-tx-stellar-expert.png", `${EXPERT}/tx/${TX.refund}`, EXPERT_PAGE],
+  [
+    "23-dispute-rating-tx-stellar-expert.png",
+    `${EXPERT}/tx/${TX.disputeRating}`,
+    EXPERT_PAGE,
   ],
   [
-    "17-drill-rating-tx-stellar-expert.png",
-    "https://stellar.expert/explorer/testnet/tx/7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184",
-    { settle: 6000 },
+    "24-outside-registration-tx-stellar-expert.png",
+    `${EXPERT}/tx/${TX.outsideReg}`,
+    EXPERT_PAGE,
   ],
   [
-    "18-be-issue-67-no-settlement.png",
-    `${GH}/Orizon-Agents-BE-Stellar/issues/67`,
-    { maxHeight: 3000 },
-  ],
-  [
-    "19-contracts-issue-3-escrow-charge.png",
+    "25-contracts-issue-3-resolved.png",
     `${GH}/Orizon-Agents-Smart-Contract-Stellar/issues/3`,
-    { maxHeight: 3000 },
-  ],
-  [
-    "20-uat-defect-register.png",
-    `${GH}/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/defects.md`,
     { maxHeight: 3000 },
   ],
 ];
