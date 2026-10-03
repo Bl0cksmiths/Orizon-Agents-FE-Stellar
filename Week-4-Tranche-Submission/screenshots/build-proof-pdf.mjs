@@ -438,72 +438,80 @@ const COVER = {
 
 const SUMMARY = [
   {
-    eyebrow: "Summary · Week-3 delivery",
-    title: "What we shipped in Week 3",
+    eyebrow: "Summary · Week-4 delivery",
+    title: "What we shipped in Week 4",
     html: `
-  <p class="lead">This week we built <b>Deliverable D3 — the dispute window and partial-credit refund</b>: a buyer who pays for an agent workflow gets 24 hours to dispute any single step, and an upheld dispute credits part of that step's charge back to their wallet and writes a permanent negative rating against the agent on-chain.</p>
-  <h3>The five stories, all merged to <code>main</code></h3>
+  <p class="lead">Week 4 is the week the money path came alive. A new payment escrow was written, deployed to Stellar testnet on 2026-09-30 and switched on — and the same day the live deployment settled paid runs, upheld a dispute and paid the credit, settled a partial delivery, and credited a dispute raised after a backend restart. On top of it, all six stories of <b>Deliverable D4 — the ecosystem validation package</b> shipped.</p>
+  <h3>Escrow v2 — the fix for Week 3's blocker</h3>
+  <p>The v1 escrow could never settle a payment between two wallets (defect D-039). Escrow v2 takes custody of the buyer's authorized amount under the buyer's own signature, pays each delivered step's on-chain owner and returns the rest in one transaction, lets a buyer reclaim an expired authorization, and lets the settling key be rotated. 47 contract tests, none mocking authorization.</p>
+  <h3>The six Epic 5 stories, all merged to <code>main</code></h3>
   <ul>
-    <li><b>4.02 — Dispute window and endpoint.</b> Every settlement stamps a 24-hour window on its own record. The payer opens a dispute against one step by signing a challenge with the wallet that paid; with the Postgres store, one dispute per step is a database rule, not a UI rule (the in-memory fallback does not always hold it: QA's D-058).</li>
-    <li><b>4.03 — Settler-executed partial-credit refund.</b> The platform pays a configured share of the disputed step's charge from its own wallet, clamped three ways, with the mutex taken <i>before</i> the signature so no crash or second adjudicator can pay one dispute twice, and a ceiling that binds while it is set to a finite value (QA's D-054).</li>
-    <li><b>4.04 — Negative on-chain rating.</b> An upheld dispute records the consequence on the ReputationLedger under a per-step derived job id, and that rating feeds the routing floor.</li>
-    <li><b>4.05 — Dispute action on the trace view.</b> The buyer sees each step's charge, what is creditable, a countdown, and a Dispute button — offered to the paying wallet alone.</li>
-    <li><b>4.06 — Dispute status and refund receipt.</b> Status, refund transfer and rating, each with its explorer link, and nothing shown as done until the chain confirms it.</li>
+    <li><b>5.01 — the settlement path on escrow v2</b>, end to end: contract, backend, console, and a reference agent that can be told to fail, so partial delivery could be proven live.</li>
+    <li><b>5.02 — adoption metrics and operator onboarding</b>, computed from the chain with every team wallet excluded through a public register.</li>
+    <li><b>5.03 — the "List your agent on Orizon" guide</b>, every sample checked against the live API.</li>
+    <li><b>5.04 — the demo</b>, published in two parts, 4 min 20 s, beside the sprint's 14 verified transactions.</li>
+    <li><b>5.05 — the public evidence index</b> at orizons.xyz/evidence: every deliverable item present, 10 of 10 metrics met.</li>
+    <li><b>5.06 — the litepaper</b>, version 0.5, with §6 rewritten for open registration and escrow v2.</li>
   </ul>
-  <h3>Then we attacked it — story 4.07</h3>
-  <p>Before declaring the epic done we audited everything it produced, on the rule that nothing counted as a finding until it had been reproduced against the running service. It found a <b>reproducible double payment</b>, a stale decision that could leave a dispute permanently unpayable, a misconfiguration that parked a payment mid-flight, the buyer's own words readable by a caller who had proved nothing, a flood that could deny every buyer their dispute window, a boot failure that printed secrets into the deploy log, a rating collision that lost half the ratings when one agent served two steps, and receipt copy that claimed a transfer existed when none had been submitted. Every fix carries a test that was written first and watched failing, and was then re-checked by putting the bug back. The disclosure fix has a cost QA recorded: the same gate withholds both reasons from a payer without the task's read token (D-067).</p>
   <h3>The week in numbers</h3>
   <ul>
-    <li><b>14 pull requests</b> merged across the public repositories; 1,295 commits; net +45,936 / −1,152 on <code>main</code>.</li>
-    <li><b>908 authored commits</b> by the lead engineer (687 backend, 221 frontend), 849 of them touching exactly one file; <b>268 authored commits</b> of independent QA work, every one touching exactly one file.</li>
-    <li>Backend <b>2,177 tests</b> at 92.53% coverage; frontend <b>1,503 unit</b> and <b>149 end-to-end</b> tests; CI green on <code>main</code> in both repositories.</li>
+    <li><b>42 pull requests</b> merged across the five public repositories; 2,718 commits landed on <code>main</code>.</li>
+    <li><b>1,801 authored commits</b> by the lead engineer in the sprint week, 1,573 of them touching exactly one file; <b>403 authored commits</b> of independent QA work, 401 touching one file.</li>
+    <li>Backend <b>4,038 tests</b> at 94.26% coverage; frontend <b>2,969 unit</b> and <b>446 end-to-end</b> tests; CI green on <code>main</code>. Every repository MIT-licensed.</li>
   </ul>`,
   },
   {
-    eyebrow: "Summary · Deliverable D3",
-    title: "Where D3 stands, stated plainly",
+    eyebrow: "Summary · Deliverable D4 and D1–D3",
+    title: "Where D4 stands, and D1–D3 now live",
     html: `
-  <p class="lead">D3 is <b>built, merged and independently QA'd. Its evidence run on the live deployment has not been captured</b>, for two separate reasons — and the first one is not configuration.</p>
-  <h3>1 · No workflow settles on the deployment</h3>
-  <p>A dispute window is stamped on a <b>settlement</b>. On the deployed service, <code>PaymentEscrow.charge</code> attempts the transfer from an account that never signs, so the buyer's funds do not move and no run records a settlement — which means no window is ever stamped and there is nothing to dispute. QA filed it as D-050 (<span class="mono">backend issue #67</span>) behind the contract-level cause D-039 (<span class="mono">contracts issue #3</span>). This is the gating item: until it is fixed, no deployment or environment work produces a disputable run.</p>
-  <h3>2 · The refund path is switched off, on an older build</h3>
-  <p>Asking the deployment to uphold a dispute answers <code>503 dispute_refunds_disabled</code>, and its published API description shows a build from before the hardening merge. Both are shown in this document.</p>
-  <h3>What we do have, and what it is not</h3>
-  <p>QA drove the <b>real backend code</b> through one uphold and it produced two real, confirmed testnet transactions: a refund transfer and a <code>kind="dispute"</code> rating, one ledger apart. They prove the path executes and yields verifiable artifacts. They are <b>not</b> D3: the asset is a test asset rather than USDC, the ledger is QA's own drill rather than the platform's, and the source account is a developer machine's rather than the deployment's signer — which is checkable on the Stellar Expert pages included here. Every screenshot of the interface in this document is likewise a local run against the test suite's fixtures, labelled as such on its own page, with hashes that exist on no ledger.</p>
-  <h3>The remaining path to D3, in order</h3>
-  <ol>
-    <li>Fix the escrow charge so a paid run settles (contracts issue #3).</li>
-    <li>Deploy the current <code>main</code>, which carries the hardening pass.</li>
-    <li>Set an operator key and switch the refund path on; confirm the database is configured so settlements survive an idle spin-down; leave the refund ceiling at a finite value; decide the refund asset.</li>
-    <li>Capture one run on the deployment producing both transactions, with the screen recording taken in the same session.</li>
-  </ol>
-  <p class="small">The written bundle this PDF accompanies sets all of this out with links: <span class="mono">Week-3-Tranche-Submission/03-deliverable-D3-dispute-refund.md</span>.</p>`,
+  <p class="lead">Every item SOW §6.1 asks of D4 is published and linked, and D1, D2 and D3 now have evidence produced by the deployed service itself.</p>
+  <table class="tx">
+    <tr><th>SOW item</th><th>Status</th></tr>
+    <tr><td>3–5 min demo video, operator + buyer</td><td>Published — orizons.xyz/demo, two parts, 4 min 20 s</td></tr>
+    <tr><td>"List your agent on Orizon" guide</td><td>Published — orizons.xyz/guide/list-your-agent, v1.1.0</td></tr>
+    <tr><td>≥ 2 external registration tx hashes</td><td>11, from 7 outside wallets, each on Stellar Expert</td></tr>
+    <tr><td>≥ 3 settlement tx hashes</td><td>3 team runs through escrow v2, plus 2 acceptance runs</td></tr>
+    <tr><td>Litepaper, §6 updated (§5.1)</td><td>Published — orizons.xyz/litepaper, v0.5</td></tr>
+  </table>
+  <h3>D1–D3 on escrow v2</h3>
+  <ul>
+    <li><b>D1</b> — eleven registrations signed by outside operators' own wallets, no admin involved.</li>
+    <li><b>D2</b> — the live plan card shows on-chain reputation; a faulty test agent failed three runs, fell below the floor and was left out of the next live plan.</li>
+    <li><b>D3</b> — a dispute upheld on the deployment, its credit and its dispute rating on Stellar Expert, and a recording of the live receipt flipping to refunded.</li>
+  </ul>
+  <h3>Stated plainly</h3>
+  <p>The settlements and dispute credits are <b>the team's own test runs</b> — team keys buying from agents the team operates, in testnet's native XLM — because no outside operator's agent is yet bound to a live endpoint that a paid run can reach. The SOW lists eleven metrics; metric m03 was removed from the sprint's requirements on 2026-09-30, and the evidence index says so. And <b>independent QA has not signed off</b>: her verdict on the evidence card is no-go; two of her blockers have been addressed since and await her re-check, and the rest of her register is open and public.</p>
+  <p class="small">The written bundle sets all of this out with links: <span class="mono">Week-4-Tranche-Submission/03-deliverable-D4-ecosystem-validation.md</span>.</p>`,
   },
   {
     eyebrow: "Summary · Verification",
     title: "How to check any of this without trusting us",
     html: `
-  <p class="lead">Every claim in this document resolves to something public: a merged pull request, a commit, a GitHub issue, a transaction on Stellar Expert, or a live endpoint you can call yourself.</p>
-  <h3>Live endpoints</h3>
+  <p class="lead">Every claim in this document resolves to something public: a merged pull request, a GitHub issue, a transaction on Stellar Expert, a live page or a live endpoint you can call yourself.</p>
+  <h3>Live pages and endpoints</h3>
   <table class="tx">
-    <tr><th>Check</th><th>Call</th></tr>
-    <tr><td>Network and contract ids</td><td class="mono">GET orizon-agents-be-stellar.onrender.com/api/stellar/network</td></tr>
-    <tr><td>Signer is the ledger's scorer</td><td class="mono">GET orizon-agents-be-stellar.onrender.com/readiness</td></tr>
-    <tr><td>The six dispute routes exist</td><td class="mono">GET orizon-agents-be-stellar.onrender.com/openapi.json</td></tr>
-    <tr><td>The refund switch is off</td><td class="mono">POST orizon-agents-be-stellar.onrender.com/api/disputes/{id}/uphold</td></tr>
+    <tr><th>Check</th><th>Where</th></tr>
+    <tr><td>Every deliverable item and metric, linked</td><td class="mono">orizons.xyz/evidence</td></tr>
+    <tr><td>The demo and its 14 transactions</td><td class="mono">orizons.xyz/demo</td></tr>
+    <tr><td>Network and contract ids, escrow v2</td><td class="mono">GET orizon-agents-be-stellar.onrender.com/api/stellar/network</td></tr>
+    <tr><td>Escrow version, refunds, dispute store</td><td class="mono">GET orizon-agents-be-stellar.onrender.com/readiness</td></tr>
+    <tr><td>The home page's live figures</td><td class="mono">GET orizon-agents-be-stellar.onrender.com/api/metrics/overview</td></tr>
   </table>
-  <p class="small">The service runs on a free tier and sleeps; the first request can take 30–60 seconds.</p>
-  <h3>Testnet transactions in this document</h3>
+  <p class="small">The API runs on a free tier and sleeps; the first request can take up to a minute.</p>
+  <h3>Key testnet transactions in this document</h3>
   <table class="tx">
     <tr><th>Artifact</th><th>Transaction hash</th></tr>
-    <tr><td>Refund transfer (QA drill)</td><td class="mono">a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8</td></tr>
-    <tr><td>Dispute rating (QA drill)</td><td class="mono">7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184</td></tr>
+    <tr><td>First escrow v2 settlement</td><td class="mono">f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235</td></tr>
+    <tr><td>Dispute credit</td><td class="mono">cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f</td></tr>
+    <tr><td>Dispute rating</td><td class="mono">b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49</td></tr>
+    <tr><td>Partial-delivery settlement</td><td class="mono">0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b</td></tr>
+    <tr><td>Credit after a backend restart</td><td class="mono">01c3175a881658808e15dc9a284439f2fbce4091a3566bfe3894ecedc1efa5be</td></tr>
+    <tr><td>First outside registration</td><td class="mono">8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad</td></tr>
   </table>
-  <p class="small">Each opens at <span class="mono">stellar.expert/explorer/testnet/tx/&lt;hash&gt;</span>. Both are drill transactions, as their pages in this document explain.</p>
+  <p class="small">Each opens at <span class="mono">stellar.expert/explorer/testnet/tx/&lt;hash&gt;</span>.</p>
   <h3>Independent QA</h3>
-  <p>QA works in its own public repository, <span class="mono">Bl0cksmiths/Orizon-Agents-UAT-Stellar</span>, with its own Playwright suites, drills and evidence pages. This week it logged <b>27 defects</b> (D-050 to D-076) — 25 as public GitHub issues, two money-path defects held privately — of which <b>eleven were found against our own hardening build</b>, including one regression our disclosure fix introduced. Its verdict on the dispute story card is <b>no-go</b>, and this submission reports it as no-go.</p>
-  <h3>The code</h3>
-  <p class="small">Backend <span class="mono">github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar</span> · frontend <span class="mono">github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar</span> · QA <span class="mono">github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar</span> · contracts <span class="mono">github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar</span> · reference agent <span class="mono">github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar</span>. Design records for this epic are in the backend repository under <span class="mono">docs/decisions/</span> (ADRs 0002, 0007, 0008, 0009) and the operator runbook is <span class="mono">docs/disputes.md</span>.</p>`,
+  <p>QA works in its own public repository, <span class="mono">Bl0cksmiths/Orizon-Agents-UAT-Stellar</span>, with tools that re-derive our claims from the chain rather than from our API. This week it logged <b>16 defects</b> (D-077 to D-092), 15 as public GitHub issues. Its verdict on the evidence card is <b>no-go</b>, and this submission reports it as no-go.</p>
+  <p class="small">Backend <span class="mono">github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar</span> · frontend <span class="mono">…/Orizon-Agents-FE-Stellar</span> · contracts <span class="mono">…/Orizon-Agents-Smart-Contract-Stellar</span> · reference agent <span class="mono">…/Orizon-Agents-Example-Agent-Stellar</span> · QA <span class="mono">…/Orizon-Agents-UAT-Stellar</span>.</p>`,
   },
 ];
 
