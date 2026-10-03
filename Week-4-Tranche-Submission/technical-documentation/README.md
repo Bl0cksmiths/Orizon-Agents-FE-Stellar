@@ -23,3 +23,42 @@ assembled 2026-10-03. Stellar **testnet** only.
 | 17    | The demo, published in two parts, with its 14 transactions                                                                                   |
 | 18    | The public evidence index — the §6.2 checklist and the §6.3 metrics                                                                          |
 | 19    | What is still open — QA sign-off, outside payments, open defects                                                                             |
+
+## Screenshots
+
+**Every frame is of the live deployment or a public page.** Unlike Week 3,
+there are no local fixture frames: with escrow v2 live, everything this
+document shows could be captured from the real service.
+
+1. **Close-ups in this folder (5)** — captured by [`capture.mjs`](./capture.mjs)
+   at 2x on 2026-10-03, recorded in [`shots.json`](./shots.json):
+   `b1-escrow-v2-why.png` (the contracts repository's escrow v2 interface
+   document), `b2-adr-0010-escrow-v2.png` (backend ADR 0010),
+   `c1-api-network.png` and `c2-api-readiness.png` (the live API's responses,
+   re-indented, with the fields the text cites tinted; the capture fails if a
+   live value no longer matches the text), and `d1-qa-epic-6-status.png`
+   (QA's sign-off report). Each GitHub document is shown as one section, from
+   its heading.
+2. **Full-page frames borrowed from [`../screenshots/`](../screenshots/) (15)**
+   — read from there, not copied, so the two PDFs show the same captures. Their
+   sources, times and crops are in that folder's
+   [manifest](../screenshots/README.md). Three of them —
+   `d2a-plan-card-onchain-score-desktop-1440.png`,
+   `d2b-routing-exclusion-desktop-1440.png` and
+   `d3c-dispute-refunded-desktop-1440.png` — were captured from the live site on
+   2026-09-30 for the public evidence index, and their captions say so.
+
+No wallet was connected and nothing was signed, paid or submitted for any of
+them.
+
+## Rebuild
+
+```bash
+node Week-4-Tranche-Submission/technical-documentation/capture.mjs     # the 5 close-ups
+node Week-4-Tranche-Submission/technical-documentation/build-pdf.mjs   # the PDF
+```
+
+The builder writes `Technical-Documentation-and-Demo-Evidence.html` here for
+inspection, prints it with Playwright's Chromium, and refuses to finish if any
+page's content overflows. Under WSL, use Playwright's own Chromium, not a
+Windows Chrome.
