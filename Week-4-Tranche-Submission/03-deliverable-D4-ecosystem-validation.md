@@ -72,3 +72,22 @@ Two more settled the same evening in the 5.01 acceptance runs — the partial-de
 ## The litepaper
 
 [The Orizon Agents Protocol Litepaper](https://orizons.xyz/litepaper), version 0.5, dated 2026-09-30, is public on orizons.xyz as a PDF, a web page, a Word document and Markdown, with no account or wallet needed (screenshot [16](./screenshots/16-orizons-litepaper.png)). Its §6, operations and governance, is rewritten for open registration and the escrow v2 settlement model, and its running-cost section is re-priced from the v2 runs. Its source and history live in the frontend repository under [`litepaper/`](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/tree/main/litepaper).
+
+## The SOW §6.3 success metrics, as the evidence index measures them
+
+The evidence index measures each metric from the chain with the backend's read-only generator (`scripts/sow_metrics`) and shows **10 of 10 met** (screenshot [12](./screenshots/12-orizons-evidence-metrics.png)). The SOW lists eleven; metric m03, "Workflows routed to external agents & settled on Testnet", was removed from the sprint's requirements on 2026-09-30, and the index states that removal under its Disclosures.
+
+| #   | Metric                                                           | Target | Achieved | What it rests on                                                                                         |
+| --- | ---------------------------------------------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------- |
+| m01 | Externally-operated agents registered on testnet                 | ≥ 2    | 11       | The 11 audited outside registrations above                                                               |
+| m02 | Unique external operator wallet addresses                        | ≥ 2    | 7        | Their 7 owner wallets                                                                                    |
+| m04 | On-chain settlements (charges) recorded                          | ≥ 3    | 3        | The three escrow v2 settlements above — team test runs, in native XLM                                    |
+| m05 | Dispute → partial-refund settlements                             | ≥ 1    | 1        | The dispute credit of 2026-09-30 — the full 0.01 XLM step charge, under the live policy of a 100% credit |
+| m06 | Permissionless `AgentRegistry.register` flow live on the dApp    | Yes    | Yes      | The [Register page](https://orizons.xyz/app/register), open to any wallet                                |
+| m07 | Reputation-gated routing (reads `avg_bps`, applies a floor) live | Yes    | Yes      | The live floor of 5,500 bps and the live exclusion below                                                 |
+| m08 | Automated dispute window + partial-credit refund live            | Yes    | Yes      | Refunds switched on with escrow v2 and the first credit paid                                             |
+| m09 | Public "List your agent on Orizon" guide published               | Yes    | Yes      | [The guide](https://orizons.xyz/guide/list-your-agent)                                                   |
+| m10 | 3–5 min demo video published                                     | Yes    | Yes      | [The demo](https://orizons.xyz/demo), 4 min 20 s                                                         |
+| m11 | All source code released under the MIT licence                   | Yes    | Yes      | GitHub detects MIT on all four code repositories                                                         |
+
+Where QA has an open question about a row — m04's asset, m05's and m08's credit share, the external status of one m01/m02 owner — it is in her register and listed in [`01`](./01-tasks-completed.md#defects-logged-this-week--d-077--d-092-16); the index's own row text states each of those facts itself.
