@@ -78,3 +78,28 @@ Her summary for the epic, in her words: **"The epic is not ready to submit."** Q
 
 - **Resolved since her verdict, awaiting her re-check:** the missing demo video (OV-05, her D-082) — the demo was published in two parts on [orizons.xyz/demo](https://orizons.xyz/demo) by [FE #122](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/122), merged hours after her verdict; and the outside registration hashes missing from the evidence index (her D-089) — all eleven are now linked, by [FE #109](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/109).
 - **Still open:** OV-08, blocked on her D-077 — an outside operator's agent bound to a live endpoint, so that a paid run can be routed to it — and the other defects in her register below.
+
+### Defects logged this week — D-077 → D-092 (16)
+
+Titles, severities and statuses as her register ([`docs/uat/defects.md`](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/defects.md)) records them on 2026-10-03. Fifteen are filed as public GitHub issues — backend [#104](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/104)–[#111](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/111) and frontend [#114](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/issues/114)–[#119](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/issues/119) — and none of this week's is held privately. They are reported here as she wrote them; engineering's responses will be on those issues.
+
+| ID    | Title (her register)                                                                                        | Severity | Status                      |
+| ----- | ----------------------------------------------------------------------------------------------------------- | -------- | --------------------------- |
+| D-077 | No paid workflow can complete on the deploy: every bound agent with an on-chain owner has a dead endpoint   | Critical | Open                        |
+| D-078 | The evidence index drops the unmet metric m03 from the SOW's eleven, citing a removal "by the team lead"    | Critical | Open                        |
+| D-079 | m04 "On-chain USDC settlements" is marked met on three XLM charges between team wallets                     | Critical | Open                        |
+| D-080 | m05 "partial-refund" and m08 "partial-credit refund" are marked met on refunds of 100%                      | Critical | Open                        |
+| D-081 | Three faulty-run rating links quote "lower bound" values the chain does not carry                           | Critical | Open                        |
+| D-082 | The demo video is not recorded, so /demo has nothing to play                                                | Major    | Open — addressed by FE #122 |
+| D-083 | The AttestationRegistry never extends a TTL: the seals and the registry archive on 2026-10-07               | Medium   | Open                        |
+| D-084 | The planner routes to an agent its own readiness probe reports unreachable, and the buyer pays the fees     | Medium   | Open                        |
+| D-085 | m01 and m02 count [an outside agent's] owner as external, though it is one hop from the team admin on-chain | Medium   | Open                        |
+| D-086 | An attestation's `agents` lists the planned agents, including one that was never paid                       | Minor    | Open                        |
+| D-087 | A rating link is labelled "research.pro", a name the chain does not hold                                    | Minor    | Open                        |
+| D-088 | The integration guide is public but declares itself a draft                                                 | Minor    | Open                        |
+| D-089 | §6.2 D1-c and D4-c are marked present with no outside registration transaction hash                         | Major    | Open — addressed by FE #109 |
+| D-090 | §6.2 D3-c links a "live receipt" whose task the deployed API no longer knows                                | Minor    | Open                        |
+| D-091 | The Ecosystem page never shows its figures: the adoption report takes over five minutes                     | Critical | Open                        |
+| D-092 | The evidence index names outside operators: their agents, wallets and registration hashes                   | Critical | Open                        |
+
+(In D-085 the agent's name is left out here; it is in her register.) Where the severity column in her register also carries a story-6.04 grade, only the first grade is shown.
