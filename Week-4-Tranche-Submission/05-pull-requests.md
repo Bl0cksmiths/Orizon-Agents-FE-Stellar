@@ -114,3 +114,9 @@ The full list for each repo follows.
 | [#6](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/6) | **5.01** Record the testnet escrow v2 deployment in the address book                                                                                                                         | 2026-09-30   | `chore/deploy-escrow-v2` → `main` | 1       | +4 / −1        |
 
 > **#4's line count is mostly generated test snapshots.** 35,640 of its 37,215 added lines are the 32 `test_snapshots/*.json` files the Soroban test harness writes; the hand-written change is about 1,575 lines across 11 files — the escrow itself (`payment-escrow/src/lib.rs`, +248 / −83), its tests (+1,011 / −93), an interface document and the testnet deploy script. The contracts carry 47 tests (32 for the escrow), none of them using `mock_all_auths`, so every authorization in them is a real signature check.
+
+### Reference agent — [Orizon-Agents-Example-Agent-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar) · 1 PR · 12 commits · +776 / −9
+
+| PR                                                                              | Deliverable                                                 | Merged (UTC) | head → base                     | Commits | Lines     |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------ | ------------------------------- | ------- | --------- |
+| [#6](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar/pull/6) | **5.01 AC5** Opt-in fault injection for integration testing | 2026-09-28   | `feat/5.01-fault-mode` → `main` | 11      | +776 / −9 |
