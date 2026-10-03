@@ -1,22 +1,17 @@
-// Build Week-3-Tranche-Submission/Technical-Documentation-and-Demo-Evidence.pdf
-// from the screenshots in this folder, the same way the Week-2 document is
-// made: write an HTML document, then print it with Chromium (Playwright
-// `page.pdf`, A4), in the same typography and colours.
-// Run from the frontend repo root, after capture.mjs:
-//   node Week-3-Tranche-Submission/technical-documentation/build-pdf.mjs
+// Build Week-4-Tranche-Submission/Technical-Documentation-and-Demo-Evidence.pdf
+// from the screenshots in this folder and in ../screenshots/, the same way the
+// Week-3 document is made: write an HTML document, then print it with Chromium
+// (Playwright `page.pdf`, A4), in the same typography and colours.
+// Run from the frontend repo root, after capture.mjs and
+// ../screenshots/capture-screenshots.mjs:
+//   node Week-4-Tranche-Submission/technical-documentation/build-pdf.mjs
 // Writes Technical-Documentation-and-Demo-Evidence.html next to this script
 // (kept for inspection) and ../Technical-Documentation-and-Demo-Evidence.pdf.
 //
-// Screenshots are placed unaltered. The numbered outlines on them are drawn
-// by this document from the rectangles capture.mjs measured (shots.json). A
-// screenshot missing from this folder is skipped with a warning and its step
-// stays text-only — never replaced by anything else.
-//
-// Walkthrough A's six frames are local runs against the end-to-end suite's
-// fixtures, not the deployment. Every one of them is marked `fixture: true`
-// in shots.json; this builder refuses to place a fixture frame on a page that
-// does not carry the standing warning, so the distinction cannot be lost by
-// an edit here.
+// Screenshots are placed unaltered. A screenshot missing from either folder
+// is skipped with a warning and its step stays text-only — never replaced by
+// anything else. Every frame in this document is of the live deployment or a
+// public page; unlike Week 3, there are no local fixture frames.
 import { chromium } from "playwright";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -27,7 +22,7 @@ const NAME = "Technical-Documentation-and-Demo-Evidence";
 const HTML = join(HERE, `${NAME}.html`);
 const PDF = join(HERE, "..", `${NAME}.pdf`);
 const TITLE =
-  "Orizon Agents — Week 3 · Technical Documentation & Demo Evidence";
+  "Orizon Agents — Week 4 · Technical Documentation & Demo Evidence";
 
 const esc = (s) =>
   String(s)
@@ -43,14 +38,21 @@ function pngSize(file) {
   return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
 }
 
-const MANIFEST = existsSync(join(HERE, "shots.json"))
-  ? JSON.parse(readFileSync(join(HERE, "shots.json"), "utf8"))
-  : {};
+const readJson = (path) =>
+  existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+// This folder's close-ups (shots.json) and the full-page frames the document
+// borrows from ../screenshots/ (capture-meta.json), keyed by file name.
+const MANIFEST = {
+  ...readJson(join(HERE, "..", "screenshots", "capture-meta.json")),
+  ...readJson(join(HERE, "shots.json")),
+};
+const baseName = (file) => file.split("/").pop();
 
 // Capture time in Manila time, from the manifest (falls back to the file).
 function capturedAt(file) {
-  const d = MANIFEST[file]?.capturedAt
-    ? new Date(MANIFEST[file].capturedAt)
+  const entry = MANIFEST[baseName(file)];
+  const d = entry?.capturedAt
+    ? new Date(entry.capturedAt)
     : statSync(join(HERE, file)).mtime;
   const p = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
@@ -82,135 +84,156 @@ const EA_REPO = `${GH}/Orizon-Agents-Example-Agent-Stellar`;
 const BE_DOC = (path) => `${BE_REPO}/blob/main/${path}`;
 const UAT_DOC = (path) => `${UAT_REPO}/blob/main/${path}`;
 const EXPERT = "https://stellar.expert/explorer/testnet";
-const XPOST = "https://x.com/OrizonAgents402/status/2101103657043255772";
-const XEMBED =
-  "https://platform.twitter.com/embed/Tweet.html?id=2101103657043255772";
+const SHOTS_DIR = "../screenshots/";
+const FE_SHOT = (f) =>
+  `${FE_REPO}/blob/main/Week-4-Tranche-Submission/screenshots/${f}`;
 
 const CONTRACTS = [
   [
     "AgentRegistry",
     "CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
-    "agents, owners, delisting",
+    "agents and their owners · unchanged",
   ],
   [
     "ReputationLedger",
     "CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
-    "ratings, including the dispute rating",
+    "ratings, including dispute ratings · unchanged",
   ],
   [
-    "PaymentEscrow",
-    "CBJPTMAPMGODGZCZ2IMEQSRUX3WGUXNMKDTNN2KMJ3NFGYZ5OJ5525PI",
-    "x402 workflow caps and the charge",
+    "PaymentEscrow v2",
+    "CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4",
+    "custody, settlement, reclaim · new, live since 2026-09-30",
   ],
   [
     "AttestationRegistry",
     "CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
-    "sealed run attestations",
+    "sealed run attestations · unchanged",
   ],
   [
     "Asset SAC — native XLM",
     "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
-    "the configured asset, labelled USDC",
+    "the escrow's payment asset on testnet",
   ],
 ];
 const contractUrl = (id) => `${EXPERT}/contract/${id}`;
-
-const REFUND_TX =
-  "a5baac432b582787df0a632b3bc12916c51e12575a8f77bf267fd45b728701b8";
-const RATING_TX =
-  "7138e4e36e47f4f4404b2212aad5584d2f8fb941b387da76acae4c3b4cc07184";
-const DRILL_LEDGER = "CAFZBHEKKBPFR5RG33MJIMOLGXCP46E6ZGYBYISA3BCMVLY2H3RA5CRP";
-const DRILL_SOURCE = "GA45ITAKDGISRHVKCRLZWOFZAE3QQJH34I3CZZZUSHJRFS72QLRJEGZ2";
-const DEPLOY_SIGNER =
-  "GDB4N25UYM3YNTTAWX7LSGI2P7OR62QZQXRNQWAGF5TFVENDKCTTCDHP";
+const ESCROW_V2 = CONTRACTS[2][1];
 
 const txUrl = (hash) => `${EXPERT}/tx/${hash}`;
 const tx = (hash, text) => `<a href="${txUrl(hash)}">${text}</a>`;
+const short = (h) => `${h.slice(0, 8)}…${h.slice(-8)}`;
+
+const TXS = [
+  [
+    "First escrow v2 settlement",
+    "team run 1 · 0.01 XLM · B",
+    "2026-09-30",
+    "f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+  ],
+  [
+    "Second settlement",
+    "team run 2 · 0.2 XLM",
+    "2026-09-30",
+    "19f3420ddb5232a8328c66ec57c1e34890d09a38350e172fdfd9ce8d04a83397",
+  ],
+  [
+    "Third settlement",
+    "team run 3 · 0.01 XLM",
+    "2026-09-30",
+    "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+  ],
+  [
+    "Dispute credit",
+    "D3 · 0.01 XLM to the buyer · B",
+    "2026-09-30",
+    "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+  ],
+  [
+    "Dispute rating",
+    "D3 · on the ReputationLedger · B",
+    "2026-09-30",
+    "b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49",
+  ],
+  [
+    "Partial-delivery settlement",
+    "5.01 AC5 · C",
+    "2026-09-30",
+    "0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b",
+  ],
+  [
+    "Credit after a backend restart",
+    "5.01 AC4 · C",
+    "2026-09-30",
+    "01c3175a881658808e15dc9a284439f2fbce4091a3566bfe3894ecedc1efa5be",
+  ],
+  [
+    "First outside registration",
+    "D1 / D4 · A",
+    "2026-09-29",
+    "8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad",
+  ],
+];
 
 const PRS = [
+  ["SC #4", "5.01 — PaymentEscrow v2", "2026-09-28", `${SC_REPO}/pull/4`],
   [
-    "BE #60",
-    "4.02 — the dispute window, the dispute routes, and a durable settlement record",
-    "2026-09-21",
-    `${BE_REPO}/pull/60`,
+    "BE #88",
+    "5.01 — settle through escrow v2",
+    "2026-09-28",
+    `${BE_REPO}/pull/88`,
   ],
   [
-    "BE #61",
-    "4.03 — partial-credit refund, review PR (stacked; did not reach main)",
-    "2026-09-21",
-    `${BE_REPO}/pull/61`,
+    "BE #94",
+    "5.03–5.05 — demo tools, SOW metrics, MIT",
+    "2026-09-29",
+    `${BE_REPO}/pull/94`,
   ],
   [
-    "BE #62",
-    "4.03 — the same work, landed on main",
-    "2026-09-21",
-    `${BE_REPO}/pull/62`,
+    "BE #100",
+    "5.01 AC4 — a dispute survives a restart",
+    "2026-09-30",
+    `${BE_REPO}/pull/100`,
   ],
   [
-    "BE #63",
-    "4.04 — negative on-chain rating for an upheld dispute",
-    "2026-09-21",
-    `${BE_REPO}/pull/63`,
+    "BE #101",
+    "5.01 AC5 — partial delivery proved",
+    "2026-09-30",
+    `${BE_REPO}/pull/101`,
   ],
   [
-    "BE #64",
-    "4.05 — settlement view for the dispute receipt",
-    "2026-09-21",
-    `${BE_REPO}/pull/64`,
+    "FE #89",
+    "5.01 — the console on escrow v2",
+    "2026-09-28",
+    `${FE_REPO}/pull/89`,
   ],
   [
-    "BE #65",
-    "4.06 — what a dispute receipt needs to be truthful",
-    "2026-09-22",
-    `${BE_REPO}/pull/65`,
+    "FE #97",
+    "5.03–5.06 — guide, demo, evidence, litepaper, MIT",
+    "2026-09-29",
+    `${FE_REPO}/pull/97`,
   ],
   [
-    "BE #42",
-    "chore — untrack evidence and ops docs",
-    "2026-09-22",
-    `${BE_REPO}/pull/42`,
+    "FE #113",
+    "measured figures on the console and home page",
+    "2026-10-01",
+    `${FE_REPO}/pull/113`,
   ],
   [
-    "BE #75",
-    "4.07 — Epic 4 hardening: money path, disclosure, settlement ratings",
-    "2026-09-25",
-    `${BE_REPO}/pull/75`,
+    "FE #122",
+    "5.04 — the demo published in two parts",
+    "2026-10-02",
+    `${FE_REPO}/pull/122`,
   ],
   [
-    "FE #65",
-    "Week-2 evidence — Proof of Deliverables summary pages",
-    "2026-09-21",
-    `${FE_REPO}/pull/65`,
+    "Agent #6",
+    "5.01 AC5 — opt-in fault injection",
+    "2026-09-28",
+    `${EA_REPO}/pull/6`,
   ],
   [
-    "FE #66",
-    "Week-2 evidence — Technical Documentation PDF, 17 pages",
-    "2026-09-21",
-    `${FE_REPO}/pull/66`,
-  ],
-  [
-    "FE #68",
-    "4.05 — dispute action on the trace / receipt view",
-    "2026-09-21",
-    `${FE_REPO}/pull/68`,
-  ],
-  [
-    "FE #69",
-    "4.06 — dispute status and refund receipt display",
-    "2026-09-22",
-    `${FE_REPO}/pull/69`,
-  ],
-  [
-    "FE #76",
-    "4.07 — the receipt stops stating what it cannot show",
-    "2026-09-25",
-    `${FE_REPO}/pull/76`,
-  ],
-  [
-    "UAT #4",
-    "Rie’s Week-3 QA — seven 6.03 sub-suites, five drills, D-050 → D-076",
-    "2026-09-26",
-    `${UAT_REPO}/pull/4`,
+    "UAT #5",
+    "Rie’s Week-4 QA — 6.04, 6.02, 6.03, 6.08, 6.09",
+    "2026-10-03",
+    `${UAT_REPO}/pull/5`,
   ],
 ];
 
@@ -232,16 +255,11 @@ function walkthrough(w, layout) {
   );
 }
 
-// The standing warning carried by every page of Walkthrough A. Any page that
-// places a `fixture: true` screenshot must carry it, and `shot()` throws if
-// one does not.
-const FIXTURE_BANNER = `
+// The standing note on every page that shows a team test run.
+const TEAM_RUN_NOTE = `
   <div class="warn">
-    <b>These six frames are local runs against test fixtures, not the deployment.</b>
-    They were captured on 2026-09-26 from the shipped interface at frontend commit <code>5105a8b</code>, served by <code>next dev</code> and answered entirely by the end-to-end suite’s stubs (<code>e2e/mocks.ts</code>).
-    <b>Every transaction hash in them is a fixture: it exists on no ledger, and the Stellar Expert link beside it resolves to nothing.</b>
-    No wallet was connected to anything real; nothing was signed, paid or submitted. They are evidence of the <i>interface</i> — never of a settlement, a refund or a rating having happened.
-    The reason the deployment cannot show this path is on page {{p:outstanding}}.
+    <b>These are the team's own test runs, on Stellar testnet.</b>
+    Team buyer keys paid agents the team operates, in native XLM; no outside operator has been paid yet, because no outside operator's agent is yet bound to a live endpoint. Every transaction is real and successful on testnet, and links to Stellar Expert.
   </div>`;
 
 // ---------------------------------------------------- links at a glance ---
@@ -249,80 +267,84 @@ const FIXTURE_BANNER = `
 PAGES.push({
   kind: "links",
   eyebrow: "At a glance · 1 of 2",
-  title:
-    "The live application, the API, the repositories and the design records",
+  title: "The live application, the API, the evidence and the repositories",
   lead: "Everything below is public. The application and the API run on Stellar testnet; the documentation lives in the public GitHub repositories. Nothing here needs a login.",
   groups: [
     {
-      title: "Deployed application and backend API (live)",
+      title: "Deliverable D4 — published, live",
       rows: [
-        ["Orizon Agents", "the live dApp", SITE],
         [
-          "Trace / receipt view",
-          "where a dispute is raised · A",
-          `${APP}/trace`,
+          "Evidence index",
+          "every SOW item and metric, linked · E",
+          `${SITE}/evidence`,
         ],
-        ["Interactive API docs", "the six dispute routes · C4", `${BE}/docs`],
+        ["Demo", "two parts, 4 min 20 s, 14 transactions · E", `${SITE}/demo`],
+        [
+          "List your agent on Orizon",
+          "the operator guide · A",
+          `${SITE}/guide/list-your-agent`,
+        ],
+        ["Litepaper", "v0.5, four formats", `${SITE}/litepaper`],
+        ["Register an Agent", "open to any wallet · A", `${APP}/register`],
+      ],
+    },
+    {
+      title: "The live API",
+      rows: [
         [
           "Network and contracts",
-          "testnet, contract ids, asset · C1",
+          "testnet, escrow v2 · C1",
           `${BE}/api/stellar/network`,
         ],
-        ["Readiness", "ratings writer · C2", `${BE}/readiness`],
         [
-          "OpenAPI document",
-          "routes and security schemes · C3",
-          `${BE}/openapi.json`,
+          "Readiness",
+          "escrow version, refunds, dispute store · C2",
+          `${BE}/readiness`,
         ],
+        [
+          "Overview",
+          "the home page's live figures · C3",
+          `${BE}/api/metrics/overview`,
+        ],
+        ["Interactive API docs", "every route", `${BE}/docs`],
       ],
     },
     {
       title: "The five public repositories",
       rows: [
-        ["Frontend", "the dApp (Next.js)", FE_REPO],
-        ["Backend", "FastAPI + Soroban integration", BE_REPO],
+        ["Frontend", "the dApp (Next.js) · MIT", FE_REPO],
+        ["Backend", "FastAPI + Soroban integration · MIT", BE_REPO],
+        ["Smart contracts", "Soroban contracts, escrow v2 · MIT", SC_REPO],
+        ["Reference agent", "for outside operators · MIT", EA_REPO],
         ["UAT suite", "independent QA · D", UAT_REPO],
-        ["Smart contracts", "Soroban contracts — no change this week", SC_REPO],
-        [
-          "Reference agent",
-          "for external operators — no change this week",
-          EA_REPO,
-        ],
       ],
     },
     {
-      title: "Design records and the operator runbook for this epic",
-      note: `All under ${a(`${BE_REPO}/blob/main/docs/`, "github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/")}; each row links the full address.`,
+      title: "Design records for escrow v2",
       rows: [
         [
-          "Operator runbook",
-          "disputes end to end · B",
-          BE_DOC("docs/disputes.md"),
-          "…/docs/disputes.md",
+          "Escrow v2 interface",
+          "why v2, entry points · B",
+          `${SC_REPO}/blob/main/docs/escrow-v2-interface.md`,
+          "…/docs/escrow-v2-interface.md",
         ],
         [
-          "ADR 0002",
-          "partial-credit refund mechanism",
-          BE_DOC("docs/decisions/0002-partial-credit-refund.md"),
-          "…/decisions/0002-partial-credit-refund.md",
+          "ADR 0010",
+          "custody at authorize, one settle per run · B",
+          BE_DOC("docs/decisions/0010-escrow-v2-custody-settlement.md"),
+          "…/decisions/0010-escrow-v2-custody-settlement.md",
         ],
         [
-          "ADR 0007",
-          "the dispute window and the proof of payer",
-          BE_DOC("docs/decisions/0007-dispute-window.md"),
-          "…/decisions/0007-dispute-window.md",
+          "ADR 0011",
+          "an authorization buys one plan",
+          BE_DOC("docs/decisions/0011-execute-authorization-guard.md"),
+          "…/decisions/0011-execute-authorization-guard.md",
         ],
         [
-          "ADR 0008",
-          "who may order a payout, and paying exactly once",
-          BE_DOC("docs/decisions/0008-refund-execution.md"),
-          "…/decisions/0008-refund-execution.md",
-        ],
-        [
-          "ADR 0009",
-          "the dispute rating and its replay guard",
-          BE_DOC("docs/decisions/0009-dispute-rating.md"),
-          "…/decisions/0009-dispute-rating.md",
+          "5.01 run evidence",
+          "every run's transactions, read back",
+          `${BE_REPO}/tree/main/docs/evidence/5.01`,
+          "…/docs/evidence/5.01",
         ],
       ],
     },
@@ -332,13 +354,11 @@ PAGES.push({
 PAGES.push({
   kind: "links",
   eyebrow: "At a glance · 2 of 2",
-  title:
-    "Contracts, transactions, pull requests, QA — and where the demo video is not",
+  title: "Contracts, transactions, pull requests and QA",
   lead: "Contracts and transactions open on Stellar Expert (testnet). Each link shows the full id or hash, so the page also works printed.",
   groups: [
     {
-      title:
-        "Stellar Expert — deployed contracts (testnet, unchanged this week)",
+      title: "Stellar Expert — deployed contracts (testnet)",
       rows: CONTRACTS.map(([name, id, role]) => [
         name,
         role,
@@ -347,49 +367,20 @@ PAGES.push({
       ]),
     },
     {
-      title: "The two testnet transactions in this document",
-      note: "Both are <b>real and confirmed</b>, and neither is Deliverable 3: they were produced by driving the real backend code against a <b>drill</b> ReputationLedger with a test asset, from a developer machine. Walkthrough C sets out exactly what they do and do not prove.",
+      title: "Key testnet transactions in this document",
+      note: "All real and successful on Stellar testnet. The settlements and credits are the team's own test runs.",
       html: `<table class="txs">
-      <tr><th>Artifact</th><th>Ledger</th><th>Transaction (opens on Stellar Expert)</th></tr>
-      <tr><td><b>Refund transfer</b><span>drill asset UATUSD · C7</span></td><td class="d">4865810</td><td class="h">${tx(REFUND_TX, REFUND_TX)}</td></tr>
-      <tr><td><b><code>kind="dispute"</code> rating</b><span>drill ReputationLedger · C8</span></td><td class="d">4865811</td><td class="h">${tx(RATING_TX, RATING_TX)}</td></tr>
+      <tr><th>Artifact</th><th>Date</th><th>Transaction (opens on Stellar Expert)</th></tr>
+      ${TXS.map(([what, note, d, h]) => `<tr><td><b>${esc(what)}</b><span>${esc(note)}</span></td><td class="d">${d}</td><td class="h">${tx(h, h)}</td></tr>`).join("\n      ")}
   </table>`,
     },
     {
       title:
-        "Merged this week — 14 pull requests, 1,295 commits, +45,936 / −1,152 on main",
-      note: "Behind them: backend <b>2,177 tests at 92.53% line coverage</b> (the gate the 4.07 merge landed under, floor 82%) and frontend <b>1,503 unit and 149 end-to-end tests</b>, all passing, CI green on <code>main</code> in both. The frontend’s end-to-end tests run against a mocked backend with hashes that exist on no ledger — <b>test evidence, not on-chain evidence</b>, and the source of Walkthrough A’s frames.",
+        "Merged this week — 42 pull requests; the ones this document cites",
+      note: "Behind them: backend <b>4,038 tests at 94.26% coverage</b>, frontend <b>2,969 unit and 446 end-to-end tests</b>, contracts 47 tests, reference agent 85 — CI green on <code>main</code>. All 42 are listed in <code>05-pull-requests.md</code>.",
       html: `<table class="prs">
       ${PRS.map(([n, what, d, url]) => `<tr><td class="k">${a(url, esc(n))}</td><td>${esc(what)}</td><td class="r">${d}</td></tr>`).join("\n      ")}
   </table>`,
-    },
-    {
-      title: "Independent QA, and the demo video",
-      rows: [
-        [
-          "UAT repository",
-          "Playwright suites, five drills, evidence · D",
-          UAT_REPO,
-        ],
-        [
-          "Defect register",
-          "27 defects, D-050 → D-076 · D2",
-          UAT_DOC("docs/uat/defects.md"),
-          "…/docs/uat/defects.md",
-        ],
-        [
-          "QA verdict on the dispute story",
-          "no-go · D4",
-          UAT_DOC("docs/uat/evidence/6.03-dispute-refund-rating.md"),
-          "…/evidence/6.03-dispute-refund-rating.md",
-        ],
-        [
-          "Demo video",
-          "<b>there is no Week-3 video</b> — see page {{p:video}}",
-          XPOST,
-          "the Week-2 build post, labelled as Week 2’s",
-        ],
-      ],
     },
   ],
 });
@@ -399,496 +390,351 @@ PAGES.push({
 walkthrough(
   {
     id: "A",
-    eyebrow: "Buyer · Deliverable D3 — Dispute Window & Partial-Credit Refund",
-    title: "The dispute path, as the buyer sees it",
-    banner: FIXTURE_BANNER,
+    eyebrow: "Operator · Deliverables D1 and D4",
+    title: "Listing an agent on Orizon, as an outside operator does",
     intro:
-      "When a paid workflow settles, its buyer has <b>24 hours</b> to dispute any single step of it. Proof is a signature from the wallet that paid — no account and no password. An upheld dispute credits part of that step’s charge back <b>from the platform’s own wallet</b>, and writes a permanent negative rating against the agent on the ReputationLedger. Six frames follow the whole path, including the one state this epic exists to get right.",
+      "Anyone with a Stellar wallet can register an agent on Orizon — the registry needs only the owner's signature, no permission from us. Week 4 published the guide that takes a newcomer through it, and the figures that show who has.",
     steps: [
       {
         id: "A1",
-        title: "The settlement, and the window that opens on it",
-        open: `${APP}/trace?task=<task_id>`,
-        go: "orizons.xyz/app/trace",
-        shot: "local-01-dispute-action-open-window.png",
-        what: "the receipt panel of the trace view (fixture data)",
-        max: 78,
+        title: "Read the guide",
+        open: `${SITE}/guide/list-your-agent`,
+        go: "orizons.xyz/guide/list-your-agent",
+        shot: `${SHOTS_DIR}15-orizons-guide-list-your-agent.png`,
+        what: "the guide, top of page",
+        max: 66,
+        light: false,
         text: [
-          `Above the trace, a receipt panel states what was charged (0.063 USDC), who paid it, when it settled, and the charge and seal transactions. <b>DISPUTE WINDOW OPEN · 22h 59m left</b> carries the closing instant beside it — read from the settlement record, never recomputed (B6).`,
-          `The terms are stated before any action: an upheld dispute credits <b>50%</b> of the step’s charge in this fixture, <b>paid by the platform and never clawed back from the agent</b>, and the platform decides, with no on-chain arbitration. Each delivered step then carries its own price, a <b>DISPUTE</b> button and what it would credit; the step that failed is marked <b>NOT CHARGED</b> — “Nothing was charged for this step, so there is nothing to dispute”.`,
-          `The 50% here is the fixture’s policy (<code>credited_fraction: 0.5</code>), chosen so a figure on screen can only have been served by the policy and never hard-coded in the copy. The backend’s own shipped default is a <i>full</i> credit of the step.`,
+          "From nothing to a routed, paid agent on testnet: install a wallet, fund it from friendbot, choose an agent id, skills and price, register on the dApp or through the API, deploy an agent — the copyable reference agent is MIT-licensed — bind its endpoint, pass the readiness check, read the reputation. Every command sample is checked against the live API's schema before the page builds, and the page names the backend commit it was verified against.",
+          "It is labelled a <b>draft</b>, honestly: the team has checked every step, but someone new to Orizon has not yet followed it end to end.",
         ],
       },
       {
         id: "A2",
-        title: "Raising a dispute on one step, with a wallet signature",
-        open: `${APP}/trace?task=<task_id>`,
-        go: "orizons.xyz/app/trace",
-        shot: "local-02-dispute-dialog.png",
-        max: 72,
-        what: "the dispute dialog (fixture data)",
+        title: "Register — signed by the owner's own wallet",
+        open: `${EXPERT}/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad`,
+        go: "stellar.expert · the first outside registration",
+        shot: `${SHOTS_DIR}24-outside-registration-tx-stellar-expert.png`,
+        what: "Stellar Expert, testnet",
+        max: 80,
         text: [
-          `<b>Dispute step 2</b> names the step, what was charged for it and what would be credited if the dispute is upheld, then repeats the three terms, then takes a <b>required written reason</b> (500 characters, counted — though the backend still accepts one made only of invisible characters, QA’s D-059). <b>SIGN AND SUBMIT</b> asks the wallet that paid to sign the message <code>orizon-dispute:v1:{job_id}:{step}:{nonce}</code> — domain-separated and covering the exact step, so a captured signature cannot be replayed against another step or another workflow. Signing costs nothing and sends no transaction.`,
-          `Only the payer is offered this. A connected wallet that is not the payer sees no button and no <i>disabled</i> button — no action of any kind. <b>Nothing was signed for this frame</b>: the form was filled to show the enabled control, then closed.`,
+          "The first of eleven outside registrations, on 2026-09-29: <code>AgentRegistry.register</code>, signed by the owner's wallet, with no admin involved. The evidence index lists all eleven, from seven outside wallets, each checked against the public team wallet register. None of the outside agents has yet run or been paid. The demo's operator part records this same flow in Freighter, from form to confirmed transaction.",
         ],
       },
       {
         id: "A3",
-        title: "An open dispute: a promise, not a payment",
-        open: `${APP}/trace?task=<task_id>`,
-        go: "orizons.xyz/app/trace",
-        shot: "local-03-receipt-open-dispute.png",
-        max: 76,
-        what: "one step’s dispute receipt (fixture data)",
+        title: "See who else is on the network — measured, not invented",
+        open: SITE,
+        go: "orizons.xyz",
+        shot: `${SHOTS_DIR}10-orizons-home-live-stats.png`,
+        what: "the home page hero, live",
+        max: 78,
         text: [
-          `The badge reads <b>UNDER REVIEW</b>, with when it was raised and when it last changed. The credit is stated as a promise and nothing more — “Up to 0.027 USDC <b>would</b> be credited … funded by the platform, not clawed back from the agent” — and the buyer’s own reason is shown back to them — in a tab holding the task’s read token; without it the payer gets an empty “Your reason” heading (QA’s D-067, D-068). <b>No transaction hash appears in this frame, because nothing has been paid.</b>`,
-        ],
-      },
-      {
-        id: "A4",
-        title: "A credited dispute, with both artifacts confirmed on-chain",
-        open: `${APP}/trace?task=<task_id>`,
-        go: "orizons.xyz/app/trace",
-        shot: "local-04-receipt-credited.png",
-        max: 76,
-        what: "one step’s dispute receipt (fixture data)",
-        text: [
-          `<b>REFUNDED</b>, and the sentence says what it cost each side: “you received 0.027 USDC, and it cost code.gen a dispute rating on its reputation”. Below it the two on-chain rows — <b>Refund transfer</b> and <b>Dispute rating against code.gen</b> — each <b>CONFIRMED ON STELLAR</b>, each with its hash painted in full and a link to Stellar Expert.`,
-          `Hashes are printed whole, in monospace, wrapping: in a screen recording a link cannot be inspected, so the characters on screen are the only thing a reviewer can match against the explorer. <b>Both hashes here are fixtures and resolve to nothing.</b> Walkthrough C carries two real ones.`,
-        ],
-      },
-      {
-        id: "A5",
-        title: "A credit recorded whose transfer has not confirmed",
-        open: `${APP}/trace?task=<task_id>`,
-        go: "orizons.xyz/app/trace",
-        shot: "local-05-receipt-crediting-unconfirmed.png",
-        max: 76,
-        what: "one step’s dispute receipt (fixture data)",
-        text: [
-          `<b>This is the state the epic exists to get right.</b> The platform has recorded the credit, but the chain has not vouched for the transfer. The badge reads <b>REFUND IN PROGRESS</b> and never “Refunded”; the credit line stays a promise (“Up to 0.027 USDC <b>to be</b> credited”); and the <b>Refund transfer</b> row reads <b>NO TRANSACTION ON RECORD</b>, with no hash and no link, beside a dispute-rating row that <i>is</i> confirmed.`,
-          `The sentence is explicit about what happens next: “the platform reconciles it by hand — you will not be paid twice, and will not be skipped.” That is the product face of B5: a timed-out transfer is never retried automatically, because the asset contract has no undo. Paying late is the deliberate trade against ever paying twice.`,
-        ],
-      },
-      {
-        id: "A6",
-        title: "A rejection, with the platform’s reason",
-        open: `${APP}/trace?task=<task_id>`,
-        go: "orizons.xyz/app/trace",
-        shot: "local-06-receipt-rejected.png",
-        max: 76,
-        what: "one step’s dispute receipt (fixture data)",
-        text: [
-          `<b>REJECTED</b>: “no credit was issued, code.gen’s reputation is unchanged, and the reason is below”. The buyer’s own reason is shown, and beneath it <b>WHY IT WAS REJECTED</b> carries the adjudicator’s own words. The note is required on the reject route (1–500 characters), because a rejection with no explanation is worse than no dispute system at all. The backend returns both texts only to a caller holding the task’s read token or the operator key, as this frame’s tab does; a payer who comes back without the token sees “Rejected” and no reason (QA’s D-067). Opening a dispute proves nothing and costs the agent nothing until it is upheld.`,
-          `No hash and no link appear in this frame, because nothing was paid. Independent QA found a real cost to the disclosure rule that protects this text — see D3 on page 18.`,
+          `At 08:08 UTC on 2026-10-03 the hero read <b>590 registered agents, 565 external, 560 operator wallets</b>, and the API's overview gave the same figures the same minute (C3). The placeholder statistics the page once showed are gone; the hero shows all three figures or none.`,
+          "These are the live counter's figures. The registry contract's own event log records 22 registrations on 2026-10-01, 428 on 2026-10-02 and 104 by 05:25 UTC on 2026-10-03; the evidence index's wallet-by-wallet audit covers the registrations up to 2026-10-01.",
         ],
       },
     ],
   },
-  [["A1"], ["A2"], ["A3", "A4"], ["A5", "A6"]],
+  [["A1"], ["A2", "A3"]],
 );
 
 // ------------------------------------------------------- walkthrough B ---
 
-const CITATIONS = `
-  <div class="callout">
-    <h4>Where to check each safeguard</h4>
-    <table class="flow">
-      <tr><th>Safeguard</th><th>Source, on <code>main</code> of the backend repository</th><th>Design record</th></tr>
-      <tr><td class="k">B1 · claim before signature</td><td><code>app/services/dispute_svc.py</code> <span>uphold</span> · <code>app/services/dispute_store.py</code> <span>claim_refund</span></td><td class="r">ADR 0008 D2</td></tr>
-      <tr><td class="k">B2 · compare-and-set</td><td><code>app/services/dispute_store.py</code> <span>append_status(expected_status=…)</span></td><td class="r">ADR 0008 D2</td></tr>
-      <tr><td class="k">B3 · clamp and ceiling</td><td><code>app/services/refund_svc.py</code> <span>creditable_for</span> · <code>app/config.py</code></td><td class="r">ADR 0008 D4, D5</td></tr>
-      <tr><td class="k">B4 · door and switch</td><td><code>app/security.py</code> <span>require_adjudicator</span> · <code>app/config.py</code></td><td class="r">ADR 0008 D1</td></tr>
-      <tr><td class="k">B5 · the chain confirms</td><td><code>app/services/refund_svc.py</code> · <code>app/services/dispute_svc.py</code> <span>_apply_rating</span></td><td class="r">ADR 0008 D3 · 0009 D3, D4</td></tr>
-      <tr><td class="k">B6 · the window, stamped</td><td><code>app/services/execution_svc.py</code> <span>_record_settlement</span> · <code>dispute_store.py</code></td><td class="r">ADR 0007 D1, D3</td></tr>
-    </table>
-  </div>`;
-
 walkthrough(
   {
     id: "B",
-    eyebrow: "Technical · the money path and its safeguards",
-    title:
-      "The money path: six things that stop it paying twice, or paying at all",
+    eyebrow: "Buyer · escrow v2 · Deliverables D2, D3 and D4",
+    title: "The money path on escrow v2",
+    banner: TEAM_RUN_NOTE,
     intro:
-      "An upheld dispute is the only operation in this service that spends the <b>platform’s own balance</b> on a person’s say-so, with nothing on-chain to bound it. A server-signed charge can only ever spend an allowance the payer already authorised; a credit cannot. Everything below exists because of that asymmetry, and every claim names the file and the design record a reviewer can check it against.",
+      "Week 3's blocker was the escrow: v1 could never move a buyer's funds (D-039). Escrow v2 takes custody under the buyer's own signature at <code>authorize</code>, pays each delivered step's on-chain owner and returns the rest at <code>settle</code>, and lets the buyer <code>reclaim</code> an expired authorization. It went live on testnet on 2026-09-30; these steps follow a buyer through it on that day.",
     steps: [
       {
         id: "B1",
-        title: "The claim row is written before the signature",
-        open: BE_DOC("docs/decisions/0008-refund-execution.md"),
-        go: "github.com · ADR 0008, decision D2",
-        shot: "b1-adr-0008-claim-before-signing.png",
-        what: "ADR 0008, decision D2",
+        title: "Why v2, in the contract repository's own words",
+        open: `${SC_REPO}/blob/main/docs/escrow-v2-interface.md`,
+        go: "contracts · docs/escrow-v2-interface.md",
+        shot: "b1-escrow-v2-why.png",
+        what: "the escrow v2 interface document",
         light: true,
-        max: 74,
+        max: 80,
         text: [
-          `Upholding happens in a fixed order. The dispute is recorded <code>upheld</code>; then a <b>refund claim</b> is taken on it — a row in a table, keyed by the dispute id — in the Postgres store it survives a restart — and only one caller can ever hold it; the dispute moves to <code>crediting</code>. <b>If the claim cannot be taken, nothing is signed at all.</b> Only then is the amount computed, checked against the ceiling, and the transfer signed.`,
-          `Taking the claim and moving the dispute to <code>crediting</code> are <b>one statement</b>, not two, and concurrency is settled by the table’s primary key rather than by the status the statement read: the loser’s <code>ON CONFLICT DO NOTHING</code> returns nothing, and nothing returned means sign nothing. With the Postgres store, two adjudicators clicking together, a retried request, a process redeployed mid-flight — all meet the same row. The claim is per dispute; QA’s D-058 is the in-memory store’s path to a second dispute on one step. A repeat uphold of a <code>credited</code> dispute signs no transfer and returns the same refund hash.`,
+          "Three independent faults in v1, and v2's answer to each: custody at <code>authorize</code>, payment to <b>each step's operator</b> at <code>settle</code>, and a settler the admin can rotate. The contracts now carry 47 tests, none of them mocking authorization.",
         ],
       },
       {
         id: "B2",
-        title: "The precondition is a clause of the statement that writes",
-        open: BE_DOC("docs/decisions/0008-refund-execution.md"),
-        go: "github.com · ADR 0008, decision D2",
+        title: "Before paying, the buyer sees each agent's on-chain reputation",
+        open: FE_SHOT("d2a-plan-card-onchain-score-desktop-1440.png"),
+        go: "captured 2026-09-30 · live site",
+        shot: `${SHOTS_DIR}d2a-plan-card-onchain-score-desktop-1440.png`,
+        capturedNote: "2026-09-30, from the live site, for the evidence index",
+        what: "the live plan card",
+        max: 74,
         text: [
-          `Every status transition on a dispute is a compare-and-set, and the comparison is not a read followed by a write. In the Postgres store, <code>append_status(…, expected_status=…)</code> spells the precondition as the final <code>WHERE</code> of the <code>INSERT … SELECT</code> that performs the transition: the write lands only while the dispute still reads the status the decision was computed from, and nothing comes back when it does not. The mutex-releasing <code>DELETE</code> in the same statement repeats the same clause, so it cannot fire for a transition that was refused.`,
-          `<code>uphold</code> passes <code>expected_status="open"</code>, and <code>reject</code> does too. Losing the set is answered <code>409 adjudication_in_progress</code> or <code>409 dispute_not_open</code> — never absorbed. <b>Stated precisely:</b> this is a single-statement compare-and-set in the Postgres store. The in-memory fallback store holds the same contract by an ordinary check, which is safe there for a different reason, and which is one of several reasons <code>DATABASE_URL</code> must be set in production (page {{p:path}}, step 5).`,
+          "Deliverable D2: the plan card shows each agent's reputation read from the ReputationLedger, before the buyer authorizes anything. Captured from the live site on 2026-09-30, with no wallet connected.",
         ],
       },
       {
         id: "B3",
-        title:
-          "The three-way clamp, and a ceiling that binds while it is finite",
-        open: BE_DOC("docs/disputes.md"),
-        go: "github.com · docs/disputes.md",
-        shot: "b2-disputes-runbook-credit.png",
-        what: "the operator runbook, on what an upheld dispute pays",
-        light: true,
+        title: "A failing agent is left out of the next plan",
+        open: FE_SHOT("d2b-routing-exclusion-desktop-1440.png"),
+        go: "captured 2026-09-30 · live site",
+        shot: `${SHOTS_DIR}d2b-routing-exclusion-desktop-1440.png`,
+        capturedNote: "2026-09-30, from the live site, for the evidence index",
+        what: "a live plan with an agent excluded",
         max: 74,
         text: [
-          `What is transferred is the <b>smallest of three numbers</b>: the amount frozen on the dispute when it was opened, so the buyer is never paid less than they were shown and never more; the step’s price times the policy fraction in force at adjudication, so the stated policy is honoured; and what the workflow’s charge <i>actually moved on-chain</i>, so the platform never refunds money it did not collect. With the shipped policy they are normally the same number. Each clamp that bites is logged.`,
-          `Above that sits a ceiling: while <code>MAX_REFUND_USDC</code> (shipped at <code>1.0</code>) is finite, a credit over it is <b>refused before any transaction is built</b>. It is enforced in the one function that produces a refund amount, so no amount exists that has not been through it — and a non-finite amount is refused first, because a comparison cannot refuse a NaN. The ceiling is deliberately separate from the charge cap: one bounds what a <i>buyer</i> authorised themselves to spend, the other what the <i>platform</i> pays out of its own wallet. The <i>setting</i> itself is never validated, so <code>MAX_REFUND_USDC=nan</code> or <code>inf</code> is accepted at boot and removes the ceiling — independent QA’s D-054, open at this build.`,
+          "A deliberately faulty test agent failed three paid runs. Nothing was charged; each failure wrote a 20/100 rating on-chain, and its lower-bound score, computed from those ratings, fell from 5,677 to 5,443 bps — below the 5,500 floor. The next live plan left it out, and told the buyer so.",
         ],
       },
       {
         id: "B4",
-        title: "The adjudication door fails closed, and the switch ships off",
-        open: BE_DOC("docs/disputes.md"),
-        go: "github.com · docs/disputes.md",
+        title: "A paid run settles through escrow v2",
+        open: txUrl(
+          "f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235",
+        ),
+        go: "stellar.expert · the first v2 settlement",
+        shot: `${SHOTS_DIR}21-settlement-tx-stellar-expert.png`,
+        what: "Stellar Expert, testnet",
+        max: 80,
         text: [
-          `<code>uphold</code> and <code>reject</code> are <b>the only two routes in the service that fail closed</b>. Every other route treats an unset <code>API_KEY</code> as “the demo is open”; these two treat it as <i>refuse</i>, on every network including testnet, and they refuse while <code>DISPUTE_REFUNDS_ENABLED</code> is false — <b>the shipped default</b>. The key is compared in constant time, and an absent header can never match an unset secret.`,
-          `Turning the switch on without a key is not a silent weakness: <code>DISPUTE_REFUNDS_ENABLED=true</code> alone makes the process <b>refuse to start</b> unless <code>API_KEY</code> is set, and the error says why. There is no order of setting the two in which the rule does not bite. The switch is checked twice — at the route and again inside the service — because an operator script that imports the service credits a buyer without passing through the web framework at all, and a switch only one door honours is not a switch. The live deployment’s answer today is on page 14.`,
+          "Team run 1, 09:29 UTC: the settler pays 0.01 XLM from custody to the agent's on-chain owner — the flow v1 could never complete. Runs 2 and 3 followed within ten minutes. All three settlements are in the links on page 3, and each run’s authorization and attestation seal is in 03-deliverable-D4-ecosystem-validation.md.",
         ],
       },
       {
         id: "B5",
-        title: "Nothing reads as done until the chain confirms it",
-        open: BE_DOC("docs/disputes.md"),
-        go: "github.com · docs/disputes.md",
-        shot: "b3-disputes-runbook-operators.png",
-        what: "the operator runbook, on where the records live",
-        light: true,
+        title: "The buyer disputes a step; the platform credits it",
+        open: FE_SHOT("d3c-dispute-refunded-desktop-1440.png"),
+        go: "captured 2026-09-30 · live site",
+        shot: `${SHOTS_DIR}d3c-dispute-refunded-desktop-1440.png`,
+        capturedNote: "2026-09-30, from the live site, for the evidence index",
+        what: "the live receipt, dispute refunded",
         max: 70,
         text: [
-          `A dispute becomes <code>credited</code> only on an exact success <i>with a hash</i>. A definitive failure releases the claim and returns the dispute to <code>upheld</code>, payable again — a buyer who was not paid stays payable. A <b>timeout is never retried</b>: the dispute stays in <code>crediting</code> with the in-flight hash recorded, for a person to reconcile against the chain. That is A5 on screen.`,
-          `On the rating side the distinction is a field, not careful wording: <code>rating_confirmed</code> is true only once the ledger has vouched for the submission, and a hash recorded for a submission that timed out sets it false. A failed rating never touches the refund — the buyer keeps the credit. One honest asymmetry, and the hardening PR lists it as not-in-this-pass: there is <b>no matching <code>refund_confirmed</code> field</b>; the interface reads an unconfirmed refund from the absence of a recorded transfer instead, which is the row A5 shows.`,
+          "Deliverable D3 on the deployment: the receipt for team run 3, settled, its window shown, and the step's dispute receipt reading refunded with both on-chain artifacts linked — the 0.01 XLM credit and the dispute rating. A recording of the receipt flipping from under review to refunded sits beside this still in the screenshots folder.",
+          "The dispute was opened by the team's test harness through the API, not with the receipt's Dispute button; QA keeps story 6.03 open until a recording uses the button. The credit was the step's full charge, because the live credit share is set to 100%.",
         ],
       },
       {
         id: "B6",
-        title: "The window is stamped on the settlement, never recomputed",
-        open: BE_DOC("docs/decisions/0007-dispute-window.md"),
-        go: "github.com · ADR 0007, decision D1",
-        shot: "b4-adr-0007-window-stamped.png",
-        what: "ADR 0007, decision D1",
-        light: true,
-        max: 74,
+        title: "The credit, on Stellar Expert",
+        open: txUrl(
+          "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+        ),
+        go: "stellar.expert · the dispute credit",
+        shot: `${SHOTS_DIR}22-refund-tx-stellar-expert.png`,
+        what: "Stellar Expert, testnet",
+        max: 80,
         text: [
-          `<code>SettlementRecord.window_closes_at</code> is written <b>once</b>, at settlement, from the value of <code>DISPUTE_WINDOW_SECONDS</code> (shipped at <code>86400.0</code>) in force at that instant. Every later check compares against that stored field. Across the whole service there is exactly one place the arithmetic happens, and every other reference reads the field.`,
-          `That is the difference between a promise and a setting. Recomputed on read, retuning the window would silently move deadlines for work already done — shortening it closes windows a buyer was told were open; lengthening it reopens windows an operator had been told were closed and whose earnings they believed final. The stamp makes the knob mean what an operator expects: it governs what settles <i>after</i> the change, and nothing that already happened. A dispute arriving on the exact stamped second is inside the window, and a late dispute is refused with <b>when</b> it closed, not merely that it did.`,
+          "15:25 UTC: the platform's signing key transfers 0.01 XLM to the buyer. A dispute credit is a separate transfer from the platform's own funds — not taken back from the agent's owner, not drawn from the escrow — and the matching dispute rating (b512135f…) lowered the agent's score.",
         ],
-        after: CITATIONS,
+      },
+      {
+        id: "B7",
+        title: "The design record behind it",
+        open: BE_DOC("docs/decisions/0010-escrow-v2-custody-settlement.md"),
+        go: "backend · ADR 0010",
+        shot: "b2-adr-0010-escrow-v2.png",
+        what: "backend design record ADR 0010",
+        light: true,
+        max: 76,
+        text: [
+          "How the backend uses v2: payouts are exactly the delivered steps, each at its own price; a run that delivered nothing releases custody; receipts go into the attestation seal; and an outcome that is unknown is never retried, only confirmed — so custody is never stranded and nobody is paid twice.",
+        ],
       },
     ],
   },
-  [["B1", "B2"], ["B3"], ["B4", "B5"], ["B6"]],
+  [["B1", "B2"], ["B3"], ["B4", "B6"], ["B5"], ["B7"]],
 );
 
 // ------------------------------------------------------- walkthrough C ---
 
-const DRILL_NOTE = `
-  <div class="callout warnbox">
-    <h4>What the two transactions are, and what they are not</h4>
-    <p>They are <b>real, confirmed testnet transactions</b>, produced by one uphold through <code>POST /api/disputes/{id}/uphold</code> against the real backend code. Independent QA, who produced them, states in her own evidence: <i>“These prove the code path. They are <b>not</b> Deliverable 3. The asset is not USDC, the ledger is not the platform’s, and the service is not the deploy.”</i></p>
-    <table class="flow">
-      <tr><th>Why each is not the deliverable</th><th>Checkable on Stellar Expert</th></tr>
-      <tr><td class="k">The asset is a test asset</td><td>the transfer moves <code>UATUSD</code>, issued by the drill, over its own SAC — not the configured asset SAC</td></tr>
-      <tr><td class="k">The ledger is not the platform’s</td><td>the rating went to ${a(contractUrl(DRILL_LEDGER), "the drill’s own ReputationLedger")}, not <code>CDCSOBEV…22ZT</code>, so it does not appear in the reputation the live planner routes on</td></tr>
-      <tr><td class="k">The service is not the deployment</td><td>the source account on both is <code>GA45ITAK…EGZ2</code>, the drill’s settler — not the deployment’s signer <code>GDB4N25U…CDHP</code>, which C2 shows live</td></tr>
-    </table>
-  </div>`;
-
 walkthrough(
   {
     id: "C",
-    eyebrow: "Verify · the live API and Stellar testnet",
-    title: "Verify it yourself: the live API, and two transactions on-chain",
+    eyebrow: "Verify · live API and chain",
+    title: "Verify the deployment and the chain yourself",
     intro:
-      "Nothing in this section needs the dApp, and nothing needs our word for it. The four readings below were taken against the live deployment while this document was assembled; the first request after a quiet period can take 30–60 seconds while the free-tier instance wakes. The JSON boxes are the live response bodies re-printed with indentation — no value is changed.",
+      "Each of these is a GET anyone can make, or a public Stellar Expert page. The API runs on a free tier and sleeps; the first request can take up to a minute. Tinted lines in the boxes are the fields the text refers to; every value is the live response, re-indented only.",
     steps: [
       {
         id: "C1",
-        title:
-          "GET /api/stellar/network — testnet, the contracts, and an open decision",
+        title: "<code>GET /api/stellar/network</code> — testnet, and escrow v2",
         open: `${BE}/api/stellar/network`,
-        go: "live response",
+        go: "…/api/stellar/network",
         shot: "c1-api-network.png",
-        what: "response body, formatted",
+        what: "the live response",
         light: true,
-        max: 68,
+        max: 62,
         text: [
-          `The network is <b>testnet</b>, and the four application contract ids are the ones deployed in Week 2 and listed on page 3 — Epic 4 required no contract change, and the dispute rating is written through the ReputationLedger already deployed then.`,
-          `<b>The configured asset is not USDC, and the interface says “USDC”.</b> The endpoint reports <code>asset: "native"</code>, and <code>asset_sac</code> is the <b>native XLM Stellar Asset Contract on testnet</b> — derivable from the asset itself, so it can be checked without trusting this document. Every amount in the product — plan prices, charges, credits, the receipt’s “credited to your wallet” — is labelled USDC while the deployment moves test XLM. <b>This is an open decision, not a resolved one</b>: either a USDC SAC is configured or the label is corrected, and D3 evidence should not be captured while the two disagree (page {{p:path}}, step 7).`,
+          `<code>network: testnet</code>; <code>payment_escrow</code> is <span class="mono">CCNO5TEN…5VC4</span>, escrow v2; the other three contracts are unchanged; <code>asset: native</code> — testnet settles in native XLM.`,
         ],
       },
       {
         id: "C2",
-        title: "GET /readiness — our signer is the ledger’s authorised scorer",
+        title:
+          "<code>GET /readiness</code> — version 2, refunds on, disputes durable",
         open: `${BE}/readiness`,
-        go: "live response",
+        go: "…/readiness",
         shot: "c2-api-readiness.png",
-        what: "response body, formatted",
+        what: "the live response",
         light: true,
-        max: 68,
+        max: 54,
         text: [
-          `<code>ratings.writer</code> reads <b>"scorer"</b>: the deployment’s signing key <b>is</b> the ReputationLedger’s authorised Scorer, so a dispute rating it signs can land. That authorization is itself on-chain, from Week 2 — ${tx("216e1b5f6ade4d75ec671bcda27b462bfd373d041b1ba2150d76002ee8d201f8", "ReputationLedger.set_scorer")}. <b>This is the one live precondition for D3 that holds today.</b>`,
-          `The signer is <code>${DEPLOY_SIGNER}</code>. Keep it: C7 and C8 are signed by a different account, and that difference is the whole point of them.`,
+          "<code>escrow.version: 2</code>; the dispute store is Postgres, so a dispute survives a restart; the refund reconcile sweep is enabled and running; the platform's key is the ledger's authorized scorer; the registry mirror is synced. In Week 3 the same deployment answered every uphold with <code>503 dispute_refunds_disabled</code>.",
         ],
       },
       {
         id: "C3",
         title:
-          "GET /openapi.json — six dispute routes, and no operator security scheme",
-        open: `${BE}/openapi.json`,
-        go: "live document",
-        shot: "c3-openapi-facts.png",
-        what: "each row is a query against the live document and the answer it returns",
+          "<code>GET /api/metrics/overview</code> — the home page's source",
+        open: `${BE}/api/metrics/overview`,
+        go: "…/api/metrics/overview",
+        shot: `${SHOTS_DIR}19-be-metrics-overview.png`,
+        what: "the live response, re-indented",
         light: true,
-        max: 78,
+        max: 46,
         text: [
-          `All six dispute routes are served. But the document declares <b>no security scheme at all</b>: <code>components</code> holds only <code>schemas</code>, <code>components.securitySchemes</code> is absent, there is no top-level <code>security</code>, and <b>no operation carries one</b>.`,
-          `That is a dated fingerprint. The 4.07 hardening merge (${a(`${BE_REPO}/pull/75`, "BE #75")}, 2026-09-25) declares the operator key as an OpenAPI security scheme named <code>OperatorApiKey</code> on both adjudication routes, and pins it with a test. A live document without it therefore <b>predates that merge</b> — so the deployment is behind <code>main</code> and does not carry the hardening pass’s fixes, including the double-payment fix and the disclosure fix. Render does not auto-deploy for this organisation, so the redeploy is a manual step (page {{p:path}}, step 2).`,
+          "Registered 590, external 565, external wallets 560, and five settled workflows, all on 2026-09-30: the three team runs and the two acceptance runs in C5–C6. Anything the service cannot read comes back <code>null</code> with <code>degraded: true</code>, never a guess.",
         ],
       },
       {
         id: "C4",
-        title: "The six routes in the interactive docs",
-        open: `${BE}/docs`,
-        go: "live docs",
-        shot: "c4-docs-dispute-routes.png",
-        what: "the disputes group of the interactive API docs",
-        light: true,
-        max: 92,
+        title: "Escrow v2's every call, in order",
+        open: contractUrl(ESCROW_V2),
+        go: "stellar.expert · escrow v2",
+        shot: `${SHOTS_DIR}20-escrow-v2-contract-stellar-expert.png`,
+        what: "Stellar Expert, testnet",
+        max: 58,
         text: [
-          `The same six routes as the deployment serves them, each try-able from the browser: mint a challenge to sign, open a dispute on a settled step, read one dispute, read a task’s window and its disputes, and the two adjudication routes — <b>uphold</b> and <b>reject</b>. Consistent with C3, the page shows no <i>Authorize</i> control, because the deployed document declares no scheme for one to fill.`,
+          "Created 2026-09-30 08:31:12 UTC. The History tab lists every <code>authorize</code> and <code>settle</code>, with the per-agent payouts of each settlement.",
         ],
       },
       {
         id: "C5",
-        title: "The refund switch, answered live",
-        open: `${BE}/docs`,
-        go: "live response",
-        shot: "c5-uphold-refunds-disabled.png",
-        what: "the live POST and its response body, formatted \u00b7 the route in the API docs",
-        light: true,
-        max: 92,
+        title: "Partial delivery pays only what was delivered (5.01 AC5)",
+        open: txUrl(
+          "0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b",
+        ),
+        go: "stellar.expert · the settlement",
+        shot: `${SHOTS_DIR}27-partial-delivery-settle-tx-stellar-expert.png`,
+        what: "Stellar Expert, testnet",
+        max: 80,
         text: [
-          `Posting to the uphold route with no credential, against a dispute id that exists on no deployment, is answered <b>503 <code>dispute_refunds_disabled</code></b>. The route refuses <b>before</b> it looks at the adjudicator key and before it looks for the dispute — the same answer a bogus key gets. <b>Dispute refunds are switched off on the deployment</b>, which is the correct default for a money path nobody has deliberately turned on, and is QA’s D-051 (${a(`${BE_REPO}/issues/68`, "backend #68")}), filed as a configuration state rather than a defect in the code.`,
-          `Repeat it from a terminal: <code>curl -X POST ${BE}/api/disputes/x/uphold</code>.`,
+          "A two-step plan authorized 0.21 XLM; one agent delivered, the other hung. This one settlement paid 0.01 XLM for the delivered step and returned 0.2 XLM to the buyer, and the seal carries only the delivered step's receipt.",
         ],
       },
       {
         id: "C6",
-        title: "How independent QA presents the two transactions",
-        open: UAT_DOC("docs/uat/evidence/6.03-dispute-refund-rating.md"),
-        go: "github.com · QA 6.03 evidence, §2",
-        shot: "c8-qa-deliverable-3-evidence.png",
-        what: "QA’s own evidence file, section 2",
-        light: true,
+        title: "A dispute that survived a backend restart (5.01 AC4)",
+        open: txUrl(
+          "01c3175a881658808e15dc9a284439f2fbce4091a3566bfe3894ecedc1efa5be",
+        ),
+        go: "stellar.expert · the credit",
+        shot: `${SHOTS_DIR}26-restart-dispute-refund-tx-stellar-expert.png`,
+        what: "Stellar Expert, testnet",
         max: 80,
         text: [
-          `Because nothing settles and nothing can be upheld on the deployment, the closest real evidence came from QA driving the real backend and the real trace page on her own machine, against a ReputationLedger <b>she deployed herself</b> from the same WASM the deployed ledger runs, paying credits in a test asset the drill issues. One uphold produced two real testnet transactions, both re-read on Horizon as <code>successful: true</code>. Her framing, unedited, is the shot above; ours does not soften it.`,
+          "A run settled at 17:48 UTC; the backend restarted and lost the task from memory. At 18:03 the buyer opened a dispute from the durable settlement record, and it was upheld and credited — this transfer.",
         ],
-      },
-      {
-        id: "C7",
-        title: "The refund transfer on Stellar Expert",
-        open: txUrl(REFUND_TX),
-        go: "stellar.expert · tx a5baac43…",
-        shot: "c6-drill-refund-tx.png",
-        what: "Stellar Expert (testnet)",
-        text: [
-          `<b>Successful</b> ${m(1)}, ledger 4865810, 2026-09-25 16:10:37 UTC. The invocation ${m(2)} is a <code>transfer</code> on the drill’s asset contract <code>CCW6…UENL</code>, from <code>GA45…EGZ2</code> to the drill’s payer, for <b>1,000,000 stroops</b> — 0.1 of the drill’s test asset. Re-read on Horizon while this document was assembled: <code>successful: true</code>, at that ledger.`,
-          `Note the source account, and note the asset contract: neither is the deployment’s. That is exactly why this is proof of the code path and not of Deliverable 3.`,
-        ],
-      },
-      {
-        id: "C8",
-        title: "The kind=“dispute” rating on Stellar Expert",
-        open: txUrl(RATING_TX),
-        go: "stellar.expert · tx 7138e4e3…",
-        shot: "c7-drill-rating-tx.png",
-        what: "Stellar Expert (testnet)",
-        text: [
-          `<b>Successful</b> ${m(1)}, ledger 4865811 — five seconds after the refund, and only because the refund landed and was recorded first. The invocation ${m(2)} is a <code>submit</code> on the drill’s ReputationLedger naming the agent and <code>dispute</code>, scored 10 out of 100 and weighted by the step’s quoted price.`,
-          `The rating is written under a <b>derived</b> job id, because the ledger’s replay guard keys on <code>(agent_id, job_id)</code> and the settler has already auto-rated that step at settlement. The derivation keeps the sealed job’s own first eight bytes in front, so a reviewer can tie a rating to its job <b>by eye</b>, and hashes the step behind them, so two upheld disputes in one job produce two ratings rather than one and a refusal. That replay guard is also the rating’s idempotency: retrying a rating is always safe, and retrying an unconfirmed refund never is.`,
-        ],
-        after: DRILL_NOTE,
       },
     ],
   },
-  [["C1", "C2"], ["C3", "C4"], ["C5", "C6"], ["C7"], ["C8"]],
+  [["C1", "C2"], ["C3"], ["C4"], ["C5", "C6"]],
 );
 
 // ------------------------------------------------------- walkthrough D ---
-
-// The shot on this page lists every id with its severity and its issue, so
-// the callout states only what the table cannot: the shape of the week, and
-// why "27 logged" is the honest count rather than "27 open".
-const SEVERITY = `
-  <div class="callout">
-    <h4>The shape of the week: 1 Blocker, 2 Critical, 7 Major, 17 Minor</h4>
-    <table class="flow">
-      <tr><td class="k">Blocker &middot; 1</td><td><b>D-051</b> — refunds switched off on the deployment (story 6.03a); “deployment configuration, not code”</td></tr>
-      <tr><td class="k">Critical &middot; 2</td><td><b>D-050</b> — no run can be disputed at all · <b>D-053</b> — the adjudication concurrency defect, held privately</td></tr>
-      <tr><td class="k">Major &middot; 7</td><td>D-054, D-058, D-064, D-066, D-067, D-069, D-074</td></tr>
-      <tr><td class="k">Minor &middot; 17</td><td>the rest — but two of them, <b>D-075</b> and <b>D-076</b>, were <b>filed as Urgent</b> because they sit on the money path</td></tr>
-    </table>
-    <p class="small">Three of the 27 are already <b>fixed in code and not yet deployed</b> (D-053, D-064, and D-056 for the buyer’s routes), so <b>“27 logged” is the honest count, not “27 open”</b>. None is marked resolved, because QA counts a defect resolved only once the deployment has taken the build and the criterion passes there.</p>
-  </div>`;
 
 walkthrough(
   {
     id: "D",
     eyebrow: "Independent QA · Rieselle Saure",
-    title: "Independent QA: what a second pair of eyes found",
+    title: "Independent QA: verifying our claims from the chain",
     intro:
-      "QA is a separate person, a separate repository and a separate verdict. Rie owns stories 6.03a–6.03g, and all of the work is public: the Playwright suites, the drills written to reach behaviour the deployment cannot show, the per-story evidence pages, and a defect register that does not spare our own build. Her verdict on the dispute story is <b>no-go</b>, and it stands.",
+      "QA works in its own public repository and this week took nothing the team publishes on trust: four new tools re-derive the evidence index's claims from Stellar itself, and new Playwright suites check the live site against them. 403 commits, every one hers, merged as UAT PR #5 on 2026-10-03.",
     steps: [
       {
         id: "D1",
-        title: "The public UAT repository: suites, drills and evidence",
-        open: UAT_REPO,
-        go: "github.com · Orizon-Agents-UAT-Stellar",
-        shot: "d1-uat-repository.png",
-        what: "the repository’s file listing",
+        title: "Her status for the epic, in her words",
+        open: UAT_DOC("docs/uat/signoff-report.md"),
+        go: "UAT · docs/uat/signoff-report.md",
+        shot: "d1-qa-epic-6-status.png",
+        what: "QA's sign-off report, 2026-10-02",
         light: true,
-        max: 86,
+        max: 80,
         text: [
-          `<code>tests/</code> holds 22 Playwright specs run against the <b>live deployment</b> across four browser projects — there is deliberately no local server in the configuration, so a pass there is a pass for a user. Six of them are this epic’s: the dispute path, the refusal matrix, eligibility, durability, the reputation consequence and the adjudication door. <code>docs/uat/</code> holds the test plan, the traceability matrix, the per-story evidence and the defect register.`,
-          `<code>tools/</code> holds <b>five drills</b> written this week, precisely because the deployment cannot hold a dispute: a restart drill that hard-kills a real backend on real PostgreSQL and compares the API either side; a reputation drill that deploys its own ReputationLedger and issues its own test asset; a dispute-UI drill that seeds every receipt state against the real trace page; an adjudication drill that boots the service once per configuration and proves nothing was signed by reading the settler’s sequence number off Horizon before and after; and a rating-log drill that needs no network at all. Each carries a README stating it never uses the deployment’s signer, ledger or money.`,
+          '6.02 is GO, 6.03 is GO on its criteria, 6.04 is NO-GO, and "the epic is not ready to submit." <b>QA sign-off is pending</b>, and this document does not claim it.',
+          "Since she wrote it, the demo was published (her OV-05 and D-082) and the outside registration hashes were linked on the evidence index (D-089); both await her re-check. Still open: an outside operator's agent bound to a live endpoint (D-077), and the rest of her register — sixteen defects this week, D-077 to D-092, fifteen of them public GitHub issues, quoted in full in <code>01-tasks-completed.md</code>.",
         ],
       },
       {
         id: "D2",
-        title: "The defect register, and the two defects that are not public",
-        open: UAT_DOC("docs/uat/defects.md"),
-        go: "github.com · docs/uat/defects.md",
-        shot: "d4-defect-issue-table.png",
-        what: "the register’s own defect-to-issue table",
+        title: "Week 3's blocker, closed",
+        open: `${SC_REPO}/issues/3`,
+        go: "contracts issue #3",
+        shot: `${SHOTS_DIR}25-contracts-issue-3-resolved.png`,
+        what: "github.com · contracts issue #3",
         light: true,
-        split: true,
-        max: 44,
+        max: 58,
         text: [
-          `Twenty-seven defects were logged this week, D-050 to D-076, each a written reproduction rather than a line in a table. <b>Twenty-five are filed as public GitHub issues</b> in the repository that owns the code — sixteen in the backend, nine in the frontend — each quoting the failing criterion and linking back to the register.`,
-          `<b>Two are deliberately not public.</b> D-053 and D-058 are money-path defects; their mechanisms and reproductions were withheld from the public log and handed to the settler key holder and the backend maintainers directly. D-053 is the one that matters: under one specific interleaving of adjudication calls the refund guard did not hold. Triggering it needs adjudicator credentials, so no buyer or anonymous caller could reach it, and nothing happened on-chain because refunds are off. <b>QA found it on 2026-09-24, a day before our own audit reproduced and fixed the same defect</b>, and her standing advice was not to enable refunds until it was fixed. Her re-check against the hardening build produced one transfer where the earlier build signed two.`,
-          `The table opposite is the register’s own mapping, and it is the thing to check rather than our summary of it. Two details a careful reader will notice, stated here rather than glossed: the numbering is <b>not contiguous</b> — backend #75 and frontend #76 belong to nobody in this list — and the table’s preamble still says “stories 6.05 and 6.06 … filed 2026-09-24”, which is older than several of the rows beneath it. The rows are right; the sentence above them has not caught up.`,
-        ],
-        after: SEVERITY,
-      },
-      {
-        id: "D3",
-        title:
-          "Eleven found against our own hardening build — including one our fix caused",
-        open: UAT_DOC("docs/uat/defects.md"),
-        go: "github.com · D-067",
-        shot: "d2-defect-d-067.png",
-        what: "the register’s entry for D-067",
-        light: true,
-        max: 72,
-        text: [
-          `<b>D-066 through D-076 — eleven defects — were all raised after the 4.07 hardening merges landed on 2026-09-25</b>, and ten of the eleven were exercised directly against that build (backend <code>08efeda</code>, frontend <code>5105a8b</code>); the eleventh was found on the deployment, which runs an older one. Finding eleven defects in the pass that was meant to close the gaps is what independent QA is for.`,
-          `<b>D-067 is the one our own disclosure fix caused</b> — our word, not hers; she records it as a design gap whose privacy property still holds. The hardening pass stopped the backend returning the buyer’s reason and the adjudicator’s rejection reason to anyone without the task’s read token or the operator key. That closed a real hole. It also gates on a credential that lives in backend memory and in one browser tab’s session storage, and never on the <b>payer’s wallet</b> — and adjudication is manual and can take a day, by which time the token is almost always gone. So the one reader the text is written for is the one reader reliably locked out, while everyone else is correctly excluded. Three previously-passing restart-drill checks broke on it. Filed as ${a(`${BE_REPO}/issues/79`, "backend #79")}; the fix she proposes is to let the payer prove themselves with the same signed challenge that opens a dispute.`,
-        ],
-      },
-      {
-        id: "D4",
-        title: "The verdict: no-go",
-        open: UAT_DOC("docs/uat/evidence/6.03-dispute-refund-rating.md"),
-        go: "github.com · QA 6.03 evidence, §5",
-        shot: "d3-qa-recommendation.png",
-        what: "QA’s recommendation, in her own words",
-        light: true,
-        max: 78,
-        text: [
-          `<b>“No-go for signing off 6.03. One criterion is blocked on the deploy, four fail in code, and Deliverable 3 is not captured.”</b> Of the story card’s eight criteria, three pass in code and none passes outright on the deployment: both on-chain artifacts are blocked behind D-050 and D-051; the window edges, the credit ceiling, the reputation cache and the rating-failure log each fail on a named open defect. Seven distinct duplicate-payment paths were attacked against the card’s minimum of four, and all seven hold at the hardening build on the Postgres store; D-058 is a separate, open path on the in-memory store.`,
-          `She also fixes the order in which the switch may be turned on, and this document does not argue with it: the deployment must run backend <code>08efeda</code> or later; <code>MAX_REFUND_USDC</code> must be unset or a finite positive number; <code>DATABASE_URL</code> must be set — unconfirmed on the deployment today, since no endpoint reports the store in use (D-063). Then one live session. That list is the backbone of page {{p:path}}.`,
+          "QA filed D-039 on 2026-09-24: the v1 escrow could not move a buyer's funds. It was closed by escrow v2, and her register records it resolved on 2026-10-01 — with D-050 (no settlement record) and D-051 (refunds switched off), the Week-3 bundle's two blockers.",
         ],
       },
     ],
   },
-  [["D1"], ["D2"], ["D3"], ["D4"]],
+  [["D1"], ["D2"]],
 );
 
-// ------------------------------------- why D3 has no evidence run, and how ---
-
-PAGES.push({
-  kind: "html",
-  num: "Outstanding · 1 of 2",
-  eyebrow: "Deliverable D3 · the one thing in the way",
-  title: "Why D3 has no evidence run yet",
-  toc: "Why D3 has no evidence run yet — the gating defect",
-  html: `
-  <p class="lead">Deliverable D3 asks for a dispute transaction and the matching partial-refund transaction <b>produced by the deployment</b>, plus a recording of the dispute UI from the same session. Everything needed to produce them is built, merged, hardened and independently tested. The run has not happened, for a reason that is not in the dispute code at all — and this page states it rather than leaving it to be discovered.</p>
-  <div class="warn">
-    <b>No workflow settles, so no dispute window is ever stamped.</b>
-    <code>PaymentEscrow.charge</code> attempts the transfer from an account that never signs it, so the charge never lands. The settlement recorder returns early when the charge produced no job id, so <b>no settlement record is written</b> — and because the dispute window is stamped on the settlement record (B6), no window ever opens and no step is ever disputable.
-    Three merged stories of dispute, refund and rating work, and the whole trace-view dispute interface, are unreachable by any buyer on testnet. Nothing in the product says so; it looks like a feature that exists.
-    This is QA’s <b>D-050</b> (${a(`${BE_REPO}/issues/67`, "backend #67")}), and it is a consequence of the contract-level defect <b>D-039</b> (${a(`${SC_REPO}/issues/3`, "contracts #3")}) rather than a bug in the dispute code. Both issues say so, and the cheapest possible tripwire is already in QA’s live suite: a pinned expected failure that turns green by itself the first time a charge lands.</div>
-  <div class="twoup">
-    ${shot({ id: "x1", title: "Backend issue #67", shot: "e1-be-issue-67.png", what: "github.com · backend #67 — D-050, the dispute path unreachable", light: true, max: 47, open: `${BE_REPO}/issues/67` })}
-    ${shot({ id: "x2", title: "Contracts issue #3", shot: "e2-contracts-issue-3.png", what: "github.com · contracts #3 — D-039, the escrow charge", light: true, max: 47, open: `${SC_REPO}/issues/3` })}
-  </div>
-  <p class="small">The path from here to a captured D3 evidence run is on the next page. None of it is further development on the dispute path.</p>`,
-});
-
-PAGES.push({
-  kind: "html",
-  num: "Outstanding · 2 of 2",
-  eyebrow: "Deliverable D3 · the path to the evidence",
-  title: "Exactly what would produce the D3 evidence run",
-  toc: "The path to the D3 evidence run, in order",
-  html: `
-  <p class="lead">In order, and none of it development work on the dispute path. Steps 2, 3, 4 and 6 are the ordering independent QA set out before the refund switch may be turned on; this document does not argue with it.</p>
-  <table class="flow steps">
-    <tr><td class="k">1 · Make a charge land</td><td>Fix the escrow so the payer’s funds move (${a(`${SC_REPO}/issues/3`, "contracts #3")}). Without it there is nothing to dispute, whoever drives the run. This is the one true prerequisite, and it is contract work.</td></tr>
-    <tr><td class="k">2 · Deploy current <code>main</code></td><td>Backend <code>08efeda</code> or later, carrying the hardening pass’s money-path and disclosure fixes. <code>GET /openapi.json</code> will show the <code>OperatorApiKey</code> scheme once it has — the same check C3 makes today. Render does not auto-deploy for this organisation, so this is a manual step.</td></tr>
-    <tr><td class="k">3 · Set an operator key</td><td><code>API_KEY</code>, at least 8 printable ASCII characters with no surrounding whitespace. The boot validator refuses anything shorter <i>by name</i>, rather than booting clean and then answering 401 to the operator’s own key: below 8 characters the log redaction filter will not mask the value, so a shorter key prints itself into any log line that quotes it.</td></tr>
-    <tr><td class="k">4 · Switch refunds on</td><td><code>DISPUTE_REFUNDS_ENABLED=true</code>, in the same pass: setting it without a key makes the process refuse to start, deliberately, so the two go together.</td></tr>
-    <tr><td class="k">5 · Confirm the database</td><td><code>DATABASE_URL</code> must be set, or the dispute store falls back to memory and the 24-hour window becomes a promise that ends at the next restart — which a free-tier instance performs whenever it idles. No endpoint reports it, so it is checked in the dashboard.</td></tr>
-    <tr><td class="k">6 · Keep the ceiling finite</td><td>Confirm <code>MAX_REFUND_USDC</code> is unset or a finite positive number: a non-finite value silently removes the refund cap (QA’s D-054, still open at the hardening build).</td></tr>
-    <tr><td class="k">7 · Decide the refund asset</td><td>The deployment is configured with the native XLM SAC while every amount in the interface is labelled USDC (C1). Configure a USDC SAC or correct the label — do not capture D3 evidence while the two disagree.</td></tr>
-    <tr><td class="k">8 · Capture one session</td><td>A settled run; a dispute raised by the paying wallet; an uphold through the <b>API</b> rather than the operator script, so the running service’s cached score is invalidated (QA’s D-066) — producing the refund transaction and the <code>kind="dispute"</code> rating transaction, with the screen recording running continuously from before the dispute is raised until the receipt flips to “Refunded” with both Stellar Expert links.</td></tr>
-  </table>
-  <div class="callout">
-    <h4>Why that one session is enough</h4>
-    <p>The receipt polls itself while a dispute is unresolved — every 30 seconds under review, every 5 while a credit is being sent, not at all once final or while the tab is hidden — so the flip from “Under review” to “Refunded” with both links happens <b>in the recording, without a reload</b>. QA reproduced exactly that in the 6.03f drill, and proved the page never reloaded by setting a marker on it before the uphold and finding it still there afterwards.</p>
-    <p class="small">That session turns the two “not captured” rows in this document into a pair of hashes, and turns QA’s first criterion green. Four of her eight criteria need code fixes beyond it, each already filed as a public issue.</p>
-  </div>`,
-});
-
-// ------------------------------------------------------------ demo video ---
+// ------------------------------------------------- the published package ---
 
 PAGES.push({
   kind: "html",
   num: "Demo video",
-  eyebrow: "Week 3 · the recording that does not exist yet",
-  title: "Demo video: there is no Week-3 recording, and why",
-  toc: "Demo video — there is no Week-3 recording; the Week-2 post",
+  eyebrow: "Deliverable D4 · the demo",
+  title: "The demo, published in two parts",
+  toc: "Demo video — two parts, 4 min 20 s, with its 14 transactions",
   html: `
-  <div class="warn">
-    <b>There is no Week-3 demo video, and the Week-3 public build post has not been published.</b>
-    The D3 walkthrough recording is blocked on the defect on page {{p:outstanding}}: a recording of the dispute UI is only worth making against a run that settles, and no run settles on the deployment. The tracker card for the weekly public post carries no URL, and none is invented here. Both are stated as outstanding rather than presented as met.
-  </div>
-  <p class="lead">The most recent published demo is <b>Week 2’s</b>. It is linked below and labelled as Week 2’s wherever it appears in this document. It shows reputation-gated routing and the external agent execution path — <b>not</b> the dispute path this week delivered.</p>
+  <p class="lead">SOW §6.1 asks for a 3–5 minute demo video from the operator's and the buyer's side. It is published at ${a(`${SITE}/demo`, "orizons.xyz/demo")} in two parts, <b>4 min 20 s together</b>, each with chapters tagged by deliverable, captions and a transcript.</p>
   <table class="lt">
-    <tr><th>Week-2 build post <span>· plays the video · published 2026-09-19</span></th><td>${a(XPOST)}</td></tr>
-    <tr><th>Embed view <span>· the same post, no login needed</span></th><td>${a(XEMBED)}</td></tr>
+    <tr><th>Part 1 — the operator's side <span>· 3 min 9 s · published 2026-10-02</span></th><td>${a("https://www.youtube.com/watch?v=LM7iecSviSI")}</td></tr>
+    <tr><th>Part 2 — the buyer's side <span>· 1 min 11 s · published 2026-07-24</span></th><td>${a("https://www.youtube.com/watch?v=6NfblJwVEXg")}</td></tr>
   </table>
-  ${shot({ id: "video", title: "Week-2 build video post", shot: "f1-week-2-video-post.png", what: "the Week-2 post, drawn by X’s embed renderer", light: true, max: 62, open: XPOST })}
-  <p class="small">x.com shows a blank page to a logged-out automated browser, so this capture is X’s own embed view of the same post id. The Week-3 recording will be captured in the same session that produces the two deployment transactions — step 8 on page {{p:path}}.</p>`,
+  <div class="warn"><b>Stated on the page itself:</b> the buyer's part was recorded on 2026-07-24, on an earlier version of the console. Neither video shows an escrow v2 settlement or a dispute on screen; those are evidenced by the 14 sprint transactions the page lists beside the videos, each re-read on the network on 2026-10-02 at 16:43 UTC.</div>
+  ${shot({ id: "demo", title: "The demo page", shot: `${SHOTS_DIR}14-orizons-demo-transactions.png`, what: "orizons.xyz/demo · On-chain evidence", max: 62, open: `${SITE}/demo` })}`,
+});
+
+PAGES.push({
+  kind: "html",
+  num: "Evidence index",
+  eyebrow: "Deliverable D4 · the public evidence index",
+  title: "Every deliverable present; ten of ten metrics met",
+  toc: "The public evidence index — the §6.2 checklist and the §6.3 metrics",
+  html: `
+  <p class="lead">${a(`${SITE}/evidence`, "orizons.xyz/evidence")} follows SOW v4 section by section: each §6.1 deliverable's evidence type and description quoted, each item with a status and a link, a suggested §6.2 marking for the Chapter Lead — who decides — and the §6.3 metrics measured from the chain. The SOW lists eleven metrics; metric m03 was removed from the sprint's requirements on 2026-09-30, and the index states that removal under its Disclosures.</p>
+  ${shot({ id: "checklist", title: "The §6.2 checklist summary", shot: `${SHOTS_DIR}11-orizons-evidence-checklist.png`, what: "orizons.xyz/evidence · §6.2", max: 84, open: `${SITE}/evidence` })}
+  <p class="small">The metrics table, with each row's note — including that the settlements are the team's own test runs and that the credit was the step's full charge — is frame 12 of the screenshots folder and page 17 of the Proof of Deliverables.</p>`,
+});
+
+PAGES.push({
+  kind: "html",
+  num: "Still open",
+  eyebrow: "Week 4 · what is not finished",
+  title: "What is still open, stated plainly",
+  toc: "What is still open — QA sign-off, outside payments, open defects",
+  html: `
+  <p class="lead">Deliverable D4's items are published and D1–D3 are evidenced on the deployment. Three things are not finished, and each is public.</p>
+  <table class="flow steps">
+    <tr><td class="k">QA sign-off</td><td>Pending. QA's verdict on the evidence card (6.04) is no-go; two of her blockers have been addressed since and await her re-check. Her register and her reports are public in ${a(UAT_REPO, "Orizon-Agents-UAT-Stellar")}.</td></tr>
+    <tr><td class="k">An outside operator paid</td><td>No outside operator's agent is yet bound to a live endpoint that a paid run can reach (QA's D-077, ${a(`${BE_REPO}/issues/104`, "backend #104")}). Until one is, the settlements on the record are the team's own test runs.</td></tr>
+    <tr><td class="k">Attestation lifetime</td><td>QA found the AttestationRegistry never extends its storage lifetime, so the seals would archive on 2026-10-07 (D-083, ${a(`${BE_REPO}/issues/107`, "backend #107")}).</td></tr>
+    <tr><td class="k">Her other open defects</td><td>Each is a public issue — backend #104–#111, frontend #114–#119 — quoted in <code>01-tasks-completed.md</code> as she wrote them.</td></tr>
+  </table>
+  <div class="callout">
+    <h4>Where this document's facts come from</h4>
+    <p>Screenshots in this folder were captured on 2026-10-03 from the live API and public GitHub pages at 2x; pages that reference <code>../screenshots/</code> use the full-page frames of the Proof of Deliverables, captured the same afternoon, and three frames captured from the live site on 2026-09-30 for the evidence index. No wallet was connected and nothing was signed, paid or submitted for any of them.</p>
+  </div>`,
 });
 
 // ----------------------------------------------------- render: figures ---
@@ -901,7 +747,7 @@ function shot(s) {
     return "";
   }
   const { w, h } = pngSize(path);
-  const entry = MANIFEST[s.shot] ?? {};
+  const entry = MANIFEST[baseName(s.shot)] ?? {};
   const url = entry.url ?? s.open;
   // Marks are in CSS pixels of the captured region; a 2x capture has twice
   // as many PNG pixels, so place them against the region's CSS size. The
@@ -927,7 +773,7 @@ function shot(s) {
   // out to a live address it did not come from.
   const src = entry.fixture
     ? `${esc(s.what ?? "screenshot")} · <b>local capture against test fixtures — not the deployment</b> · ${esc(entry.source ?? s.shot)} · captured ${esc(capturedAt(s.shot))}`
-    : `${esc(s.what ?? "screenshot")} · ${a(url)}${via} · captured ${esc(capturedAt(s.shot))}`;
+    : `${esc(s.what ?? "screenshot")} · ${a(url)}${via} · captured ${esc(s.capturedNote ?? capturedAt(s.shot))}`;
   const fig = entry.fixture
     ? `<span class="fig${s.light ? " light" : ""} fixture" style="aspect-ratio:${w} / ${h}"><img src="${esc(s.shot)}" width="${w}" height="${h}" alt="${esc(s.title)}">${marks}</span>`
     : `<a class="fig${s.light ? " light" : ""}" href="${esc(url)}" style="aspect-ratio:${w} / ${h}"><img src="${esc(s.shot)}" width="${w}" height="${h}" alt="${esc(s.title)}">${marks}</a>`;
@@ -1037,21 +883,21 @@ function cover() {
 <section class="page cover">
   <div class="kicker">Stellar Instawards (Cohort 2026)</div>
   <h1>${esc(TITLE)}</h1>
-  <div class="sub">What shipped in Week 3 on Stellar testnet, how the money path is kept safe, how to verify it live — and, plainly, what is not evidenced yet.</div>
+  <div class="sub">What shipped in Week 4 on Stellar testnet — escrow v2 and the money path working end to end, and the ecosystem validation package — how to verify it live, and, plainly, what is still open.</div>
   <table class="facts">
     <tr><th>Programme</th><td>Stellar Instawards (Cohort 2026) — Blue Belt Instaward Sprint</td></tr>
-    <tr><th>Milestone</th><td>M3 · Week 3 — Dispute Window &amp; Partial-Credit Refund (Deliverable <b>D3</b>, Epic 4)</td></tr>
-    <tr><th>Sprint week</th><td>Mon 2026-09-21 → Fri 2026-09-25 · evidence assembled 2026-09-26</td></tr>
+    <tr><th>Milestone</th><td>M4 · Week 4 — Ecosystem Validation Package (Deliverable <b>D4</b>, Epic 5)</td></tr>
+    <tr><th>Sprint week</th><td>Mon 2026-09-28 → Fri 2026-10-02 · evidence assembled 2026-10-03</td></tr>
     <tr><th>Network</th><td><b>Stellar testnet only</b></td></tr>
     <tr><th>Team</th><td>Danielle Bagaforo Meer — lead engineer (GitHub <span class="mono">ALGOREX-PH</span>)<br>Rieselle Saure (“Rie”) — PM + QA (GitHub <span class="mono">rie-hash14</span>)</td></tr>
-    <tr><th>This week</th><td>14 pull requests merged · 1,295 commits · +45,936 / −1,152 on <span class="mono">main</span> · 908 commits authored by the lead engineer, 268 by QA</td></tr>
+    <tr><th>This week</th><td>42 pull requests merged · 2,718 commits on <span class="mono">main</span> · 1,801 commits authored by the lead engineer in the sprint week, 403 by QA</td></tr>
     <tr><th>Live application</th><td>${a(SITE)} · API ${a(`${BE}/docs`)}</td></tr>
   </table>
   <h3>Contents</h3>
   <table class="toc">
     ${toc.join("\n    ")}
   </table>
-  <p class="note"><b>How to read this.</b> Each step names the page to open, top right, and what to look for. Numbered orange outlines ${m(1)} match the numbers in the text; they are drawn by this document over the unaltered screenshot. Every URL here is a live link. <b>Two kinds of screenshot, never mixed:</b> Walkthrough A’s six frames are local captures against the end-to-end suite’s <b>test fixtures</b> — every hash in them exists on no ledger — and every page and caption carrying one says so. Everything else was captured on 2026-09-26 from the live deployment and from public GitHub, Stellar Expert and X pages; no wallet was connected and nothing was signed, paid or submitted for any of them.</p>
+  <p class="note"><b>How to read this.</b> Each step names the page to open, top right, and what to look for. Every URL here is a live link. Every screenshot is of the live deployment or a public GitHub or Stellar Expert page: the close-ups in this folder and the full-page frames borrowed from <span class="mono">../screenshots/</span> were captured on 2026-10-03, and three frames of the live plan card and receipt on 2026-09-30, for the public evidence index — each caption gives its own source and time. No wallet was connected and nothing was signed, paid or submitted for any of them. The settlements and dispute credits shown are the team's own test runs, in testnet XLM.</p>
 </section>`;
 }
 
@@ -1069,9 +915,9 @@ function documentHtml() {
   // prose is built before the later pages are pushed. Resolve them against the
   // finished layout, and fail loudly on a token that names no page.
   const REFS = {
-    outstanding: PAGES.findIndex((p) => p.num === "Outstanding · 1 of 2") + 1,
-    path: PAGES.findIndex((p) => p.num === "Outstanding · 2 of 2") + 1,
     video: PAGES.findIndex((p) => p.num === "Demo video") + 1,
+    evidence: PAGES.findIndex((p) => p.num === "Evidence index") + 1,
+    open: PAGES.findIndex((p) => p.num === "Still open") + 1,
   };
   const resolve = (h) =>
     h.replace(/\{\{p:(\w+)\}\}/g, (_, k) => {
@@ -1256,7 +1102,7 @@ await page.pdf({
   preferCSSPageSize: true,
   displayHeaderFooter: true,
   headerTemplate: "<span></span>",
-  footerTemplate: `<div style="width:100%;font-family:Inter,'DejaVu Sans',sans-serif;font-size:7.5px;color:#7a8394;padding:0 15mm;display:flex;justify-content:space-between"><span>Orizon Agents — Week 3 · Technical Documentation &amp; Demo Evidence · Stellar testnet</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
+  footerTemplate: `<div style="width:100%;font-family:Inter,'DejaVu Sans',sans-serif;font-size:7.5px;color:#7a8394;padding:0 15mm;display:flex;justify-content:space-between"><span>Orizon Agents — Week 4 · Technical Documentation &amp; Demo Evidence · Stellar testnet</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
 });
 await browser.close();
 const pages = (
