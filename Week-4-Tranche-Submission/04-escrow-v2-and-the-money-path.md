@@ -83,3 +83,13 @@ The public evidence index carries each of these under its Disclosures; they are 
 - **The settler can now be rotated, but one platform key still settles.** v2 adds `set_settler`; it has not been used. A single team-held key — the platform's production key, which also writes ratings and seals — signs every settlement, with no multi-signature or threshold control (SOW §3.8 already says the settler is not permissionless).
 - **A dispute credit is a separate transfer from the platform's own funds.** It is not taken back from the agent's owner and not drawn from the escrow; the platform, not an independent arbiter, decides whether a dispute is upheld (backend [ADR 0002](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0002-partial-credit-refund.md) and [ADR 0008](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0008-refund-execution.md)). The share credited is a setting; it is 100% of the disputed step's charge on the deployment today.
 - **Testnet settles in native XLM.** The escrow's payment asset on the deployment is the native XLM asset contract, and the app labels testnet amounts XLM.
+
+## Still open on the money path
+
+Rie's register (see [`01`](./01-tasks-completed.md#defects-logged-this-week--d-077--d-092-16)) has three open items that bear on payments rather than on the evidence index, quoted as she titled them:
+
+- **D-077** — "No paid workflow can complete on the deploy: every bound agent with an on-chain owner has a dead endpoint." The team's runs used agents with live endpoints; the outside agents bound so far do not answer, so no outside operator can be paid yet. ([backend #104](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/104))
+- **D-083** — "The AttestationRegistry never extends a TTL: the seals and the registry archive on 2026-10-07." ([backend #107](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/107))
+- **D-084** — "The planner routes to an agent its own readiness probe reports unreachable, and the buyer pays the fees." ([backend #108](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/issues/108))
+
+Each is a public issue, and the fixes will be reported in the next bundle.
