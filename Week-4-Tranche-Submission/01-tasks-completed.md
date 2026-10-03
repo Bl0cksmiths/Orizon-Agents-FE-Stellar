@@ -105,3 +105,17 @@ Titles, severities and statuses as her register ([`docs/uat/defects.md`](https:/
 (In D-085 the agent's name is left out here; it is in her register.) Where the severity column in her register also carries a story-6.04 grade, only the first grade is shown.
 
 **Her Week-3 defects, re-checked on 2026-10-01.** Nine are recorded as resolved — among them **D-039** (the v1 escrow could not move a buyer's funds), **D-050** (no settlement record, so nothing to dispute) and **D-051** (dispute refunds switched off), the two blockers of the Week-3 bundle — fourteen as fixed in code, one as fixed and deployed, and three still open. Two older defects are held privately, as in Week 3.
+
+## Totals
+
+| Measure                                   | Week 4                                                                                                      |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Pull requests merged                      | **42** across all five public repositories (40 of the week's own, 2 Week-3 carry-over)                      |
+| Commits landed on `main`                  | **2,718** (2,282 from the week's own PRs)                                                                   |
+| Authored commits, sprint week             | Dan **1,801** (1,573 touching one file) · Rie **352**, and **403** with 3 October included                  |
+| Epic 5 stories shipped                    | **6 of 6** — 5.01 to 5.06                                                                                   |
+| Testnet transactions from the team's runs | 14 on the demo page, 11 more in the 5.01 acceptance evidence — every one re-verified                        |
+| Public evidence index                     | [orizons.xyz/evidence](https://orizons.xyz/evidence) — every deliverable item present, 10 of 10 metrics met |
+| QA                                        | 5 cards worked, 16 defects logged (15 public issues); sign-off pending                                      |
+
+Counts and their commands: [`02-commit-visibility.md`](./02-commit-visibility.md) and [`05-pull-requests.md`](./05-pull-requests.md).
