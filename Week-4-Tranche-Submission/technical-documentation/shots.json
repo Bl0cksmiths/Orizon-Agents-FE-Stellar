@@ -1,0 +1,42 @@
+{
+  "b1-escrow-v2-why.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/blob/main/docs/escrow-v2-interface.md",
+    "capturedAt": "2026-10-03T09:40:19.023Z",
+    "width": 861,
+    "height": 435,
+    "scale": 2,
+    "marks": []
+  },
+  "b2-adr-0010-escrow-v2.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/blob/main/docs/decisions/0010-escrow-v2-custody-settlement.md",
+    "capturedAt": "2026-10-03T09:40:31.763Z",
+    "width": 861,
+    "height": 555,
+    "scale": 2,
+    "marks": []
+  },
+  "c1-api-network.png": {
+    "url": "https://orizon-agents-be-stellar.onrender.com/api/stellar/network",
+    "capturedAt": "2026-10-03T09:40:33.598Z",
+    "width": 811,
+    "height": 453,
+    "scale": 2,
+    "marks": []
+  },
+  "c2-api-readiness.png": {
+    "url": "https://orizon-agents-be-stellar.onrender.com/readiness",
+    "capturedAt": "2026-10-03T09:40:35.416Z",
+    "width": 794,
+    "height": 1005,
+    "scale": 2,
+    "marks": []
+  },
+  "d1-qa-epic-6-status.png": {
+    "url": "https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/signoff-report.md",
+    "capturedAt": "2026-10-03T09:41:14.201Z",
+    "width": 861,
+    "height": 435,
+    "scale": 2,
+    "marks": []
+  }
+}

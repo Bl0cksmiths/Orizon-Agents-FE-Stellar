@@ -1,0 +1,88 @@
+# Screenshots — evidence manifest (Week 4)
+
+**Status: all 28 public-web shots captured on 2026-10-03, 15:47–16:08 PHT
+(07:47–08:08 UTC).** Every frame is a PNG of a public page taken by Playwright
+Chromium in a 1440×900 viewport, and every PNG was opened and looked at by eye
+after capture. Each row below carries the source URL so a reviewer can check the
+same page live. Pixel sizes, crop offsets and byte sizes come from
+[`capture-meta.json`](./capture-meta.json), which the capture script writes.
+
+**No wallet was connected. Nothing was signed, authorized, paid or submitted.**
+Every request the script makes is a GET.
+
+**Every frame is of the live deployment or a public page.** Unlike Week 3, no
+frame in this folder is a local run against test fixtures: with escrow v2 live,
+everything this bundle shows could be captured from the real service.
+
+**Cropping.** Where a page runs for thousands of pixels beyond the panel that is
+the evidence, the full-page shot is clipped and the row says where. Nothing is
+cut from the middle of a frame, and no crop removes a caveat. Frame 12 hides two
+columns of a long table in the browser, and says so in its own first line. Every
+frame is re-encoded with a 256-colour adaptive palette (no dithering, no
+resizing), so pixel positions are unchanged and text is legible at 1:1.
+
+## Manifest
+
+| #   | Filename                                           | What it shows                                                                                                                                                                                                                                                    | Source                                                                                                                       |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `01-contracts-pr-4-escrow-v2.png`                  | Contracts PR #4 — PaymentEscrow v2 (15 commits, 43 files, merged 2026-09-28): custody at authorize, per-operator settlement, settler rotation; "Fixes #3". Top 2,600 px of a 3,272 px page                                                                       | [contracts #4](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/4)                                   |
+| 2   | `02-contracts-pr-6-escrow-v2-deployed.png`         | Contracts PR #6 — records the testnet escrow v2 deployment in `addresses.json` (merged 2026-09-30). Full page                                                                                                                                                    | [contracts #6](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/6)                                   |
+| 3   | `03-be-pr-88-settle-through-escrow-v2.png`         | Backend PR #88 — story 5.01: settle through escrow v2, bind authorizations to plans, lifecycle harness (115 commits, merged 2026-09-28). Top 2,600 px of 5,546                                                                                                   | [BE #88](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/88)                                                    |
+| 4   | `04-fe-pr-89-escrow-v2-console.png`                | Frontend PR #89 — story 5.01: custody-honest authorize, per-step payouts, reclaim and the escrow v2 switch (85 commits, merged 2026-09-28). Top 2,600 px of 5,225                                                                                                | [FE #89](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/89)                                                    |
+| 5   | `05-fe-pr-97-guide-evidence-litepaper.png`         | Frontend PR #97 — stories 5.03–5.06: the operator guide, the demo page, the evidence index, the litepaper and the MIT licence (679 commits, merged 2026-09-29). Top 2,600 px of 13,734                                                                           | [FE #97](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97)                                                    |
+| 6   | `06-example-agent-pr-6-fault-injection.png`        | Reference agent PR #6 — 5.01 AC5: opt-in fault injection for integration testing (11 commits, merged 2026-09-28). Full page                                                                                                                                      | [agent #6](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar/pull/6)                                        |
+| 7   | `07-be-pull-requests-week4.png`                    | Backend PRs merged 2026-09-27..10-03 — **14**, #87 to #113, each with a green check. Full page                                                                                                                                                                   | [query](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-27..2026-10-03) |
+| 8   | `08-fe-pull-requests-week4.png`                    | Frontend PRs merged 2026-09-27..10-03 — **23**, #88 to #122, each with a green 5/5 check. Full page                                                                                                                                                              | [query](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-27..2026-10-03) |
+| 9   | `09-uat-pr-5-rie-commits.png`                      | UAT PR #5, Commits tab: **403 commits, every one by `rie-hash14`**, 66 files, +8,816 −288, merged 2026-10-03. GitHub's banner in frame says it shows the most recent 250. Top 3,200 px of 16,882                                                                 | [UAT #5 commits](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/5/commits)                                    |
+| 10  | `10-orizons-home-live-stats.png`                   | The live home page hero at 08:08 UTC: **590 registered agents, 565 external agents, 560 operator wallets**, "read from the Stellar testnet registry". Top 1,100 px of 7,343                                                                                      | [orizons.xyz](https://orizons.xyz/)                                                                                          |
+| 11  | `11-orizons-evidence-checklist.png`                | The evidence index's §6.2 checklist summary: D1, D2, D3, D4 and Repositories & Deployments each suggested **Present** (3/3, 3/3, 3/3, 5/5, 6/6). Clipped 1,198–2,298 px of a 28,327 px page                                                                      | [orizons.xyz/evidence](https://orizons.xyz/evidence)                                                                         |
+| 12  | `12-orizons-evidence-metrics.png`                  | The evidence index's §6.3 metrics: **10 of 10 met**, with each row's status note. Element capture of the metrics section; the "How measured" notes and the Proof column are given `display:none` so the ten rows fit one frame, as the frame's first line states | [orizons.xyz/evidence](https://orizons.xyz/evidence)                                                                         |
+| 13  | `13-orizons-demo.png`                              | The demo page: two parts, 4 min 20 s; part 1, the operator's side (3 min 9 s, published 2026-10-02) with its chapters; part 2, the buyer's side, labelled as recorded on an earlier console. Top 2,600 px of 6,547                                               | [orizons.xyz/demo](https://orizons.xyz/demo)                                                                                 |
+| 14  | `14-orizons-demo-transactions.png`                 | The demo page's "On-chain evidence" table — the 14 sprint transactions, each re-read on 2026-10-02 16:43 UTC — and its Limitations. Clipped 2,579–4,079 px                                                                                                       | [orizons.xyz/demo](https://orizons.xyz/demo)                                                                                 |
+| 15  | `15-orizons-guide-list-your-agent.png`             | The "List your agent on Orizon" guide: v1.1.0, verified against backend `16819ef`, updated 2026-09-30, labelled a draft. Top 2,000 px of 49,296                                                                                                                  | [guide](https://orizons.xyz/guide/list-your-agent)                                                                           |
+| 16  | `16-orizons-litepaper.png`                         | The litepaper page: v0.5, dated 2026-09-30, in four formats. Top 1,800 px of 3,540                                                                                                                                                                               | [orizons.xyz/litepaper](https://orizons.xyz/litepaper)                                                                       |
+| 17  | `17-be-stellar-network.png`                        | Live `GET /api/stellar/network`: testnet, the four contract ids with **payment_escrow `CCNO5TEN…5VC4`** (escrow v2), asset `native`. Body re-indented in the browser — content unchanged                                                                         | [/api/stellar/network](https://orizon-agents-be-stellar.onrender.com/api/stellar/network)                                    |
+| 18  | `18-be-readiness.png`                              | Live `GET /readiness`: `status: ready`, **`escrow.version: 2`**, dispute store `postgres`, refund reconcile enabled and running, ratings writer `scorer`, registry synced at 590. Body re-indented                                                               | [/readiness](https://orizon-agents-be-stellar.onrender.com/readiness)                                                        |
+| 19  | `19-be-metrics-overview.png`                       | Live `GET /api/metrics/overview`, the source of the hero in frame 10, read the same minute: registered 590, external 565, external wallets 560, settled workflows 5 (all on 2026-09-30). Body re-indented                                                        | [/api/metrics/overview](https://orizon-agents-be-stellar.onrender.com/api/metrics/overview)                                  |
+| 20  | `20-escrow-v2-contract-stellar-expert.png`         | Escrow v2 on Stellar Expert: created 2026-09-30 08:31:12 UTC, and its History tab — every `authorize` and `settle`, including the per-agent payouts of the team runs. Full page                                                                                  | [contract](https://stellar.expert/explorer/testnet/contract/CCNO5TENCK3EK532I3OZLZ63323FEEULPAKJ74CUP3JZK3XQINRQ5VC4)        |
+| 21  | `21-settlement-tx-stellar-expert.png`              | The first escrow v2 settlement, team run 1, 0.01 XLM to the agent's owner — Successful                                                                                                                                                                           | [f0674419…](https://stellar.expert/explorer/testnet/tx/f0674419992bdf30cf730139e54e4cdd985e32b43ee15c91733e08424a8d1235)     |
+| 22  | `22-refund-tx-stellar-expert.png`                  | The first dispute credit: the platform's key transfers 0.01 XLM to the buyer, 2026-09-30 15:25:52 UTC — Successful                                                                                                                                               | [cb2c5792…](https://stellar.expert/explorer/testnet/tx/cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f)     |
+| 23  | `23-dispute-rating-tx-stellar-expert.png`          | The matching `dispute` rating on the ReputationLedger — Successful                                                                                                                                                                                               | [b512135f…](https://stellar.expert/explorer/testnet/tx/b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49)     |
+| 24  | `24-outside-registration-tx-stellar-expert.png`    | The first outside registration, 2026-09-29: `AgentRegistry.register` signed by the owner's own wallet — Successful                                                                                                                                               | [8a049b05…](https://stellar.expert/explorer/testnet/tx/8a049b05dbf59956b2dc6cea96bd50baf4926a58d258ce66be8e74b4f1193bad)     |
+| 25  | `25-contracts-issue-3-resolved.png`                | Contracts issue #3 (D-039, filed by `rie-hash14`): **Closed**, linked to PR #4. Top 3,000 px of 3,387                                                                                                                                                            | [contracts issue #3](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/issues/3)                           |
+| 26  | `26-restart-dispute-refund-tx-stellar-expert.png`  | 5.01 AC4: the credit for the dispute opened after a backend restart, 2026-09-30 18:03 UTC — Successful                                                                                                                                                           | [01c3175a…](https://stellar.expert/explorer/testnet/tx/01c3175a881658808e15dc9a284439f2fbce4091a3566bfe3894ecedc1efa5be)     |
+| 27  | `27-partial-delivery-settle-tx-stellar-expert.png` | 5.01 AC5: the partial-delivery settlement — the delivered step paid, the rest returned to the buyer — Successful                                                                                                                                                 | [0ada0708…](https://stellar.expert/explorer/testnet/tx/0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b)     |
+| 28  | `28-uat-epic-6-status.png`                         | QA's sign-off report, "Epic 6 status, 2026-10-02", in her words: 6.01 partial, 6.02 GO, 6.03 GO on its criteria, 6.04 NO-GO, "The epic is not ready to submit." Clipped 14,337–14,801 px (the section to the end of the file)                                    | [signoff-report.md](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/blob/main/docs/uat/signoff-report.md)           |
+
+Total for these 28 PNGs: **3,595,146 bytes (3.43 MB)**.
+
+> Frames 7 and 8 are live queries, captured at 15:55–15:56 PHT on 2026-10-03; a
+> PR merged after that moment appears at the URL but not in the frame. Frame 28
+> was captured while QA was still working; her register and report may have
+> moved on since.
+
+## Captured earlier, for the public evidence index
+
+These ten files were **not** made by this script. They were captured from the
+live site on 2026-09-30, with no wallet connected, for the public evidence
+index, which links them by commit. They are left exactly as they were.
+
+| Filename                                                                                | What it shows                                                                                                                                      |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `d2a-plan-card-onchain-score-desktop-1440.png`, `…-phone-390.png`                       | D2: the live plan card showing each agent's on-chain reputation before the buyer pays                                                              |
+| `d2b-routing-exclusion-desktop-1440.png`, `…-phone-390.png`                             | D2: a live plan leaving out the deliberately faulty test agent, below the floor (5,443 < 5,500 bps)                                                |
+| `d3c-dispute-receipt-desktop-1440.png`, `…-phone-390.png`, `…-video-desktop-1440.webm`  | D3: the live receipt with the dispute under review, before the decision                                                                            |
+| `d3c-dispute-refunded-desktop-1440.png`, `…-phone-390.png`, `…-video-desktop-1440.webm` | D3: the live receipt with the dispute refunded, its credit and dispute rating linked; the dispute was opened through the API by the team's harness |
+
+## Reproduce
+
+```bash
+node Week-4-Tranche-Submission/screenshots/capture-screenshots.mjs        # all 28
+node Week-4-Tranche-Submission/screenshots/capture-screenshots.mjs 10 19  # just some
+node Week-4-Tranche-Submission/screenshots/build-proof-pdf.mjs           # the PDF
+```
+
+The capture script never connects a wallet, authorizes or pays. It wakes the
+Render backend before the first shot needs it and retries each shot once with
+doubled waits. Under WSL, run it with Playwright's own Chromium (the default),
+not a Windows Chrome. The size pass needs Python's Pillow.
