@@ -49,3 +49,28 @@ If a single link per repo is required, these are the Week-4 PRs that carry the w
 | UAT (Rie)       | [UAT #5](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/5)                  | `uat` → `main`                        | 403 (all by `rie-hash14`) | Week-4 QA: 6.04 independent on-chain verification, the 6.02 re-check, 6.03 re-run on escrow v2, 6.08, 6.09, D-077 → D-092 |
 
 The full list for each repo follows.
+
+---
+
+## Merged this week — 42 PRs
+
+### Backend — [Orizon-Agents-BE-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar) · 14 PRs · 737 commits landed on `main` · +52,596 / −1,966
+
+| PR                                                                       | Deliverable                                                                                                 | Merged (UTC)     | head → base                                   | Commits | Lines            |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------- | ------- | ---------------- |
+| [#87](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/87)   | **Week-3 carry-over** — QA money-path fixes, Epic 3 and 4 hardening, refund tagging and the reconcile sweep | 2026-09-27 18:04 | `feat/refund-tag-and-reconcile` → `main`      | 231     | +15,213 / −1,388 |
+| [#88](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/88)   | **5.01** Settle through escrow v2, bind authorizations to plans, fresh reputation, lifecycle harness        | 2026-09-28       | `feat/5.01-integration` → `main`              | 115     | +11,842 / −158   |
+| [#89](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/89)   | **5.02** Verifiable adoption metrics, operator readiness, and the onboarding kit                            | 2026-09-28       | `feat/5.02-integration` → `main`              | 48      | +7,305 / −3      |
+| [#94](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/94)   | **5.03–5.05** Friction coverage, demo tools, SOW metrics, MIT licence and audit fixes                       | 2026-09-29       | `fix/5-audit-integration` → `main`            | 214     | +12,719 / −142   |
+| [#95](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/95)   | **5.02 / 5.05** Friction entries from the first outside-operator trial; Epic 5 progress                     | 2026-09-30       | `docs/friction-first-external-trial` → `main` | 11      | +588 / −40       |
+| [#96](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/96)   | **5.01** Declare the escrow v2 test buyer in the team wallet register                                       | 2026-09-30       | `chore/declare-v2-test-keys` → `main`         | 3       | +8 / −2          |
+| [#97](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/97)   | **5.01** Docs: escrow v2 live on testnet, with the team runs' evidence                                      | 2026-09-30       | `docs/escrow-v2-live` → `main`                | 36      | +815 / −48       |
+| [#98](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/98)   | **5.04** The demo description's limitations derived from the verified rows                                  | 2026-09-30       | `fix/demo-evidence-limitations` → `main`      | 9       | +393 / −19       |
+| [#99](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/99)   | **5.01** Recorded the first real dispute credit                                                             | 2026-09-30       | `docs/first-dispute-credit` → `main`          | 10      | +116 / −21       |
+| [#100](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/100) | **5.01 AC4** A dispute survives a backend restart                                                           | 2026-09-30       | `fix/dispute-survives-restart` → `main`       | 8       | +650 / −73       |
+| [#101](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/101) | **5.01 AC5** Partial delivery proved; multi-agent plans in the harness                                      | 2026-09-30       | `feat/partial-delivery-proof` → `main`        | 6       | +896 / −56       |
+| [#102](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/102) | **5.01 AC4 + AC5** Live evidence for both                                                                   | 2026-09-30       | `docs/5.01-ac4-ac5-evidence` → `main`         | 10      | +332 / −1        |
+| [#103](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/103) | **Accurate figures** The overview reports only measured values                                              | 2026-10-01       | `feat/real-overview-metrics` → `main`         | 9       | +1,412 / −419    |
+| [#113](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/113) | **Accurate figures** The registry mirror reports when it is fully synced                                    | 2026-10-02       | `feat/registry-sync-status` → `main`          | 13      | +772 / −61       |
+
+> **#87 is Week-3 work merged inside the Week-4 window.** It was merged at 18:04 UTC on Sunday 2026-09-27, which is 02:04 on Monday 2026-09-28 in Manila. It consolidates Week 3's QA-driven fixes and the refund reconcile sweep, and it is listed here because it did not appear in the Week-3 bundle. Without it, the week's own backend PRs added 505 commits and +37,540 / −735 to `main`.
