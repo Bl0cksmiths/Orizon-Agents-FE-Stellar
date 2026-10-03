@@ -73,3 +73,8 @@ All of Rie's work below is public in [Orizon-Agents-UAT-Stellar](https://github.
 | **6.07** and **6.10** — the escrow v2 payment path in the browser; re-verifying the evidence index after escrow v2 | In progress on branches not yet merged                                                                                                                                                                                                                                       | No verdict yet                                                                                                                                                                                         |
 
 Her summary for the epic, in her words: **"The epic is not ready to submit."** QA sign-off is therefore **pending**, and this bundle does not claim it.
+
+**Where her blockers stand on 2026-10-03:**
+
+- **Resolved since her verdict, awaiting her re-check:** the missing demo video (OV-05, her D-082) — the demo was published in two parts on [orizons.xyz/demo](https://orizons.xyz/demo) by [FE #122](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/122), merged hours after her verdict; and the outside registration hashes missing from the evidence index (her D-089) — all eleven are now linked, by [FE #109](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/109).
+- **Still open:** OV-08, blocked on her D-077 — an outside operator's agent bound to a live endpoint, so that a paid run can be routed to it — and the other defects in her register below.
