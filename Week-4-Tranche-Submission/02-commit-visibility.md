@@ -86,3 +86,25 @@ Two things in the frontend figure, stated so the number is read correctly:
 - Frontend: [commits on `main` by `ALGOREX-PH`, 28 Sep – 2 Oct](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/commits/main?author=ALGOREX-PH&since=2026-09-28&until=2026-10-02)
 - Contracts: [commits on `main`](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/commits/main) · Reference agent: [commits on `main`](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar/commits/main)
 - Or the **Commits** tab of any Week-4 PR listed in [`05-pull-requests.md`](./05-pull-requests.md).
+
+## Rieselle (Rie) — PM + QA
+
+| Repo                                                                                  | Authored, 28 Sep – 2 Oct | Incl. 3 Oct (on `main`)                                                                       | Identity                                                       |
+| ------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [Orizon-Agents-UAT-Stellar](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar) | **352**                  | **403** (all in [UAT PR #5](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/5)) | `rie-hash14` (`276933516+rie-hash14@users.noreply.github.com`) |
+
+Her 403 commits on `main` are dated 2026-10-01 (54), 2026-10-02 (298) and 2026-10-03 (51), and every one sits in [UAT PR #5](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/5/commits) (`uat` → `main`, merged 2026-10-03). **401 of the 403 touch exactly one file** (350 of the 352 in the sprint week); the other two touch two. By area, 151 land in `docs/uat/`, 136 in `tools/`, 115 in `tests/` and 3 in `docs/evidence/`. The first three days of the week carry none of her commits on any branch: her week-4 test cards needed escrow v2 live, which it was from 2026-09-30.
+
+The commits are real and **role-relevant** (QA) — independent verification of the week's deliverable and of every public claim made about it:
+
+- **6.04 — independent verification of every on-chain claim** (criteria OV-01 to OV-08), with a re-check of **6.02** (reputation floor) and a re-run of **6.03** (dispute, refund and rating) on escrow v2.
+- **6.08 — dispute and refund on escrow v2** (DE-01 to DE-06) and **6.09 — operator onboarding, readiness and the Ecosystem page** (OB-01 to OB-09), with a phone checklist.
+- **Eight new Playwright specs** — `attestations`, `dispute-escrow-v2`, `evidence-index`, `external-operators`, `operator-onboarding`, `public-artifacts`, `sow-checklist`, `sow-metrics` — and six existing specs updated for escrow v2.
+- **Four new verification tools** under `tools/`: `attestation-verify`, `onchain-verify`, `sow-metrics-verify` and `e2e-run`, which re-derive the evidence index's claims from the chain rather than from our API.
+- **QA records:** defect write-ups **D-077 → D-092**, nine new evidence reports, and updates to the test plan, the traceability matrix and the sign-off report.
+
+Authored — not `Co-authored-by:` — so they satisfy the "the commit author must be the member" rule. (The PR itself was opened and merged from Dan's account; the **Commits** tab shows `rie-hash14` as the author of each commit.)
+
+**Work in progress, not counted.** A further 75 of her commits sit on branches not yet merged to `main` — 67 for story 6.07 (the escrow v2 payment path on the live dApp) on the `uat-607-*` branches, and 8 for 6.10 (re-verifying the public evidence index) pushed on 2026-10-03, four of them to `uat` after PR #5 merged. They are public on those branches; they are not in the figures above because they are not on `main`.
+
+**Where to see them:** [UAT PR #5 → Commits](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/5/commits) — GitHub's banner there says it shows the most recent 250 of the 403. The full listing, filtered on her commit address, is [here](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/commits/main?author=276933516%2Brie-hash14%40users.noreply.github.com); GitHub's `?author=<login>` filter does not return her commits.
