@@ -51,3 +51,14 @@ Every transaction below is on Stellar testnet, re-read from the network by the b
 Three runs against a deliberately faulty test agent ([authorizations `f10d0f48…`](https://stellar.expert/explorer/testnet/tx/f10d0f48669d0f1de97d4ae5841f10c4fc27ab60747d1425ad77f16f3c34befb), [`55f23322…`](https://stellar.expert/explorer/testnet/tx/55f233224e00d96d4e56579fa8077f797c9c3f3c578638a80139eeb5c82c8949), [`6af4f1c3…`](https://stellar.expert/explorer/testnet/tx/6af4f1c3afd8ee50fa25e478897eab9a1563d743a3a112db26d0d560b03b4463)): each failed and nothing was charged, and each failure wrote a 20/100 rating that pushed the agent below the routing floor — the live exclusion in [`03`](./03-deliverable-D4-ecosystem-validation.md#d2--reputation-gated-routing-now-evidenced-live).
 
 **What it proves:** a buyer does not pay for work that was not delivered, and the agent's reputation records it.
+
+### 3. A dispute is upheld and the buyer is credited
+
+| What                             | Transaction                                                                                                                        | Time (UTC) |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| Dispute rating against the agent | [`b512135f…ee453a49`](https://stellar.expert/explorer/testnet/tx/b512135ffade2d6518fd8cf1628f20787846ed0e311750043b87723dee453a49) | 15:26      |
+| Credit of 0.01 XLM to the buyer  | [`cb2c5792…78e1e25f`](https://stellar.expert/explorer/testnet/tx/cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f) | 15:25      |
+
+The buyer of run 3 disputed its step; the platform upheld it, paid the credit from its signing key and wrote the `dispute` rating, and the agent's score fell from 7,004 to 6,999 bps. Screenshots [22](./screenshots/22-refund-tx-stellar-expert.png) and [23](./screenshots/23-dispute-rating-tx-stellar-expert.png).
+
+**What it proves:** Deliverable D3 working on the deployment — the window, the dispute, the credit and the reputation consequence, each verifiable on Stellar Expert.
