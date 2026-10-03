@@ -603,7 +603,7 @@ const cover = `
     ${SUMMARY.map((s, i) => `<tr><td class="n">—</td><td>${esc(s.title)}</td><td class="t">summary</td><td class="p">p. ${i + 2}</td></tr>`).join("\n    ")}
     ${kept.map((s, i) => `<tr><td class="n">${String(i + 1).padStart(2, "0")}</td><td>${esc(s.title)}</td><td class="t">${esc(s.short)}</td><td class="p">p. ${i + 2 + SUMMARY.length}</td></tr>`).join("\n    ")}
   </table>
-  <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. Pages 21–26 are the shipped interface rendered locally against test fixtures, because the dispute path cannot be reached on the deployment yet; the transaction hashes in them exist on no ledger. The two Stellar Expert pages are real testnet transactions from QA's drill, not from the deployed service. Both limits are stated again on the pages themselves.</p>
+  <p class="note">Every page names the public URL it was captured from, so each claim can be checked live. Every frame is of the live deployment or a public page — none is a local run against test fixtures — and every transaction shown is a real, successful Stellar testnet transaction. The settlements and dispute credits are the team's own test runs, in testnet XLM; each page that shows one says so.</p>
   <style>.cover .toc td{padding:1.1px 4px;font-size:8.1px}.cover .toc .t{color:#7a8394}.cover .ids td,.cover .ids th{padding:1.6px 4px;font-size:8.2px}.cover .facts th,.cover .facts td{padding:2.4px 4px}.cover h3{margin:7px 0 3px}.cover .note{font-size:8px;line-height:1.35}</style>
 </section>`;
 
