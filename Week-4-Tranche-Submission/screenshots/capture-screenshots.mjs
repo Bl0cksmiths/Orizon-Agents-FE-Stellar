@@ -91,6 +91,8 @@ const fromText = (text) => async (page) => {
 //   maxHeight  — clip the full-page shot to this many px from the top (a crop,
 //                declared in the manifest); used where a GitHub page runs on
 //                for tens of thousands of px below the panel that is evidence
+//   clipFrom   — async (page) => y; start the clip there instead of at the top
+//                (with maxHeight, the clip is that tall from y)
 const BE_PR = (n) => `${GH}/Orizon-Agents-BE-Stellar/pull/${n}`;
 const FE_PR = (n) => `${GH}/Orizon-Agents-FE-Stellar/pull/${n}`;
 const MERGED = "pulls?q=is%3Apr+is%3Amerged+merged%3A2026-09-21..2026-09-26";
@@ -256,6 +258,7 @@ for (const [name, url, opts = {}] of todo) {
     viewport,
     element,
     maxHeight,
+    clipFrom,
   } = opts;
   let lastErr;
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -277,8 +280,10 @@ for (const [name, url, opts = {}] of todo) {
       }));
       const shot = { path: join(OUT, name), fullPage: true };
       let cropped = false;
-      if (maxHeight && full.h > maxHeight) {
-        shot.clip = { x: 0, y: 0, width: full.w, height: maxHeight };
+      const top = clipFrom ? await clipFrom(page) : 0;
+      if (top > 0 || (maxHeight && full.h > maxHeight)) {
+        const height = Math.min(maxHeight ?? full.h, full.h - top);
+        shot.clip = { x: 0, y: top, width: full.w, height };
         cropped = true;
       }
       if (element) await element(page).screenshot({ path: join(OUT, name) });
@@ -291,13 +296,14 @@ for (const [name, url, opts = {}] of todo) {
         pageHeight: full.h,
         pageWidth: full.w,
         cropped,
-        cropHeight: cropped ? maxHeight : null,
+        cropTop: cropped ? top : null,
+        cropHeight: cropped ? shot.clip.height : null,
         element: Boolean(element),
         ...sized,
       };
       console.log(
         `ok   ${name}  ${(sized.bytes / 1024).toFixed(0)} KB  page ${full.w}x${full.h}` +
-          `${cropped ? ` cropped→${maxHeight}px` : ""}${sized.scale !== 1 ? ` scaled x${sized.scale}` : ""}` +
+          `${cropped ? ` cropped ${top}→${top + shot.clip.height}px` : ""}${sized.scale !== 1 ? ` scaled x${sized.scale}` : ""}` +
           `${attempt > 1 ? " (retry)" : ""}`,
       );
       lastErr = null;
