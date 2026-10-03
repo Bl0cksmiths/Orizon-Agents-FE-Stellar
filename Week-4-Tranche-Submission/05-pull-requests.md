@@ -130,3 +130,32 @@ The full list for each repo follows.
 What UAT #5 contains (66 files): eight new Playwright specs and six updated ones; four new verification tools (`tools/attestation-verify/`, `tools/onchain-verify/`, `tools/sow-metrics-verify/`, `tools/e2e-run/`); nine new evidence reports under `docs/uat/evidence/`; a phone and onboarding checklist; and the defect register, test plan, traceability matrix and sign-off report brought up to 2026-10-02. [`01-tasks-completed.md`](./01-tasks-completed.md) describes each card and her verdicts. Her story 6.07 and 6.10 work is on branches not yet merged, and is not counted here.
 
 ---
+
+## Week-4 totals
+
+| Repo            | PRs    | Commits   | Lines                 |
+| --------------- | ------ | --------- | --------------------- |
+| Backend         | 14     | 737       | +52,596 / −1,966      |
+| Frontend        | 23     | 1,545     | +103,457 / −2,771     |
+| Smart contracts | 3      | 20        | +37,240 / −506        |
+| Reference agent | 1      | 12        | +776 / −9             |
+| UAT             | 1      | 404       | +8,816 / −288         |
+| **Total**       | **42** | **2,718** | **+202,885 / −5,540** |
+
+Without the two Week-3 carry-over PRs (backend #87, frontend #88), the week's own 40 PRs landed **2,282 commits** on `main`. Line counts include tests, documentation, the contracts' generated test snapshots (35,640 lines) and the imported litepaper (14,867 lines).
+
+**How these numbers were counted.** The per-PR **Commits** figure is GitHub's own total for that PR — the number its Commits tab shows — read with `gh api repos/<owner>/<repo>/pulls/<n> --jq .commits`, not with `gh pr view --json commits`, which caps its list at 100 entries. The per-PR **Lines** figures are GitHub's `additions` / `deletions` for the PR.
+
+The per-PR columns are not summed into the repo rows, because PRs that share history would count the same work twice (frontend #98 and #99 share a branch). Each repo row is instead measured directly on `main`, from the commit before the week's first merge to the week's last merge:
+
+```bash
+# backend: main before #87 .. main after #113
+git rev-list --count 08efeda..83ffbf5   # -> 737
+git diff --shortstat 08efeda..83ffbf5   # -> 265 files, +52,596 / -1,966
+
+# frontend: main before #88 .. main after #122
+git rev-list --count bf931b4..049f3d5   # -> 1545
+git diff --shortstat bf931b4..049f3d5   # -> 539 files, +103,457 / -2,771
+```
+
+The contracts range is `88aa554..06dc139` (20 commits), the reference agent's `38a9510..653664a` (12) and UAT's the single merge `2ae7535..0e5b340` (404, of which 403 are Rie's and one is the merge). The week's own figures quoted above use `68c91ca..83ffbf5` for the backend (505 commits, +37,540 / −735) and `09b1372..049f3d5` for the frontend (1,341 commits, +81,603 / −1,313).
