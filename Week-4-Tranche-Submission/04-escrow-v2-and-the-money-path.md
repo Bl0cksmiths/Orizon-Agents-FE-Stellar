@@ -62,3 +62,9 @@ Three runs against a deliberately faulty test agent ([authorizations `f10d0f48�
 The buyer of run 3 disputed its step; the platform upheld it, paid the credit from its signing key and wrote the `dispute` rating, and the agent's score fell from 7,004 to 6,999 bps. Screenshots [22](./screenshots/22-refund-tx-stellar-expert.png) and [23](./screenshots/23-dispute-rating-tx-stellar-expert.png).
 
 **What it proves:** Deliverable D3 working on the deployment — the window, the dispute, the credit and the reputation consequence, each verifiable on Stellar Expert.
+
+### 4. Partial delivery pays only what was delivered (5.01 AC5)
+
+A two-step plan authorized 0.21 XLM ([`63454933…5a612e9f`](https://stellar.expert/explorer/testnet/tx/634549330a8188d28d32d6530e56ddb14298680de0d86d2568b91d3d5a612e9f)). The first agent delivered; the second hung, and was rated 20 ([`fc9a8268…c7f5212e`](https://stellar.expert/explorer/testnet/tx/fc9a8268b806831f863e70f9a8f103882baef87b8fd34b5b7dda95f7c5f7212e)). The settlement [`0ada0708…7adc556b`](https://stellar.expert/explorer/testnet/tx/0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b) paid **0.01 XLM** for the delivered step and returned **0.2 XLM** to the buyer in the same transaction, and the seal [`41a159ff…cc56fd64`](https://stellar.expert/explorer/testnet/tx/41a159ffd7d96265dd4dd0863c0211697d94e77d636c9b9e198d8cf3cc56fd64) carries only the delivered step's receipt ([BE #101](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/101); the hanging agent is the reference agent's new opt-in fault mode, [agent #6](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar/pull/6)). Screenshot [27](./screenshots/27-partial-delivery-settle-tx-stellar-expert.png).
+
+**What it proves:** per-operator settlement — the thing v1 could not do — including the case where one operator fails.
