@@ -130,3 +130,15 @@ SOW §6.1 asks for "a dispute tx hash and the corresponding partial-refund tx on
 | A second dispute, opened after a backend restart from the durable settlement record, and credited (5.01 AC4) — rating, then credit | [`60bc5249…ba730e`](https://stellar.expert/explorer/testnet/tx/60bc5249af542ea005ea62573800b0bd48a101eeef6d748f1884f807c1ba730e), [`01c3175a…c1efa5be`](https://stellar.expert/explorer/testnet/tx/01c3175a881658808e15dc9a284439f2fbce4091a3566bfe3894ecedc1efa5be) |
 
 The recording of the live receipt — settled, the dispute window open, the wallet-gated dispute action, then the step's dispute receipt flipping to refunded with both transactions linked — is [`d3c-dispute-refunded-video-desktop-1440.webm`](./screenshots/d3c-dispute-refunded-video-desktop-1440.webm), with stills at [desktop](./screenshots/d3c-dispute-refunded-desktop-1440.png) and [phone](./screenshots/d3c-dispute-refunded-phone-390.png) width and an earlier still [under review](./screenshots/d3c-dispute-receipt-desktop-1440.png). All are of the live site, not of test fixtures. Two facts about them are stated on the evidence index too: the dispute was opened by the team's test harness through the API, not with the receipt's Dispute button, which is why QA keeps story 6.03 open until a recording uses the button; and the credit was the step's full charge, because the live credit policy is set to 100%, where the mechanism supports any share.
+
+## Verify live
+
+The service runs on a free tier and sleeps; the first request can take up to a minute.
+
+| Check                                          | Call                                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Network, contract ids, escrow v2               | [`GET /api/stellar/network`](https://orizon-agents-be-stellar.onrender.com/api/stellar/network)   |
+| Escrow version, dispute store, refunds, scorer | [`GET /readiness`](https://orizon-agents-be-stellar.onrender.com/readiness)                       |
+| The home page's live figures                   | [`GET /api/metrics/overview`](https://orizon-agents-be-stellar.onrender.com/api/metrics/overview) |
+| Every route, including the dispute routes      | [`GET /docs`](https://orizon-agents-be-stellar.onrender.com/docs)                                 |
+| Every deliverable item and metric, with links  | [orizons.xyz/evidence](https://orizons.xyz/evidence)                                              |
