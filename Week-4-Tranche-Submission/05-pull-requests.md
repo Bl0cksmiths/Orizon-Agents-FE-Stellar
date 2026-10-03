@@ -35,3 +35,17 @@ Every link below opens a public PR. On each one:
 Per-person counts, the commands behind them and the per-repo split are in [`02-commit-visibility.md`](./02-commit-visibility.md).
 
 ---
+
+## Primary evidence — one PR per repo
+
+If a single link per repo is required, these are the Week-4 PRs that carry the week's named deliverable:
+
+| Repo            | PR                                                                                         | Branch (head → base)                  | Commits                   | Covers                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Contracts       | [Contracts #4](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/4) | `feat/escrow-v2` → `main`             | 15                        | PaymentEscrow v2 — custody at authorize, per-operator settlement, settler rotation; fixes the Week-3 blocker D-039        |
+| Backend         | [BE #88](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/88)                  | `feat/5.01-integration` → `main`      | 115                       | 5.01 — settle every paid run through escrow v2                                                                            |
+| Frontend        | [FE #97](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/97)                  | `fix/5-audit-fe-integration` → `main` | 679                       | 5.03–5.06 — the operator guide, the demo page, the public evidence index, the litepaper and the MIT licence               |
+| Reference agent | [Agent #6](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar/pull/6)      | `feat/5.01-fault-mode` → `main`       | 11                        | 5.01 AC5 — opt-in fault injection, so a failing agent can be tested on testnet                                            |
+| UAT (Rie)       | [UAT #5](https://github.com/Bl0cksmiths/Orizon-Agents-UAT-Stellar/pull/5)                  | `uat` → `main`                        | 403 (all by `rie-hash14`) | Week-4 QA: 6.04 independent on-chain verification, the 6.02 re-check, 6.03 re-run on escrow v2, 6.08, 6.09, D-077 → D-092 |
+
+The full list for each repo follows.
