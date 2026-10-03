@@ -13,6 +13,12 @@
 
 ---
 
+## What this bundle is
+
+This is the Week-4 evidence package for the tranche gate (story 7.01). Every claim below links to a public, independently verifiable artifact — a public GitHub PR, commit or issue, a transaction on Stellar Expert (testnet), a live page on [orizons.xyz](https://orizons.xyz) or a live API endpoint.
+
+**Read this first.** Week 4 is the week the money path came alive. The Week-3 bundle reported Deliverable D3 built but unprovable on the deployment, because the v1 payment escrow could not move a buyer's funds (D-039) and dispute refunds were switched off. This week a new escrow, **PaymentEscrow v2**, was written, tested, deployed to testnet on 2026-09-30 and switched on — and the same day the deployment settled paid runs, upheld a dispute and paid the credit, settled a partial delivery, and credited a dispute raised after a backend restart. On top of it, all six Epic 5 stories shipped: Deliverable D4's demo, operator guide, outside registrations, settlements and litepaper are published, and the public evidence index at [orizons.xyz/evidence](https://orizons.xyz/evidence) marks every deliverable item present and 10 of 10 success metrics met. Two limits are stated wherever they apply: the settlements and dispute credits are **the team's own test runs**, in testnet XLM, because no outside operator's agent is yet bound to a live endpoint; and **independent QA has not signed off** — Rie's verdict and her open defects are reported as she wrote them.
+
 ## The five public repositories
 
 | Repo                                                                                                        | Purpose                                                             | Licence |
