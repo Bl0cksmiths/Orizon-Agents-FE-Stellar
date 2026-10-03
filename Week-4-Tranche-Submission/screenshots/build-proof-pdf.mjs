@@ -592,7 +592,7 @@ const cover = `
     <tr><th>Sprint week</th><td>${esc(COVER.week)}</td></tr>
     <tr><th>Network</th><td><b>${esc(COVER.network)}</b></td></tr>
     <tr><th>Team</th><td>${COVER.team.map(([n, r, g]) => `${esc(n)} — ${esc(r)} (GitHub <span class="mono">${esc(g)}</span>)`).join("<br>")}</td></tr>
-    <tr><th>Evidence captured</th><td>2026-10-03 — from the live site, the live testnet API, and public GitHub and Stellar Expert pages; four frames of the live receipt and plan card were captured from the live site on 2026-09-30 for the public evidence index. Every page states its source URL and when it was captured.</td></tr>
+    <tr><th>Evidence captured</th><td>2026-10-03 — from the live site, the live testnet API, and public GitHub and Stellar Expert pages; three frames of the live plan card and receipt were captured from the live site on 2026-09-30 for the public evidence index. Every page states its source URL and when it was captured.</td></tr>
   </table>
   <h3>Deployed testnet contract ids</h3>
   <table class="ids">
