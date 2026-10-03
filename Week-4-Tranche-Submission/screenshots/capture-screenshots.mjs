@@ -1,18 +1,22 @@
-// Capture the Week-3 tranche evidence screenshots (public web only).
-// Adapted from Week-2-Tranche-Submission/screenshots/capture-screenshots.mjs.
+// Capture the Week-4 tranche evidence screenshots (public web only).
+// Adapted from Week-3-Tranche-Submission/screenshots/capture-screenshots.mjs.
 // Prereq: `npx playwright install-deps chromium` (needs sudo, once).
 // Run from the frontend repo root:
-//   node Week-3-Tranche-Submission/screenshots/capture-screenshots.mjs
+//   node Week-4-Tranche-Submission/screenshots/capture-screenshots.mjs
 // Recapture only some shots by passing filename prefixes:
-//   node Week-3-Tranche-Submission/screenshots/capture-screenshots.mjs 01 15
+//   node Week-4-Tranche-Submission/screenshots/capture-screenshots.mjs 01 15
 //
 // Read-only: no wallet is connected, nothing is signed, authorized, paid or
-// submitted. The one POST the script makes (#15) is a request the deployment
-// refuses with 503 before it touches money — that refusal *is* the evidence.
+// submitted. Every request the script makes is a GET.
 //
 // Every shot is written next to this file, and a sidecar `capture-meta.json`
 // records each PNG's pixel size, byte size and whether it was cropped or
 // downscaled, so the README manifest can state that without guessing.
+//
+// The files in this folder prefixed `d2a-`, `d2b-` and `d3c-` are NOT made by
+// this script. They were captured from the live site on 2026-09-30 for the
+// public evidence index (orizons.xyz/evidence links them by commit), and are
+// left exactly as they were.
 import { chromium } from "playwright";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -61,134 +65,19 @@ const prettyJson =
     );
   };
 
-// Swagger UI lists all twelve tag sections plus a ~90-entry Schemas block, so
-// the disputes block sits ~3200 px down a 6262-px page. Hide the other eleven
-// sections and the Schemas block in the browser so the six dispute routes sit
-// directly under the page's own title bar and the frame carries its own
-// provenance. Nothing is expanded, rewritten or re-ordered — only the unrelated
-// blocks are given `display:none`, which the manifest says.
-async function disputesSectionOnly(page) {
-  await page.locator("#operations-tag-disputes").waitFor({ timeout: 60000 });
-  await page.waitForTimeout(2000);
-  const section = page
-    .locator("div.opblock-tag-section")
-    .filter({ has: page.locator("#operations-tag-disputes") });
-  const routes = await section
-    .locator(".opblock .opblock-summary-path")
-    .allInnerTexts();
-  if (routes.length !== 6)
-    throw new Error(
-      `expected 6 dispute routes, saw ${routes.length}: ${routes.join(", ")}`,
-    );
-  await page.evaluate(() => {
-    for (const sec of document.querySelectorAll("div.opblock-tag-section")) {
-      if (!sec.querySelector("#operations-tag-disputes"))
-        sec.style.display = "none";
-    }
-    for (const models of document.querySelectorAll("section.models"))
-      models.style.display = "none";
-    const note = document.createElement("div");
-    note.style.cssText =
-      "margin:10px 28px 0;font:13px/1.5 ui-monospace,monospace;color:#555";
-    note.textContent = `Interactive docs at ${location.href} — the other eleven tag sections and the Schemas block are hidden so the six dispute routes fit one frame.`;
-    document
-      .querySelector("div.opblock-tag-section")
-      ?.parentElement?.prepend(note);
-  });
-  await page.waitForTimeout(800);
-}
-
-// The honest live state of the dispute money path: ask the deployment to uphold
-// a dispute and show what it answers. The POST is made from the page with
-// fetch() so the frame is a real browser round-trip, status line and body.
-//
-// No dispute can exist on the deployment (BE #67: the settlement record a
-// dispute hangs off is never written), so the id is a syntactically valid
-// placeholder. The 503 comes from the route's feature gate, which answers
-// before any id lookup — every id gets the same body.
-async function upholdRefused(page) {
-  const DISPUTE_ID = "00000000-0000-0000-0000-000000000000";
-  const result = await page.evaluate(
-    async ({ base, id }) => {
-      const path = `/api/disputes/${id}/uphold`;
-      const res = await fetch(base + path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "evidence capture — refusal expected" }),
-      });
-      return {
-        path,
-        status: res.status,
-        statusText: res.statusText,
-        body: await res.text(),
-      };
-    },
-    { base: BE, id: DISPUTE_ID },
+// Several live pages run for tens of thousands of pixels and the evidence is
+// one section in the middle of them. `fromText` scrolls nothing and rewrites
+// nothing: it measures where the named heading sits on the full page so the
+// shot can be clipped from just above it, for `maxHeight` px. The manifest
+// records the offset, so the crop is stated rather than hidden.
+const fromText = (text) => async (page) => {
+  const el = page.getByText(text, { exact: true }).first();
+  await el.waitFor({ timeout: 30000 });
+  const y = await el.evaluate(
+    (n) => n.getBoundingClientRect().top + window.scrollY,
   );
-
-  if (
-    result.status !== 503 ||
-    !result.body.includes("dispute_refunds_disabled")
-  ) {
-    throw new Error(
-      `expected 503 dispute_refunds_disabled, got ${result.status}: ${result.body.slice(0, 200)}`,
-    );
-  }
-  let pretty = result.body;
-  try {
-    pretty = JSON.stringify(JSON.parse(result.body), null, 2);
-  } catch {
-    /* keep raw */
-  }
-
-  await page.evaluate(
-    ({ base, r, pretty, at }) => {
-      document.body.innerHTML = "";
-      document.body.style.cssText =
-        "margin:24px;font:15px/1.6 ui-monospace,Menlo,Consolas,monospace;background:#fff;color:#111";
-      const mk = (tag, css, text) => {
-        const e = document.createElement(tag);
-        e.style.cssText = css;
-        e.textContent = text;
-        return e;
-      };
-      const box =
-        "margin:0 0 14px;padding:14px 16px;border:1px solid #ddd;background:#fafafa;white-space:pre-wrap";
-      document.body.append(
-        mk(
-          "div",
-          "font:600 17px/1.4 ui-monospace,monospace;margin-bottom:4px",
-          "Live state of the dispute money path",
-        ),
-        mk(
-          "div",
-          "color:#555;margin-bottom:16px",
-          `fetch() from the browser against ${base} — captured ${at}`,
-        ),
-        mk(
-          "pre",
-          box,
-          `REQUEST\nPOST ${base}${r.path}\nContent-Type: application/json\n\n{"reason": "evidence capture — refusal expected"}`,
-        ),
-        mk(
-          "pre",
-          box + ";border-color:#c66;background:#fff5f5",
-          `RESPONSE\n${r.status} ${r.statusText}\n\n${pretty}`,
-        ),
-        mk(
-          "div",
-          "color:#555;margin-top:4px;white-space:pre-wrap",
-          "The deployment refuses to uphold a dispute: refunds are switched off, so no buyer credit is\n" +
-            "attempted. The gate answers before the dispute id is looked up, so any id returns this same\n" +
-            "body. The id above is a placeholder — no dispute can exist on the deployment, because the\n" +
-            "settlement record a dispute hangs off is never written (BE issue #67).\n" +
-            "This is the current live state, not a fault staged for the screenshot.",
-        ),
-      );
-    },
-    { base: BE, r: result, pretty, at: new Date().toISOString() },
-  );
-}
+  return Math.max(0, Math.floor(y) - 24);
+};
 
 // ------------------------------------------------------------------- shot list
 // [filename, url, options]
