@@ -81,7 +81,7 @@ The evidence index measures each metric from the chain with the backend's read-o
 | --- | ---------------------------------------------------------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------- |
 | m01 | Externally-operated agents registered on testnet                 | ≥ 2    | 11       | The 11 audited outside registrations above                                                               |
 | m02 | Unique external operator wallet addresses                        | ≥ 2    | 7        | Their 7 owner wallets                                                                                    |
-| m04 | On-chain settlements (charges) recorded                          | ≥ 3    | 3        | The three escrow v2 settlements above — team test runs, in native XLM                                    |
+| m04 | On-chain USDC settlements (charges) recorded                     | ≥ 3    | 3        | The three escrow v2 settlements above — team test runs, in native XLM                                    |
 | m05 | Dispute → partial-refund settlements                             | ≥ 1    | 1        | The dispute credit of 2026-09-30 — the full 0.01 XLM step charge, under the live policy of a 100% credit |
 | m06 | Permissionless `AgentRegistry.register` flow live on the dApp    | Yes    | Yes      | The [Register page](https://orizons.xyz/app/register), open to any wallet                                |
 | m07 | Reputation-gated routing (reads `avg_bps`, applies a floor) live | Yes    | Yes      | The live floor of 5,500 bps and the live exclusion below                                                 |
