@@ -60,3 +60,16 @@ Total for these 28 PNGs: **3,595,146 bytes (3.43 MB)**.
 > PR merged after that moment appears at the URL but not in the frame. Frame 28
 > was captured while QA was still working; her register and report may have
 > moved on since.
+
+## Captured earlier, for the public evidence index
+
+These ten files were **not** made by this script. They were captured from the
+live site on 2026-09-30, with no wallet connected, for the public evidence
+index, which links them by commit. They are left exactly as they were.
+
+| Filename                                                                                | What it shows                                                                                                                                      |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `d2a-plan-card-onchain-score-desktop-1440.png`, `…-phone-390.png`                       | D2: the live plan card showing each agent's on-chain reputation before the buyer pays                                                              |
+| `d2b-routing-exclusion-desktop-1440.png`, `…-phone-390.png`                             | D2: a live plan leaving out the deliberately faulty test agent, below the floor (5,443 < 5,500 bps)                                                |
+| `d3c-dispute-receipt-desktop-1440.png`, `…-phone-390.png`, `…-video-desktop-1440.webm`  | D3: the live receipt with the dispute under review, before the decision                                                                            |
+| `d3c-dispute-refunded-desktop-1440.png`, `…-phone-390.png`, `…-video-desktop-1440.webm` | D3: the live receipt with the dispute refunded, its credit and dispute rating linked; the dispute was opened through the API by the team's harness |
