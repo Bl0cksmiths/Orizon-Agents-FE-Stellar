@@ -45,3 +45,14 @@ The console and the home page used to show placeholder statistics. This week the
 ### Quality work across the console and the public pages
 
 A responsive pass over every public page and the whole console, from 360 to 1920 px wide, with a redesigned, keyboard- and screen-reader-accessible navigation and 44 px touch targets ([FE #110](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/110), [#111](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/111), [#112](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/112), [#120](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/120)), and two fixes found in the first live escrow v2 runs ([FE #102](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/102)).
+
+### Quality gates at the end of the week
+
+| Repository      | Tests                                                                                         | Where it is stated                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Backend         | **4,038 passing** (2 skipped), **94.26%** line coverage against an 82% floor                  | CI on `main` at the [#113](https://github.com/Bl0cksmiths/Orizon-Agents-BE-Stellar/pull/113) merge — green                  |
+| Frontend        | **2,969 unit** and 35 node tests; **446 end-to-end** passing (3 skipped, 1 known-flaky retry) | CI on `main` at the [#122](https://github.com/Bl0cksmiths/Orizon-Agents-FE-Stellar/pull/122) merge — green, with Lighthouse |
+| Smart contracts | **47** (32 for the escrow), with real authorization checks — no `mock_all_auths`              | [Contracts #4](https://github.com/Bl0cksmiths/Orizon-Agents-Smart-Contract-Stellar/pull/4)                                  |
+| Reference agent | **85**, including 46 new fault-injection tests; 23 deliberate mutations all caught            | [Agent #6](https://github.com/Bl0cksmiths/Orizon-Agents-Example-Agent-Stellar/pull/6)                                       |
+
+Over the week the backend suite grew from 3,215 to 4,038 tests and the frontend's unit suite from 1,992 to 2,969.
