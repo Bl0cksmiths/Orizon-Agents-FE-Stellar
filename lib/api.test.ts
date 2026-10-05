@@ -26,8 +26,12 @@ import {
   checkBindEndpoint,
   clearGetCache,
   createBindChallenge,
+  CACHED_GET_TIMEOUT_MS,
   fetchWithTimeout,
   isAbortError,
+  isWakingError,
+  listAgentsPage,
+  readAtOf,
   decompose,
   execute,
   getAgentBinding,
@@ -41,6 +45,7 @@ import {
   listAgents,
   listAgentsWithSync,
   listReputation,
+  listTasks,
   openTraceStream,
   submitSigned,
   syncAgents,
@@ -132,6 +137,7 @@ describe("listAgentsWithSync", () => {
     await expect(listAgentsWithSync()).resolves.toEqual({
       agents: [agentFixture],
       signal: "synced",
+      readAt: null,
     });
     fetchMock.mockResolvedValueOnce(withHeader("false"));
     await expect(listAgentsWithSync()).resolves.toMatchObject({
@@ -153,9 +159,11 @@ describe("listAgentsWithSync", () => {
     await listAgentsWithSync();
     await listAgentsWithSync();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    // A cached read: never `no-store`, whose Pragma makes the CDN refresh in
+    // the foreground.
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/agents",
-      expect.objectContaining({ cache: "no-store" }),
+      expect.objectContaining({ cache: "default" }),
     );
   });
 
@@ -170,7 +178,7 @@ describe("listAgentsWithSync", () => {
 });
 
 describe("get (via listAgents)", () => {
-  it("hits the /api prefix with no-store and resolves parsed JSON", async () => {
+  it("hits the /api prefix as a cached read and resolves parsed JSON", async () => {
     const agents = [agentFixture];
     fetchMock.mockResolvedValueOnce(jsonResponse(200, agents));
 
@@ -180,7 +188,7 @@ describe("get (via listAgents)", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/agents",
       expect.objectContaining({
-        cache: "no-store",
+        cache: "default",
         signal: expect.any(AbortSignal),
       }),
     );
@@ -327,6 +335,136 @@ describe("get (via listAgents)", () => {
   });
 });
 
+describe("cached reads", () => {
+  const withHeaders = (body: unknown, headers: Record<string, string>) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "content-type": "application/json", ...headers },
+    });
+
+  it("dates a cached payload by the backend read behind it", async () => {
+    fetchMock.mockResolvedValueOnce(
+      withHeaders([agentFixture], { "X-Orizon-Read-At": "1700000000000" }),
+    );
+    const agents = await listAgents();
+    expect(readAtOf(agents)).toBe(1_700_000_000_000);
+  });
+
+  it("dates nothing that did not come from the cache", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, [agentFixture]));
+    expect(readAtOf(await listAgents())).toBeNull();
+    expect(readAtOf(null)).toBeNull();
+    expect(readAtOf("x")).toBeNull();
+  });
+
+  it("dates the registry read the interim rule counts", async () => {
+    fetchMock.mockResolvedValueOnce(
+      withHeaders([agentFixture], {
+        "X-Orizon-Read-At": "1700000000000",
+        "X-Registry-Synced": "true",
+      }),
+    );
+    await expect(listAgentsWithSync()).resolves.toMatchObject({
+      readAt: 1_700_000_000_000,
+      signal: "synced",
+    });
+  });
+
+  describe("listAgentsPage", () => {
+    it("asks for a page and reads what the server says about the rest", async () => {
+      fetchMock.mockResolvedValueOnce(
+        withHeaders([agentFixture], {
+          "X-Total-Count": "590",
+          "X-Next-Cursor": "50",
+          "X-Registry-Synced": "true",
+        }),
+      );
+      await expect(listAgentsPage({ limit: 50 })).resolves.toEqual({
+        agents: [agentFixture],
+        paged: true,
+        total: 590,
+        nextCursor: "50",
+        signal: "synced",
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/agents?limit=50",
+        expect.objectContaining({ cache: "default" }),
+      );
+    });
+
+    it("passes the cursor on", async () => {
+      fetchMock.mockResolvedValueOnce(
+        withHeaders([agentFixture], { "X-Total-Count": "51" }),
+      );
+      await expect(
+        listAgentsPage({ limit: 50, cursor: "50" }),
+      ).resolves.toMatchObject({ paged: true, nextCursor: null });
+      expect(fetchMock.mock.calls[0][0]).toBe("/api/agents?limit=50&cursor=50");
+    });
+
+    it("takes an answer with no total as the whole registry", async () => {
+      fetchMock.mockResolvedValueOnce(
+        withHeaders([agentFixture, agentFixture], { "X-Next-Cursor": "9" }),
+      );
+      await expect(listAgentsPage({ limit: 1 })).resolves.toMatchObject({
+        paged: false,
+        total: null,
+        nextCursor: null,
+        signal: "unknown",
+      });
+    });
+
+    it("rejects a failure like every read", async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(503, { detail: "x" }));
+      await expect(listAgentsPage({ limit: 50 })).rejects.toThrow(
+        "GET /agents → 503",
+      );
+    });
+  });
+
+  it("gives a cached read the shorter deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockImplementationOnce(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new Error("aborted")),
+            );
+          }),
+      );
+      const rejects = expect(listReputation()).rejects.toThrow(
+        `GET /stellar/reputation → timeout after ${CACHED_GET_TIMEOUT_MS / 1000}s`,
+      );
+      await vi.advanceTimersByTimeAsync(CACHED_GET_TIMEOUT_MS + 1);
+      await rejects;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("isWakingError", () => {
+  it("knows the cache's waking answer and a lapsed deadline", () => {
+    expect(
+      isWakingError(
+        new Error(
+          "GET /agents → 503 — the backend is waking up — this usually takes under a minute",
+        ),
+      ),
+    ).toBe(true);
+    expect(isWakingError("GET /agents → timeout after 20s")).toBe(true);
+  });
+
+  it("is not every failure", () => {
+    expect(
+      isWakingError(new Error("GET /agents → 503 — service unavailable")),
+    ).toBe(false);
+    expect(isWakingError(new Error("GET /agents → 404"))).toBe(false);
+    expect(isWakingError(null)).toBe(false);
+  });
+});
+
 describe("shared GET with caller signals", () => {
   /** A read that waits for the test, recording the signal it was given. */
   function pendingRead() {
@@ -443,8 +581,8 @@ describe("fetch deadline", () => {
       });
     });
 
-    const rejects = expect(listAgents()).rejects.toThrow(
-      "GET /agents → timeout after 60s",
+    const rejects = expect(listTasks()).rejects.toThrow(
+      "GET /tasks → timeout after 60s",
     );
     await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS + 1);
     await rejects;
@@ -535,7 +673,7 @@ describe("listReputation", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/stellar/reputation",
       expect.objectContaining({
-        cache: "no-store",
+        cache: "default",
         signal: expect.any(AbortSignal),
       }),
     );
@@ -620,7 +758,7 @@ describe("getReputationParams", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/stellar/reputation/params",
       expect.objectContaining({
-        cache: "no-store",
+        cache: "default",
         signal: expect.any(AbortSignal),
       }),
     );
