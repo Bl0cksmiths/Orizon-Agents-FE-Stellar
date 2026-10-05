@@ -35,19 +35,22 @@
  * `X-Orizon-Cache` (fresh | stale | held) for whoever is debugging.
  */
 
-/** Epoch ms of the backend read a cached answer came from. */
-export const READ_AT_HEADER = "X-Orizon-Read-At";
-/** fresh | stale | held — how the copy relates to the backend right now. */
-export const CACHE_STATE_HEADER = "X-Orizon-Cache";
-/** On a paged read: how many items the whole list holds. */
-export const TOTAL_COUNT_HEADER = "X-Total-Count";
-/** On a paged read: the cursor of the next page, absent on the last. */
-export const NEXT_CURSOR_HEADER = "X-Next-Cursor";
+import {
+  CACHE_STATE_HEADER,
+  NEXT_CURSOR_HEADER,
+  READ_AT_HEADER,
+  TOTAL_COUNT_HEADER,
+  WAKING_MESSAGE,
+} from "./api-contract";
 
-/** The envelope message of a 503 sent while the backend is waking. The
- * browser recognises it (lib/api.ts `isWakingError`), so keep it stable. */
-export const WAKING_MESSAGE =
-  "the backend is waking up — this usually takes under a minute";
+export {
+  CACHE_STATE_HEADER,
+  NEXT_CURSOR_HEADER,
+  READ_AT_HEADER,
+  TOTAL_COUNT_HEADER,
+  WAKING_MESSAGE,
+};
+
 /** What a waking 503 asks the browser to wait before asking again. */
 export const WAKING_RETRY_AFTER_S = 3;
 
