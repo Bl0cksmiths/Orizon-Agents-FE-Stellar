@@ -82,12 +82,16 @@ async function setUpMarketplace(page: Page): Promise<string[]> {
   await mockWallet(page);
   await mockApi(page);
 
-  await page.route("**/api/agents", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify([...mockAgents, foreignAgent]),
-    }),
+  // By path, so the registry's paged read (`/api/agents?limit=50`) is
+  // answered too — with the whole list, as a server that does not page.
+  await page.route(
+    (url) => url.pathname === "/api/agents",
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([...mockAgents, foreignAgent]),
+      }),
   );
   await page.route(`**/api/agents/${BOUND_ID}/binding`, (route) =>
     fulfillBound(route, BOUND_ID),
