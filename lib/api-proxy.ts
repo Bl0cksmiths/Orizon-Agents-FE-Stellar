@@ -140,6 +140,10 @@ export type CachedReadDeps = {
   /** Keeps a read alive past the response that started it, when the
    * platform can (Vercel's request-context `waitUntil`). */
   background?: (work: Promise<unknown>) => void;
+  /** Extra headers for every backend read — the proxy token
+   * (lib/proxy-identity.ts). Read per request, so a rotated secret applies
+   * without a restart. */
+  headers?: () => Record<string, string>;
 };
 
 type Deadline<T> =
@@ -253,7 +257,7 @@ export class CachedRead {
     try {
       res = await this.deps.fetch(`${this.deps.base}/api${path}`, {
         method: "GET",
-        headers: { accept: "application/json" },
+        headers: { ...this.deps.headers?.(), accept: "application/json" },
         // Next's own fetch cache would answer stale reads by blocking the
         // response on the refresh; this module is the cache.
         cache: "no-store",
