@@ -306,21 +306,21 @@
               "date": "2026-09-30"
             },
             {
-              "label": "Rating of faulty_test_v2 after failed run 1 of 3: 20 out of 100, lower bound 5677 to 5596 — 2026-09-30",
+              "label": "Rating of faulty_test_v2 after failed run 1 of 3: 20 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/tx/e7885bf192688ed4b65006abe82b5b5f58737b15fd06bfaa9c54de13fa0b9663",
               "kind": "tx",
               "tx_hash": "e7885bf192688ed4b65006abe82b5b5f58737b15fd06bfaa9c54de13fa0b9663",
               "date": "2026-09-30"
             },
             {
-              "label": "Rating of faulty_test_v2 after failed run 2 of 3: 20 out of 100, lower bound 5596 to 5518 — 2026-09-30",
+              "label": "Rating of faulty_test_v2 after failed run 2 of 3: 20 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/tx/2980361e248b6a1284e17a2a7ec38d354991afc25f6f982270eb0710fa1aa388",
               "kind": "tx",
               "tx_hash": "2980361e248b6a1284e17a2a7ec38d354991afc25f6f982270eb0710fa1aa388",
               "date": "2026-09-30"
             },
             {
-              "label": "Rating of faulty_test_v2 after failed run 3 of 3: 20 out of 100, lower bound 5518 to 5443 — 2026-09-30",
+              "label": "Rating of faulty_test_v2 after failed run 3 of 3: 20 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/tx/cc83982bd11e39fe61f3446df7f9cfa4a30a741d77ab717abf204894bbf4e30f",
               "kind": "tx",
               "tx_hash": "cc83982bd11e39fe61f3446df7f9cfa4a30a741d77ab717abf204894bbf4e30f",
