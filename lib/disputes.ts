@@ -47,6 +47,7 @@ import type {
   TaskDisputes,
 } from "./types";
 import { readSettlementState } from "./settlement-state";
+import { readSealState } from "./seal-state";
 
 /**
  * The longest reason the dialog accepts, after trimming. The backend allows
@@ -305,9 +306,13 @@ function acceptedDispute(v: unknown): Dispute | null {
 }
 
 /** The answer as it arrives: every dispute row still unjudged. */
-type RawTaskDisputes = Omit<TaskDisputes, "disputes" | "settlement_state"> & {
+type RawTaskDisputes = Omit<
+  TaskDisputes,
+  "disputes" | "settlement_state" | "seal"
+> & {
   disputes: unknown[];
   settlement_state?: string | null;
+  seal?: string | null;
 };
 
 /**
@@ -333,7 +338,10 @@ function isTaskDisputes(v: unknown): v is RawTaskDisputes {
     Array.isArray(v.disputes) &&
     // Any string: one this build cannot name is read by
     // `readSettlementState`, never a reason to lose the receipt.
-    isAbsentOr(v.settlement_state, isNullableStr)
+    isAbsentOr(v.settlement_state, isNullableStr) &&
+    // Likewise the seal (`readSealState`), and its transaction hash.
+    isAbsentOr(v.seal, isNullableStr) &&
+    isAbsentOr(v.proof_tx, isNullableStr)
   );
 }
 
@@ -392,8 +400,9 @@ export async function getTaskDisputes(
     const accepted = acceptedDispute(row);
     if (accepted !== null) disputes.push(accepted);
   }
-  const { settlement_state: state, ...rest } = raw;
+  const { settlement_state: state, seal: rawSeal, ...rest } = raw;
   const settlementState = readSettlementState(state);
+  const seal = readSealState(rawSeal);
   return {
     ...rest,
     disputes,
@@ -402,6 +411,7 @@ export async function getTaskDisputes(
     ...(settlementState === undefined
       ? {}
       : { settlement_state: settlementState }),
+    ...(seal === undefined ? {} : { seal }),
   };
 }
 
@@ -1108,7 +1118,10 @@ export function disputeView(input: {
     settledAtMs: settlement.settled_at * 1_000,
     settledUsdc: settlement.settled_usdc,
     chargeTx: settlement.charge_tx,
-    proofTx: settlement.proof_tx,
+    // The seal's own hash, from the task, once known: the settlement record
+    // was written before the seal confirmed and may not carry it.
+    proofTx: res.proof_tx ?? settlement.proof_tx,
+    ...(res.seal === undefined ? {} : { seal: res.seal }),
     policy: settlement.policy,
     steps,
     ...(settlementState === undefined ? {} : { settlementState }),
