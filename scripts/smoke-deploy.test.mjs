@@ -366,3 +366,77 @@ test("exits 1 when the home page never answers, and still reports the budget", a
   assert.match(out, /✗ page \/ → HTTP 503/);
   assert.match(out, /✗ home page budget → no page to time/);
 });
+
+// The browser pass. The fault a reviewer saw can happen after the HTML
+// arrives, once the page's own code runs; only a browser sees that. It is
+// opt-in because it needs Playwright, which smoke.yml does not install.
+
+test("exits 1 when the browser pass is asked for and Playwright is missing", async () => {
+  const { code, out } = await smoke(await origin(HEALTHY), {
+    SMOKE_BROWSER: "1",
+    SMOKE_PLAYWRIGHT_MODULES: "no-such-playwright",
+  });
+  assert.equal(code, 1, out);
+  assert.match(
+    out,
+    /✗ browser pass → Playwright could not be loaded \(tried no-such-playwright\)/,
+  );
+});
+
+test("says the browser pass did not run when it was not asked for", async () => {
+  const { code, out } = await smoke(await origin(HEALTHY));
+  assert.equal(code, 0, out);
+  assert.match(out, /browser pass → not requested \(SMOKE_BROWSER=1 runs it\)/);
+});
+
+const chromium = await import("playwright")
+  .then((m) => m.chromium)
+  .catch(() => null);
+
+/**
+ * A page whose HTML is healthy and whose script then renders `boundary`. The
+ * boundary travels base64-encoded, so the HTML the plain pass reads holds
+ * none of its words; only a browser running the script sees it.
+ */
+const faultsAfterLoad = (boundary) => ({
+  html: `<!doctype html><html><body><main id="main"><h1>Agents</h1></main><script>setTimeout(() => { document.body.innerHTML = atob("${Buffer.from(boundary).toString("base64")}"); }, 200);</script></body></html>`,
+});
+
+test(
+  "the browser pass fails a page that faults only after it loads",
+  { skip: chromium ? false : "Playwright is not installed here" },
+  async () => {
+    const { code, out } = await smoke(
+      await origin({
+        ...HEALTHY,
+        "/app/agents": faultsAfterLoad(
+          `<div data-error-boundary="console"><h2>Something broke</h2></div>`,
+        ),
+        "/demo": faultsAfterLoad(
+          `<main><p style="text-transform:uppercase">// system fault</p></main>`,
+        ),
+      }),
+      { SMOKE_BROWSER: "1", SMOKE_SETTLE_MS: "1000" },
+    );
+    assert.equal(code, 1, out);
+    // The HTML is healthy, so only the browser sees either fault.
+    assert.match(out, /✓ page \/app\/agents → 200/);
+    assert.match(
+      out,
+      /✗ browser \/app\/agents → renders the error boundary \("data-error-boundary"\)/,
+    );
+    assert.match(
+      out,
+      /✗ browser \/demo → renders the error boundary \("\/\/ SYSTEM FAULT"\)/,
+    );
+    assert.match(out, /✓ browser \/evidence → 200/);
+    assert.match(
+      out,
+      /✓ home page load budget → \d+ms, within the \d+ms budget/,
+    );
+    assert.match(
+      out,
+      new RegExp(`2/${TOTAL + PAGES.length + 1} checks failed`),
+    );
+  },
+);

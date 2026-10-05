@@ -21,6 +21,7 @@
  *   SMOKE_ORIGIN=https://orizons.xyz npm run smoke
  *   ORIZON_CONTRACTS_DIR=/path/to/contract-repo npm run smoke   # local clone
  *   SMOKE_HOME_BUDGET_MS=5000 npm run smoke   # a looser home page budget
+ *   SMOKE_BROWSER=1 npm run smoke             # also open each page in Chromium
  *
  * The backend sleeps on Render's free tier, so the first request may take up to
  * a minute; the warmup below absorbs that before any assertion runs.
@@ -58,6 +59,37 @@ const CHECK_TIMEOUT_MS = 30_000;
  * something that should have been cached. SMOKE_HOME_BUDGET_MS overrides it.
  */
 const HOME_BUDGET_MS = Number(process.env.SMOKE_HOME_BUDGET_MS) || 3000;
+
+/**
+ * The browser pass, SMOKE_BROWSER=1: every page again, in headless Chromium,
+ * each in a fresh context as a first visit. A page can arrive healthy and
+ * then fault once its own code runs (a failed chunk, a client fetch it does
+ * not survive); only a browser sees that. It needs Playwright, so it is
+ * opt-in, and asking for it without Playwright installed is a failure, never
+ * a silent skip. SMOKE_PLAYWRIGHT_MODULES lists the modules tried for it.
+ */
+const BROWSER = process.env.SMOKE_BROWSER === "1";
+const PLAYWRIGHT_MODULES = (
+  process.env.SMOKE_PLAYWRIGHT_MODULES || "playwright,@playwright/test"
+)
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+
+/**
+ * How long each page is watched after its load event for a boundary to
+ * appear: long enough for the console's first API calls to come back or
+ * fail. A page that faults sooner is reported as soon as it does.
+ */
+const SETTLE_MS = Number(process.env.SMOKE_SETTLE_MS) || 5000;
+
+/**
+ * How long the home page may take, in the browser, to fire its load event:
+ * the HTML, its scripts, styles, fonts and images. SMOKE_HOME_LOAD_BUDGET_MS
+ * overrides it.
+ */
+const HOME_LOAD_BUDGET_MS =
+  Number(process.env.SMOKE_HOME_LOAD_BUDGET_MS) || 6000;
 
 /** Reports the live network and its contract ids; see checkContractParity. */
 const NETWORK_PATH = "/api/stellar/network";
@@ -266,6 +298,106 @@ async function checkPages() {
   return failures;
 }
 
+/** Playwright's Chromium from the first of PLAYWRIGHT_MODULES that loads. */
+async function loadChromium() {
+  for (const name of PLAYWRIGHT_MODULES) {
+    try {
+      const { chromium } = await import(name);
+      if (chromium) return chromium;
+    } catch {
+      // Not installed under this name; try the next.
+    }
+  }
+  return null;
+}
+
+/**
+ * Runs in the page: the boundary marker on screen, or null. The attribute is
+ * looked up on the element; the copy is read as the visitor reads it.
+ * @param {string} source  ERROR_BOUNDARY's source
+ */
+function boundaryOnScreen(source) {
+  if (document.querySelector("[data-error-boundary]")) {
+    return "data-error-boundary";
+  }
+  const found = new RegExp(source, "i").exec(document.body?.innerText ?? "");
+  return found ? found[0] : null;
+}
+
+/**
+ * The browser pass over PAGES, then the home page's load time against
+ * HOME_LOAD_BUDGET_MS: why each one failed, as failure lines.
+ */
+async function checkPagesInBrowser() {
+  const chromium = await loadChromium();
+  if (!chromium) {
+    const why = `browser pass → Playwright could not be loaded (tried ${PLAYWRIGHT_MODULES.join(", ")})`;
+    console.log(`  ✗ ${why}`);
+    return [why];
+  }
+  const failures = [];
+  /** How long "/" took to fire its load event, when it answered 2xx. */
+  let homeMs = null;
+  const browser = await chromium.launch();
+  try {
+    for (const path of PAGES) {
+      const name = `browser ${path}`;
+      const context = await browser.newContext();
+      try {
+        const page = await context.newPage();
+        const started = Date.now();
+        const res = await page.goto(`${ORIGIN}${path}`, {
+          waitUntil: "load",
+          timeout: CHECK_TIMEOUT_MS,
+        });
+        const ms = Date.now() - started;
+        const status = res?.status() ?? 0;
+        if (status < 200 || status > 299) {
+          failures.push(`${name} → HTTP ${status}`);
+          console.log(`  ✗ ${name} → HTTP ${status} (${ms}ms)`);
+          continue;
+        }
+        if (path === "/") homeMs = ms;
+        const marker = await page
+          .waitForFunction(boundaryOnScreen, ERROR_BOUNDARY.source, {
+            timeout: SETTLE_MS,
+          })
+          .then((handle) => handle.jsonValue())
+          .catch(() => null);
+        if (marker) {
+          failures.push(`${name} → renders the error boundary ("${marker}")`);
+          console.log(
+            `  ✗ ${name} → renders the error boundary ("${marker}") (${ms}ms)`,
+          );
+          continue;
+        }
+        console.log(`  ✓ ${name} → ${status} (${ms}ms)`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message.split("\n")[0] : err;
+        failures.push(`${name} → ${msg}`);
+        console.log(`  ✗ ${name} → ${msg}`);
+      } finally {
+        await context.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+
+  const budget = `home page load budget → ${
+    homeMs === null
+      ? "no page to time"
+      : `${homeMs}ms, ${homeMs > HOME_LOAD_BUDGET_MS ? "over" : "within"} the ${HOME_LOAD_BUDGET_MS}ms budget`
+  }`;
+  if (homeMs === null || homeMs > HOME_LOAD_BUDGET_MS) {
+    failures.push(budget);
+    console.log(`  ✗ ${budget}`);
+  } else {
+    console.log(`  ✓ ${budget}`);
+  }
+  return failures;
+}
+
 /**
  * Every contract id the deployed backend reports, against the contract repo's
  * address book for the network it reports (live-contract-parity.mjs has the
@@ -427,8 +559,13 @@ async function main() {
   }
 
   failures.push(...(await checkPages()));
+  if (BROWSER) {
+    failures.push(...(await checkPagesInBrowser()));
+  } else {
+    console.log("  · browser pass → not requested (SMOKE_BROWSER=1 runs it)");
+  }
 
-  const total = CHECKS.length + 2 + PAGES.length + 1;
+  const total = CHECKS.length + 2 + (PAGES.length + 1) * (BROWSER ? 2 : 1);
   if (failures.length > 0) {
     console.error(
       `\n${failures.length}/${total} checks failed against ${ORIGIN}:`,
