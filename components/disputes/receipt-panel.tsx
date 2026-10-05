@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SettlementBadge } from "@/components/ui/settlement-badge";
+import { SealStatus } from "@/components/console/seal-status";
 import { KVRow } from "@/components/ui/kv-row";
 import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -486,6 +487,12 @@ function SettledReceipt({
             <TxRow label="charge" hash={view.chargeTx} />
             <TxRow label="seal" hash={view.proofTx} />
           </dl>
+
+          {/* What became of the run's attestation, in words, when the
+              backend reports it; the link to its transaction is the "seal"
+              row just above. Not the payment: a seal that did not land says
+              the payment stands. */}
+          {view.seal !== undefined && <SealStatus seal={view.seal} />}
 
           <WindowState window={view.window} settledAtMs={view.settledAtMs} />
 
