@@ -482,13 +482,30 @@ describe("getEcosystemAdoption", () => {
     text: async () => "",
   });
 
-  it("reads the adoption path, uncached, every time", async () => {
+  it("reads the adoption path every time, as a cached read", async () => {
     fetchMock.mockResolvedValue(answer(zero()));
     await getEcosystemAdoption();
     await getEcosystemAdoption();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/ecosystem/adoption");
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "no-store" });
+    // Never `no-store`: its Pragma would make Vercel's CDN refresh the
+    // minutes-long read in the foreground instead of serving the snapshot.
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "default" });
+  });
+
+  it("lets the caller cancel the read", async () => {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new Error("The operation was aborted")),
+          );
+        }),
+    );
+    const caller = new AbortController();
+    const out = getEcosystemAdoption(caller.signal).catch((e: unknown) => e);
+    caller.abort();
+    expect((await out) as Error).toMatchObject({ name: "AbortError" });
   });
 
   it("rejects a malformed payload", async () => {
