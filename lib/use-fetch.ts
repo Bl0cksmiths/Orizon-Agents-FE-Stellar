@@ -41,6 +41,14 @@ import { isWakingError, readAtOf } from "./api";
 
 /** Extra attempts after the initial one. 4 requests total per mount. */
 const DEFAULT_MAX_RETRIES = 3;
+/**
+ * Attempts a read answered "waking" may make, whatever `maxRetries` says
+ * (unless it is 0). The console's cache answers a cold backend with a 503
+ * after about ten seconds rather than holding the socket for a minute, so a
+ * cold start is several quick answers, not one slow one: eight retries
+ * (3 s → 30 s apart) cover about four minutes of it.
+ */
+export const WAKE_MAX_RETRIES = 8;
 /** First retry delay; doubles per attempt (2s → 4s → 8s). */
 const DEFAULT_RETRY_BASE_MS = 2_000;
 /** Ceiling for the computed backoff, before any Retry-After hint. */
@@ -274,7 +282,11 @@ export function useFetch<T>(
           if (!alive) return;
           errorRef.current = e instanceof Error ? e.message : String(e);
           setError(errorRef.current);
-          const budget = optsRef.current?.maxRetries ?? DEFAULT_MAX_RETRIES;
+          const asked = optsRef.current?.maxRetries ?? DEFAULT_MAX_RETRIES;
+          const budget =
+            asked > 0 && isWakingError(e)
+              ? Math.max(asked, WAKE_MAX_RETRIES)
+              : asked;
           if (attempt >= budget || !isTransientFetchError(e)) {
             markRetrying(false);
             return;
