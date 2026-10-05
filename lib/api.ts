@@ -91,7 +91,7 @@ const BODY_READERS = new Set([
  */
 function guardBody(
   res: Response,
-  timer: ReturnType<typeof setTimeout>,
+  done: () => void,
   signal: AbortSignal,
   expired: () => Error,
 ): Response {
@@ -112,11 +112,26 @@ function guardBody(
           if (signal.aborted) throw expired();
           throw err;
         } finally {
-          clearTimeout(timer);
+          done();
         }
       };
     },
   });
+}
+
+/** What a read cancelled by its caller rejects with — an unmounted
+ * component's, say. Never a timeout, never shown: nobody is waiting. */
+export function abortError(): DOMException {
+  return new DOMException("the read was cancelled", "AbortError");
+}
+
+/** Whether a rejection is a caller's own cancellation. */
+export function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
 }
 
 /**
@@ -126,6 +141,10 @@ function guardBody(
  * (network drop, non-OK status) propagates untouched.
  * Exported so sibling clients (e.g. lib/pdax.ts) share the same plumbing;
  * `path` is relative to the shared `/api` base.
+ *
+ * `init.signal`, when given, cancels the exchange as well — a component
+ * unmounting, a superseded read — and rejects with `abortError()`, told
+ * apart from the deadline so nothing retries or reports it.
  */
 export async function fetchWithTimeout(
   method: "GET" | "POST",
@@ -134,12 +153,26 @@ export async function fetchWithTimeout(
   timeoutMs: number,
 ): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   // A caller that never reads the body would otherwise hold the event loop
   // open for the full deadline (node only — browsers return a number).
   (timer as unknown as { unref?: () => void }).unref?.();
+  const caller = init.signal ?? null;
+  const cancel = () => controller.abort();
+  if (caller?.aborted) controller.abort();
+  else caller?.addEventListener("abort", cancel, { once: true });
+  const done = () => {
+    clearTimeout(timer);
+    caller?.removeEventListener("abort", cancel);
+  };
   const expired = () =>
-    new Error(`${method} ${path} → timeout after ${timeoutMs / 1000}s`);
+    timedOut
+      ? new Error(`${method} ${path} → timeout after ${timeoutMs / 1000}s`)
+      : abortError();
   let res: Response;
   try {
     res = await fetch(`${base}${path}`, {
@@ -147,11 +180,11 @@ export async function fetchWithTimeout(
       signal: controller.signal,
     });
   } catch (err) {
-    clearTimeout(timer);
+    done();
     if (controller.signal.aborted) throw expired();
     throw err;
   }
-  return guardBody(res, timer, controller.signal, expired);
+  return guardBody(res, done, controller.signal, expired);
 }
 
 /**
