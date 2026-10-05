@@ -15,6 +15,7 @@ import {
   isStellarNetworkInfo,
   isSubmitResult,
   isSyncResponse,
+  isTask,
   isTaskList,
   isTraceLine,
   isTraceLineList,
@@ -617,6 +618,18 @@ export async function listAgentsPage(
     signal: headerSyncSignal(res.headers),
   };
 }
+/**
+ * One task: its status, what happened to its money (`settlement`) and to its
+ * attestation seal (`seal`). Read with the task's token when this session
+ * holds one, like every per-task read.
+ */
+export const getTask = (taskId: string, signal?: AbortSignal) =>
+  get<Task>(
+    `/tasks/${encodeURIComponent(taskId)}`,
+    ensure("/tasks/{id}", isTask),
+    taskAuthHeaders(taskId),
+    { signal },
+  );
 export const listTasks = (signal?: AbortSignal) =>
   get<Task[]>("/tasks", ensure("/tasks", isTaskList), undefined, { signal });
 /** GET /api/metrics/overview in either shape the backend serves: the
