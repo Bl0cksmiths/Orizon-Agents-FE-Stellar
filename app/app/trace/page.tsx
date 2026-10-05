@@ -32,7 +32,7 @@ import { formatSpent, relabelAmounts, traceSpend } from "@/lib/trace-amounts";
 import { useFetch } from "@/lib/use-fetch";
 import type { ArtifactResponse, TraceLine } from "@/lib/types";
 import { OnChainReceipts } from "./on-chain-receipts";
-import { SealStatus } from "./seal-status";
+import { SealStatus } from "@/components/console/seal-status";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 

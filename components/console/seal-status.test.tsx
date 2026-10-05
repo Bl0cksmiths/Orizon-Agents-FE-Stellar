@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The trace's seal line (app/app/trace/seal-status.tsx): every state in
+ * The trace's seal line (components/console/seal-status.tsx): every state in
  * words, announced as status, never by colour alone.
  */
 import { afterEach, describe, expect, it } from "vitest";
