@@ -4,6 +4,7 @@ import { Topbar } from "./_components/topbar";
 import { GridBg } from "@/components/ui/grid-bg";
 import { ConsoleContent } from "./_components/console-content";
 import { MobileNavProvider } from "./_components/mobile-nav-context";
+import { MotionProvider } from "@/components/ui/motion-provider";
 
 import { HORIZON_URL, SOROBAN_RPC_URL } from "@/lib/env";
 
@@ -25,25 +26,30 @@ export const metadata: Metadata = {
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  // framer-motion animates the console only, so its provider (and the
+  // animation features it fetches) lives here rather than in the root layout
+  // the public pages share.
   return (
-    <MobileNavProvider>
-      <link rel="preconnect" href={HORIZON_ORIGIN} crossOrigin="" />
-      {SOROBAN_RPC_ORIGIN !== HORIZON_ORIGIN && (
-        <link rel="preconnect" href={SOROBAN_RPC_ORIGIN} crossOrigin="" />
-      )}
-      <div className="relative min-h-screen">
-        <GridBg fade={false} className="opacity-40" />
-        <Sidebar />
-        <ConsoleContent>
-          <Topbar />
-          <main
-            id="main"
-            className="relative px-4 sm:px-6 md:px-8 py-6 md:py-8"
-          >
-            {children}
-          </main>
-        </ConsoleContent>
-      </div>
-    </MobileNavProvider>
+    <MotionProvider>
+      <MobileNavProvider>
+        <link rel="preconnect" href={HORIZON_ORIGIN} crossOrigin="" />
+        {SOROBAN_RPC_ORIGIN !== HORIZON_ORIGIN && (
+          <link rel="preconnect" href={SOROBAN_RPC_ORIGIN} crossOrigin="" />
+        )}
+        <div className="relative min-h-screen">
+          <GridBg fade={false} className="opacity-40" />
+          <Sidebar />
+          <ConsoleContent>
+            <Topbar />
+            <main
+              id="main"
+              className="relative px-4 sm:px-6 md:px-8 py-6 md:py-8"
+            >
+              {children}
+            </main>
+          </ConsoleContent>
+        </div>
+      </MobileNavProvider>
+    </MotionProvider>
   );
 }
