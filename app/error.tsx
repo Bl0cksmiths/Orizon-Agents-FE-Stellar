@@ -1,46 +1,60 @@
 "use client";
 
-import { useEffect } from "react";
-import { classifyError } from "@/lib/error-recovery";
-import { reportClientError } from "@/lib/report-error";
 import { Button } from "@/components/ui/button";
+import { ERROR_COPY } from "@/lib/error-recovery";
+import { focusRing } from "@/lib/ui";
+import { useErrorRecovery } from "@/lib/use-error-recovery";
 
+/**
+ * The site's error screen, for any page under the root layout.
+ *
+ * A page that failed because its code changed under it (a deploy landed while
+ * it was open) reloads by itself and shows only a quiet loading line; see
+ * lib/use-error-recovery.ts. Anything else gets a calm screen with a Reload
+ * button and a way home. The home link is a plain anchor: after a failure a
+ * full page load is the dependable way out.
+ */
 export default function Error({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    reportClientError(error, {
-      kind: classifyError(error),
-      route: window.location.pathname,
-      recovery: "shown",
-    });
-  }, [error]);
+  const { kind, phase, headingRef, reload } = useErrorRecovery(error);
 
   return (
     // <main id="main"> keeps the root layout's skip link functional here.
     <main
       id="main"
-      className="flex min-h-screen flex-col items-center justify-center px-6 text-center"
+      className="flex min-h-screen flex-col items-center justify-center px-4 py-16 text-center sm:px-6"
     >
-      <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-magenta">
-        {"// system fault"}
-      </p>
-      <h1 className="mt-4 font-display text-2xl tracking-[0.2em] text-text neon-text sm:text-3xl">
-        SYSTEM FAULT
-      </h1>
-      <p className="mt-4 max-w-sm font-mono text-xs leading-relaxed text-muted">
-        An unexpected error interrupted this process. The rest of the network is
-        unaffected — retry the operation.
-      </p>
-      <div className="mt-8">
-        <Button variant="outline" onClick={reset}>
-          Try again
-        </Button>
-      </div>
+      {phase === "reloading" ? (
+        <p role="status" className="font-mono text-xs text-muted">
+          {ERROR_COPY.reloading}
+        </p>
+      ) : (
+        <div className="w-full max-w-md">
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-2xl font-semibold tracking-tight text-text focus:outline-none sm:text-3xl"
+          >
+            {ERROR_COPY.heading}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            {ERROR_COPY.message[kind]}
+          </p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-5 sm:flex-row">
+            <Button onClick={reload}>Reload</Button>
+            <a
+              href="/"
+              className={`font-mono text-xs uppercase tracking-[0.18em] text-cyan underline decoration-cyan/40 underline-offset-4 transition-colors hover:decoration-cyan ${focusRing}`}
+            >
+              Go to the home page
+            </a>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
