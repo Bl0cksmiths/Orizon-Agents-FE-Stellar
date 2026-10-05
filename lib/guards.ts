@@ -259,20 +259,24 @@ const TASK_STATUSES = new Set(["pending", "running", "complete", "failed"]);
  * `undefined` and renders an unstyled badge, so it is checked against the
  * backend literal rather than merely as a string. */
 export function isTaskList(v: unknown): v is Task[] {
+  return Array.isArray(v) && v.every(isTask);
+}
+
+/** One task, as the list and `GET /tasks/{id}` serve it. */
+export function isTask(t: unknown): t is Task {
   return (
-    Array.isArray(v) &&
-    v.every(
-      (t) =>
-        isRecord(t) &&
-        isStr(t.id) &&
-        isNum(t.spent) &&
-        isStr(t.status) &&
-        TASK_STATUSES.has(t.status) &&
-        // The settlement outcome: any string, null, or absent (see Task).
-        (t.settlement === undefined ||
-          t.settlement === null ||
-          isStr(t.settlement)),
-    )
+    isRecord(t) &&
+    isStr(t.id) &&
+    isNum(t.spent) &&
+    isStr(t.status) &&
+    TASK_STATUSES.has(t.status) &&
+    // The settlement outcome and the seal state: each any string, null, or
+    // absent (see Task) — a word this build does not know is read later,
+    // never a reason to reject the task.
+    (t.settlement === undefined ||
+      t.settlement === null ||
+      isStr(t.settlement)) &&
+    (t.seal === undefined || t.seal === null || isStr(t.seal))
   );
 }
 
