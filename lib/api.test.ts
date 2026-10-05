@@ -1781,9 +1781,12 @@ describe("openTraceStream polling fallback", () => {
     expect(onDone).not.toHaveBeenCalled();
 
     status = "complete";
-    // One tick notices the terminal status, the next confirms the trace
-    // stopped growing — the backend finalizes before its last line lands.
-    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 2 + 10);
+    // One tick notices the terminal status; the run ends once the trace has
+    // stayed quiet past the follow-up window — the backend finalizes before
+    // its ratings and last lines land.
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 2);
+    expect(onDone).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS);
 
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
