@@ -37,6 +37,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readAtOf } from "./api";
 
 /** Extra attempts after the initial one. 4 requests total per mount. */
 const DEFAULT_MAX_RETRIES = 3;
@@ -131,6 +132,13 @@ export type UseFetchResult<T> = {
    * ```
    */
   lastSuccessAt: number | null;
+  /**
+   * When the backend was read for the `data` on screen: a cached answer's own
+   * read time (lib/api.ts `readAtOf`), which can be minutes before it
+   * arrived, else `lastSuccessAt`. Null with no data. What a page dates its
+   * figures by — `lastSuccessAt` would call an old copy new.
+   */
+  dataAt: number | null;
 };
 
 export type UseFetchOptions = {
@@ -328,5 +336,6 @@ export function useFetch<T>(
     };
   }, [revalidateOnFocus, staleAfterMs, reload]);
 
-  return { data, error, loading, reload, retrying, lastSuccessAt };
+  const dataAt = data === null ? null : (readAtOf(data) ?? lastSuccessAt);
+  return { data, error, loading, reload, retrying, lastSuccessAt, dataAt };
 }
