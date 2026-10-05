@@ -197,7 +197,7 @@ body {
 }
 .enter {
   animation: enter var(--motion-duration, 0.5s) ease-in-out
-    var(--motion-delay, 0s) both;
+    var(--motion-delay, 0s) backwards;
 }
 .reveal {
   opacity: 0;
