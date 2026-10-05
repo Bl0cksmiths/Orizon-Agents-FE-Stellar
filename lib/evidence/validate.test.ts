@@ -360,6 +360,36 @@ describe("link URLs", () => {
       firstLink(i).kind = "tweet";
     }, /\.kind must be one of tx, contract, account, page, pr, repo, video, doc/);
   });
+
+  // The backend keeps a task in memory only: a restart forgets it, and the
+  // link then opens a "not found" receipt while the index still calls it
+  // live (QA D-090). Its settlement and seal are what last.
+  it("must not open a task the backend keeps only in memory", () => {
+    for (const url of [
+      "https://orizons.xyz/app/trace?task=tsk_7e1c369cebaf41b3",
+      "https://orizons.xyz/app/trace?foo=1&task=tsk_1",
+      "https://orizons.xyz/api/tasks/tsk_7e1c369cebaf41b3",
+      "https://orizon-agents-be-stellar.onrender.com/api/tasks/tsk_1/stream",
+    ]) {
+      expectOnly((i) => {
+        firstLink(i).url = url;
+        firstLink(i).kind = "page";
+      }, /\.url opens a task, which the backend keeps only in memory and forgets on a restart; link its on-chain settlement or seal instead/);
+    }
+  });
+
+  it("may open the trace view without a task, and a durable dispute record", () => {
+    for (const url of [
+      "https://orizons.xyz/app/trace",
+      "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_1",
+      "https://orizons.xyz/api/tasks",
+    ]) {
+      const index = base();
+      firstLink(index).url = url;
+      firstLink(index).kind = "page";
+      expect(problemsOf(index)).toEqual([]);
+    }
+  });
 });
 
 describe("transaction links", () => {
