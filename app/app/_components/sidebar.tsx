@@ -403,12 +403,16 @@ export function Sidebar() {
   // tab without adding a second poller alongside the Overview page's.
   const {
     data: stats,
-    error,
+    error: failure,
     loading,
+    waiting,
     retrying,
     lastSuccessAt,
     reload,
   } = useNetworkStats();
+  // A backend still waking is a wait, not a failure: the counters keep their
+  // dashes and say so, rather than flagging the network as down.
+  const error = waiting ? null : failure;
 
   // Below lg the closed drawer is only translated off-screen, which leaves its
   // links in the tab order and accessibility tree (WCAG 2.4.3). Mark the closed
@@ -631,6 +635,11 @@ export function Sidebar() {
             {!stats && !error && (
               <div className="font-mono text-[11px] text-muted leading-5">
                 — agents registered · — external
+              </div>
+            )}
+            {!stats && waiting && failure && (
+              <div className="font-mono text-[10px] text-muted leading-4">
+                waking the network…
               </div>
             )}
             {error && (
