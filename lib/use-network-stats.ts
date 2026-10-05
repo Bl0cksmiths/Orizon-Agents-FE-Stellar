@@ -231,7 +231,7 @@ export async function loadNetworkStats(
     signal === "unknown"
       ? registryCounts.observe({ count: list.length, at })
       : signal === "synced";
-  return settled(stats, registryConfirmed);
+  return settled({ ...stats, asOf: at }, registryConfirmed);
 }
 
 /**
