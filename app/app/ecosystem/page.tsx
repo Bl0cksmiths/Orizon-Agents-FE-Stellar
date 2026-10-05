@@ -13,19 +13,29 @@
 
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
-import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
+import { WakeStatus } from "@/components/console/wake-status";
 import { getStellarNetwork } from "@/lib/api";
 import { getEcosystemAdoption } from "@/lib/ecosystem";
+import { formatLocalTime } from "@/lib/local-time";
+import { useAdoptionSnapshot } from "@/lib/use-adoption-snapshot";
 import { useFetch } from "@/lib/use-fetch";
 import { AdoptionView } from "./adoption-view";
 
 export default function EcosystemPage() {
-  const { data, error, loading, retrying, lastSuccessAt, reload } = useFetch(
+  const { data, error, loading, retrying, dataAt, waiting, reload } = useFetch(
     getEcosystemAdoption,
     [],
     { revalidateOnFocus: true },
   );
+  // The backend takes minutes over this read. A returning visitor opens on
+  // the last figures this browser saw, labelled as such, while it runs.
+  const snapshot = useAdoptionSnapshot(data);
+  const shown = data ?? snapshot;
+  // A backend still waking is a wait, not a failure: the status line covers
+  // it, and the error box is kept for reads that really failed.
+  const failure = waiting ? null : error;
 
   // What the settled amounts are in. Best-effort and shared with the top bar
   // through the GET dedupe: while it is unknown the amounts carry no unit,
@@ -44,18 +54,18 @@ export default function EcosystemPage() {
         </p>
       </div>
 
-      {!data ? (
-        error ? (
+      {!shown ? (
+        failure ? (
           <ErrorNote onRetry={reload} retrying={loading || retrying}>
             <span className="block">
               Could not read ecosystem adoption. Nothing below is a count of
               zero; the figures simply did not arrive.
             </span>
-            <span className="mt-0.5 block break-all opacity-80">{error}</span>
+            <span className="mt-0.5 block break-all opacity-80">{failure}</span>
           </ErrorNote>
         ) : (
           <Card className="space-y-4">
-            <LoadingStatus label="Loading ecosystem adoption…" />
+            <WakeStatus active what="ecosystem adoption" />
             <Skeleton className="h-6 w-48" />
             <Skeleton className="h-28 w-full" />
             <Skeleton className="h-28 w-full" />
@@ -63,21 +73,40 @@ export default function EcosystemPage() {
         )
       ) : (
         <>
-          {error && (
+          {!data && (
+            // The snapshot is real figures from a real read — just not this
+            // visit's. Said once, with its time, until the live read lands.
+            <Card className="space-y-1 py-3">
+              <p className="font-mono text-[11px] text-muted">
+                Showing the last snapshot this browser saved, generated{" "}
+                <time
+                  dateTime={new Date(shown.generated_at * 1_000).toISOString()}
+                >
+                  {formatLocalTime(shown.generated_at * 1_000)}
+                </time>
+                . The live figures replace it as soon as they arrive.
+              </p>
+              {waiting && <WakeStatus active what="ecosystem adoption" />}
+            </Card>
+          )}
+          {failure && (
             <ErrorNote onRetry={reload} retrying={loading || retrying}>
               <span className="block">
-                Could not refresh ecosystem adoption. Showing the last
-                successful read.
+                {data
+                  ? "Could not refresh ecosystem adoption. Showing the last successful read."
+                  : "Could not read ecosystem adoption. Showing the last snapshot this browser saved."}
               </span>
-              <span className="mt-0.5 block break-all opacity-80">{error}</span>
+              <span className="mt-0.5 block break-all opacity-80">
+                {failure}
+              </span>
             </ErrorNote>
           )}
           <StaleBadge
-            stale={Boolean(error)}
-            lastSuccessAt={lastSuccessAt}
+            stale={Boolean(failure)}
+            lastSuccessAt={data ? dataAt : shown.generated_at * 1_000}
             what="adoption figures"
           />
-          <AdoptionView adoption={data} asset={network?.asset ?? null} />
+          <AdoptionView adoption={shown} asset={network?.asset ?? null} />
         </>
       )}
     </div>
