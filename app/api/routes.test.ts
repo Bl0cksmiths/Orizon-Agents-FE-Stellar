@@ -120,6 +120,32 @@ describe("the cached routes", () => {
     expect(Number(res.headers.get(READ_AT_HEADER))).toBeGreaterThan(0);
   });
 
+  it("presents the proxy token, and no visitor, on a cached read", async () => {
+    vi.stubEnv("FRONTEND_PROXY_TOKEN", "s3cret");
+    fetchMock.mockResolvedValueOnce(json(overview(true, 3)));
+    const { GET } = await route("metrics/overview");
+    await GET(
+      new Request("https://orizons.test/api/metrics/overview", {
+        headers: {
+          "x-frontend-proxy-token": "forged",
+          "x-orizon-client-ip": "6.6.6.6",
+          "x-forwarded-for": "203.0.113.7",
+        },
+      }),
+    );
+    const sent = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(sent.get("x-frontend-proxy-token")).toBe("s3cret");
+    expect(sent.get("x-orizon-client-ip")).toBeNull();
+  });
+
+  it("presents nothing when no token is configured", async () => {
+    fetchMock.mockResolvedValueOnce(json(overview(true, 3)));
+    const { GET } = await route("metrics/overview");
+    await GET(req("metrics/overview"));
+    const sent = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(sent.get("x-frontend-proxy-token")).toBeNull();
+  });
+
   it("refuses to cache a body the console would reject", async () => {
     fetchMock.mockResolvedValueOnce(json({ unexpected: true }));
     const { GET } = await route("stellar/network");
