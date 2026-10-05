@@ -19,13 +19,20 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StellarExpertLink } from "@/components/ui/stellar-link";
-import { getArtifact, getStellarNetwork, openTraceStream } from "@/lib/api";
+import {
+  getArtifact,
+  getStellarNetwork,
+  getTask,
+  openTraceStream,
+} from "@/lib/api";
+import { readSealState } from "@/lib/seal-state";
 import { escrowGeneration } from "@/lib/escrow-generation";
 import { traceSettlementState } from "@/lib/settlement-state";
 import { formatSpent, relabelAmounts, traceSpend } from "@/lib/trace-amounts";
 import { useFetch } from "@/lib/use-fetch";
 import type { ArtifactResponse, TraceLine } from "@/lib/types";
 import { OnChainReceipts } from "./on-chain-receipts";
+import { SealStatus } from "./seal-status";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
@@ -113,6 +120,20 @@ function TracePageInner() {
     revalidateOnFocus: true,
   });
   const asset = network?.asset ?? null;
+  // The task itself, for its attestation seal: read on open and again when
+  // the stream ends, and every few seconds while the backend is still
+  // confirming the seal — the run is final before its seal is.
+  const { data: task, reload: reloadTask } = useFetch(
+    (signal) => (taskId ? getTask(taskId, signal) : Promise.resolve(null)),
+    [taskId, done],
+    { enabled: Boolean(taskId), keepPreviousData: true },
+  );
+  const seal = readSealState(task?.seal);
+  useEffect(() => {
+    if (seal !== "pending") return;
+    const timer = setTimeout(reloadTask, SEAL_RECHECK_MS);
+    return () => clearTimeout(timer);
+  }, [seal, task, reloadTask]);
   // Which escrow the run's money went through: only v2 held any of it.
   const generation = escrowGeneration(network);
 
@@ -618,14 +639,20 @@ function TracePageInner() {
               <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-magenta mb-4">
                 Attestation
               </div>
-              <div
-                className={cn(
-                  "font-mono text-xs break-all leading-5",
-                  attestationUnavailable ? "text-magenta/90" : "text-muted",
-                )}
-              >
-                {attestationText}
-              </div>
+              {/* The backend's own word on the seal, when it sends one; a
+                  backend from before the field keeps the trace's reading. */}
+              {seal !== undefined ? (
+                <SealStatus seal={seal} />
+              ) : (
+                <div
+                  className={cn(
+                    "font-mono text-xs break-all leading-5",
+                    attestationUnavailable ? "text-magenta/90" : "text-muted",
+                  )}
+                >
+                  {attestationText}
+                </div>
+              )}
               {proofTx && (
                 <StellarExpertLink
                   kind="tx"
@@ -640,6 +667,9 @@ function TracePageInner() {
     </div>
   );
 }
+
+/** How often a seal the backend is still confirming is asked about again. */
+const SEAL_RECHECK_MS = 5_000;
 
 /**
  * Shell for the Suspense boundary. `useSearchParams` suspends the whole page,
