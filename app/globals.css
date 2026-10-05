@@ -184,6 +184,41 @@ body {
   }
 }
 
+/* Entrances, in CSS so the marketing pages paint them before any script runs.
+   `.enter` plays once on first paint; `.reveal` waits until the element
+   scrolls into view (components/ui/reveal-on-scroll.tsx sets data-revealed).
+   Per element (components/ui/entrance.ts): --motion-delay, --motion-duration
+   and the start offset --motion-from (default: 24px below). */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: var(--motion-from, translateY(24px));
+  }
+}
+.enter {
+  animation: enter var(--motion-duration, 0.5s) ease-in-out
+    var(--motion-delay, 0s) both;
+}
+.reveal {
+  opacity: 0;
+  transform: var(--motion-from, translateY(24px));
+  transition-property: opacity, transform;
+  transition-duration: var(--motion-duration, 0.5s);
+  transition-timing-function: ease-in-out;
+  transition-delay: var(--motion-delay, 0s);
+}
+.reveal[data-revealed] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .enter,
+  .reveal {
+    animation-delay: 0s;
+    transition-delay: 0s;
+  }
+}
+
 /* Glow card hover */
 .glow-card {
   transition:
