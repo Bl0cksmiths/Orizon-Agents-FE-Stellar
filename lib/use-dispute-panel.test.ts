@@ -588,6 +588,19 @@ describe("disputePollMs — an unconfirmed escrow v2 settlement", () => {
     expect(pollFor(failed, { awaitedMs: SETTLEMENT_WAIT_MS })).toBeNull();
   });
 
+  // The run is final before its seal is: the backend confirms the seal for
+  // up to ~2 minutes after settlement, and nothing would fetch again.
+  it("re-reads a pending seal on the chain-wait cadence, bounded", () => {
+    const res = answer(H, { settlement_state: "settled", seal: "pending" });
+    expect(pollFor(res)).toBe(CREDIT_POLL_MS);
+    expect(pollFor(res, { pendingAwaitedMs: PENDING_FAST_WAIT_MS })).toBe(
+      ADJUDICATION_POLL_MS,
+    );
+    expect(pollFor(res, { pendingAwaitedMs: PENDING_WAIT_MS })).toBeNull();
+    expect(pendingKey(res)).toBe("seal:pending");
+    expect(pollFor(answer(H, { seal: "sealed" }))).toBeNull();
+  });
+
   it("counts an unconfirmed settlement as something still moving", () => {
     expect(pendingKey(answer(H, { settlement_state: "unconfirmed" }))).toBe(
       "settlement:unconfirmed",

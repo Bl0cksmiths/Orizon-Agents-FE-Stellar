@@ -1215,3 +1215,39 @@ describe("ReceiptPanel — an escrow v2 settlement", () => {
     expect(settlementStatus()).toBeUndefined();
   });
 });
+
+describe("ReceiptPanel — the run's seal", () => {
+  it.each([
+    ["sealed", "Sealed on Stellar"],
+    ["pending", "Sealing… checking the ledger"],
+    ["unconfirmed", "Seal not confirmed yet"],
+    ["failed", "Seal failed — your payment stands"],
+  ] as const)("says a %s seal in words, as a status", (seal, label) => {
+    renderPanel(settled([], { seal }));
+    expect(
+      screen
+        .getAllByRole("status")
+        .some((el) => (el.textContent ?? "").includes(label)),
+    ).toBe(true);
+  });
+
+  it("keeps the seal's transaction link beside it", () => {
+    renderPanel(settled([], { seal: "sealed" }));
+    const links = screen
+      .getAllByRole("link")
+      .map((a) => a.getAttribute("href") ?? "");
+    expect(links.some((href) => href.includes(PROOF_TX))).toBe(true);
+  });
+
+  it("says why there is no seal when none was submitted", () => {
+    renderPanel(settled([], { seal: null }));
+    expect(text()).toContain("No attestation seal was submitted");
+  });
+
+  it("adds no seal line for a backend that does not report one", () => {
+    renderPanel(settled([]));
+    expect(text()).not.toMatch(
+      /Sealed on Stellar|Sealing…|Seal not|Seal failed|No attestation seal/,
+    );
+  });
+});
