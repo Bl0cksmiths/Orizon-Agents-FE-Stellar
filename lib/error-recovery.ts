@@ -79,3 +79,16 @@ export function claimAutoReload(
     return false;
   }
 }
+
+/** The error screens' words, shared by every boundary. */
+export const ERROR_COPY = {
+  heading: "This page didn't load",
+  reloading: "Loading the latest version of this page…",
+  message: {
+    chunk:
+      "Orizon was updated while this page was open. Reload to get the latest version.",
+    network:
+      "We couldn't reach Orizon's servers. Check your connection, then reload.",
+    render: "Something went wrong on our side. Reloading usually fixes it.",
+  } satisfies Record<ErrorKind, string>,
+} as const;
