@@ -16,7 +16,12 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { listAgents } from "./api";
 import { isTransientFetchError, retryAfterHintMs, useFetch } from "./use-fetch";
+
+/** A real cached read from lib/api.ts, so the read time travels the way it
+ * does in the app. */
+const cachedRead = (signal: AbortSignal) => listAgents(signal);
 
 afterEach(() => {
   cleanup();
@@ -34,6 +39,41 @@ function deferred<T>() {
 }
 
 describe("useFetch", () => {
+  it("dates data by when it arrived, with no backend read time to go by", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(5_000);
+    const { result } = renderHook(() => useFetch(async () => ({ v: 1 }), []));
+    await waitFor(() => expect(result.current.data).toEqual({ v: 1 }));
+    expect(result.current.dataAt).toBe(5_000);
+  });
+
+  it("dates a cached answer by the backend read behind it", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(5_000_000);
+    const fetchMock = vi.fn(
+      async () =>
+        new Response("[]", {
+          headers: { "X-Orizon-Read-At": "4000000" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { result } = renderHook(() =>
+        useFetch((signal) => cachedRead(signal), []),
+      );
+      await waitFor(() => expect(result.current.data).toEqual([]));
+      expect(result.current.dataAt).toBe(4_000_000);
+      expect(result.current.lastSuccessAt).toBe(5_000_000);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("has no date without data", () => {
+    const { result } = renderHook(() =>
+      useFetch(() => new Promise<string>(() => {}), []),
+    );
+    expect(result.current.dataAt).toBeNull();
+  });
+
   it("holds a disabled read back, then runs it once enabled", async () => {
     const fn = vi.fn(async () => "rest");
     const { result, rerender } = renderHook(
