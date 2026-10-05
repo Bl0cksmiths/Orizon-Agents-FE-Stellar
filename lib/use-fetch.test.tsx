@@ -39,6 +39,62 @@ function deferred<T>() {
 }
 
 describe("useFetch", () => {
+  it("is waiting while the first read is out", async () => {
+    const d = deferred<string>();
+    const { result } = renderHook(() => useFetch(() => d.promise, []));
+    expect(result.current.waiting).toBe(true);
+    await act(async () => d.resolve("ok"));
+    expect(result.current.waiting).toBe(false);
+  });
+
+  it("keeps waiting between retries of a backend that is waking", async () => {
+    vi.useFakeTimers();
+    try {
+      const fn = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(
+          new Error(
+            "GET /agents → 503 — the backend is waking up — this usually takes under a minute",
+          ),
+        )
+        .mockResolvedValue("awake");
+      const { result } = renderHook(() =>
+        useFetch(fn, [], { retryBaseMs: 1_000 }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.retrying).toBe(true);
+      expect(result.current.waiting).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      expect(result.current.data).toBe("awake");
+      expect(result.current.waiting).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is not waiting on any other failure, retried or not", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() =>
+        useFetch(() => Promise.reject(new Error("GET /x → 503 — down")), [], {
+          retryBaseMs: 1_000,
+        }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(result.current.retrying).toBe(true);
+      expect(result.current.waiting).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("dates data by when it arrived, with no backend read time to go by", async () => {
     vi.spyOn(Date, "now").mockReturnValue(5_000);
     const { result } = renderHook(() => useFetch(async () => ({ v: 1 }), []));
