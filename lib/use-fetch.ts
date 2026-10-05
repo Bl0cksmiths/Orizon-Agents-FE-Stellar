@@ -137,6 +137,13 @@ export type UseFetchOptions = {
   /** Keep the last resolved `data` while a deps-change refetch is in flight. */
   keepPreviousData?: boolean;
   /**
+   * False holds the fetch back — nothing runs, `loading` is false — until it
+   * turns true, when it runs as on mount. For a read that depends on another
+   * read's answer (the rest of a list once its first page is in), without
+   * a conditional hook. Default true.
+   */
+  enabled?: boolean;
+  /**
    * Refetch when the tab becomes visible again (visibilitychange → visible,
    * window focus) and the last successful fetch is older than `staleAfterMs`.
    * Uses `reload()`, which keeps the current data — no flash. Off by default.
@@ -165,7 +172,8 @@ export function useFetch<T>(
 ): UseFetchResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const enabled = opts?.enabled ?? true;
+  const [loading, setLoading] = useState(enabled);
   const [retrying, setRetrying] = useState(false);
   const [lastSuccessAt, setLastSuccessAt] = useState<number | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -227,6 +235,10 @@ export function useFetch<T>(
       lastSuccessRef.current = null;
     }
     markRetrying(false);
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
 
     const run = () => {
       setLoading(true);
@@ -279,7 +291,7 @@ export function useFetch<T>(
       controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, nonce]);
+  }, [...deps, nonce, enabled]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
