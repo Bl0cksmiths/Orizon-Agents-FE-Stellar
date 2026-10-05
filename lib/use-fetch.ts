@@ -37,7 +37,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isWakingError, readAtOf } from "./api";
+import { isWakingError, readAtOf } from "./api-freshness";
 
 /** Extra attempts after the initial one. 4 requests total per mount. */
 const DEFAULT_MAX_RETRIES = 3;

@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isWakingError, readAtOf } from "./api";
+import { isWakingError, readAtOf } from "./api-freshness";
 import { isTransientFetchError } from "./use-fetch";
 import { usePolling } from "./use-polling";
 
