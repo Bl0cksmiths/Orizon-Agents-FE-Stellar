@@ -58,8 +58,13 @@ export const PENDING_RECHECK_MS = 5_000;
 
 export type NetworkStatsReaders = {
   overview: () => Promise<LegacyOverview | OverviewV2>;
-  /** The registry, with its `X-Registry-Synced` signal. */
-  agents: () => Promise<{ agents: Agent[]; signal: SyncSignal }>;
+  /** The registry, with its `X-Registry-Synced` signal, and when the
+   * backend was read for it when the answer came from the console's cache. */
+  agents: () => Promise<{
+    agents: Agent[];
+    signal: SyncSignal;
+    readAt?: number | null;
+  }>;
   adoption: () => Promise<EcosystemAdoption>;
   reputation: () => Promise<ReputationBatch>;
 };
@@ -189,15 +194,18 @@ export async function loadNetworkStats(
     overviewError = e;
   }
 
-  // Dated when the read was made, not when a poll picked up its shared
-  // answer, so the interim rule never mistakes one read for two.
+  // Dated when the backend was read, not when a poll picked up the answer,
+  // so the interim rule never mistakes one read for two: a copy from the
+  // console's cache carries its backend read time, which any number of
+  // requests share; anything else is dated by when this read began.
   const [dated, adoption, reputation] = await Promise.all([
     settle(
       sharedRead(
         "agents",
         async () => {
           const at = Date.now();
-          return { ...(await readers.agents()), at };
+          const read = await readers.agents();
+          return { ...read, at: read.readAt ?? at };
         },
         registryConfirmed ? DERIVED_READ_TTL_MS : INTERIM_READ_GAP_MS,
       ),
