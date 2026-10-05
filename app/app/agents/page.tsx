@@ -1,11 +1,18 @@
 "use client";
-import { Fragment, useCallback, useId, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from "react";
 import { m } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { ErrorNote } from "@/components/ui/error-note";
-import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { AgentStanding } from "@/components/agents/agent-standing";
 import {
@@ -13,7 +20,9 @@ import {
   type ReputationRead,
 } from "@/components/agents/reputation-cell";
 import { RegistryStandingNotice } from "@/components/agents/registry-standing-notice";
-import { listAgents, listReputation } from "@/lib/api";
+import { DataAge } from "@/components/console/data-age";
+import { WakeStatus } from "@/components/console/wake-status";
+import { listReputation } from "@/lib/api";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { droppedCount } from "@/lib/guards";
 import { isOwnedBy } from "@/lib/binding-status";
@@ -25,6 +34,7 @@ import { isAgentStatus, type Agent } from "@/lib/types";
 import { BindingStateBadge, UnboundNotice } from "./binding-notice";
 import { ManagePanel } from "./manage-panel";
 import { useBindingStatus } from "./use-binding-status";
+import { REGISTRY_PAGE_SIZE, useAgentRegistry } from "./use-agent-registry";
 
 const statusTone = {
   online: "cyan" as const,
@@ -56,17 +66,16 @@ function readAt(ms: number): string {
 export default function AgentsPage() {
   // Each row header is named by its agent's name; this keeps those ids unique.
   const uid = useId();
+  // First page first, then the whole registry (./use-agent-registry.ts).
+  const registry = useAgentRegistry({ staleAfterMs: AGENTS_STALE_AFTER_MS });
   const {
-    data: agents,
+    agents,
     error,
     loading,
     retrying,
     lastSuccessAt,
     reload: reloadAgents,
-  } = useFetch(listAgents, [], {
-    revalidateOnFocus: true,
-    staleAfterMs: AGENTS_STALE_AFTER_MS,
-  });
+  } = registry;
   // On-chain reputation is best-effort — a failed read never blanks the
   // registry — but it is never papered over either: a row with no live entry
   // shows no score, rather than the seeded catalog rating dressed up as one.
@@ -184,10 +193,18 @@ export default function AgentsPage() {
       return matchesQ && matchesStatus;
     });
   }, [agents, q, filter, isRoutable]);
+  // The table renders a window of the matching rows, a page at a time: the
+  // whole registry at once was ~590 animated rows on first paint. A new
+  // search or filter starts the window over.
+  const [windowSize, setWindowSize] = useState(REGISTRY_PAGE_SIZE);
+  useEffect(() => setWindowSize(REGISTRY_PAGE_SIZE), [q, filter]);
+  const visible = useMemo(() => rows.slice(0, windowSize), [rows, windowSize]);
+  const hiddenRows = rows.length - visible.length;
+
   // The rows on screen, so the notice's "on this page" counts exactly them —
-  // not agents the search or a filter hid, nor batch entries for agents the
-  // registry does not list.
-  const shownIds = useMemo(() => rows.map((a) => a.id), [rows]);
+  // not agents the search or a filter hid, the rows past the window, nor
+  // batch entries for agents the registry does not list.
+  const shownIds = useMemo(() => visible.map((a) => a.id), [visible]);
 
   return (
     <div className="space-y-6">
@@ -321,6 +338,9 @@ export default function AgentsPage() {
             lastSuccessAt={lastSuccessAt}
             what="agent registry"
           />
+          {/* A copy the cache served through an outage arrives as a success;
+              this is what says it is old. */}
+          {!error && <DataAge at={registry.dataAt} what="agent registry" />}
         </div>
 
         {/* `retrying` covers the gaps *between* automatic attempts, when the
@@ -425,8 +445,13 @@ export default function AgentsPage() {
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="border-b border-border/50">
                     <td colSpan={7} className="py-3">
-                      <Skeleton className="h-5 w-full" />
-                      {i === 0 && <LoadingStatus label="Loading agents…" />}
+                      {/* The first row says what is happening — and, past
+                          a warm read's time, that the network is waking. */}
+                      {i === 0 ? (
+                        <WakeStatus active what="agents" />
+                      ) : (
+                        <Skeleton className="h-5 w-full" />
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -442,7 +467,7 @@ export default function AgentsPage() {
                 </tr>
               )}
 
-              {rows.map((a, i) => {
+              {visible.map((a, i) => {
                 // Ownership is resolved from the connected wallet against the
                 // on-chain owner — never a local record (story 1.08 rule).
                 // Shared with the bind surfaces via `isOwnedBy` so the rule has
@@ -667,7 +692,65 @@ export default function AgentsPage() {
             </tbody>
           </table>
         </ScrollRegion>
+
+        {agents && (
+          <RegistryPager
+            shown={visible.length}
+            hidden={hiddenRows}
+            total={q || filter !== "all" ? null : registry.total}
+            loadingRest={!registry.complete && !error}
+            onMore={() => setWindowSize((n) => n + REGISTRY_PAGE_SIZE)}
+            onAll={() => setWindowSize(Number.POSITIVE_INFINITY)}
+          />
+        )}
       </Card>
+    </div>
+  );
+}
+
+/**
+ * The line under the table: how much of the registry is on screen, and the
+ * way to the rest. A count of the whole registry appears only when the
+ * registry says it is complete (`total` non-null) — never a mid-refill one.
+ */
+function RegistryPager({
+  shown,
+  hidden,
+  total,
+  loadingRest,
+  onMore,
+  onAll,
+}: {
+  shown: number;
+  hidden: number;
+  total: number | null;
+  loadingRest: boolean;
+  onMore: () => void;
+  onAll: () => void;
+}) {
+  if (hidden === 0 && !loadingRest) return null;
+  const agentsWord = shown === 1 ? "agent" : "agents";
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
+      <p
+        role="status"
+        className="font-mono text-[11px] uppercase tracking-widest text-muted"
+      >
+        {total !== null
+          ? `Showing ${shown.toLocaleString()} of ${total.toLocaleString()} agents`
+          : `Showing ${shown.toLocaleString()} ${agentsWord}`}
+        {loadingRest && " · loading the rest of the registry…"}
+      </p>
+      {hidden > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onMore}>
+            Show more
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onAll}>
+            Show all
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
