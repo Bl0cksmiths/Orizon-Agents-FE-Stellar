@@ -116,6 +116,23 @@ describe("CachedRead", () => {
     expect(be.fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("sends the configured headers on every backend read", async () => {
+    const be = backend();
+    const read = new CachedRead(CONFIG, {
+      fetch: be.fetch,
+      base: BASE,
+      now: () => Date.now(),
+      headers: () => ({ "X-Frontend-Proxy-Token": "s3cret" }),
+    });
+    const out = read.read();
+    await flush();
+    const sent = new Headers(be.pending[0].init.headers);
+    expect(sent.get("x-frontend-proxy-token")).toBe("s3cret");
+    expect(sent.get("accept")).toBe("application/json");
+    be.answer([1]);
+    await out;
+  });
+
   it("shares one backend read between concurrent requests", async () => {
     const { be, read } = setup();
     const a = read.read();
