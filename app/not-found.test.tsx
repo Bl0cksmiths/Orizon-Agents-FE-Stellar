@@ -31,6 +31,12 @@ describe("the not-found page", () => {
     ).toBe("/app");
   });
 
+  it("draws the way home as the site's outline button", () => {
+    render(<NotFound />);
+    const home = screen.getByRole("link", { name: "Go to the home page" });
+    expect(home.classList.contains("chamfer-edges")).toBe(true);
+  });
+
   it("keeps the skip link's target", () => {
     render(<NotFound />);
     expect(document.querySelector("main#main")).not.toBeNull();

@@ -19,7 +19,9 @@ export default function NotFound() {
           page may have moved.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-5 sm:flex-row">
-          <ButtonLink href="/">Go to the home page</ButtonLink>
+          <ButtonLink href="/" variant="outline">
+            Go to the home page
+          </ButtonLink>
           <Link
             href="/app"
             className={`font-mono text-xs uppercase tracking-[0.18em] text-cyan underline decoration-cyan/40 underline-offset-4 transition-colors hover:decoration-cyan ${focusRing}`}
