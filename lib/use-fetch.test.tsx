@@ -34,6 +34,41 @@ function deferred<T>() {
 }
 
 describe("useFetch", () => {
+  it("holds a disabled read back, then runs it once enabled", async () => {
+    const fn = vi.fn(async () => "rest");
+    const { result, rerender } = renderHook(
+      ({ on }) => useFetch(fn, [], { enabled: on }),
+      { initialProps: { on: false } },
+    );
+    expect(result.current.loading).toBe(false);
+    expect(fn).not.toHaveBeenCalled();
+    rerender({ on: true });
+    await waitFor(() => expect(result.current.data).toBe("rest"));
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not revalidate a read on focus once it is disabled", async () => {
+    let now = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const fn = vi.fn(async () => "x");
+    const { result, rerender } = renderHook(
+      ({ on }) =>
+        useFetch(fn, [], {
+          enabled: on,
+          revalidateOnFocus: true,
+          staleAfterMs: 1_000,
+        }),
+      { initialProps: { on: true } },
+    );
+    await waitFor(() => expect(result.current.data).toBe("x"));
+    rerender({ on: false });
+    now += 5_000;
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels the read it started when the component unmounts", async () => {
     let seen: AbortSignal | undefined;
     const { unmount } = renderHook(() =>
