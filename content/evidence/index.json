@@ -486,9 +486,18 @@
               "date": "2026-09-30"
             },
             {
-              "label": "Open the live receipt for team run 3 on orizons.xyz",
-              "url": "https://orizons.xyz/app/trace?task=tsk_7e1c369cebaf41b3",
-              "kind": "page"
+              "label": "The receipt for team run 3 as recorded on 2026-09-30, kept on-chain: its settlement, paying the 0.01 XLM step to calculatorai (the receipt page itself no longer opens: the backend kept the task in memory, and a restart cleared it)",
+              "url": "https://stellar.expert/explorer/testnet/tx/785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+              "kind": "tx",
+              "tx_hash": "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "The receipt for team run 3, kept on-chain: its attestation seal, which ties the payout to the job — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/efca274fb83b50865cfc20dc40b6949e5abd1ae23ed3e7a7622e6c9eda37c0a8",
+              "kind": "tx",
+              "tx_hash": "efca274fb83b50865cfc20dc40b6949e5abd1ae23ed3e7a7622e6c9eda37c0a8",
+              "date": "2026-09-30"
             },
             {
               "label": "Frontend pull request #68: the Dispute button on the trace and receipt view (merged)",
