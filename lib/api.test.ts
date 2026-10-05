@@ -27,6 +27,7 @@ import {
   clearGetCache,
   createBindChallenge,
   CACHED_GET_TIMEOUT_MS,
+  FOLLOW_UP_QUIET_MS,
   fetchWithTimeout,
   isAbortError,
   isWakingError,
@@ -1618,12 +1619,16 @@ describe("openTraceStream polling fallback", () => {
   useStubEventSource();
 
   /** Serves the history endpoint and the task-status endpoint separately. */
-  function serve(history: () => TraceLine[], status: () => string) {
+  function serve(
+    history: () => TraceLine[],
+    status: () => string,
+    seal: () => string | null | undefined = () => undefined,
+  ) {
     fetchMock.mockImplementation((url: string) =>
       Promise.resolve(
         url.startsWith("/api/trace/")
           ? jsonResponse(200, history())
-          : jsonResponse(200, { id: "t", status: status() }),
+          : jsonResponse(200, { id: "t", status: status(), seal: seal() }),
       ),
     );
   }
@@ -1808,6 +1813,132 @@ describe("openTraceStream polling fallback", () => {
     await vi.advanceTimersByTimeAsync(TRACE_POLL_MS); // picks the last line up
 
     expect(lines.map((l) => l.msg)).toEqual(["a", "workflow failed: boom"]);
+    dispose();
+  });
+
+  // A paid run is final the moment its settlement confirms; its ratings and
+  // the seal's reconciliation keep appending lines for minutes afterwards.
+  it("keeps following past a terminal status while the seal is pending", async () => {
+    const lines: TraceLine[] = [];
+    const onDone = vi.fn();
+    const history = [traceLine("0.1", "settled")];
+    let seal: string | null = "pending";
+    serve(
+      () => history,
+      () => "complete",
+      () => seal,
+    );
+
+    const dispose = openTraceStream(
+      "tsk_sealing",
+      (l) => lines.push(l),
+      onDone,
+    );
+    await exhaustReconnects();
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS * 2);
+    expect(onDone).not.toHaveBeenCalled();
+
+    history.push(traceLine("40.0", "rated agt_1 5/5"));
+    history.push(traceLine("60.0", "attestation sealed"));
+    seal = "sealed";
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS);
+    expect(lines.map((l) => l.msg)).toEqual([
+      "settled",
+      "rated agt_1 5/5",
+      "attestation sealed",
+    ]);
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("waits out a quiet spell for the ratings that follow settlement", async () => {
+    const lines: TraceLine[] = [];
+    const onDone = vi.fn();
+    const history = [traceLine("0.1", "settled")];
+    serve(
+      () => history,
+      () => "complete",
+      () => "sealed",
+    );
+
+    const dispose = openTraceStream("tsk_rating", (l) => lines.push(l), onDone);
+    await exhaustReconnects();
+    // A rating lands ~25 s after the run went final: still followed.
+    await vi.advanceTimersByTimeAsync(24_000);
+    expect(onDone).not.toHaveBeenCalled();
+    history.push(traceLine("25.0", "rated agt_1 4/5"));
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS);
+    expect(lines.map((l) => l.msg)).toContain("rated agt_1 4/5");
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("ends on the stream's done once nothing is left pending", async () => {
+    const onDone = vi.fn();
+    const onFallback = vi.fn();
+    serve(
+      () => [traceLine("0.1", "a")],
+      () => "complete",
+      () => "sealed",
+    );
+    const dispose = openTraceStream(
+      "tsk_done",
+      () => {},
+      onDone,
+      undefined,
+      undefined,
+      { onFallback },
+    );
+    const es = StubEventSource.last();
+    es.emit("open");
+    es.emit("trace", traceLine("0.1", "a"));
+    es.emit("done");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(es.closed).toBe(true);
+    expect(onFallback).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("follows a pending seal past the stream's done, as follow-up and not as a fallback", async () => {
+    const lines: TraceLine[] = [];
+    const onDone = vi.fn();
+    const onFallback = vi.fn();
+    const history = [traceLine("0.1", "settled")];
+    let seal = "pending";
+    serve(
+      () => history,
+      () => "complete",
+      () => seal,
+    );
+    const dispose = openTraceStream(
+      "tsk_follow",
+      (l) => lines.push(l),
+      onDone,
+      undefined,
+      undefined,
+      { onFallback },
+    );
+    const es = StubEventSource.last();
+    es.emit("open");
+    es.emit("trace", traceLine("0.1", "settled"));
+    es.emit("done");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(es.closed).toBe(true);
+    expect(onDone).not.toHaveBeenCalled();
+    expect(onFallback).not.toHaveBeenCalled();
+    // No second stream: the history endpoint carries the follow-up.
+    const streams = StubEventSource.instances.length;
+
+    history.push(traceLine("70.0", "attestation sealed"));
+    seal = "sealed";
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 2);
+    expect(lines.map((l) => l.msg)).toEqual(["settled", "attestation sealed"]);
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(StubEventSource.instances.length).toBe(streams);
     dispose();
   });
 
