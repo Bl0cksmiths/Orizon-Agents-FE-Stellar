@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { classifyError } from "@/lib/error-recovery";
 import { reportClientError } from "@/lib/report-error";
 
 // Renders in place of the root layout, so globals.css is not guaranteed
@@ -13,7 +14,11 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    reportClientError(error);
+    reportClientError(error, {
+      kind: classifyError(error),
+      route: window.location.pathname,
+      recovery: "shown",
+    });
   }, [error]);
 
   return (

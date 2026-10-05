@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { classifyError } from "@/lib/error-recovery";
 import { reportClientError } from "@/lib/report-error";
 import { Button } from "@/components/ui/button";
 
@@ -12,7 +13,11 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    reportClientError(error);
+    reportClientError(error, {
+      kind: classifyError(error),
+      route: window.location.pathname,
+      recovery: "shown",
+    });
   }, [error]);
 
   return (
