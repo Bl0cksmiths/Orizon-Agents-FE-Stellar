@@ -24,6 +24,15 @@ const LITEPAPER_HTML_CSP = `${BASE_CSP}; default-src 'none'; script-src 'unsafe-
 const litepaperHref = (format) =>
   publishedHref(ARTIFACTS.find((a) => a.format === format).file);
 
+// Deploy skew: no `deploymentId` key here, on purpose. The Vercel project has
+// Skew Protection on (every asset on orizons.xyz carries `?dpl=`), and with it
+// on, Vercel's builder sets NEXT_DEPLOYMENT_ID, which Next reads by itself: it
+// tags assets with `?dpl=` and RSC requests with `x-deployment-id`, so an open
+// tab keeps talking to the deployment that served it. Elsewhere (`next start`,
+// previews of a project without the setting) the variable is unset and
+// nothing changes. A tab older than the protection's max age can still ask the
+// new deployment for chunks it no longer has; the error boundaries recover
+// from that with one automatic reload (lib/use-error-recovery.ts).
 const nextConfig = {
   // The Playwright suite runs a second dev server (the published /demo
   // fixture) beside the first; two servers cannot share one build directory.
