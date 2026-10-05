@@ -916,6 +916,16 @@ export type TaskDisputes = {
   /** Null until the workflow settles. */
   settlement?: SettlementView | null;
   disputes: Dispute[];
+  /**
+   * What became of the run's attestation seal — the same values as
+   * `Task.seal` (see `SEAL_STATES`); null when none was submitted, absent on
+   * a backend that predates it. A word this build does not know is read as
+   * `unconfirmed` (lib/seal-state.ts).
+   */
+  seal?: SealState | null;
+  /** The seal's transaction hash once it is known; absent on an older
+   *  backend, null while unknown. */
+  proof_tx?: string | null;
 };
 
 export type DisputeChallengeReq = { job_id_hex: string; step_index: number };
@@ -1027,6 +1037,9 @@ export type DisputePanelView =
     }
   | {
       kind: "settled";
+      /** The run's attestation seal, when the backend reports one: null
+       *  when none was submitted, absent on a backend that predates it. */
+      seal?: SealState | null;
       viewer: DisputeViewer;
       window: {
         open: boolean;
