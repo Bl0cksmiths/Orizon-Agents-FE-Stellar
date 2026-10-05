@@ -1,7 +1,6 @@
-"use client";
-import { m } from "framer-motion";
 import { ButtonLink } from "@/components/ui/button";
 import { GridBg, Glow } from "@/components/ui/grid-bg";
+import { entrance } from "@/components/ui/entrance";
 
 export function CTA() {
   return (
@@ -12,12 +11,9 @@ export function CTA() {
         className="left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2"
       />
 
-      <m.div
-        initial={{ opacity: 0, y: 24 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-80px" }}
-        transition={{ duration: 0.6 }}
-        className="relative mx-auto max-w-4xl px-6 text-center"
+      <div
+        style={entrance({ duration: 0.6 })}
+        className="reveal relative mx-auto max-w-4xl px-6 text-center"
       >
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-cyan mb-5">
           ▸▸ FINAL TRANSMISSION
@@ -44,7 +40,7 @@ export function CTA() {
             Browse Agents
           </ButtonLink>
         </div>
-      </m.div>
+      </div>
     </section>
   );
 }
