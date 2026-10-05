@@ -35,6 +35,7 @@ vi.mock("@/lib/ecosystem", async (importOriginal) => ({
 }));
 
 import { OPERATOR_DOCS_URL, type EcosystemAdoption } from "@/lib/ecosystem";
+import { saveAdoptionSnapshot } from "@/lib/use-adoption-snapshot";
 import { AdoptionView } from "./adoption-view";
 import EcosystemPage from "./page";
 
@@ -134,6 +135,8 @@ afterEach(() => {
   cleanup();
   getEcosystemAdoption.mockReset();
   getStellarNetwork.mockImplementation(() => new Promise(() => {}));
+  // The page keeps its last read as a snapshot; no test may inherit one.
+  window.localStorage.clear();
 });
 
 describe("AdoptionView — the targets", () => {
@@ -528,6 +531,54 @@ describe("EcosystemPage — states", () => {
       name: "Settled workflows for ext.translate",
     });
     await within(again).findByText(/0\.01 XLM/);
+  });
+
+  it("opens on the last snapshot, labelled and dated, while the live read is out", async () => {
+    saveAdoptionSnapshot(zero({ generated_at: 1_759_046_400 }));
+    getEcosystemAdoption.mockReturnValue(new Promise(() => {}));
+    render(<EcosystemPage />);
+    expect(
+      await screen.findByRole("heading", { name: "SOW §6.3 targets" }),
+    ).toBeTruthy();
+    expect(text(document.body)).toContain(
+      "Showing the last snapshot this browser saved",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says a failed live read is showing the snapshot, not fresh figures", async () => {
+    saveAdoptionSnapshot(zero());
+    getEcosystemAdoption.mockRejectedValue(new Error(HARD_FAILURE));
+    render(<EcosystemPage />);
+    const alert = await screen.findByRole("alert");
+    expect(text(alert)).toContain(
+      "Could not read ecosystem adoption. Showing the last snapshot this browser saved.",
+    );
+  });
+
+  it("treats a waking backend as a wait, not a failure", async () => {
+    getEcosystemAdoption.mockRejectedValue(
+      new Error(
+        "GET /ecosystem/adoption → 503 — the backend is waking up — this usually takes under a minute",
+      ),
+    );
+    render(<EcosystemPage />);
+    await vi.waitFor(() => expect(getEcosystemAdoption).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe(
+      "Loading ecosystem adoption…",
+    );
+  });
+
+  it("replaces the snapshot with the live read once it lands", async () => {
+    saveAdoptionSnapshot(zero());
+    getEcosystemAdoption.mockResolvedValue(zero());
+    render(<EcosystemPage />);
+    await screen.findByRole("heading", { name: "SOW §6.3 targets" });
+    await vi.waitFor(() =>
+      expect(text(document.body)).not.toContain("last snapshot"),
+    );
   });
 
   it("renders the payload once it lands", async () => {
