@@ -445,7 +445,7 @@ describe("cached reads", () => {
 });
 
 describe("isWakingError", () => {
-  it("knows the cache's waking answer and a lapsed deadline", () => {
+  it("knows the cache's waking answer", () => {
     expect(
       isWakingError(
         new Error(
@@ -453,7 +453,10 @@ describe("isWakingError", () => {
         ),
       ),
     ).toBe(true);
-    expect(isWakingError("GET /agents → timeout after 20s")).toBe(true);
+  });
+
+  it("is not a lapsed deadline: the cache answers well inside one", () => {
+    expect(isWakingError("GET /agents → timeout after 20s")).toBe(false);
   });
 
   it("is not every failure", () => {

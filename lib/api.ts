@@ -373,13 +373,16 @@ export function readAtOf(value: unknown): number | null {
 }
 
 /**
- * Whether a read failed because the backend is still waking: the cache's 503
- * (or 504) saying so, or a deadline that ran out. The pages show that as the
- * wait it is, with its progress, rather than as an error.
+ * Whether a read failed because the backend is still waking: the console's
+ * cache answering 503 (or 504) with `WAKING_MESSAGE` because the backend has
+ * not answered yet. The pages show that as the wait it is, with its
+ * progress, rather than as an error. A client deadline is not counted: the
+ * cache answers within seconds, so a read silent past its deadline has lost
+ * its connection, which is worth saying.
  */
 export function isWakingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.includes(WAKING_MESSAGE) || /timeout after/i.test(message);
+  return message.includes(WAKING_MESSAGE);
 }
 
 /**
