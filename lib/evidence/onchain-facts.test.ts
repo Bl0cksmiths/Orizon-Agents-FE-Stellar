@@ -151,3 +151,43 @@ describe("rating links say only what the chain carries", () => {
     }
   });
 });
+
+/**
+ * The dispute the index offers for SOW Deliverable 3 and metrics 5 and 8
+ * (dsp_15acee…), as the ledger and the asset contract recorded it: the step
+ * was charged 0.01 XLM (settlement 785428bf…) and the platform credited the
+ * buyer 0.01 XLM (transfer cb2c5792…). That is the disputed step in full, not
+ * part of it. The settlement that does pay part of a run is a different
+ * transaction with no dispute behind it: 0ada0708… paid 0.01 XLM for the
+ * delivered step of a 0.21 XLM authorization and returned 0.2 XLM.
+ */
+const DISPUTE = Object.freeze({
+  credit_tx: "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+});
+const PARTIAL_DELIVERY_TX =
+  "0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b";
+
+/** "partial refund", "partial-credit refund", "partially refunded"… */
+const CALLS_IT_PARTIAL = /partial(ly)?[\s-]+(credit|refund)/i;
+
+function metric(id: string) {
+  const found = loadEvidence().metrics.find((m) => m.id === id);
+  if (!found) throw new Error(`no metric ${id}`);
+  return found;
+}
+
+describe("the dispute credit is described as it was paid (QA D-080)", () => {
+  it("metric 5 says the step was credited in full and points to partial delivery separately", () => {
+    const m05 = metric("m05");
+    for (const text of [m05.achieved, m05.reason ?? ""]) {
+      expect(text).not.toMatch(CALLS_IT_PARTIAL);
+    }
+    expect(m05.reason).toMatch(/disputed step in full/);
+    expect(m05.reason).toMatch(/partial-delivery settlement/);
+    const credit = m05.links.find((l) => l.tx_hash === DISPUTE.credit_tx);
+    expect(credit?.label).toMatch(/disputed step in full/);
+    const partial = m05.links.find((l) => l.tx_hash === PARTIAL_DELIVERY_TX);
+    expect(partial?.label).toMatch(/^Partial-delivery settlement/);
+    expect(partial?.label).toMatch(/not counted: no dispute behind it/);
+  });
+});
