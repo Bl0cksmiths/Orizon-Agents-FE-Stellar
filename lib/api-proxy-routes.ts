@@ -17,6 +17,7 @@ import {
   type CachedReadConfig,
 } from "./api-proxy";
 import { isEcosystemAdoption } from "./ecosystem";
+import { cachedReadHeaders } from "./proxy-identity";
 import {
   isLegacyOverview,
   isOverviewV2,
@@ -103,5 +104,8 @@ export function backendRead(config: CachedReadConfig): CachedRead {
     base: resolveApiBase(process.env),
     now: Date.now,
     background: platformBackground,
+    // The proxy token alone: one cached read serves every visitor, so it
+    // acts for nobody in particular (lib/proxy-identity.ts).
+    headers: () => cachedReadHeaders(),
   });
 }
