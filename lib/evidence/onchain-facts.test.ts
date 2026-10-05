@@ -126,6 +126,21 @@ describe("rating links say only what the chain carries", () => {
     }
   });
 
+  // The ledger keys a rating by the agent's id, a Soroban symbol: letters,
+  // digits and "_" only. A catalogue name such as "research.pro" cannot be
+  // one, so a label that leads with it names something the chain does not
+  // hold (QA D-087).
+  it("name the agent by the id the chain holds (QA D-087)", () => {
+    for (const { where, link } of ratingLinks()) {
+      const subject = link.label.split(":")[0];
+      const { agent } = RATINGS[link.tx_hash ?? ""];
+      expect(subject, where).toMatch(
+        new RegExp(`(^|[^\\w])${agent}($|[^\\w])`),
+      );
+      expect(subject, where).not.toMatch(/\w\.\w/);
+    }
+  });
+
   it("quote the score the chain holds, when they quote one", () => {
     for (const { where, link } of ratingLinks()) {
       const quoted = /(\d+) out of 100/.exec(link.label);
