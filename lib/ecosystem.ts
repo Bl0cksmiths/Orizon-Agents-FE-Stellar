@@ -14,7 +14,12 @@
  * how many it missed instead of letting them read as zero.
  */
 
-import { GET_TIMEOUT_MS, ensure, fetchWithTimeout, httpError } from "./api";
+import {
+  CACHED_GET_TIMEOUT_MS,
+  ensure,
+  fetchWithTimeout,
+  httpError,
+} from "./api";
 import { assetLabel } from "./money";
 import { LIST_YOUR_AGENT_PATH } from "./guide/display";
 
@@ -204,13 +209,19 @@ export function isEcosystemAdoption(v: unknown): v is EcosystemAdoption {
 }
 
 /** Reads the adoption figures. Not deduped, for the reason
- * `getAgentReadiness` is not: its retry button must really ask again. */
-export async function getEcosystemAdoption(): Promise<EcosystemAdoption> {
+ * `getAgentReadiness` is not: its retry button must really ask again.
+ *
+ * A cached read (lib/api-proxy.ts): the backend takes minutes over this one,
+ * so the console's route answers with its last snapshot, which the page
+ * dates by the payload's own `generated_at`. */
+export async function getEcosystemAdoption(
+  signal?: AbortSignal,
+): Promise<EcosystemAdoption> {
   const res = await fetchWithTimeout(
     "GET",
     ADOPTION_PATH,
-    { cache: "no-store" },
-    GET_TIMEOUT_MS,
+    { cache: "default", ...(signal ? { signal } : {}) },
+    CACHED_GET_TIMEOUT_MS,
   );
   if (!res.ok) throw await httpError("GET", ADOPTION_PATH, res);
   return ensure(ADOPTION_PATH, isEcosystemAdoption)(await res.json());
