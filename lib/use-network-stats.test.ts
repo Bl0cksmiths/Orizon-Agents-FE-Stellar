@@ -402,6 +402,17 @@ describe("loadNetworkStats — the registry sync", () => {
     expect(s.registered).toEqual({ ok: true, value: 2 });
   });
 
+  it("on the derived path, dates the figures by the registry read", async () => {
+    const r = readers({
+      agents: vi.fn(async () => ({
+        ...listed(agents, "synced"),
+        readAt: clockMs - 90_000,
+      })),
+    });
+    const s = await loadNetworkStats(r);
+    expect(s.asOf).toBe(clockMs - 90_000);
+  });
+
   it("on the derived path, takes the agents header's word at once", async () => {
     const r = readers({ agents: vi.fn(async () => listed(agents, "synced")) });
     const s = await loadNetworkStats(r);
