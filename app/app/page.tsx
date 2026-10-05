@@ -64,7 +64,11 @@ export default function OverviewPage() {
             figures are out, the badges after — so nothing below moves. */}
         <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-2">
           {figures.waiting ? (
-            <WakeStatus active what="network metrics" className="w-72" />
+            <WakeStatus
+              active
+              what="network metrics"
+              className="w-72 max-w-full"
+            />
           ) : (
             <>
               {/* Hidden unless a payload is actually on screen: a first load
@@ -116,7 +120,7 @@ export default function OverviewPage() {
           height on four short figures; four beside a 240px sidebar at 768px
           clipped them, since a Card's clip-path cuts what overflows it. */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-        {!stats && !statsError && <LoadingStatus label="Loading metrics…" />}
+        {/* The waking line above announces the load; no second one here. */}
         <NetworkTiles stats={stats} failed={Boolean(statsError)} />
       </div>
 
