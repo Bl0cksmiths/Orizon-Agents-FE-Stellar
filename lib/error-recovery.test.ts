@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classifyError } from "./error-recovery";
+import {
+  AUTO_RELOAD_KEY,
+  AUTO_RELOAD_WINDOW_MS,
+  claimAutoReload,
+  classifyError,
+} from "./error-recovery";
 
 /** An Error with a given name, as browsers and webpack construct them. */
 const named = (name: string, message: string) =>
@@ -85,5 +90,78 @@ describe("classifyError", () => {
     ])("%s", (_, error) => {
       expect(classifyError(error)).toBe("render");
     });
+  });
+});
+
+/** A Storage over a Map, with the hooks a broken one needs. */
+function memoryStorage(
+  opts: { dropWrites?: boolean; throwOnWrite?: boolean } = {},
+) {
+  const data = new Map<string, string>();
+  return {
+    data,
+    storage: {
+      getItem: (k: string) => data.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        if (opts.throwOnWrite)
+          throw new DOMException("quota", "QuotaExceededError");
+        if (!opts.dropWrites) data.set(k, v);
+      },
+    } as unknown as Storage,
+  };
+}
+
+describe("claimAutoReload", () => {
+  const T = 1_791_000_000_000;
+
+  it("grants the first reload and records when", () => {
+    const { storage, data } = memoryStorage();
+    expect(claimAutoReload(() => storage, T)).toBe(true);
+    expect(data.get(AUTO_RELOAD_KEY)).toBe(String(T));
+  });
+
+  it("refuses a second reload inside the window, so a page that keeps failing cannot loop", () => {
+    const { storage } = memoryStorage();
+    claimAutoReload(() => storage, T);
+    expect(claimAutoReload(() => storage, T + AUTO_RELOAD_WINDOW_MS - 1)).toBe(
+      false,
+    );
+  });
+
+  it("grants a reload again once the window has passed (a later deploy)", () => {
+    const { storage } = memoryStorage();
+    claimAutoReload(() => storage, T);
+    expect(claimAutoReload(() => storage, T + AUTO_RELOAD_WINDOW_MS)).toBe(
+      true,
+    );
+  });
+
+  it("treats a record from the future (a clock set back) as recent", () => {
+    const { storage } = memoryStorage();
+    claimAutoReload(() => storage, T);
+    expect(claimAutoReload(() => storage, T - 1_000)).toBe(false);
+  });
+
+  it("ignores a record it cannot read as a time", () => {
+    const { storage, data } = memoryStorage();
+    data.set(AUTO_RELOAD_KEY, "not a time");
+    expect(claimAutoReload(() => storage, T)).toBe(true);
+  });
+
+  it("refuses when storage cannot be reached (blocked cookies, some in-app browsers)", () => {
+    const blocked = () => {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    };
+    expect(claimAutoReload(blocked, T)).toBe(false);
+  });
+
+  it("refuses when storage refuses the write", () => {
+    const { storage } = memoryStorage({ throwOnWrite: true });
+    expect(claimAutoReload(() => storage, T)).toBe(false);
+  });
+
+  it("refuses when storage drops the write silently", () => {
+    const { storage } = memoryStorage({ dropWrites: true });
+    expect(claimAutoReload(() => storage, T)).toBe(false);
   });
 });

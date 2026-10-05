@@ -49,3 +49,33 @@ export function classifyError(error: unknown): ErrorKind {
   if (NETWORK_MESSAGES.some((re) => re.test(message))) return "network";
   return "render";
 }
+
+/** Where this tab records its last automatic reload (sessionStorage). */
+export const AUTO_RELOAD_KEY = "orizon:auto-reload";
+/** A second failure this soon after an automatic reload means the reload did
+ * not fix it: the error screen is shown instead of reloading again. */
+export const AUTO_RELOAD_WINDOW_MS = 60_000;
+
+/**
+ * Claims this tab's automatic reload: true at most once per
+ * `AUTO_RELOAD_WINDOW_MS`, and only when the claim is recorded. Without a
+ * record (storage blocked, full, or silently dropping writes) a reload that
+ * does not fix the page could reload forever, so the answer is then false and
+ * the visitor gets the error screen with its Reload button instead.
+ */
+export function claimAutoReload(
+  getStorage: () => Storage,
+  now: number,
+): boolean {
+  try {
+    const storage = getStorage();
+    const last = Number(storage.getItem(AUTO_RELOAD_KEY));
+    // A record from the future (a clock set back) counts as recent too.
+    if (last > 0 && Math.abs(now - last) < AUTO_RELOAD_WINDOW_MS) return false;
+    const stamp = String(now);
+    storage.setItem(AUTO_RELOAD_KEY, stamp);
+    return storage.getItem(AUTO_RELOAD_KEY) === stamp;
+  } catch {
+    return false;
+  }
+}
