@@ -3,7 +3,10 @@
  * Minimal one-shot data-fetching hook shared by dashboard pages.
  *
  * Runs `fn` on mount (and whenever `deps` change), tracking data / error /
- * loading. Unmount-safe: a torn-down effect never applies its result.
+ * loading. Unmount-safe: a torn-down effect never applies its result, and
+ * the `AbortSignal` handed to `fn` fires the moment the effect is torn down
+ * — unmount, a deps change, a `reload()` — so a read nobody will look at is
+ * cancelled rather than left holding a connection to a sleeping backend.
  * `reload` is a stable callback that re-runs the fetch on demand.
  *
  * When `deps` change, `data` and `error` reset to null so consumers never
@@ -156,7 +159,7 @@ export type UseFetchOptions = {
 };
 
 export function useFetch<T>(
-  fn: () => Promise<T>,
+  fn: (signal: AbortSignal) => Promise<T>,
   deps: unknown[],
   opts?: UseFetchOptions,
 ): UseFetchResult<T> {
@@ -206,6 +209,8 @@ export function useFetch<T>(
     let alive = true;
     let attempt = 0; // retries spent on this effect run
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // One per effect run: retries share it, teardown fires it.
+    const controller = new AbortController();
 
     const prev = prevDepsRef.current;
     const depsChanged =
@@ -228,7 +233,7 @@ export function useFetch<T>(
       inFlightRef.current = true;
       lastAttemptAtRef.current = Date.now();
       fnRef
-        .current()
+        .current(controller.signal)
         .then((d) => {
           if (!alive) return;
           lastSuccessRef.current = Date.now();
@@ -271,6 +276,7 @@ export function useFetch<T>(
       alive = false;
       inFlightRef.current = false;
       if (timer) clearTimeout(timer);
+      controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, nonce]);
