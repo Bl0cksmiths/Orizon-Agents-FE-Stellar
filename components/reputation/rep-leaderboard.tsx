@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { m } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ErrorNote } from "@/components/ui/error-note";
-import { Skeleton, LoadingStatus } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { WakeStatus } from "@/components/console/wake-status";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { ReputationBadge } from "@/components/ui/reputation-badge";
@@ -179,10 +181,14 @@ function UnreadRow({
  * an agents failure leaves nothing to render at all — reporting that as
  * "reputation unavailable" over an empty table would be a lie.
  */
+/** Rows on the board at first, and per "Show more". */
+export const LEADERBOARD_PAGE_SIZE = 50;
+
 export function RepLeaderboard({
   agents,
   batch,
   loading,
+  waiting = false,
   retrying = false,
   agentsError,
   batchError,
@@ -195,6 +201,9 @@ export function RepLeaderboard({
   agents: Agent[] | null;
   batch: ReputationBatch | null;
   loading: boolean;
+  /** The roster has not landed and is still being read — including between
+   * retries of a backend that is waking (`useFetch.waiting`). */
+  waiting?: boolean;
   /** An automatic retry is scheduled or in flight (`useFetch.retrying`). */
   retrying?: boolean;
   agentsError: string | null;
@@ -215,12 +224,14 @@ export function RepLeaderboard({
     dir: "desc",
   });
 
-  const onSort = (col: SortCol) =>
+  const onSort = (col: SortCol) => {
     setSort((s) =>
       s.col === col
         ? { col, dir: s.dir === "desc" ? "asc" : "desc" }
         : { col, dir: "desc" },
     );
+    setWindowSize(LEADERBOARD_PAGE_SIZE);
+  };
 
   const rows = useMemo<Row[]>(() => {
     if (!agents) return [];
@@ -281,7 +292,14 @@ export function RepLeaderboard({
   // `loading` alone would swap the failure row out for skeletons and back
   // once per attempt. A batch failure never reaches here — those rows render
   // unranked and unscored (UnreadRow) under their own error note.
-  const showSkeletons = loading && !agents && agentsError === null;
+  const showSkeletons = (loading || waiting) && !agents && agentsError === null;
+
+  // The board renders a window of its ranking, a page at a time: every
+  // registered agent at once was ~590 animated rows on first paint. A new
+  // sort starts the window over at the top.
+  const [windowSize, setWindowSize] = useState(LEADERBOARD_PAGE_SIZE);
+  const visible = rows.slice(0, windowSize);
+  const hiddenRows = rows.length - visible.length;
 
   // `useFetch` keeps the last good payload when a reload fails, so a failure
   // here does not empty the table — it freezes it, and a frozen score is what
@@ -380,8 +398,8 @@ export function RepLeaderboard({
             {showSkeletons && (
               <>
                 <tr>
-                  <td colSpan={8} className="p-0">
-                    <LoadingStatus label="Loading leaderboard…" />
+                  <td colSpan={8} className="py-1">
+                    <WakeStatus active what="leaderboard" />
                   </td>
                 </tr>
                 {Array.from({ length: 6 }).map((_, i) => (
@@ -395,7 +413,7 @@ export function RepLeaderboard({
             )}
 
             {!showSkeletons &&
-              rows.map(({ agent, rep }, i) => {
+              visible.map(({ agent, rep }, i) => {
                 if (rep === null) {
                   return (
                     <UnreadRow
@@ -419,7 +437,12 @@ export function RepLeaderboard({
                     key={agent.id}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, delay: i * 0.03 }}
+                    // Capped, as on the registry: uncapped, row 300 sat
+                    // invisible for nine seconds after it had rendered.
+                    transition={{
+                      duration: 0.25,
+                      delay: Math.min(i, 10) * 0.03,
+                    }}
                     className={cn(
                       "border-b border-border/50 last:border-0 hover:bg-violet/5 transition",
                       belowFloor && "border-l-2 border-l-magenta/50",
@@ -508,6 +531,35 @@ export function RepLeaderboard({
           </tbody>
         </table>
       </ScrollRegion>
+
+      {hiddenRows > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
+          <p
+            role="status"
+            className="font-mono text-[11px] uppercase tracking-widest text-muted"
+          >
+            Showing the top {visible.length.toLocaleString()}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setWindowSize((n) => n + LEADERBOARD_PAGE_SIZE)}
+            >
+              Show more
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setWindowSize(Number.POSITIVE_INFINITY)}
+            >
+              Show all
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
