@@ -406,6 +406,28 @@ describe("ExclusionsPanel · one sentence per reason_code", () => {
     expect(text()).toContain("never a candidate in the first place");
   });
 
+  // D-084: a bound agent whose endpoint failed its latest health check. It
+  // did fail something, the probe, and the sentence says so; it is left out
+  // only while that failure is fresh.
+  it("explains unreachable_endpoint as a failed health check, for now", () => {
+    const { text } = opened(
+      plan({
+        notices: [
+          notice({
+            reason_code: "unreachable_endpoint",
+            reason: "endpoint failed its latest health check",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(text()).toContain(
+      "Its endpoint is bound but failed its latest health check",
+    );
+    expect(text()).toContain("offered again");
+    expect(text()).not.toMatch(/below the floor|never a candidate/);
+  });
+
   it("explains floor_relaxed as a compromise the buyer is being shown", () => {
     const { text } = opened(
       plan({
