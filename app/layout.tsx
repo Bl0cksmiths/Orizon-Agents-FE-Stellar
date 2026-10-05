@@ -8,7 +8,6 @@ import {
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
-import { MotionProvider } from "@/components/ui/motion-provider";
 import { WalletProvider } from "@/lib/wallet";
 
 const sans = Inter({
@@ -88,9 +87,9 @@ export default function RootLayout({
         >
           Skip to content
         </a>
-        <MotionProvider>
-          <WalletProvider>{children}</WalletProvider>
-        </MotionProvider>
+        {/* At the root because the public nav's Connect Wallet reads it too;
+            the wallet kit itself loads only on connect (lib/wallet.tsx). */}
+        <WalletProvider>{children}</WalletProvider>
         <Analytics />
         <SpeedInsights />
       </body>
