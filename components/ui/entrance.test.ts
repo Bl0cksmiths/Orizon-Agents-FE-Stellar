@@ -20,4 +20,9 @@ describe("entrance", () => {
       "--motion-from": "translateX(-12px)",
     });
   });
+
+  it("can move without fading, starting fully opaque", () => {
+    expect(entrance({ fade: false })).toEqual({ "--motion-opacity": "1" });
+    expect(entrance({ fade: true })).toEqual({});
+  });
 });

@@ -187,11 +187,12 @@ body {
 /* Entrances, in CSS so the marketing pages paint them before any script runs.
    `.enter` plays once on first paint; `.reveal` waits until the element
    scrolls into view (components/ui/reveal-on-scroll.tsx sets data-revealed).
-   Per element (components/ui/entrance.ts): --motion-delay, --motion-duration
-   and the start offset --motion-from (default: 24px below). */
+   Per element (components/ui/entrance.ts): --motion-delay, --motion-duration,
+   the start offset --motion-from (default: 24px below) and, for `.enter`, the
+   start opacity --motion-opacity (default: 0). */
 @keyframes enter {
   from {
-    opacity: 0;
+    opacity: var(--motion-opacity, 0);
     transform: var(--motion-from, translateY(24px));
   }
 }
