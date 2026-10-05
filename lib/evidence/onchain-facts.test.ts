@@ -211,3 +211,24 @@ describe("the dispute credit is described as it was paid (QA D-080)", () => {
     expect(item?.links.map((l) => l.tx_hash)).toContain(DISPUTE.credit_tx);
   });
 });
+
+/**
+ * A contract page on Stellar Expert shows the contract's activity as it is
+ * now, and it keeps growing: the ledger held 41 ratings when the index was
+ * written and more since, and the registry 25 registrations then and several
+ * hundred now. A label that quotes such a total without its day becomes
+ * wrong while the link keeps working, so the day must travel with it.
+ */
+const RUNNING_TOTAL = /\b\d+\s+(ratings?|registrations?|seals?|disputes?)\b/i;
+const COUNTED_ON = /\b(?:at the|as counted on) \d{4}-\d{2}-\d{2}\b/;
+
+describe("contract links never quote a running total as if it were final", () => {
+  it("dates any count they quote", () => {
+    const quoting = allLinks().filter(
+      ({ link }) => link.kind === "contract" && RUNNING_TOTAL.test(link.label),
+    );
+    for (const { where, link } of quoting) {
+      expect(link.label, where).toMatch(COUNTED_ON);
+    }
+  });
+});
