@@ -37,6 +37,7 @@ import { resolveApiBase } from "./api-base.mjs";
 import { isEcosystemAdoption } from "./ecosystem";
 import { deriveExternalOwners, ourKeys } from "./external-owners";
 import { droppedCount, isOverviewV2, screenAgentList } from "./guards";
+import { cachedReadHeaders, proxyToken } from "./proxy-identity";
 import {
   INTERIM_READ_GAP_MS,
   headerSyncSignal,
@@ -107,12 +108,18 @@ type Read = (
 ) => Promise<{ body: unknown; headers: Headers; at: number }>;
 
 function reader(deps: StatsDeps, base: string): Read {
+  // The hero's reads act for no visitor: they send the frontend's proxy token
+  // alone (lib/proxy-identity.ts), and nothing when none is configured.
+  const headers = {
+    accept: "application/json",
+    ...cachedReadHeaders(proxyToken(deps.env)),
+  };
   return async (path, timeoutMs = PUBLIC_STATS_READ_TIMEOUT_MS) => {
     const at = deps.now();
     const left = deps.deadline === undefined ? timeoutMs : deps.deadline - at;
     if (left <= 0) throw new Error(`${path}: out of time`);
     const res = await deps.fetch(`${base}${path}`, {
-      headers: { accept: "application/json" },
+      headers,
       cache: "no-store",
       signal: AbortSignal.timeout(Math.min(timeoutMs, left)),
     });
