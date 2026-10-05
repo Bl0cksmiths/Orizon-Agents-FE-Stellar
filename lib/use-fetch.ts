@@ -37,7 +37,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readAtOf } from "./api";
+import { isWakingError, readAtOf } from "./api";
 
 /** Extra attempts after the initial one. 4 requests total per mount. */
 const DEFAULT_MAX_RETRIES = 3;
@@ -139,6 +139,13 @@ export type UseFetchResult<T> = {
    * figures by — `lastSuccessAt` would call an old copy new.
    */
   dataAt: number | null;
+  /**
+   * Nothing on screen yet and the hook is still at it: the first read is
+   * out, or it is between retries of a read the backend answered with
+   * "waking" (lib/api.ts `isWakingError`). A page shows its skeleton and the
+   * waking line for this, not an error: a cold start is a wait, not a fault.
+   */
+  waiting: boolean;
 };
 
 export type UseFetchOptions = {
@@ -337,5 +344,16 @@ export function useFetch<T>(
   }, [revalidateOnFocus, staleAfterMs, reload]);
 
   const dataAt = data === null ? null : (readAtOf(data) ?? lastSuccessAt);
-  return { data, error, loading, reload, retrying, lastSuccessAt, dataAt };
+  const waiting =
+    data === null && (loading || (retrying && isWakingError(error)));
+  return {
+    data,
+    error,
+    loading,
+    reload,
+    retrying,
+    lastSuccessAt,
+    dataAt,
+    waiting,
+  };
 }
