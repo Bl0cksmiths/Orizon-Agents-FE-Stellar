@@ -20,6 +20,7 @@
  *   node scripts/smoke-deploy.mjs [origin]
  *   SMOKE_ORIGIN=https://orizons.xyz npm run smoke
  *   ORIZON_CONTRACTS_DIR=/path/to/contract-repo npm run smoke   # local clone
+ *   SMOKE_HOME_BUDGET_MS=5000 npm run smoke   # a looser home page budget
  *
  * The backend sleeps on Render's free tier, so the first request may take up to
  * a minute; the warmup below absorbs that before any assertion runs.
@@ -28,7 +29,8 @@
  * request does, and fails when one does not answer 200 or answers with the
  * error boundary in place of the page (see PAGES). A reviewer was shown the
  * boundary's "SYSTEM FAULT" on the live site; the site still answered 200, so
- * only the page's own words give it away.
+ * only the page's own words give it away. The home page is also held to a
+ * time budget (HOME_BUDGET_MS), because the same reviewer found it slow.
  */
 import { pathToFileURL } from "node:url";
 import {
@@ -48,6 +50,14 @@ const ORIGIN = (
 
 const WARMUP_TIMEOUT_MS = 90_000;
 const CHECK_TIMEOUT_MS = 30_000;
+
+/**
+ * How long the home page may take to arrive in full: the request, the
+ * response and its body. It is served from Vercel's cache, measured at about
+ * 0.15 s on 2026-10-06, so a run over the budget means a visitor waited on
+ * something that should have been cached. SMOKE_HOME_BUDGET_MS overrides it.
+ */
+const HOME_BUDGET_MS = Number(process.env.SMOKE_HOME_BUDGET_MS) || 3000;
 
 /** Reports the live network and its contract ids; see checkContractParity. */
 const NETWORK_PATH = "/api/stellar/network";
@@ -207,15 +217,18 @@ async function fetchPage(path, timeoutMs) {
 }
 
 /**
- * Every page in PAGES: why each one failed, as failure lines. Prints a row
- * per page as it goes.
+ * Every page in PAGES, then the home page's time against HOME_BUDGET_MS: why
+ * each one failed, as failure lines. Prints a row per check as it goes.
  */
 async function checkPages() {
   const failures = [];
+  /** How long "/" took to arrive, when it answered 2xx. */
+  let homeMs = null;
   for (const path of PAGES) {
     const name = `page ${path}`;
     try {
       const { res, text, ms } = await fetchPage(path, CHECK_TIMEOUT_MS);
+      if (path === "/" && res.ok) homeMs = ms;
       if (!res.ok) {
         failures.push(`${name} → HTTP ${res.status}`);
         console.log(`  ✗ ${name} → HTTP ${res.status} (${ms}ms)`);
@@ -235,6 +248,20 @@ async function checkPages() {
       failures.push(`${name} → ${msg}`);
       console.log(`  ✗ ${name} → ${msg}`);
     }
+  }
+
+  // A home page that never arrived has no time to judge, and that is not a
+  // pass: the budget fails beside the page's own failure.
+  const budget = `home page budget → ${
+    homeMs === null
+      ? "no page to time"
+      : `${homeMs}ms, ${homeMs > HOME_BUDGET_MS ? "over" : "within"} the ${HOME_BUDGET_MS}ms budget`
+  }`;
+  if (homeMs === null || homeMs > HOME_BUDGET_MS) {
+    failures.push(budget);
+    console.log(`  ✗ ${budget}`);
+  } else {
+    console.log(`  ✓ ${budget}`);
   }
   return failures;
 }
@@ -401,7 +428,7 @@ async function main() {
 
   failures.push(...(await checkPages()));
 
-  const total = CHECKS.length + 2 + PAGES.length;
+  const total = CHECKS.length + 2 + PAGES.length + 1;
   if (failures.length > 0) {
     console.error(
       `\n${failures.length}/${total} checks failed against ${ORIGIN}:`,

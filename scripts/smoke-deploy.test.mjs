@@ -66,8 +66,11 @@ const HEALTHY = Object.freeze({
   ...Object.fromEntries(PAGES.map((path) => [path, page(`Orizon ${path}`)])),
 });
 
-/** The API checks, the contract parity and the escrow pin, then the pages. */
-const TOTAL = 8 + PAGES.length;
+/**
+ * The API checks, the contract parity and the escrow pin, then the pages and
+ * the home page's time budget.
+ */
+const TOTAL = 8 + PAGES.length + 1;
 
 const scratch = mkdtempSync(join(tmpdir(), "smoke-deploy-"));
 const books = join(scratch, "contracts");
@@ -89,7 +92,7 @@ after(() => {
 /**
  * A local origin answering `routes`; a path mapped to a number answers that
  * HTTP status with a small error body instead, and one mapped to `{ html }`
- * answers that page.
+ * answers that page, `delayMs` late when it has one.
  * @param {Record<string, unknown>} routes
  * @returns {Promise<string>} the origin
  */
@@ -103,8 +106,10 @@ async function origin(routes) {
       return;
     }
     if (typeof body?.html === "string") {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(body.html);
+      setTimeout(() => {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(body.html);
+      }, body.delayMs ?? 0);
       return;
     }
     res.writeHead(200, { "content-type": "application/json" });
@@ -335,4 +340,29 @@ test("opens every public page and console route", () => {
   ]) {
     assert.ok(PAGES.includes(path), `${path} is a console route`);
   }
+});
+
+// A reviewer called the site slow to load. The home page is the page they
+// open first, so it is held to a time budget like any other check.
+test("exits 1 when the home page takes longer than its budget", async () => {
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/": { ...HEALTHY["/"], delayMs: 400 } }),
+    { SMOKE_HOME_BUDGET_MS: "150" },
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ home page budget → \d+ms, over the 150ms budget/);
+  assert.match(out, new RegExp(`1/${TOTAL} checks failed`));
+});
+
+test("passes a home page inside its budget, and says by how much", async () => {
+  const { code, out } = await smoke(await origin(HEALTHY));
+  assert.equal(code, 0, out);
+  assert.match(out, /✓ home page budget → \d+ms, within the 3000ms budget/);
+});
+
+test("exits 1 when the home page never answers, and still reports the budget", async () => {
+  const { code, out } = await smoke(await origin({ ...HEALTHY, "/": 503 }));
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ page \/ → HTTP 503/);
+  assert.match(out, /✗ home page budget → no page to time/);
 });
