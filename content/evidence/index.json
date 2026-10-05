@@ -422,7 +422,7 @@
         },
         {
           "id": "6.1-D3-b",
-          "claim": "The matching partial-refund transaction on Stellar Expert.",
+          "claim": "The matching refund transaction on Stellar Expert (the SOW's partial-refund tx): here, the disputed step credited in full.",
           "status": "present",
           "links": [
             {

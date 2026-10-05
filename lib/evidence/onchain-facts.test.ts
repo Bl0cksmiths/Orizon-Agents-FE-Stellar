@@ -199,4 +199,15 @@ describe("the dispute credit is described as it was paid (QA D-080)", () => {
     expect(m08.reason).toMatch(/disputed 0\.01 XLM step in full/);
     expect(m08.reason).toMatch(/partial-delivery settlement/);
   });
+
+  it("Deliverable 3's refund item names the SOW's term but says what was paid", () => {
+    const item = loadEvidence()
+      .deliverables.flatMap((d) => d.items)
+      .find((i) => i.id === "6.1-D3-b");
+    expect(item?.claim).toMatch(/disputed step credited in full/);
+    expect(item?.claim.replace("the SOW's partial-refund tx", "")).not.toMatch(
+      /partial/i,
+    );
+    expect(item?.links.map((l) => l.tx_hash)).toContain(DISPUTE.credit_tx);
+  });
 });
