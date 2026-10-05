@@ -86,6 +86,22 @@ describe("the site's error screen", () => {
     expect(screen.getByText(ERROR_COPY.message.network)).toBeTruthy();
   });
 
+  it("marks its root for the deploy smoke check, on the screen and while reloading", () => {
+    const { container, unmount } = show(new Error("boom"));
+    expect(
+      container.querySelectorAll('[data-error-boundary="root"]'),
+    ).toHaveLength(1);
+    unmount();
+    const reloading = show(
+      Object.assign(new Error("Loading chunk 2 failed."), {
+        name: "ChunkLoadError",
+      }),
+    );
+    expect(
+      reloading.container.querySelectorAll('[data-error-boundary="root"]'),
+    ).toHaveLength(1);
+  });
+
   it("reloads by itself on a chunk error and shows no error screen", () => {
     show(chunkError());
     expect(deps.reload).toHaveBeenCalledTimes(1);

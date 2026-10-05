@@ -25,6 +25,7 @@ export default function Error({
     return (
       <p
         role="status"
+        data-error-boundary="console"
         className="py-16 text-center font-mono text-xs text-muted"
       >
         {ERROR_COPY.reloading}
@@ -33,7 +34,10 @@ export default function Error({
   }
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center">
+    <div
+      data-error-boundary="console"
+      className="flex min-h-[60vh] items-center justify-center"
+    >
       <Card className="w-full max-w-md px-5 py-8 text-center sm:px-8 sm:py-10">
         <h1
           ref={headingRef}

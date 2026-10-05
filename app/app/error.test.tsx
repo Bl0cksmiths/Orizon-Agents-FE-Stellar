@@ -9,12 +9,16 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ERROR_COPY } from "@/lib/error-recovery";
 import type { RecoveryDeps } from "@/lib/use-error-recovery";
 
-const deps = vi.hoisted(() => ({ reload: vi.fn(), report: vi.fn() }));
+const deps = vi.hoisted(() => ({
+  reload: vi.fn(),
+  report: vi.fn(),
+  store: new Map<string, string>(),
+}));
 
 vi.mock("@/lib/use-error-recovery", async (importOriginal) => {
   const real =
     await importOriginal<typeof import("@/lib/use-error-recovery")>();
-  const store = new Map<string, string>();
+  const store = deps.store;
   const testDeps: RecoveryDeps = {
     reload: deps.reload,
     report: deps.report,
@@ -37,6 +41,7 @@ import ConsoleError from "./error";
 beforeEach(() => {
   deps.reload.mockReset();
   deps.report.mockReset();
+  deps.store.clear();
 });
 afterEach(cleanup);
 
@@ -71,6 +76,22 @@ describe("the console's error screen", () => {
   it("renders inside the console's own <main>, not a second one", () => {
     show(new Error("boom"));
     expect(document.querySelector("main")).toBeNull();
+  });
+
+  it("marks its root for the deploy smoke check, on the screen and while reloading", () => {
+    const { container, unmount } = show(new Error("boom"));
+    expect(
+      container.querySelectorAll('[data-error-boundary="console"]'),
+    ).toHaveLength(1);
+    unmount();
+    const reloading = show(
+      Object.assign(new Error("Loading chunk 2 failed."), {
+        name: "ChunkLoadError",
+      }),
+    );
+    expect(
+      reloading.container.querySelectorAll('[data-error-boundary="console"]'),
+    ).toHaveLength(1);
   });
 
   it("reloads by itself on a chunk error and shows no error screen", () => {

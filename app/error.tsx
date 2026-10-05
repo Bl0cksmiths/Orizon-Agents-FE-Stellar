@@ -26,6 +26,7 @@ export default function Error({
     // <main id="main"> keeps the root layout's skip link functional here.
     <main
       id="main"
+      data-error-boundary="root"
       className="flex min-h-screen flex-col items-center justify-center px-4 py-16 text-center sm:px-6"
     >
       {phase === "reloading" ? (

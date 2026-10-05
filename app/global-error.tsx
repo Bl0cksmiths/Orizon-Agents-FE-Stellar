@@ -100,7 +100,7 @@ export default function GlobalError({
   const { kind, phase, headingRef, reload } = useErrorRecovery(error);
 
   return (
-    <html lang="en">
+    <html lang="en" data-error-boundary="global">
       <body style={styles.body}>
         <main id="main" style={styles.main}>
           {phase === "reloading" ? (
