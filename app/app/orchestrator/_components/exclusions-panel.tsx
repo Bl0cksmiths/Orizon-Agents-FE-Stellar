@@ -48,6 +48,7 @@ import {
   isAwaitingFreshRead,
   isFloorAction,
   isUnbound,
+  isUnreachable,
   knownKind,
 } from "./floor-notices";
 
@@ -94,6 +95,14 @@ const UNBOUND_MARK = {
   tone: "muted",
   glyph: "○",
   label: "no endpoint",
+} as const;
+
+/** An endpoint that failed its latest health check. Muted like the unbound
+ *  mark: it is a fact about the endpoint, not a verdict on the agent. */
+const UNREACHABLE_MARK = {
+  tone: "muted",
+  glyph: "⊘",
+  label: "unreachable",
 } as const;
 
 /** What a notice of a kind this build does not know wears. Muted, like the
@@ -223,16 +232,21 @@ function NoticeRow({
   // its standing was never consulted and the backend leaves its bound null on
   // purpose. That null says nothing about its ratings.
   const unbound = isUnbound(notice);
+  // Left out on its endpoint's health, not its standing: no bound was
+  // consulted either, and its null says nothing about its ratings.
+  const unreachable = isUnreachable(notice);
   const kind = knownKind(notice);
   const mark = unbound
     ? UNBOUND_MARK
-    : kind === null
-      ? unknownMark(notice.kind)
-      : {
-          tone: KIND_TONE[kind],
-          glyph: KIND_GLYPH[kind],
-          label: KIND_LABEL[kind],
-        };
+    : unreachable
+      ? UNREACHABLE_MARK
+      : kind === null
+        ? unknownMark(notice.kind)
+        : {
+            tone: KIND_TONE[kind],
+            glyph: KIND_GLYPH[kind],
+            label: KIND_LABEL[kind],
+          };
 
   const bound = notice.lower_bound_bps;
   // null and undefined are different facts and must not collapse into one
@@ -242,12 +256,12 @@ function NoticeRow({
   // all, and there is nothing honest to say about a number we were never
   // given. On an unbound notice null is deliberate, and reading it as "no
   // entry" would state an absence of ratings nobody checked for.
-  const noEntry = bound === null && !unbound;
+  const noEntry = bound === null && !unbound && !unreachable;
   // No deciding numbers on an unbound row, because nothing was decided on
   // numbers: "lower bound none on record" would repeat the false no-ratings
   // claim, and the floor beside it would imply a comparison that never ran.
   const showNumbers =
-    !unbound && (bound !== undefined || floorBps !== undefined);
+    !unbound && !unreachable && (bound !== undefined || floorBps !== undefined);
 
   return (
     <li className="clip-cyber-sm space-y-2 border border-border bg-bg/60 p-3">
@@ -338,8 +352,11 @@ export function ExclusionsPanel({
   // Unbound agents are counted apart from what the floor did. The backend
   // names up to eight on every plan while any registered agent is unbound, so
   // folded into the kinds they would turn an untouched plan into "8 excluded".
+  // Unreachable agents likewise: left out on an endpoint's health check, not
+  // on anything the floor compared.
   const changes = notices.filter(isFloorAction);
-  const unbound = notices.length - changes.length;
+  const unbound = notices.filter(isUnbound).length;
+  const unreachable = notices.filter(isUnreachable).length;
 
   // Only a kind this build knows indexes the per-kind counts. The guard lets
   // any string through, so that one new kind cannot blank the plan; a kind
@@ -363,6 +380,7 @@ export function ExclusionsPanel({
     ),
     ...(other > 0 ? [`${other} ${OTHER_COUNT_LABEL}`] : []),
     ...(unbound > 0 ? [`${unbound} with no endpoint bound`] : []),
+    ...(unreachable > 0 ? [`${unreachable} with an unreachable endpoint`] : []),
     ...(hidden > 0 ? [hiddenNoticesText(hidden)] : []),
   ].join(" · ");
 
@@ -398,18 +416,31 @@ export function ExclusionsPanel({
             decisions it never took. */}
         {changes.length > 0 && (
           <p className="text-sm leading-relaxed text-muted">
-            The reputation floor acted on {unbound > 0 ? "some of " : ""}these
-            agents while this plan was built. It decides who is eligible to be
-            picked, before any step is dispatched, by comparing a statistical
-            lower bound on each agent&apos;s reputation against the floor.
+            The reputation floor acted on{" "}
+            {unbound + unreachable > 0 ? "some of " : ""}these agents while this
+            plan was built. It decides who is eligible to be picked, before any
+            step is dispatched, by comparing a statistical lower bound on each
+            agent&apos;s reputation against the floor.
           </p>
         )}
         {unbound > 0 && (
           <p className="text-sm leading-relaxed text-muted">
-            {changes.length > 0 ? "Those marked “no endpoint”" : "These agents"}{" "}
+            {changes.length + unreachable > 0
+              ? "Those marked “no endpoint”"
+              : "These agents"}{" "}
             were never candidates: they are registered on-chain but have no
             endpoint bound to dispatch a step to, so the floor did not judge
             them either way.
+          </p>
+        )}
+        {unreachable > 0 && (
+          <p className="text-sm leading-relaxed text-muted">
+            {changes.length + unbound > 0
+              ? "Those marked “unreachable”"
+              : "These agents"}{" "}
+            have an endpoint bound, but it failed its latest health check, so
+            they were left out of this plan rather than sent paid work they
+            could not answer. The floor did not judge them either way.
           </p>
         )}
         {hidden > 0 && (
