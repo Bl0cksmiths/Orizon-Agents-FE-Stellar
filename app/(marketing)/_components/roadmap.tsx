@@ -1,8 +1,7 @@
-"use client";
-import { m } from "framer-motion";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { entrance } from "@/components/ui/entrance";
 
 const stages = [
   {
@@ -69,13 +68,10 @@ export function Roadmap() {
 
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {stages.map((s, i) => (
-              <m.div
+              <div
                 key={s.v}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="relative flex flex-col"
+                style={entrance({ delay: i * 0.1 })}
+                className="reveal relative flex flex-col"
               >
                 <div
                   className={cn(
@@ -107,7 +103,7 @@ export function Roadmap() {
                     ))}
                   </ul>
                 </div>
-              </m.div>
+              </div>
             ))}
           </div>
         </div>
