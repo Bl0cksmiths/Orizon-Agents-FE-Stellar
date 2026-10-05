@@ -752,7 +752,7 @@
               "date": "2026-09-30"
             },
             {
-              "label": "AttestationRegistry contract on Stellar Expert: 8 pre-sprint seals, then the three team runs' seals of 2026-09-30",
+              "label": "AttestationRegistry contract on Stellar Expert: every seal, 8 of them from before the sprint; the three team runs below were sealed there on 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
               "kind": "contract"
             },
