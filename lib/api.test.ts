@@ -327,6 +327,82 @@ describe("get (via listAgents)", () => {
   });
 });
 
+describe("shared GET with caller signals", () => {
+  /** A read that waits for the test, recording the signal it was given. */
+  function pendingRead() {
+    let resolve!: (v: FetchMockResponse) => void;
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((res, reject) => {
+          resolve = res;
+          signal = init?.signal ?? undefined;
+          signal?.addEventListener("abort", () =>
+            reject(new Error("The operation was aborted")),
+          );
+        }),
+    );
+    return {
+      resolve: (body: unknown) => resolve(jsonResponse(200, body)),
+      aborted: () => signal?.aborted === true,
+    };
+  }
+
+  it("lets one caller go without cancelling the read others wait on", async () => {
+    const read = pendingRead();
+    const a = new AbortController();
+    const b = new AbortController();
+    const first = listAgents(a.signal);
+    const second = listAgents(b.signal);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    a.abort();
+    const err = await first.catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(true);
+    expect(read.aborted()).toBe(false);
+
+    read.resolve([agentFixture]);
+    await expect(second).resolves.toEqual([agentFixture]);
+  });
+
+  it("cancels the read once every caller has let go, and asks afresh next time", async () => {
+    const read = pendingRead();
+    const a = new AbortController();
+    const b = new AbortController();
+    const first = listAgents(a.signal).catch((e: unknown) => e);
+    const second = listAgents(b.signal).catch((e: unknown) => e);
+    a.abort();
+    b.abort();
+    expect(isAbortError(await first)).toBe(true);
+    expect(isAbortError(await second)).toBe(true);
+    expect(read.aborted()).toBe(true);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, [agentFixture]));
+    await expect(listAgents()).resolves.toEqual([agentFixture]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the read running for a caller that brought no signal", async () => {
+    const read = pendingRead();
+    const a = new AbortController();
+    const withSignal = listAgents(a.signal).catch((e: unknown) => e);
+    const pinned = listAgents();
+    a.abort();
+    await withSignal;
+    expect(read.aborted()).toBe(false);
+    read.resolve([agentFixture]);
+    await expect(pinned).resolves.toEqual([agentFixture]);
+  });
+
+  it("rejects at once for a caller whose signal has already fired", async () => {
+    const gone = new AbortController();
+    gone.abort();
+    const err = await listAgents(gone.signal).catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("fetch deadline", () => {
   beforeEach(() => {
     vi.useFakeTimers();
