@@ -66,6 +66,14 @@ export type Task = {
    * `unconfirmed`.
    */
   settlement?: string | null;
+  /**
+   * What became of a paid run's attestation seal (`TaskSummary.seal`): null
+   * when none was submitted (a simulated run, or one that paid nobody), and
+   * absent on a backend that predates it. Any string on the wire; read
+   * through `readSealState` (lib/seal-state.ts), which reads a word it does
+   * not know as `unconfirmed`. See `SEAL_STATES`.
+   */
+  seal?: string | null;
 };
 
 export type PlanStep = {
@@ -678,6 +686,27 @@ export const SETTLEMENT_STATES = [
   "failed",
 ] as const;
 export type SettlementState = (typeof SETTLEMENT_STATES)[number];
+
+/**
+ * What became of a paid run's attestation seal (`SealState` in the backend's
+ * app/schemas.py), set only once a seal was submitted.
+ *
+ * - `sealed`: the attestation is on the ledger; `proof_tx` is its hash when
+ *   the transaction that wrote it is known.
+ * - `pending`: submitted, not yet confirmed — the backend is reconciling it,
+ *   for about two minutes at most.
+ * - `unconfirmed`: reconciliation ran out of time without an answer either
+ *   way. It MAY still be on the ledger.
+ * - `failed`: provably not on the ledger. The job's payment stands,
+ *   unattested.
+ */
+export const SEAL_STATES = [
+  "sealed",
+  "pending",
+  "unconfirmed",
+  "failed",
+] as const;
+export type SealState = (typeof SEAL_STATES)[number];
 
 /**
  * One step's payout as the receipt may state it. `paid` only when the
