@@ -1,8 +1,8 @@
-"use client";
-import { m } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Glow } from "@/components/ui/grid-bg";
+import { entrance } from "@/components/ui/entrance";
+import { cn } from "@/lib/utils";
 
 const modules = [
   {
@@ -52,19 +52,17 @@ export function Architecture() {
 
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
           {modules.map((mod, i) => (
-            <m.div
+            <div
               key={mod.tag}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, delay: i * 0.06 }}
+              style={entrance({ delay: i * 0.06 })}
               // Two across on a tablet with the fifth full width; on a
               // laptop, two wide modules over three.
-              className={
+              className={cn(
+                "reveal",
                 i < 2
                   ? "lg:col-span-3"
-                  : "sm:last:col-span-2 lg:col-span-2 lg:last:col-span-2"
-              }
+                  : "sm:last:col-span-2 lg:col-span-2 lg:last:col-span-2",
+              )}
             >
               <Card className="h-full">
                 <div className="flex items-center justify-between mb-5">
@@ -76,7 +74,7 @@ export function Architecture() {
                 <h3 className="text-xl font-semibold mb-2">{mod.name}</h3>
                 <p className="text-sm leading-relaxed text-muted">{mod.body}</p>
               </Card>
-            </m.div>
+            </div>
           ))}
         </div>
       </div>
