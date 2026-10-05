@@ -125,7 +125,13 @@ export const isPlanFloorNoticeKind = (v: string): v is PlanFloorNoticeKind =>
  * for failing the floor both arrive as `kind: "excluded"`.
  */
 export type ExclusionReason =
-  "below_floor" | "unbound_endpoint" | "floor_relaxed";
+  | "below_floor"
+  | "unbound_endpoint"
+  | "floor_relaxed"
+  /** A bound agent whose endpoint failed its latest health check, left out
+   *  while that failure is fresh (D-084). Not a reputation verdict: its
+   *  `lower_bound_bps` is null on purpose. */
+  | "unreachable_endpoint";
 
 /** One reputation-floor action taken while building the plan
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are

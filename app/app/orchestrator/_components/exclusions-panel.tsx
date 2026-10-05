@@ -151,6 +151,8 @@ const REASON_COPY: Record<ExclusionReason, string> = {
     "It is registered on-chain but has no endpoint bound, so there is nothing to dispatch a step to and the orchestrator passed it over — it has not failed anything, an unbound agent is never a candidate in the first place.",
   floor_relaxed:
     "The floor was relaxed so this step would still have a candidate: the agent sits below it and was kept anyway, which is a compromise on this plan's quality rather than a clean pick.",
+  unreachable_endpoint:
+    "Its endpoint is bound but failed its latest health check, so the orchestrator left it out of this plan rather than send it paid work it could not answer. It is offered again once a new check passes, or after a few minutes, when it is checked again.",
 };
 
 /**
