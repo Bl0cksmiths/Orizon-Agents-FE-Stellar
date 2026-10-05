@@ -34,6 +34,57 @@ function deferred<T>() {
 }
 
 describe("useFetch", () => {
+  it("cancels the read it started when the component unmounts", async () => {
+    let seen: AbortSignal | undefined;
+    const { unmount } = renderHook(() =>
+      useFetch((signal) => {
+        seen = signal;
+        return new Promise<string>(() => {});
+      }, []),
+    );
+    expect(seen?.aborted).toBe(false);
+    unmount();
+    expect(seen?.aborted).toBe(true);
+  });
+
+  it("cancels the superseded read on reload and on a deps change", async () => {
+    const signals: AbortSignal[] = [];
+    const { result, rerender } = renderHook(
+      ({ id }) =>
+        useFetch(
+          (signal) => {
+            signals.push(signal);
+            return new Promise<string>(() => {});
+          },
+          [id],
+        ),
+      { initialProps: { id: 1 } },
+    );
+    act(() => result.current.reload());
+    expect(signals[0].aborted).toBe(true);
+    rerender({ id: 2 });
+    expect(signals[1].aborted).toBe(true);
+    expect(signals[2].aborted).toBe(false);
+  });
+
+  it("never reports its own cancellation as an error", async () => {
+    const { result, unmount } = renderHook(() =>
+      useFetch(
+        (signal) =>
+          new Promise<string>((_resolve, reject) => {
+            signal.addEventListener("abort", () =>
+              reject(new DOMException("cancelled", "AbortError")),
+            );
+          }),
+        [],
+      ),
+    );
+    act(() => result.current.reload());
+    await act(async () => {});
+    expect(result.current.error).toBeNull();
+    unmount();
+  });
+
   it("resolves data on mount and clears loading", async () => {
     const { result } = renderHook(() => useFetch(async () => "hello", []));
     expect(result.current.loading).toBe(true);
