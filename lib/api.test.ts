@@ -42,6 +42,7 @@ import {
   getNetworkOverview,
   getReputation,
   getReputationParams,
+  getTask,
   getTrace,
   listAgents,
   listAgentsWithSync,
@@ -333,6 +334,31 @@ describe("get (via listAgents)", () => {
 
     expect(err.retryAfterMs).toBeGreaterThan(25_000);
     expect(err.retryAfterMs).toBeLessThanOrEqual(30_000);
+  });
+});
+
+describe("getTask", () => {
+  it("reads one task, seal included, with its read token", async () => {
+    rememberTaskToken("tsk_seal", "tok_seal");
+    const task = {
+      id: "tsk_seal",
+      intent: "x",
+      agents: 1,
+      spent: 0.01,
+      status: "complete",
+      started: "1m ago",
+      seal: "pending",
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, task));
+    await expect(getTask("tsk_seal")).resolves.toEqual(task);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/tasks/tsk_seal");
+    expect(init?.headers).toMatchObject({ "X-Task-Token": "tok_seal" });
+  });
+
+  it("rejects a task this build cannot read", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: "t" }));
+    await expect(getTask("t")).rejects.toThrow("malformed response");
   });
 });
 
