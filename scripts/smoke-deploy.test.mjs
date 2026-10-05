@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { after, test } from "node:test";
 
 const SCRIPT = fileURLToPath(new URL("./smoke-deploy.mjs", import.meta.url));
+const { PAGES } = await import("./smoke-deploy.mjs");
 
 /** @param {string} char */
 const id = (char) => `C${char.repeat(55)}`;
@@ -48,6 +49,12 @@ const NETWORK = Object.freeze({
   },
 });
 
+/** A page as the site serves it when nothing is wrong. */
+const page = (title) =>
+  Object.freeze({
+    html: `<!doctype html><html><head><title>${title}</title></head><body><main id="main"><h1>${title}</h1></main></body></html>`,
+  });
+
 /** Every route the smoke checks, answered healthily. */
 const HEALTHY = Object.freeze({
   "/api/health": { status: "ok" },
@@ -56,7 +63,11 @@ const HEALTHY = Object.freeze({
   "/api/metrics/overview": { agents_online: 3, throughput: [1, 2] },
   "/api/stellar/network": NETWORK,
   "/api/tasks": [],
+  ...Object.fromEntries(PAGES.map((path) => [path, page(`Orizon ${path}`)])),
 });
+
+/** The API checks, the contract parity and the escrow pin, then the pages. */
+const TOTAL = 8 + PAGES.length;
 
 const scratch = mkdtempSync(join(tmpdir(), "smoke-deploy-"));
 const books = join(scratch, "contracts");
@@ -77,7 +88,8 @@ after(() => {
 
 /**
  * A local origin answering `routes`; a path mapped to a number answers that
- * HTTP status with a small error body instead.
+ * HTTP status with a small error body instead, and one mapped to `{ html }`
+ * answers that page.
  * @param {Record<string, unknown>} routes
  * @returns {Promise<string>} the origin
  */
@@ -88,6 +100,11 @@ async function origin(routes) {
     if (typeof body === "number") {
       res.writeHead(body, { "content-type": "application/json" });
       res.end(JSON.stringify({ detail: "Not Found" }));
+      return;
+    }
+    if (typeof body?.html === "string") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(body.html);
       return;
     }
     res.writeHead(200, { "content-type": "application/json" });
@@ -125,7 +142,7 @@ function smoke(target, env = {}) {
 test("exits 0 when every check passes and the contracts match", async () => {
   const { code, out } = await smoke(await origin(HEALTHY));
   assert.equal(code, 0, out);
-  assert.match(out, /all 8 checks passed/);
+  assert.match(out, new RegExp(`all ${TOTAL} checks passed`));
   assert.match(out, /3 live contract ids match/);
   // An unset pin is pending, never a pass or a failure.
   assert.match(
@@ -188,7 +205,7 @@ test("exits 1 and names the proxy when a proxied route 404s", async () => {
     await origin({ ...HEALTHY, "/api/agents": 404 }),
   );
   assert.equal(code, 1, out);
-  assert.match(out, /1\/8 checks failed/);
+  assert.match(out, new RegExp(`1/${TOTAL} checks failed`));
   assert.match(out, /\/api\/agents → HTTP 404/);
   assert.match(out, /check NEXT_PUBLIC_API_BASE/);
 });
@@ -255,4 +272,67 @@ test("exits 1 when the backend reports a network other than the expected", async
   });
   assert.equal(code, 1, out);
   assert.match(out, /expected network mainnet, got testnet/);
+});
+
+// The fault a reviewer saw: a page that renders the error boundary instead
+// of itself. The site still answers 200, so only the page's own words show
+// it — the boundary's copy, or the stable attribute every boundary carries.
+for (const [what, html] of [
+  [
+    "the root boundary's copy",
+    `<main id="main"><p>// system fault</p><h1>SYSTEM FAULT</h1></main>`,
+  ],
+  [
+    "the console boundary's copy",
+    `<div><p>// subsystem fault</p><h2>SUBSYSTEM FAULT</h2></div>`,
+  ],
+  [
+    "the boundary's attribute, whatever its copy",
+    `<main id="main" data-error-boundary="root"><h1>Something went wrong</h1></main>`,
+  ],
+]) {
+  test(`exits 1 when a page renders the error boundary: ${what}`, async () => {
+    const { code, out } = await smoke(
+      await origin({ ...HEALTHY, "/app/agents": { html } }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /✗ page \/app\/agents → renders the error boundary/);
+    assert.match(out, new RegExp(`1/${TOTAL} checks failed`));
+  });
+}
+
+test("passes a page that only mentions a system fault in its prose", async () => {
+  const { code, out } = await smoke(
+    await origin({
+      ...HEALTHY,
+      "/evidence": {
+        html: `<main id="main"><p>A reviewer saw a system fault on 2026-10-05.</p></main>`,
+      },
+    }),
+  );
+  assert.equal(code, 0, out);
+});
+
+test("exits 1 when a page does not answer 200", async () => {
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/evidence": 500 }),
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ page \/evidence → HTTP 500/);
+  // The API answered, so the proxy hint is not printed for a page.
+  assert.doesNotMatch(out, /NEXT_PUBLIC_API_BASE/);
+});
+
+test("opens every public page and console route", () => {
+  for (const path of ["/", "/evidence", "/demo", "/guide", "/litepaper"]) {
+    assert.ok(PAGES.includes(path), `${path} is a public page`);
+  }
+  for (const path of [
+    "/app",
+    "/app/agents",
+    "/app/orchestrator",
+    "/app/trace",
+  ]) {
+    assert.ok(PAGES.includes(path), `${path} is a console route`);
+  }
 });

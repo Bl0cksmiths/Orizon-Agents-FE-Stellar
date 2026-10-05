@@ -23,7 +23,14 @@
  *
  * The backend sleeps on Render's free tier, so the first request may take up to
  * a minute; the warmup below absorbs that before any assertion runs.
+ *
+ * Then it opens every public page and console route the way a visitor's first
+ * request does, and fails when one does not answer 200 or answers with the
+ * error boundary in place of the page (see PAGES). A reviewer was shown the
+ * boundary's "SYSTEM FAULT" on the live site; the site still answered 200, so
+ * only the page's own words give it away.
  */
+import { pathToFileURL } from "node:url";
 import {
   canonicalNetwork,
   compareEscrowPin,
@@ -44,6 +51,54 @@ const CHECK_TIMEOUT_MS = 30_000;
 
 /** Reports the live network and its contract ids; see checkContractParity. */
 const NETWORK_PATH = "/api/stellar/network";
+
+/**
+ * Every public page and every console route, as a visitor opens them. The
+ * console routes are client-rendered shells, so a route that fails to build
+ * or crashes on the server shows here; app/sitemap.ts lists the public ones.
+ */
+export const PAGES = Object.freeze([
+  "/",
+  "/evidence",
+  "/demo",
+  "/guide",
+  "/guide/list-your-agent",
+  "/litepaper",
+  "/app",
+  "/app/agents",
+  "/app/bind",
+  "/app/ecosystem",
+  "/app/events",
+  "/app/flow",
+  "/app/operator",
+  "/app/orchestrator",
+  "/app/pdax",
+  "/app/register",
+  "/app/reputation",
+  "/app/send",
+  "/app/trace",
+  "/app/wallet",
+]);
+
+/**
+ * An error boundary, rendered. A boundary that carries `data-error-boundary`
+ * on its root is found whatever its copy says. Until every boundary does, the
+ * eyebrow line of today's boundaries is matched too: "// system fault" in
+ * app/error.tsx and app/global-error.tsx, "// subsystem fault" in
+ * app/app/error.tsx. The "// " keeps prose that merely mentions a system
+ * fault, such as a note on the evidence page, from tripping it.
+ */
+export const ERROR_BOUNDARY =
+  /\bdata-error-boundary\b|\/\/ (?:sub)?system fault\b/i;
+
+/**
+ * The marker that shows `html` is an error boundary, or null when none does.
+ * @param {string} html
+ */
+export function errorBoundaryIn(html) {
+  const found = ERROR_BOUNDARY.exec(html);
+  return found ? found[0] : null;
+}
 
 /** @type {{path: string, expect: (body: unknown) => string | null}[]} */
 const CHECKS = [
@@ -128,6 +183,60 @@ async function fetchJson(path, timeoutMs) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * GETs a page as a browser's first request does, following redirects.
+ * @param {string} path
+ * @param {number} timeoutMs
+ */
+async function fetchPage(path, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = Date.now();
+  try {
+    const res = await fetch(`${ORIGIN}${path}`, {
+      signal: controller.signal,
+      headers: { accept: "text/html" },
+    });
+    const text = await res.text();
+    return { res, text, ms: Date.now() - started };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Every page in PAGES: why each one failed, as failure lines. Prints a row
+ * per page as it goes.
+ */
+async function checkPages() {
+  const failures = [];
+  for (const path of PAGES) {
+    const name = `page ${path}`;
+    try {
+      const { res, text, ms } = await fetchPage(path, CHECK_TIMEOUT_MS);
+      if (!res.ok) {
+        failures.push(`${name} → HTTP ${res.status}`);
+        console.log(`  ✗ ${name} → HTTP ${res.status} (${ms}ms)`);
+        continue;
+      }
+      const marker = errorBoundaryIn(text);
+      if (marker) {
+        failures.push(`${name} → renders the error boundary ("${marker}")`);
+        console.log(
+          `  ✗ ${name} → renders the error boundary ("${marker}") (${ms}ms)`,
+        );
+        continue;
+      }
+      console.log(`  ✓ ${name} → ${res.status} (${ms}ms)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      failures.push(`${name} → ${msg}`);
+      console.log(`  ✗ ${name} → ${msg}`);
+    }
+  }
+  return failures;
 }
 
 /**
@@ -290,7 +399,9 @@ async function main() {
     failures.push(`escrow v2 pin → ${pin.problems.join("; ")}`);
   }
 
-  const total = CHECKS.length + 2;
+  failures.push(...(await checkPages()));
+
+  const total = CHECKS.length + 2 + PAGES.length;
   if (failures.length > 0) {
     console.error(
       `\n${failures.length}/${total} checks failed against ${ORIGIN}:`,
@@ -319,4 +430,11 @@ async function main() {
   console.log(`\nall ${total} checks passed against ${ORIGIN}`);
 }
 
-await main();
+// Run when invoked (`node scripts/smoke-deploy.mjs`), not when the tests
+// import PAGES and errorBoundaryIn from it.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  await main();
+}
