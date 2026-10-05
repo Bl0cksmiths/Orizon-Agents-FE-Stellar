@@ -23,6 +23,12 @@ import {
   screenDecomposeResponse,
   screenReputationBatch,
 } from "./guards";
+import {
+  NEXT_CURSOR_HEADER,
+  READ_AT_HEADER,
+  TOTAL_COUNT_HEADER,
+  WAKING_MESSAGE,
+} from "./api-contract";
 import { headerSyncSignal, type SyncSignal } from "./registry-sync";
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
 import type {
@@ -61,6 +67,11 @@ const base = "/api";
 // The backend sleeps on Render's free tier and takes 30-60s to wake, so a 30s
 // deadline turned every first visit into a hard failure.
 export const GET_TIMEOUT_MS = 60_000;
+// The shared reads the console's own route handlers cache (app/api/,
+// lib/api-proxy.ts). Those answer within about ten seconds whatever the
+// backend is doing — a copy, or a 503 saying it is waking — so a read still
+// silent at twenty has lost its connection, not met a cold start.
+export const CACHED_GET_TIMEOUT_MS = 20_000;
 // execute/decompose can be slow, so POSTs get a much longer leash. This MUST
 // stay above the backend's own decompose budget (DECOMPOSE_TIMEOUT_SECONDS,
 // 90s) plus the reputation fetch that precedes it — otherwise the client
@@ -319,7 +330,57 @@ export type GetOptions = {
   /** Cancels this caller's wait. The shared request itself is cancelled only
    * when every caller waiting on it has let go. */
   signal?: AbortSignal;
+  /** A read the console's route handlers cache: asked without `no-store`,
+   * whose `Pragma: no-cache` would make Vercel's CDN refresh in the
+   * foreground, and given `CACHED_GET_TIMEOUT_MS`. */
+  cached?: boolean;
 };
+
+/** A response header, read defensively: tests answer with plain objects. */
+function headerOf(res: Response, name: string): string | null {
+  const headers = (res as { headers?: { get?: (n: string) => string | null } })
+    .headers;
+  return headers?.get?.(name) ?? null;
+}
+
+/** When the backend read behind each cached payload was made. */
+const READ_AT = new WeakMap<object, number>();
+
+function noteReadAt(value: unknown, res: Response): void {
+  const raw = headerOf(res, READ_AT_HEADER);
+  const at = Number(raw);
+  if (
+    raw &&
+    Number.isFinite(at) &&
+    at > 0 &&
+    typeof value === "object" &&
+    value !== null
+  ) {
+    READ_AT.set(value, at);
+  }
+}
+
+/**
+ * When the backend was read for this payload (epoch ms), if it came from the
+ * console's cache, or null. A cached answer can be older than the request
+ * that fetched it — minutes, through an outage — and a page dating it by
+ * when it arrived would present an old figure as a new one.
+ */
+export function readAtOf(value: unknown): number | null {
+  return typeof value === "object" && value !== null
+    ? (READ_AT.get(value) ?? null)
+    : null;
+}
+
+/**
+ * Whether a read failed because the backend is still waking: the cache's 503
+ * (or 504) saying so, or a deadline that ran out. The pages show that as the
+ * wait it is, with its progress, rather than as an error.
+ */
+export function isWakingError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes(WAKING_MESSAGE) || /timeout after/i.test(message);
+}
 
 /**
  * One caller's view of a shared request: it settles as the request does, or
@@ -382,15 +443,17 @@ function get<T>(
       "GET",
       path,
       {
-        cache: "no-store",
+        cache: opts.cached ? "default" : "no-store",
         ...(headers ? { headers } : {}),
         signal: controller.signal,
       },
-      GET_TIMEOUT_MS,
+      opts.cached ? CACHED_GET_TIMEOUT_MS : GET_TIMEOUT_MS,
     );
     if (!res.ok) throw await httpError("GET", path, res);
     const json: unknown = await res.json();
-    return parse ? parse(json) : (json as T);
+    const out = parse ? parse(json) : (json as T);
+    noteReadAt(out, res);
+    return out;
   })();
   const entry: GetCacheEntry = {
     promise,
@@ -501,7 +564,7 @@ export const listAgents = (signal?: AbortSignal) =>
     "/agents",
     ensureScreened("/agents", screenAgentList),
     undefined,
-    { signal },
+    { signal, cached: true },
   );
 /**
  * GET /api/agents with what the backend says about its registry: the
@@ -512,16 +575,75 @@ export const listAgents = (signal?: AbortSignal) =>
 export async function listAgentsWithSync(signal?: AbortSignal): Promise<{
   agents: Agent[];
   signal: SyncSignal;
+  /** When the backend was read for this answer, if it came from the
+   * console's cache — what the interim rule must date it by, since one
+   * cached copy read twice is still one read. */
+  readAt: number | null;
 }> {
   const res = await fetchWithTimeout(
     "GET",
     "/agents",
-    { cache: "no-store", ...(signal ? { signal } : {}) },
-    GET_TIMEOUT_MS,
+    { cache: "default", ...(signal ? { signal } : {}) },
+    CACHED_GET_TIMEOUT_MS,
   );
   if (!res.ok) throw await httpError("GET", "/agents", res);
   const agents = ensureScreened("/agents", screenAgentList)(await res.json());
-  return { agents, signal: headerSyncSignal(res.headers) };
+  noteReadAt(agents, res);
+  return {
+    agents,
+    signal: headerSyncSignal(res.headers),
+    readAt: readAtOf(agents),
+  };
+}
+
+/** One page of the registry — or, from a server that does not page, all of
+ * it. */
+export type AgentPage = {
+  agents: Agent[];
+  /** Whether the server honoured `limit` (it sent `X-Total-Count`). False
+   * means `agents` is the whole registry. */
+  paged: boolean;
+  /** How many agents the whole registry holds, when the server said. A
+   * registry count: published only when `signal` is "synced". */
+  total: number | null;
+  /** The next page's cursor; null on the last page or an unpaged answer. */
+  nextCursor: string | null;
+  signal: SyncSignal;
+};
+
+/**
+ * GET /api/agents?limit=&cursor= — a small first page, so the registry table
+ * can paint before the whole list has crossed the wire. Feature-detected:
+ * a server that ignores the query answers with the whole list and no
+ * `X-Total-Count`, and that is returned as an unpaged answer, not an error.
+ * Not deduped, like `listAgentsWithSync`.
+ */
+export async function listAgentsPage(
+  query: { limit: number; cursor?: string | null },
+  signal?: AbortSignal,
+): Promise<AgentPage> {
+  const params = new URLSearchParams({ limit: String(query.limit) });
+  if (query.cursor) params.set("cursor", query.cursor);
+  const res = await fetchWithTimeout(
+    "GET",
+    `/agents?${params.toString()}`,
+    { cache: "default", ...(signal ? { signal } : {}) },
+    CACHED_GET_TIMEOUT_MS,
+  );
+  if (!res.ok) throw await httpError("GET", "/agents", res);
+  const agents = ensureScreened("/agents", screenAgentList)(await res.json());
+  noteReadAt(agents, res);
+  const rawTotal = headerOf(res, TOTAL_COUNT_HEADER);
+  const total =
+    rawTotal !== null && /^\d+$/.test(rawTotal) ? Number(rawTotal) : null;
+  const paged = total !== null;
+  return {
+    agents,
+    paged,
+    total,
+    nextCursor: paged ? headerOf(res, NEXT_CURSOR_HEADER) : null,
+    signal: headerSyncSignal(res.headers),
+  };
 }
 export const listTasks = (signal?: AbortSignal) =>
   get<Task[]>("/tasks", ensure("/tasks", isTaskList), undefined, { signal });
@@ -537,7 +659,7 @@ export const getNetworkOverview = (signal?: AbortSignal) =>
         isOverviewV2(v) || isLegacyOverview(v),
     ),
     undefined,
-    { signal },
+    { signal, cached: true },
   );
 export const getFlow = (signal?: AbortSignal) =>
   get<Flow>("/flow/default", ensure("/flow/default", isFlow), undefined, {
@@ -587,7 +709,7 @@ export const getStellarNetwork = (signal?: AbortSignal) =>
     "/stellar/network",
     ensure("/stellar/network", isStellarNetworkInfo),
     undefined,
-    { signal },
+    { signal, cached: true },
   );
 
 export const buildAuthorize = (body: {
@@ -624,14 +746,14 @@ export const listReputation = (signal?: AbortSignal) =>
     "/stellar/reputation",
     ensureScreened("/stellar/reputation", screenReputationBatch),
     undefined,
-    { signal },
+    { signal, cached: true },
   );
 export const getReputationParams = (signal?: AbortSignal) =>
   get<ReputationParams>(
     "/stellar/reputation/params",
     ensure("/stellar/reputation/params", isReputationParams),
     undefined,
-    { signal },
+    { signal, cached: true },
   );
 export const getReputation = (agentId: string, signal?: AbortSignal) =>
   get<ReputationInfo>(
