@@ -1947,6 +1947,10 @@ export type MockDisputeApiOptions = {
    * predates it.
    */
   settlementState?: TaskDisputes["settlement_state"];
+  /** The run's seal as the read reports it (`seal`, `proof_tx`). Absent by
+   * default — a backend that predates them. */
+  seal?: TaskDisputes["seal"];
+  proofTx?: TaskDisputes["proof_tx"];
 };
 
 /** The `msg` FastAPI puts on a reason over `OpenDisputeReq`'s 500 cap. */
@@ -1994,6 +1998,8 @@ export async function mockDisputeApi(
         ...(options.settlementState === undefined
           ? {}
           : { settlement_state: options.settlementState }),
+        ...(options.seal === undefined ? {} : { seal: options.seal }),
+        ...(options.proofTx === undefined ? {} : { proof_tx: options.proofTx }),
       };
       return json(route, body);
     }
