@@ -1,8 +1,7 @@
-"use client";
-import { m } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
+import { entrance } from "@/components/ui/entrance";
 
 const primitives = [
   {
@@ -95,14 +94,11 @@ export function Solution() {
 
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {primitives.map((p, i) => (
-            <m.div
+            <div
               key={p.num}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, delay: i * 0.08 }}
+              style={entrance({ delay: i * 0.08 })}
               // Two across on a tablet, the third card full width beneath.
-              className="sm:last:col-span-2 lg:last:col-span-1"
+              className="reveal sm:last:col-span-2 lg:last:col-span-1"
             >
               <Card className="h-full">
                 <div className="flex items-start justify-between mb-6">
@@ -115,7 +111,7 @@ export function Solution() {
                 <h3 className="text-2xl font-semibold mb-3">{p.title}</h3>
                 <p className="text-sm leading-relaxed text-muted">{p.body}</p>
               </Card>
-            </m.div>
+            </div>
           ))}
         </div>
       </div>
