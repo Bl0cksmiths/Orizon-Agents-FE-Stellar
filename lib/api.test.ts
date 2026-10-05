@@ -26,6 +26,8 @@ import {
   checkBindEndpoint,
   clearGetCache,
   createBindChallenge,
+  fetchWithTimeout,
+  isAbortError,
   decompose,
   execute,
   getAgentBinding,
@@ -371,6 +373,62 @@ describe("fetch deadline", () => {
     await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS + 1);
     await rejects;
     expect(signal?.aborted).toBe(true);
+  });
+
+  it("cancels on the caller's signal and calls it an abort, not a timeout", async () => {
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          signal = init?.signal ?? undefined;
+          signal?.addEventListener("abort", () =>
+            reject(new Error("The operation was aborted")),
+          );
+        }),
+    );
+    const caller = new AbortController();
+    const out = fetchWithTimeout(
+      "GET",
+      "/flow/default",
+      { signal: caller.signal },
+      60_000,
+    );
+    caller.abort();
+    const err = await out.catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(true);
+    expect(String(err)).not.toMatch(/timeout/);
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("never starts a read whose caller has already gone", async () => {
+    fetchMock.mockImplementationOnce((_url, init) =>
+      init?.signal?.aborted
+        ? Promise.reject(new Error("The operation was aborted"))
+        : Promise.resolve(jsonResponse(200, {})),
+    );
+    const caller = new AbortController();
+    caller.abort();
+    const err = await fetchWithTimeout(
+      "GET",
+      "/flow/default",
+      { signal: caller.signal },
+      60_000,
+    ).catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("lets go of the caller's signal once the body is read", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, []));
+    const caller = new AbortController();
+    const remove = vi.spyOn(caller.signal, "removeEventListener");
+    const res = await fetchWithTimeout(
+      "GET",
+      "/flow/default",
+      { signal: caller.signal },
+      60_000,
+    );
+    await res.json();
+    expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 });
 
