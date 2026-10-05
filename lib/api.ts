@@ -34,6 +34,7 @@ import {
   readAtOf,
 } from "./api-freshness";
 import { headerSyncSignal, type SyncSignal } from "./registry-sync";
+import { isSealPending } from "./seal-state";
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
 import type {
   Agent,
@@ -962,6 +963,16 @@ export const TRACE_POLL_MS = 4_000;
 const MAX_TRACE_POLLS = 150;
 /** Consecutive poll rejections before the fallback gives up. */
 const MAX_POLL_FAILURES = 3;
+/**
+ * How long a finished run's trace must stay quiet before it is followed no
+ * further. A paid run turns `complete` the moment its settlement confirms;
+ * its ratings are follow-up work after that — one on-chain submit per step,
+ * each polling up to ~30 s — and keep appending to the trace. Over the
+ * history endpoint nothing marks the true end, so the run is followed until
+ * its seal is no longer pending and no line has arrived for this long. Still
+ * bounded by MAX_TRACE_POLLS.
+ */
+export const FOLLOW_UP_QUIET_MS = 40_000;
 
 /**
  * Subscribe to a live SSE trace stream.
@@ -1022,7 +1033,9 @@ export function openTraceStream(
   let polling = false;
   let polls = 0;
   let pollFailures = 0;
-  let terminalSeen = false;
+  // When the run was first seen finished with nothing new arriving; reset by
+  // every line that lands. The run ends once this is FOLLOW_UP_QUIET_MS old.
+  let quietSince: number | null = null;
 
   // EventSource cannot set headers, so the task read token (when this
   // session holds one) rides along as a query param instead.
@@ -1105,12 +1118,17 @@ export function openTraceStream(
    */
   const taskFinished = async (): Promise<boolean> => {
     try {
-      const task = await get<{ status?: unknown }>(
+      const task = await get<{ status?: unknown; seal?: unknown }>(
         `/tasks/${taskId}`,
         undefined,
         taskAuthHeaders(taskId),
       );
-      return task?.status === "complete" || task?.status === "failed";
+      const terminal = task?.status === "complete" || task?.status === "failed";
+      // A seal still being confirmed is the run's own work, and its outcome
+      // is a line still to come.
+      const sealing =
+        typeof task?.seal === "string" && isSealPending(task.seal);
+      return terminal && !sealing;
     } catch {
       return false;
     }
@@ -1124,15 +1142,17 @@ export function openTraceStream(
       if (settled) return;
       pollFailures = 0;
       if (drain(history)) {
-        terminalSeen = false;
-      } else if (terminalSeen) {
-        // Confirmed twice: the trace stopped growing and the task is
-        // terminal. A single check could seal the run one line early —
-        // the backend finalizes the task before emitting its last line.
-        settle(true);
-        return;
+        quietSince = null;
+      } else if (quietSince !== null) {
+        // Finished, and quiet for long enough: its follow-up is done. A
+        // single check could end the run one line early — the backend
+        // finalizes the task before its ratings and seal land.
+        if (Date.now() - quietSince >= FOLLOW_UP_QUIET_MS) {
+          settle(true);
+          return;
+        }
       } else if (await taskFinished()) {
-        terminalSeen = true;
+        quietSince = Date.now();
       }
       if (settled) return;
     } catch {
@@ -1153,12 +1173,38 @@ export function openTraceStream(
     }, TRACE_POLL_MS);
   };
 
-  /** SSE is unusable — keep the run visible over the history endpoint. */
-  const startPolling = () => {
+  /** Keep the run visible over the history endpoint: because SSE is
+   *  unusable (`announce`, the degraded mode the UI is told about), or to
+   *  follow a run's follow-up work after its stream has ended. */
+  const startPolling = (announce = true) => {
     if (settled || polling) return;
     polling = true;
-    opts?.onFallback?.();
+    if (announce) opts?.onFallback?.();
     void poll();
+  };
+
+  /**
+   * The stream said `done`. That is the end unless the run's seal is still
+   * being confirmed: a stream opened after the task went final can end on
+   * the replay alone while the run's follow-up work is still writing to the
+   * trace. Then the history endpoint follows it the rest of the way —
+   * quietly, since nothing is degraded.
+   */
+  const endOrFollow = async () => {
+    let sealing = false;
+    try {
+      const task = await get<{ seal?: unknown }>(
+        `/tasks/${taskId}`,
+        undefined,
+        taskAuthHeaders(taskId),
+      );
+      sealing = typeof task?.seal === "string" && isSealPending(task.seal);
+    } catch {
+      /* unknown: end as the stream said */
+    }
+    if (settled) return;
+    if (sealing) startPolling(false);
+    else settle(true);
   };
 
   const connect = () => {
@@ -1240,7 +1286,12 @@ export function openTraceStream(
     });
     source.addEventListener("done", () => {
       established();
-      settle(true);
+      // Closed at once, so the browser never reconnects a finished stream.
+      dead = true;
+      clearConnectTimer();
+      clearOutageTimer();
+      source.close();
+      void endOrFollow();
     });
     source.addEventListener("error", failed);
   };
