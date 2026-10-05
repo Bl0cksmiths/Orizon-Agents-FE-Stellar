@@ -34,11 +34,15 @@ export function Hero({ stats }: { stats: PublicNetworkStats | null }) {
               </span>
             </div>
 
+            {/* The page's largest text, so it rises into place without
+                fading: a fade would hold Largest Contentful Paint back by
+                the whole entrance. */}
             <h1
               style={entrance({
                 delay: 0.05,
                 duration: 0.7,
                 from: "translateY(20px)",
+                fade: false,
               })}
               className="enter text-[clamp(2.25rem,1.2rem+4.4vw,4.5rem)] font-semibold leading-[1.02] tracking-tight"
             >
