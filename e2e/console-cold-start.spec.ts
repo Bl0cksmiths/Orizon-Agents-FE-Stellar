@@ -31,12 +31,17 @@ const WAKING = {
   }),
 };
 
-/** Answers the first `n` reads of a path as waking, then with `body`. */
-function wakesAfter(n: number, body: unknown) {
-  let seen = 0;
+/**
+ * Answers every read of a path as waking until `ms` after the first one, then
+ * with `body` — a cold start measured in time, as it is on Render, so a
+ * second reader of the same path (the sidebar reads the registry too) cannot
+ * shorten it by using up a count.
+ */
+function wakesFor(ms: number, body: unknown) {
+  let firstAt: number | null = null;
   return (route: Route) => {
-    seen += 1;
-    return seen <= n
+    firstAt ??= Date.now();
+    return Date.now() - firstAt < ms
       ? route.fulfill(WAKING)
       : route.fulfill({
           contentType: "application/json",
@@ -63,7 +68,7 @@ test.describe("a backend that is asleep", () => {
     page,
   }) => {
     await mockApi(page);
-    await page.route(byPath("/api/agents"), wakesAfter(2, mockAgents));
+    await page.route(byPath("/api/agents"), wakesFor(4_000, mockAgents));
     await clearWithinASecond(page, "/app/agents");
 
     const status = page.locator("[data-wake-status]").getByRole("status");
@@ -88,7 +93,7 @@ test.describe("a backend that is asleep", () => {
     await mockApi(page, { overview: mockOverviewV2 });
     await page.route(
       byPath("/api/metrics/overview"),
-      wakesAfter(1, mockOverviewV2),
+      wakesFor(2_500, mockOverviewV2),
     );
     await clearWithinASecond(page, "/app");
     await expect(alerts(page)).toHaveCount(0);
