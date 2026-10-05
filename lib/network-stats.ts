@@ -64,6 +64,14 @@ export type NetworkStats = {
    * (lib/registry-sync.ts). The registry's figures are then either the last
    * complete ones this session read, or gaps — never the partial count. */
   syncing: boolean;
+  /**
+   * When the figures were read from the network (epoch ms): the measured
+   * overview's own `generated_at`, or the registry read on the derived path.
+   * The console's cache can hand back a copy minutes old through an outage
+   * — as a 200, so nothing has failed — and this is how a surface says so.
+   * Absent when unknown.
+   */
+  asOf?: number | null;
 };
 
 const measured = <T>(value: T): Measured<T> => ({ ok: true, value });
@@ -134,6 +142,7 @@ export function statsFromOverview(o: OverviewV2): NetworkStats {
         ]
       : [],
     syncing: false,
+    asOf: o.generated_at * 1_000,
   };
 }
 
@@ -335,6 +344,10 @@ export function withRegistrySync(
     Object.assign(out, { [key]: lastComplete ? lastComplete[key] : held });
   }
   out.notes = lastComplete ? lastComplete.notes : [];
+  // The registry figures shown are the held ones: date them so.
+  if (lastComplete?.asOf != null && stats.asOf != null) {
+    out.asOf = Math.min(lastComplete.asOf, stats.asOf);
+  }
   return out;
 }
 
