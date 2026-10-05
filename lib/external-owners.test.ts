@@ -134,4 +134,17 @@ describe("the vendored register", () => {
       expect(TEAM_WALLETS.has(key), key).toBe(true);
     }
   });
+
+  // The backend's register at f5733436 (BE feat/production-hardening): the
+  // ten wallets before it, plus the 6.07 QA operator and buyer keys. A count
+  // here catches a stale copy that the shape checks above would pass.
+  it("is the backend's twelve declared wallets, the 6.07 QA keys among them", () => {
+    expect(register.wallets).toHaveLength(12);
+    for (const key of [
+      "GBE6AUTEQDC7HN2453JY4SCPMMGDVAXIX7IOXLQM7K3KTVLL5R3UOQ4J",
+      "GAGOZVEZ43HDMIU367HADCNRD6O425JUX3PQOEZEDYZP5HFKXXJ7HJNC",
+    ]) {
+      expect(TEAM_WALLETS.has(key), key).toBe(true);
+    }
+  });
 });
