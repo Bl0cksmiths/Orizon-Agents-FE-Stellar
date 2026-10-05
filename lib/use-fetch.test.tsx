@@ -17,7 +17,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { listAgents } from "./api";
-import { isTransientFetchError, retryAfterHintMs, useFetch } from "./use-fetch";
+import {
+  WAKE_MAX_RETRIES,
+  isTransientFetchError,
+  retryAfterHintMs,
+  useFetch,
+} from "./use-fetch";
 
 /** A real cached read from lib/api.ts, so the read time travels the way it
  * does in the app. */
@@ -39,6 +44,40 @@ function deferred<T>() {
 }
 
 describe("useFetch", () => {
+  it("keeps retrying a waking backend past the ordinary budget", async () => {
+    vi.useFakeTimers();
+    try {
+      const waking = new Error(
+        "GET /agents → 503 — the backend is waking up — this usually takes under a minute",
+      );
+      const fn = vi.fn<() => Promise<string>>().mockRejectedValue(waking);
+      const { result } = renderHook(() =>
+        useFetch(fn, [], { retryBaseMs: 10, maxRetries: 2 }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(fn).toHaveBeenCalledTimes(WAKE_MAX_RETRIES + 1);
+      expect(result.current.retrying).toBe(false);
+      expect(result.current.waiting).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never retries a waking read whose caller turned retries off", async () => {
+    const fn = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValue(
+        new Error(
+          "GET /x → 503 — the backend is waking up — this usually takes under a minute",
+        ),
+      );
+    const { result } = renderHook(() => useFetch(fn, [], { maxRetries: 0 }));
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it("is waiting while the first read is out", async () => {
     const d = deferred<string>();
     const { result } = renderHook(() => useFetch(() => d.promise, []));
