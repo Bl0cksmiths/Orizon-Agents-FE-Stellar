@@ -190,4 +190,13 @@ describe("the dispute credit is described as it was paid (QA D-080)", () => {
     expect(partial?.label).toMatch(/^Partial-delivery settlement/);
     expect(partial?.label).toMatch(/not counted: no dispute behind it/);
   });
+
+  it("metric 8 says the step was credited in full and points to partial delivery separately", () => {
+    const m08 = metric("m08");
+    for (const text of [m08.achieved, m08.reason ?? ""]) {
+      expect(text).not.toMatch(CALLS_IT_PARTIAL);
+    }
+    expect(m08.reason).toMatch(/disputed 0\.01 XLM step in full/);
+    expect(m08.reason).toMatch(/partial-delivery settlement/);
+  });
 });

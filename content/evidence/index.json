@@ -1540,7 +1540,7 @@
       "target": "Yes",
       "achieved": "Yes",
       "status": "met",
-      "reason": "Met on 2026-09-30, when the first dispute was refunded on-chain (see the dispute refund row). That dispute is on the team's own test run.",
+      "reason": "Met on 2026-09-30, when the first dispute was refunded on-chain (see the dispute refund row): the platform credited the disputed 0.01 XLM step in full. The window, the credit and the negative rating are live. A credit is sized to the disputed step, up to its full charge, and no dispute has yet been credited for less than that. Partial delivery, where a run pays only for the steps that were delivered, is shown separately by the partial-delivery settlement under the dispute refund row. That dispute is on the team's own test run.",
       "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject); that a dispute window can open at all, which needs a settled payment, and so the escrow v2 contract live; that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on); and that at least one dispute has been refunded on-chain (the dispute refund row above). Yes when all hold, Partly when the routes are deployed but the rest does not, and No when the routes are not.",
       "links": [
         {
