@@ -296,7 +296,17 @@ async function httpError(
 // rejections are evicted immediately so retries always hit the network.
 export const GET_DEDUPE_MS = 1_000;
 
-type GetCacheEntry = { promise: Promise<unknown>; settledAt: number | null };
+type GetCacheEntry = {
+  promise: Promise<unknown>;
+  settledAt: number | null;
+  /** Cancels the shared request once nobody is waiting for it. */
+  controller: AbortController;
+  /** Callers waiting with a signal of their own. */
+  holders: number;
+  /** A caller with no signal is waiting: the request runs to the end. */
+  pinned: boolean;
+  inFlight: boolean;
+};
 const getCache = new Map<string, GetCacheEntry>();
 
 /** Drops all deduped GET entries — exposed for tests. */
@@ -304,33 +314,96 @@ export function clearGetCache(): void {
   getCache.clear();
 }
 
+/** Per-call options for a GET. */
+export type GetOptions = {
+  /** Cancels this caller's wait. The shared request itself is cancelled only
+   * when every caller waiting on it has let go. */
+  signal?: AbortSignal;
+};
+
+/**
+ * One caller's view of a shared request: it settles as the request does, or
+ * rejects with `abortError()` the moment the caller's signal fires. The last
+ * caller to let go of an in-flight request cancels it — a page navigated
+ * away from does not keep a minute-long read of a sleeping backend open.
+ */
+function hold<T>(
+  path: string,
+  entry: GetCacheEntry,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  if (!signal) {
+    entry.pinned = true;
+    return entry.promise as Promise<T>;
+  }
+  if (signal.aborted) return Promise.reject(abortError());
+  entry.holders += 1;
+  return new Promise<T>((resolve, reject) => {
+    const letGo = () => {
+      reject(abortError());
+      entry.holders -= 1;
+      if (entry.holders === 0 && !entry.pinned && entry.inFlight) {
+        if (getCache.get(path) === entry) getCache.delete(path);
+        entry.controller.abort();
+      }
+    };
+    signal.addEventListener("abort", letGo, { once: true });
+    entry.promise.then(
+      (value) => {
+        signal.removeEventListener("abort", letGo);
+        resolve(value as T);
+      },
+      (err: unknown) => {
+        signal.removeEventListener("abort", letGo);
+        reject(err);
+      },
+    );
+  });
+}
+
 function get<T>(
   path: string,
   parse?: (v: unknown) => T,
   headers?: Record<string, string>,
+  opts: GetOptions = {},
 ): Promise<T> {
+  // Nobody is waiting: start nothing.
+  if (opts.signal?.aborted) return Promise.reject(abortError());
   const hit = getCache.get(path);
   if (
     hit &&
     (hit.settledAt === null || Date.now() - hit.settledAt < GET_DEDUPE_MS)
   ) {
-    return hit.promise as Promise<T>;
+    return hold<T>(path, hit, opts.signal);
   }
+  const controller = new AbortController();
   const promise = (async () => {
     const res = await fetchWithTimeout(
       "GET",
       path,
-      { cache: "no-store", ...(headers ? { headers } : {}) },
+      {
+        cache: "no-store",
+        ...(headers ? { headers } : {}),
+        signal: controller.signal,
+      },
       GET_TIMEOUT_MS,
     );
     if (!res.ok) throw await httpError("GET", path, res);
     const json: unknown = await res.json();
     return parse ? parse(json) : (json as T);
   })();
-  const entry: GetCacheEntry = { promise, settledAt: null };
+  const entry: GetCacheEntry = {
+    promise,
+    settledAt: null,
+    controller,
+    holders: 0,
+    pinned: false,
+    inFlight: true,
+  };
   getCache.set(path, entry);
   promise.then(
     () => {
+      entry.inFlight = false;
       entry.settledAt = Date.now();
       // A resolved payload must not outlive its dedupe window: per-task
       // paths (/trace/{id}, artifact bodies) are fetched once and would
@@ -342,10 +415,11 @@ function get<T>(
       (evict as unknown as { unref?: () => void }).unref?.();
     },
     () => {
+      entry.inFlight = false;
       if (getCache.get(path) === entry) getCache.delete(path);
     },
   );
-  return promise;
+  return hold<T>(path, entry, opts.signal);
 }
 
 async function post<T, B>(
@@ -422,34 +496,39 @@ function taskAuthHeaders(taskId: string): Record<string, string> | undefined {
  */
 export { ensure, httpError, post, taskAuthHeaders };
 
-export const listAgents = () =>
-  get<Agent[]>("/agents", ensureScreened("/agents", screenAgentList));
+export const listAgents = (signal?: AbortSignal) =>
+  get<Agent[]>(
+    "/agents",
+    ensureScreened("/agents", screenAgentList),
+    undefined,
+    { signal },
+  );
 /**
  * GET /api/agents with what the backend says about its registry: the
  * `X-Registry-Synced` header (lib/registry-sync.ts), "unknown" on a backend
  * from before it. Not deduped — the network figures share it themselves, and
  * the interim rule needs each read to be a read.
  */
-export async function listAgentsWithSync(): Promise<{
+export async function listAgentsWithSync(signal?: AbortSignal): Promise<{
   agents: Agent[];
   signal: SyncSignal;
 }> {
   const res = await fetchWithTimeout(
     "GET",
     "/agents",
-    { cache: "no-store" },
+    { cache: "no-store", ...(signal ? { signal } : {}) },
     GET_TIMEOUT_MS,
   );
   if (!res.ok) throw await httpError("GET", "/agents", res);
   const agents = ensureScreened("/agents", screenAgentList)(await res.json());
   return { agents, signal: headerSyncSignal(res.headers) };
 }
-export const listTasks = () =>
-  get<Task[]>("/tasks", ensure("/tasks", isTaskList));
+export const listTasks = (signal?: AbortSignal) =>
+  get<Task[]>("/tasks", ensure("/tasks", isTaskList), undefined, { signal });
 /** GET /api/metrics/overview in either shape the backend serves: the
  * measured one, or the legacy one whose figures are never displayed (see
  * `LegacyOverview`). Anything else is malformed and rejects as usual. */
-export const getNetworkOverview = () =>
+export const getNetworkOverview = (signal?: AbortSignal) =>
   get<LegacyOverview | OverviewV2>(
     "/metrics/overview",
     ensure(
@@ -457,14 +536,19 @@ export const getNetworkOverview = () =>
       (v): v is LegacyOverview | OverviewV2 =>
         isOverviewV2(v) || isLegacyOverview(v),
     ),
+    undefined,
+    { signal },
   );
-export const getFlow = () =>
-  get<Flow>("/flow/default", ensure("/flow/default", isFlow));
-export const getTrace = (taskId: string) =>
+export const getFlow = (signal?: AbortSignal) =>
+  get<Flow>("/flow/default", ensure("/flow/default", isFlow), undefined, {
+    signal,
+  });
+export const getTrace = (taskId: string, signal?: AbortSignal) =>
   get<TraceLine[]>(
     `/trace/${taskId}`,
     ensure(`/trace/${taskId}`, isTraceLineList),
     taskAuthHeaders(taskId),
+    { signal },
   );
 
 export const decompose = (intent: string) =>
@@ -489,18 +573,21 @@ export const execute = (
     return res;
   });
 
-export const getArtifact = (taskId: string) =>
+export const getArtifact = (taskId: string, signal?: AbortSignal) =>
   get<ArtifactResponse>(
     `/tasks/${taskId}/artifact`,
     ensure(`/tasks/${taskId}/artifact`, isArtifactResponse),
     taskAuthHeaders(taskId),
+    { signal },
   );
 
 // ── Stellar / x402 ──────────────────────────────────────────
-export const getStellarNetwork = () =>
+export const getStellarNetwork = (signal?: AbortSignal) =>
   get<StellarNetworkInfo>(
     "/stellar/network",
     ensure("/stellar/network", isStellarNetworkInfo),
+    undefined,
+    { signal },
   );
 
 export const buildAuthorize = (body: {
@@ -532,29 +619,37 @@ export const buildReclaim = (body: { payer: string; auth_id_hex: string }) =>
     ensure("/stellar/build/reclaim", isXdrResponse),
   );
 
-export const listReputation = () =>
+export const listReputation = (signal?: AbortSignal) =>
   get<ReputationBatch>(
     "/stellar/reputation",
     ensureScreened("/stellar/reputation", screenReputationBatch),
+    undefined,
+    { signal },
   );
-export const getReputationParams = () =>
+export const getReputationParams = (signal?: AbortSignal) =>
   get<ReputationParams>(
     "/stellar/reputation/params",
     ensure("/stellar/reputation/params", isReputationParams),
+    undefined,
+    { signal },
   );
-export const getReputation = (agentId: string) =>
+export const getReputation = (agentId: string, signal?: AbortSignal) =>
   get<ReputationInfo>(
     `/stellar/reputation/${agentId}`,
     ensure(`/stellar/reputation/${agentId}`, isReputationInfo),
+    undefined,
+    { signal },
   );
 
 /** What this agent has actually been paid, over the RPC's retention window.
  *  Not cheap on the backend (an event scan plus a contract read per hit), so
  *  it is fetched once per dashboard mount and never polled. */
-export const getSettlement = (agentId: string) =>
+export const getSettlement = (agentId: string, signal?: AbortSignal) =>
   get<AgentSettlement>(
     `/stellar/settlement/${encodeURIComponent(agentId)}`,
     ensure("/stellar/settlement", isAgentSettlement),
+    undefined,
+    { signal },
   );
 
 export const submitSigned = (signedXdr: string) =>
