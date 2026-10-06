@@ -1271,3 +1271,105 @@ describe("ReceiptPanel — a delivery-only seal", () => {
     expect(text()).toContain("Seal failed — your payment stands");
   });
 });
+
+describe("ReceiptPanel · the reconciliation", () => {
+  const recon = {
+    rows: [
+      {
+        stepIndex: 0,
+        agent: "code.gen",
+        delivered: true,
+        planned: 540_000n,
+        charged: 540_000n,
+        returned: 0n,
+        balanced: true,
+        builtInUnpaid: false,
+      },
+    ],
+    planned: 540_000n,
+    charged: 540_000n,
+    returned: 0n,
+    authorized: null,
+    headroom: null,
+    balanced: true,
+    issues: [],
+    held: false,
+    allReturnedBuiltIn: false,
+    exact: true,
+    asset: null,
+    settleTx: CHARGE_TX,
+  };
+
+  it("draws planned, charged and returned once the view reconciles them", async () => {
+    renderPanel(settled([], { reconciliation: recon }));
+    const table = await screen.findByRole("table");
+    expect(table.textContent).toContain("code.gen");
+    // Planned and charged, on the step and in the total.
+    expect(within(table).getAllByText("0.054").length).toBe(4);
+  });
+
+  it("draws no table for a settlement it cannot reconcile", () => {
+    renderPanel(settled([]));
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+});
+
+describe("ReceiptPanel · who each payout went to", () => {
+  const TREASURY = "GDOGIRT73NAQ7VRCIOK7G76EK7MAOC55EDT5GG4EKRE4VPVWSWG7KSP3";
+  const OPERATOR = "GBWMD26IB6CMG3JO3HU7SD7ZJSTF4BIJ5JS77ANMLJ52M6FV6K3J7BQJ";
+  const paidTo = (
+    payee: string | null,
+    payeeRole: string | null,
+  ): SettledView["steps"][number] => ({
+    step: step(0, { agent_id: "agt_11c0", agent_name: "code.gen" }),
+    state: { kind: "disputable" },
+    payout: {
+      kind: "paid",
+      usdc: 0.054,
+      tx: CHARGE_TX,
+      receiptIdHex: null,
+      payee,
+      payeeRole,
+    },
+  });
+  const view = (row: SettledView["steps"][number]) =>
+    settled([row], { settlementState: "settled" });
+
+  it("says a built-in agent's payout went to the platform treasury, and links it", () => {
+    renderPanel(view(paidTo(TREASURY, "platform_treasury")));
+    expect(text()).toContain(
+      `paid ${xlm(0.054)} to the Orizon platform treasury`,
+    );
+    const link = screen.getByRole("link", {
+      name: "view step 1 payee on stellar.expert",
+    });
+    expect(link.getAttribute("href")).toMatch(
+      new RegExp(`/account/${TREASURY}$`),
+    );
+  });
+
+  it("says an operator's payout went to the operator, and links the wallet", () => {
+    renderPanel(view(paidTo(OPERATOR, "operator")));
+    expect(text()).toContain(`paid ${xlm(0.054)} to the operator`);
+    expect(
+      screen
+        .getByRole("link", { name: "view step 1 payee on stellar.expert" })
+        .getAttribute("href"),
+    ).toMatch(new RegExp(`/account/${OPERATOR}$`));
+  });
+
+  it("names neither when the record keeps no payee", () => {
+    renderPanel(view(paidTo(null, null)));
+    expect(text()).toContain(`paid ${xlm(0.054)} to the operator`);
+    expect(screen.queryByRole("link", { name: /payee/ })).toBeNull();
+  });
+
+  it("claims no role it does not know, and still links the account", () => {
+    renderPanel(view(paidTo(OPERATOR, "escrow_bot")));
+    expect(text()).toContain(`paid ${xlm(0.054)}`);
+    expect(text()).not.toMatch(/treasury|to the operator/);
+    expect(
+      screen.getByRole("link", { name: "view step 1 payee on stellar.expert" }),
+    ).toBeTruthy();
+  });
+});

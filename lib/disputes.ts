@@ -25,7 +25,8 @@ import {
   taskAuthHeaders,
 } from "./api";
 import { DISPUTE_READ_GRANT_HEADER } from "./dispute-read-grant";
-import { STROOPS_PER_UNIT, formatSettled } from "./money";
+import { STROOPS_PER_UNIT, formatSettled, parseStroops } from "./money";
+import { reconcileSettlement } from "./reconcile";
 import type {
   CreditPolicy,
   Dispute,
@@ -208,6 +209,31 @@ const isNullableAmount = (v: unknown): v is number | null =>
 /** `delivered` strictly boolean: it decides whether a step can be disputed at
  * all, and the string "false" is truthy. Escrow v2's payout fields are
  * optional — a v1 backend sends neither — and typed whenever they are sent. */
+/** An exact amount (`money.Amount`) — whole, non-negative stroops and the
+ *  backend's display string — or an explicit null. */
+const isNullableWireAmount = (v: unknown): boolean =>
+  v === null ||
+  (isRecord(v) && parseStroops(v.stroops) !== null && isStr(v.display));
+
+/** The settlement's totals: `charged` always, the rest exact or null. */
+const isSettlementTotals = (v: unknown): boolean =>
+  v === null ||
+  (isRecord(v) &&
+    isRecord(v.charged) &&
+    isNullableWireAmount(v.charged) &&
+    isNullableWireAmount(v.authorized) &&
+    isNullableWireAmount(v.planned) &&
+    isNullableWireAmount(v.returned) &&
+    isNullableWireAmount(v.surplus));
+
+/** The settlement's asset: a code, an optional issuer and decimals. */
+const isNullableAsset = (v: unknown): boolean =>
+  v === null ||
+  (isRecord(v) &&
+    isStr(v.code) &&
+    isAbsentOr(v.issuer, isNullableStr) &&
+    isAbsentOr(v.decimals, isNullableNum));
+
 function isSettlementStep(v: unknown): v is SettlementStepView {
   return (
     isRecord(v) &&
@@ -220,7 +246,14 @@ function isSettlementStep(v: unknown): v is SettlementStepView {
     isNullableStr(v.output_summary) &&
     isAbsentOr(v.paid_usdc, isNullableAmount) &&
     isAbsentOr(v.receipt_id_hex, isNullableStr) &&
-    isAbsentOr(v.unpaid_reason, isNullableStr)
+    isAbsentOr(v.unpaid_reason, isNullableStr) &&
+    // The exact figures, when sent, are whole stroops or nothing: a price
+    // of 1.5 stroops is unprintable, and the step is refused with it.
+    isAbsentOr(v.payee, isNullableStr) &&
+    isAbsentOr(v.payee_role, isNullableStr) &&
+    isAbsentOr(v.planned, isNullableWireAmount) &&
+    isAbsentOr(v.charged, isNullableWireAmount) &&
+    isAbsentOr(v.returned, isNullableWireAmount)
   );
 }
 
@@ -237,7 +270,9 @@ function isSettlement(v: unknown): v is SettlementView {
     Array.isArray(v.steps) &&
     v.steps.every(isSettlementStep) &&
     isCreditPolicy(v.policy) &&
-    isAbsentOr(v.returned_usdc, isNullableAmount)
+    isAbsentOr(v.returned_usdc, isNullableAmount) &&
+    isAbsentOr(v.totals, isSettlementTotals) &&
+    isAbsentOr(v.asset, isNullableAsset)
   );
 }
 
@@ -981,6 +1016,8 @@ export function stepPayout(
           usdc: paid,
           tx: settleTx,
           receiptIdHex: step.receipt_id_hex ?? null,
+          payee: step.payee ?? null,
+          payeeRole: step.payee_role ?? null,
         };
       }
       // The backend's own reason first; the reserved `agt_` prefix only
@@ -1121,6 +1158,7 @@ export function disputeView(input: {
       };
     });
   const remainder = settlementRemainder(settlement, settlementState);
+  const reconciliation = reconcileSettlement(settlement, settlementState);
 
   return {
     kind: "settled",
@@ -1140,6 +1178,7 @@ export function disputeView(input: {
     steps,
     ...(settlementState === undefined ? {} : { settlementState }),
     ...(remainder === undefined ? {} : { remainder }),
+    ...(reconciliation === null ? {} : { reconciliation }),
     ...(settlementState === "unconfirmed" && waitOver
       ? { settlementStoppedChecking: true }
       : {}),

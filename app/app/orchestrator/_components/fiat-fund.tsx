@@ -9,7 +9,7 @@ import {
   pdaxStartOnRamp,
 } from "@/lib/pdax";
 import type { PdaxFundingQuote, PdaxRampRecord } from "@/lib/pdax-types";
-import { assetLabel } from "@/lib/money";
+import { assetLabel, type AssetRef } from "@/lib/money";
 import { focusRing, inputCls } from "@/lib/ui";
 import { toMessage, useAsyncAction } from "@/lib/use-async-action";
 import { usePolling } from "@/lib/use-polling";
@@ -46,15 +46,18 @@ const METHODS = [
  * PDAX (bank/e-wallet) with USDCXLM delivered to the buyer's Stellar address.
  * That funds the workflow itself only where the escrow takes USDC. */
 export function FiatFund({
-  usdcAmount,
+  amount,
   stellarAddress,
   asset,
 }: {
-  usdcAmount: number;
+  /** The cap the buyer signs, as an exact plain decimal ("0.123") — never
+   *  a float's `String()`, which writes 1e-7 for a stroop. */
+  amount: string;
   stellarAddress?: string;
-  /** What the escrow's SAC wraps, from GET /api/stellar/network — "native"
-   *  on testnet. Null or absent while that read is pending or has failed. */
-  asset?: string | null;
+  /** What the escrow's SAC wraps: the plan's asset, or GET
+   *  /api/stellar/network's "native" on testnet. Null or absent while
+   *  neither has been read. */
+  asset?: AssetRef;
 }) {
   // What the ramp credits is fixed: PDAX buys USDC and withdraws USDCXLM —
   // USDC on Stellar — to the address below (backend app/pdax/ramp.py). What
@@ -88,13 +91,13 @@ export function FiatFund({
 
   // Server-authoritative funding quote: pesos that always cover the workflow
   // (buffer + round-up applied backend-side). The alive flag keeps a torn-down
-  // effect (unmount or usdcAmount change) from applying a stale response.
+  // effect (unmount or amount change) from applying a stale response.
   useEffect(() => {
-    if (!usdcAmount) return;
+    if (!amount) return;
     let alive = true;
     setQuoting(true);
     setQuoteErr(null);
-    pdaxFundingQuote(String(usdcAmount))
+    pdaxFundingQuote(amount)
       .then((q) => {
         if (!alive) return;
         setQuote(q);
@@ -109,7 +112,7 @@ export function FiatFund({
     return () => {
       alive = false;
     };
-  }, [usdcAmount]);
+  }, [amount]);
 
   useEffect(() => {
     if (stellarAddress) setAddress(stellarAddress);

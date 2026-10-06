@@ -177,7 +177,7 @@ describe("SettlementPanel — a scan that could not run", () => {
     // `total_stroops` is a default in this payload, so no figure may be drawn
     // from it — this is the assertion that catches the tempting bug.
     expect(screen.queryByText("settled revenue")).toBeNull();
-    expect(visibleText()).not.toContain("0.0 XLM");
+    expect(visibleText()).not.toContain("0.000 XLM");
     expect(visibleText()).toContain(
       "A scan that never ran and a scan that ran and found nothing are different results",
     );
@@ -231,7 +231,7 @@ describe("SettlementPanel — a window that ran and found nothing", () => {
 
     // A measured zero is shown, unlike the failure states above.
     expect(tileFigure("settled revenue")).toEqual({
-      value: "0.0",
+      value: "0.000",
       unit: "XLM",
     });
   });
@@ -282,7 +282,7 @@ describe("SettlementPanel — a window that ran and found nothing", () => {
       "the escrow's token wraps this chain's native asset",
     );
     expect(tileFigure("excluded self-payments")).toEqual({
-      value: "0.0",
+      value: "0.000",
       unit: "XLM",
     });
   });
@@ -295,7 +295,7 @@ describe("SettlementPanel — a window that ran and found nothing", () => {
 
     await screen.findByText("settled revenue");
     expect(tileFigure("settled revenue")).toEqual({
-      value: "2.5",
+      value: "2.500",
       unit: "USDC",
     });
     expect(visibleText()).not.toContain("native asset");
@@ -330,7 +330,7 @@ describe("SettlementPanel — a charge paid by the platform to itself", () => {
     // Revenue excludes it; the excluded figure is reported next to it rather
     // than dropped, which is the difference between excluding and hiding.
     expect(tileFigure("settled revenue")).toEqual({
-      value: "0.0",
+      value: "0.000",
       unit: "XLM",
     });
     expect(tileFigure("excluded self-payments")).toEqual({
@@ -399,7 +399,7 @@ describe("SettlementPanel — a charge a customer actually paid", () => {
 
     await screen.findByText("settled revenue");
     expect(tileFigure("settled revenue")).toEqual({
-      value: "2.5",
+      value: "2.500",
       unit: "XLM",
     });
     expect(visibleText()).toContain("customer payment");

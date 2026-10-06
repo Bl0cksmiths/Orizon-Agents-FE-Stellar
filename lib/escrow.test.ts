@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  AUTHORIZE_FEE_HEADROOM_XLM,
+  AUTHORIZE_FEE_HEADROOM_STROOPS,
   AUTHORIZE_TTL_SECONDS,
-  BASE_RESERVE_XLM,
+  BASE_RESERVE_STROOPS,
   checkEscrowFunds,
+  authorizeAmountMismatch,
   classifyAuthorizeError,
   insufficientEscrowFunds,
 } from "./escrow";
@@ -20,8 +21,8 @@ describe("AUTHORIZE_TTL_SECONDS", () => {
 });
 
 describe("checkEscrowFunds", () => {
-  const cap = 0.3;
-  const floor = cap + AUTHORIZE_FEE_HEADROOM_XLM + BASE_RESERVE_XLM;
+  const cap = 3_000_000n; // 0.3 XLM
+  const floor = cap + AUTHORIZE_FEE_HEADROOM_STROOPS + BASE_RESERVE_STROOPS;
 
   it("passes a wallet that covers the maximum, the fee and the reserve", () => {
     expect(
@@ -31,42 +32,51 @@ describe("checkEscrowFunds", () => {
 
   // Exactly enough is enough: compared in stroops, never in floats that turn
   // 0.028 + 0.1 + 1 into 1.1280000000000001 and refuse a wallet of 1.128.
-  it.each([cap, 0.028])(
-    "passes a wallet holding exactly what a %s cap needs",
-    (c) => {
-      const exact = (c + AUTHORIZE_FEE_HEADROOM_XLM + BASE_RESERVE_XLM).toFixed(
-        7,
-      );
-      expect(
-        checkEscrowFunds({ balance: exact, cap: c, asset: "native" }),
-      ).toEqual({ kind: "enough" });
-    },
-  );
+  it.each([
+    [cap, "1.4000000"],
+    [280_000n, "1.1280000"],
+  ])("passes a wallet holding exactly what a %s-stroop cap needs", (c, b) => {
+    expect(checkEscrowFunds({ balance: b, cap: c, asset: "native" })).toEqual({
+      kind: "enough",
+    });
+  });
 
   it("refuses a wallet a stroop short, and says by how much", () => {
-    const available = floor - 0.0000001;
     expect(
-      checkEscrowFunds({
-        balance: available.toFixed(7),
-        cap,
-        asset: "native",
-      }),
-    ).toEqual({
-      kind: "short",
-      needed: floor,
-      available: Number(available.toFixed(7)),
-    });
+      checkEscrowFunds({ balance: "1.3999999", cap, asset: "native" }),
+    ).toEqual({ kind: "short", needed: floor, available: 13_999_999n });
   });
 
   // The reserve is the part a buyer does not expect: a wallet holding the
   // maximum and the fee, and nothing else, still cannot move it.
   it("refuses a wallet that holds the maximum but not the reserve", () => {
     const result = checkEscrowFunds({
-      balance: String(cap + AUTHORIZE_FEE_HEADROOM_XLM),
+      balance: "0.4",
       cap,
       asset: "native",
     });
     expect(result.kind).toBe("short");
+  });
+
+  it("judges a cap far past 2^53 stroops without losing one", () => {
+    const huge = 90_071_992_547_409_930n;
+    const exact = huge + AUTHORIZE_FEE_HEADROOM_STROOPS + BASE_RESERVE_STROOPS;
+    const asDecimal = (n: bigint) =>
+      `${n / 10_000_000n}.${(n % 10_000_000n).toString().padStart(7, "0")}`;
+    expect(
+      checkEscrowFunds({
+        balance: asDecimal(exact),
+        cap: huge,
+        asset: "native",
+      }),
+    ).toEqual({ kind: "enough" });
+    expect(
+      checkEscrowFunds({
+        balance: asDecimal(exact - 1n),
+        cap: huge,
+        asset: "native",
+      }).kind,
+    ).toBe("short");
   });
 
   // An unread balance is not a zero and not a pass: the chain decides.
@@ -74,6 +84,7 @@ describe("checkEscrowFunds", () => {
     ["the balance is unread", { balance: null, asset: "native" }],
     ["the balance is blank", { balance: " ", asset: "native" }],
     ["the balance is not a number", { balance: "lots", asset: "native" }],
+    ["the balance is negative", { balance: "-1", asset: "native" }],
     ["the unit is not known yet", { balance: "0", asset: null }],
   ])("reports unknown when %s", (_name, input) => {
     expect(checkEscrowFunds({ ...input, cap })).toEqual({ kind: "unknown" });
@@ -88,15 +99,15 @@ describe("checkEscrowFunds", () => {
 });
 
 describe("insufficientEscrowFunds", () => {
-  it("is a typed insufficient-balance error naming both figures", () => {
+  it("is a typed insufficient-balance error naming both figures exactly", () => {
     const e = insufficientEscrowFunds({
       kind: "short",
-      needed: 1.4,
-      available: 0.25,
+      needed: 14_000_001n,
+      available: 2_500_000n,
     });
     expect(e.kind).toBe("insufficient_balance");
-    expect(e.detail).toContain("1.4 XLM");
-    expect(e.detail).toContain("0.25 XLM");
+    expect(e.detail).toContain("1.4000001 XLM");
+    expect(e.detail).toContain("0.250 XLM");
     // The custody fact, and that nothing happened yet.
     expect(e.detail).toContain("moves the plan's maximum into escrow");
     expect(e.detail).toContain("Nothing was signed or moved.");
@@ -154,5 +165,37 @@ describe("classifyAuthorizeError", () => {
     expect(classifyAuthorizeError(new Error("User declined")).kind).toBe(
       "user_rejected",
     );
+  });
+});
+
+describe("checkEscrowFunds — the network's unread asset", () => {
+  it("says nothing while the backend could not read the SAC", () => {
+    expect(
+      checkEscrowFunds({ balance: "100", cap: 1n, asset: "unknown" }),
+    ).toEqual({ kind: "unknown" });
+  });
+});
+
+describe("authorizeAmountMismatch", () => {
+  const refusal = Object.assign(
+    new Error("plan pln_1 totals 1513457 stroops; authorize exactly that"),
+    { code: "authorization_amount_mismatch", status: 409 },
+  );
+
+  it("reads the backend's refusal of an amount that is not the plan's total", () => {
+    const e = authorizeAmountMismatch(refusal);
+    expect(e?.title).toBe("This plan's price changed");
+    expect(e?.detail).toBe(
+      "The platform holds a different total for this plan than the one on this card, so nothing was signed or moved. Build a fresh plan to see its current price.",
+    );
+  });
+
+  it("reads nothing into any other failure", () => {
+    expect(authorizeAmountMismatch(new Error("build_failed"))).toBeNull();
+    expect(
+      authorizeAmountMismatch(
+        Object.assign(new Error("x"), { code: "build_failed" }),
+      ),
+    ).toBeNull();
   });
 });

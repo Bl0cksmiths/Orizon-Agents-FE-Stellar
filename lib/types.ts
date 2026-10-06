@@ -1,3 +1,6 @@
+import type { PlanAsset } from "./money";
+import type { Reconciliation } from "./reconcile";
+
 /** The registry statuses this build has a tone for. A backend may add more,
  * so `Agent.status` is typed as any string: narrow with `isAgentStatus`
  * before indexing a per-status map, and render anything else neutrally. */
@@ -54,7 +57,12 @@ export type Task = {
   id: string;
   intent: string;
   agents: number;
+  /** DEPRECATED — `spent_stroops` as a float of the asset. */
   spent: number;
+  /** The run's bill in stroops: what a paid run's settle moved, or what a
+   *  simulated run's delivered steps are priced at. Null while running and
+   *  on a task written before it existed; read through `taskSpent`. */
+  spent_stroops?: number | string | null;
   status: TaskStatus;
   started: string;
   /**
@@ -83,7 +91,14 @@ export type PlanStep = {
   agent_id: string;
   agent_name?: string;
   rationale: string;
-  est_price_usdc: number;
+  /** DEPRECATED legacy price in whole units, kept by the backend for older
+   *  clients. Read only through `planPricing`, which prefers
+   *  `price_stroops` and converts this one the way the backend does. */
+  est_price_usdc?: number;
+  /** The step's price in integer stroops, fixed at plan time — exactly what
+   *  a delivered step settles and an undelivered one returns. A JSON integer
+   *  or a digit string. Absent from backends predating it. */
+  price_stroops?: number | string | null;
   est_eta_seconds: number;
   rep_bps?: number | null;
   /** One of `REPUTATION_SOURCES` today, but any string on the wire. Absent
@@ -124,6 +139,10 @@ export type PlanStep = {
   /** The model a built-in step runs on, by exact id. Null for an external
    *  agent, and when the backend does not name one. */
   model?: string | null;
+  /** The earlier steps (1-based) whose outputs this step uses, as the
+   *  planner states them. Null for a step that builds on nothing; absent
+   *  from backends predating it. Read through `planInputs`. */
+  inputs_from?: number[] | null;
 };
 
 /** The notice kinds this build has copy and a mark for. A backend may add
@@ -155,7 +174,22 @@ export type ExclusionReason =
   /** A bound agent whose endpoint failed its latest health check, left out
    *  while that failure is fresh (D-084). Not a reputation verdict: its
    *  `lower_bound_bps` is null on purpose. */
-  | "unreachable_endpoint";
+  | "unreachable_endpoint"
+  /** A built-in agent whose worker would only simulate its step: left out
+   *  so a buyer is never charged for simulated output. Routing policy, not
+   *  a verdict about the agent. */
+  | "simulated_worker"
+  /** An operator's own agent, left out while plans use only the platform's
+   *  built-in agents (`PLANNER_ROUTE_EXTERNAL`). Routing policy too. */
+  | "external_not_routed"
+  /** A vision step the planner proposed for a request with no image to
+   *  read, dropped before the buyer authorized its price. */
+  | "no_image_input"
+  /** Any other proposed step that would have had nothing to work on (a
+   *  review with no build, a translation with no target language). */
+  | "no_step_input"
+  /** An agent whose model provider is down. */
+  | "provider_unavailable";
 
 /** One reputation-floor action taken while building the plan
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are
@@ -246,7 +280,16 @@ export type DecomposeResponse = {
   plan_id: string;
   intent: string;
   steps: PlanStep[];
-  total_usdc: number;
+  /** DEPRECATED legacy total in whole units. Never signed or printed: the
+   *  card totals the steps' stroops (`planPricing`). */
+  total_usdc?: number;
+  /** The plan's total in integer stroops, `sum(step.price_stroops)` exactly;
+   *  the amount the buyer authorizes. Absent from older backends. */
+  total_stroops?: number | string | null;
+  /** The asset every amount on the plan is in — native XLM on testnet,
+   *  `{code: "XLM", issuer: null, decimals: 7}`. Absent from older
+   *  backends, where the network route's `asset` names it instead. */
+  asset?: PlanAsset | null;
   total_eta: number;
   /** Floor actions behind this plan's shape; empty on the common path where
    * every routed agent clears the floor. Absent from backends predating it. */
@@ -811,6 +854,9 @@ export type StepPayout =
       /** The settle transaction the payout happened in, when recorded. */
       tx: string | null;
       receiptIdHex: string | null;
+      /** Who was paid, and as what; null on a record that kept no payee. */
+      payee?: string | null;
+      payeeRole?: string | null;
     }
   /** Delivered by a seeded platform agent: never billed, share returned. */
   | { kind: "platform" }
@@ -892,6 +938,40 @@ export type SettlementStepView = {
    * this build does not know still reads as "not paid", never as paid.
    */
   unpaid_reason?: string | null;
+  // The step's money as the backend reconciles it (ADR 0015), each an exact
+  // amount. OPTIONAL: a backend predating them sends the floats above alone,
+  // and the reconciliation converts those as the backend does. Null where the
+  // record does not know the figure: `charged`/`returned` on a v1 settlement,
+  // which moved one total, and `planned` on a record too old to have kept it.
+  /** The plan's price for the step — what the buyer authorized for it. */
+  planned?: WireAmount | null;
+  /** What the settlement paid its operator (0 when it was not paid). */
+  charged?: WireAmount | null;
+  /** `planned − charged`: what went back to the buyer in the settle. */
+  returned?: WireAmount | null;
+  /** The account the settle paid for this step (ADR 0016). Null for a step
+   *  nobody was paid for, and on a record written before it was kept. */
+  payee?: string | null;
+  /** Whether `payee` is the Orizon platform treasury — every built-in
+   *  agent's payee — or an operator's wallet. Any string on the wire: one
+   *  this build does not know claims neither. */
+  payee_role?: string | null;
+};
+
+/** One exact amount on the wire (`money.Amount`): integer stroops, and the
+ *  backend's own display string of it. The page prints `stroops` through its
+ *  one formatter, which follows the same rule. */
+export type WireAmount = { stroops: number | string; display: string };
+
+/** A settlement's money in total (`SettlementTotals`): `charged + returned ==
+ *  authorized` exactly, and `surplus` is what was authorized above the plan's
+ *  total. Null where the record does not know the figure. */
+export type SettlementTotals = {
+  authorized: WireAmount | null;
+  planned: WireAmount | null;
+  charged: WireAmount;
+  returned: WireAmount | null;
+  surplus: WireAmount | null;
 };
 
 /** A workflow's settlement: what moved, who paid, and until when to dispute. */
@@ -916,6 +996,11 @@ export type SettlementView = {
    * claim about money the chain has not been read for.
    */
   returned_usdc?: number | null;
+  /** What every amount on the settlement is in. Absent from older
+   *  backends. */
+  asset?: PlanAsset | null;
+  /** The run's money in total, reconciled. Absent from older backends. */
+  totals?: SettlementTotals | null;
 };
 
 /** One buyer's dispute of one settled step. */
@@ -1168,6 +1253,12 @@ export type DisputePanelView =
       settlementState?: SettlementState | null;
       /** What came back to the payer; absent where no state is reported. */
       remainder?: SettlementRemainder;
+      /**
+       * Planned against charged against returned, per step and in all
+       * (`reconcileSettlement`); absent on a settlement that reports no
+       * per-step payouts (escrow v1, or a backend predating them).
+       */
+      reconciliation?: Reconciliation;
       /**
        * The panel stopped re-reading an unconfirmed settlement: whatever it
        * says is only as fresh as the last read.

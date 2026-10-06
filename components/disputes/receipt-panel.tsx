@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useId, useState, type RefObject } from "react";
+import dynamic from "next/dynamic";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,13 @@ import { ReasonUnlock } from "./reason-unlock";
 import { WindowState, formatLocalTime } from "./window-state";
 
 type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
+
+// Its own chunk: only a settled receipt that reports per-step payouts draws
+// it, and the trace route sits at its first-load budget.
+const ReconciliationTable = dynamic(
+  () => import("./reconciliation").then((m) => m.ReconciliationTable),
+  { ssr: false },
+);
 
 /** The payer's offer to sign for their withheld words, as the page runs it. */
 export type ReasonUnlockControl = {
@@ -503,6 +511,12 @@ function SettledReceipt({
             <TxRow label="seal" hash={view.proofTx} />
           </dl>
 
+          {/* Planned against charged against returned, per step and in all —
+              the money above, reconciled to the stroop. */}
+          {view.reconciliation && (
+            <ReconciliationTable recon={view.reconciliation} />
+          )}
+
           {/* What became of the run's attestation, in words, when the
               backend reports it; the link to its transaction is the "seal"
               row just above. Not the payment: a seal that did not land says
@@ -760,8 +774,19 @@ function StepPayoutLine({
       return (
         <span className="flex flex-col items-start gap-1 sm:items-end">
           <span className={cn(label, "text-emerald-300")}>
-            paid {formatAmount(payout.usdc)} to the operator
+            paid {formatAmount(payout.usdc)}
+            {payeeClause(payout)}
           </span>
+          {payout.payee && (
+            <StellarExpertLink
+              kind="account"
+              id={payout.payee}
+              className="inline-flex min-h-6 items-center gap-[1ch]"
+            >
+              view step {stepNumber(step)} payee on stellar.expert
+              <span aria-hidden="true"> ▸</span>
+            </StellarExpertLink>
+          )}
           {payout.tx && (
             <StellarExpertLink
               kind="tx"
@@ -797,6 +822,27 @@ function StepPayoutLine({
       return (
         <span className={cn(label, "text-muted")}>payout not reported</span>
       );
+  }
+}
+
+/**
+ * Who a payout went to, as the backend names it (ADR 0016): the Orizon
+ * platform treasury — which owns every built-in agent on-chain — or the
+ * operator's own wallet. A record that kept no payee predates the treasury,
+ * when only operators were ever paid, so it reads as before. A role this
+ * build does not know claims neither.
+ */
+function payeeClause(payout: Extract<StepPayout, { kind: "paid" }>): string {
+  switch (payout.payeeRole) {
+    case "platform_treasury":
+      return " to the Orizon platform treasury";
+    case "operator":
+      return " to the operator";
+    case null:
+    case undefined:
+      return payout.payee ? "" : " to the operator";
+    default:
+      return "";
   }
 }
 

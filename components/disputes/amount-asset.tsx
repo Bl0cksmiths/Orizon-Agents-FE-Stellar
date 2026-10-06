@@ -31,6 +31,11 @@ export function AmountAssetProvider({
   );
 }
 
+/** The provided asset itself, for a figure already in exact stroops. */
+export function useAmountAsset(): string | null | undefined {
+  return useContext(AmountAssetContext);
+}
+
 /** `formatAmount` bound to the provided asset. */
 export function useFormatAmount(): (n: number) => string {
   const asset = useContext(AmountAssetContext);

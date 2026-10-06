@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
 import type { TraceLine } from "@/lib/types";
-import { StageMark, StepMarks } from "./trace-line-marks";
+import { HandoffMark, StageMark, StepMarks } from "./trace-line-marks";
 
 afterEach(cleanup);
 
@@ -78,6 +78,25 @@ describe("StepMarks", () => {
 
   it("marks nothing on a line from a backend predating the tags", () => {
     const { container } = render(<StepMarks line={line("code.gen → done")} />);
+    expect(container.innerHTML).toBe("");
+  });
+});
+
+describe("HandoffMark", () => {
+  it("marks a line that says which earlier steps it builds on", () => {
+    const { container } = render(
+      <HandoffMark
+        line={line("copywrite.v3 uses output from: research.pro, seo.brief")}
+      />,
+    );
+    expect(container.textContent).toContain("handoff");
+    expect(container.textContent).toMatch(/builds on earlier steps/i);
+  });
+
+  it("marks nothing on any other line", () => {
+    const { container } = render(
+      <HandoffMark line={line("code.gen → calculator app generated")} />,
+    );
     expect(container.innerHTML).toBe("");
   });
 });

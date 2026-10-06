@@ -33,6 +33,7 @@ import {
   receiptAwaitsChain,
   receiptBadgeStatus,
   serverClockOffsetMs,
+  stepPayout,
 } from "./disputes";
 import { formatSettled } from "./money";
 import { rememberTaskToken } from "./task-tokens";
@@ -2292,10 +2293,10 @@ describe("formatAmount", () => {
   const xlm = (n: number) => formatAmount(n, "native");
 
   it.each([
-    [0.05, "0.05 XLM"],
+    [0.05, "0.050 XLM"],
     [0.0025, "0.0025 XLM"],
-    [1, "1.0 XLM"],
-    [0, "0.0 XLM"],
+    [1, "1.000 XLM"],
+    [0, "0.000 XLM"],
     // Floored at the stroop: a figure the chain cannot move is not one the
     // receipt may print.
     [1.23456789, "1.2345678 XLM"],
@@ -2322,15 +2323,15 @@ describe("formatAmount", () => {
   it("never prints a stroop more than the chain can move", () => {
     // Half a stroop rounded UP promised a tenth of a millionth of a unit
     // that no transfer can carry.
-    expect(xlm(0.00000005)).toBe("0.0 XLM");
+    expect(xlm(0.00000005)).toBe("0.000 XLM");
     expect(xlm(0.00000015)).toBe("0.0000001 XLM");
     expect(xlm(0.0000001)).toBe("0.0000001 XLM");
   });
 
   it.each([
-    [0.57, "0.57 XLM"],
-    [1.13, "1.13 XLM"],
-    [2.01, "2.01 XLM"],
+    [0.57, "0.570 XLM"],
+    [1.13, "1.130 XLM"],
+    [2.01, "2.010 XLM"],
   ])(
     "floors %d without letting binary noise eat a whole stroop",
     (n, label) => {
@@ -2355,7 +2356,7 @@ describe("formatAmount", () => {
   );
 
   it("prints a negative zero as nothing, not as a minus", () => {
-    expect(xlm(-0)).toBe("0.0 XLM");
+    expect(xlm(-0)).toBe("0.000 XLM");
   });
 
   it("does not round a fractional credit up to three places", () => {
@@ -2364,7 +2365,7 @@ describe("formatAmount", () => {
   });
 
   it("absorbs float noise at the stroop, the chain's own precision", () => {
-    expect(xlm(0.1 + 0.2)).toBe("0.3 XLM");
+    expect(xlm(0.1 + 0.2)).toBe("0.300 XLM");
   });
 
   it("is lib/money's settled-value formatter, not a second definition", () => {
@@ -2802,7 +2803,14 @@ describe("disputeView — escrow v2 settlement", () => {
       res: taskDisputes({ settlement_state: "settled", settlement: v2() }),
     });
     expect(payouts(v)).toEqual({
-      0: { kind: "paid", usdc: 0.01, tx: "tx_charge", receiptIdHex: RECEIPT },
+      0: {
+        kind: "paid",
+        usdc: 0.01,
+        tx: "tx_charge",
+        receiptIdHex: RECEIPT,
+        payee: null,
+        payeeRole: null,
+      },
       1: { kind: "platform" },
       2: { kind: "not_paid" },
     });
@@ -2945,5 +2953,135 @@ describe("disputeView — escrow v2 settlement", () => {
     const legacy = view({ res: taskDisputes({ settlement: null }) });
     expect(legacy).toEqual({ kind: "not_settled", running: false });
     expect("settlementState" in legacy).toBe(false);
+  });
+});
+
+describe("getTaskDisputes — the settlement's exact amounts", () => {
+  const amt = (stroops: number | string) => ({ stroops, display: "x" });
+
+  it("passes the exact amounts, the totals and the asset through", async () => {
+    const body = taskDisputes({
+      settlement_state: "settled",
+      settlement: settlement({
+        steps: [
+          step(0, {
+            planned: amt(540_000),
+            charged: amt("540000"),
+            returned: amt(0),
+          }),
+        ],
+        totals: {
+          authorized: amt(540_000),
+          planned: amt(540_000),
+          charged: amt(540_000),
+          returned: amt(0),
+          surplus: amt(0),
+        },
+        asset: { code: "XLM", issuer: null, decimals: 7 },
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
+  });
+
+  it.each([
+    ["a fractional price", { planned: amt(1.5) }],
+    ["a negative charge", { charged: amt(-1) }],
+    ["a return as a decimal string", { returned: amt("0.5") }],
+    ["an amount with no display", { planned: { stroops: 5 } }],
+  ])("refuses a step carrying %s", async (_name, over) => {
+    const body = taskDisputes({
+      settlement: settlement({
+        steps: [{ ...step(0), ...over } as SettlementStepView],
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+
+  const totals = {
+    authorized: amt(1),
+    planned: amt(1),
+    charged: amt(1),
+    returned: amt(0),
+    surplus: amt(0),
+  };
+  it.each([
+    ["authorized", { totals: { ...totals, authorized: amt(-5) } }],
+    ["charged", { totals: { ...totals, charged: null } }],
+    ["returned", { totals: { ...totals, returned: amt(0.1) } }],
+    ["asset", { asset: "XLM" }],
+  ])("refuses a malformed %s figure", async (_name, over) => {
+    const body = taskDisputes({
+      settlement: settlement(over as Partial<SettlementView>),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+});
+
+describe("disputeView — the receipt's reconciliation", () => {
+  it("reconciles a v2 settlement step by step", () => {
+    const v = settled({
+      res: taskDisputes({
+        settlement_state: "settled",
+        settlement: settlement({
+          steps: [
+            step(0, { price_usdc: 0.01, paid_usdc: 0.01 }),
+            step(1, { price_usdc: 0.02, paid_usdc: 0, delivered: false }),
+          ],
+          settled_usdc: 0.01,
+          returned_usdc: 0.02,
+        }),
+      }),
+    });
+    expect(v.reconciliation?.planned).toBe(300_000n);
+    expect(v.reconciliation?.charged).toBe(100_000n);
+    expect(v.reconciliation?.returned).toBe(200_000n);
+    expect(v.reconciliation?.balanced).toBe(true);
+  });
+
+  it("draws none for a settlement that reports no payouts", () => {
+    expect(settled().reconciliation).toBeUndefined();
+  });
+});
+
+describe("stepPayout — who was paid", () => {
+  const TREASURY = "GDOGIRT73NAQ7VRCIOK7G76EK7MAOC55EDT5GG4EKRE4VPVWSWG7KSP3";
+
+  it("carries the payee and its role onto a paid step", () => {
+    expect(
+      stepPayout(
+        step(0, {
+          paid_usdc: 0.01,
+          payee: TREASURY,
+          payee_role: "platform_treasury",
+        }),
+        "settled",
+        "tx",
+      ),
+    ).toEqual({
+      kind: "paid",
+      usdc: 0.01,
+      tx: "tx",
+      receiptIdHex: null,
+      payee: TREASURY,
+      payeeRole: "platform_treasury",
+    });
+  });
+
+  it("leaves them null on a record that kept no payee", () => {
+    const p = stepPayout(step(0, { paid_usdc: 0.01 }), "settled", "tx");
+    expect(p).toMatchObject({ payee: null, payeeRole: null });
+  });
+
+  it("refuses a payee that is not a string", async () => {
+    const body = taskDisputes({
+      settlement: settlement({
+        steps: [{ ...step(0), payee: 7 } as unknown as SettlementStepView],
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
   });
 });

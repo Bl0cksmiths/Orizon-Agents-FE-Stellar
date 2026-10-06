@@ -42,6 +42,7 @@ import type {
   TraceLine,
   XdrResponse,
 } from "./types";
+import { parseStroops, type PlanAsset } from "./money";
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -66,6 +67,23 @@ const isOptionalBool = (v: unknown): v is boolean | undefined =>
  * divides or compares must never arrive as a string that coerces. */
 const isOptionalNum = (v: unknown): v is number | undefined =>
   v === undefined || v === null || isNum(v);
+
+/** An amount in stroops, or absent: a present one is a whole, non-negative
+ * count (`parseStroops`). A price of 1.5 stroops, or "-3", is not one the
+ * chain can move, and a card that printed it would state a figure no
+ * authorization could carry. */
+const isOptionalStroops = (v: unknown): boolean =>
+  v === undefined || v === null || parseStroops(v) !== null;
+
+/** The plan's asset: a code to print, an optional issuer, an optional
+ * whole-number decimals. */
+const isPlanAsset = (v: unknown): v is PlanAsset =>
+  isRecord(v) &&
+  isStr(v.code) &&
+  isOptionalStr(v.issuer) &&
+  (v.decimals === undefined ||
+    v.decimals === null ||
+    (isNum(v.decimals) && Number.isInteger(v.decimals)));
 
 const isNumArray = (v: unknown): v is number[] =>
   Array.isArray(v) && v.every(isNum);
@@ -272,6 +290,7 @@ export function isTask(t: unknown): t is Task {
     isRecord(t) &&
     isStr(t.id) &&
     isNum(t.spent) &&
+    isOptionalStroops(t.spent_stroops) &&
     isStr(t.status) &&
     TASK_STATUSES.has(t.status) &&
     // The settlement outcome and the seal state: each any string, null, or
@@ -349,7 +368,12 @@ function isPlanStep(s: unknown): s is PlanStep {
     isRecord(s) &&
     isStr(s.agent_id) &&
     isStr(s.rationale) &&
-    isNum(s.est_price_usdc) &&
+    // A price the card can state: the exact `price_stroops`, the legacy
+    // `est_price_usdc`, or both. Each is the right type when present, and at
+    // least one is: a step with no price cannot be totalled or authorized.
+    isOptionalNum(s.est_price_usdc) &&
+    isOptionalStroops(s.price_stroops) &&
+    (isNum(s.est_price_usdc) || parseStroops(s.price_stroops) !== null) &&
     isNum(s.est_eta_seconds) &&
     // Rendered as the step's name, a React child: an object here throws and
     // takes the route down through the error boundary.
@@ -455,8 +479,9 @@ const isPlanStage = (v: unknown): v is PlanStage =>
  * notice items, and orchestrator v2's account of how the plan was made. */
 type PlanShell = Omit<
   DecomposeResponse,
-  "notices" | "tier" | "understood_as" | "guard" | "models" | "stages"
+  "notices" | "tier" | "understood_as" | "guard" | "models" | "stages" | "asset"
 > & {
+  asset?: unknown;
   notices?: unknown;
   tier?: unknown;
   understood_as?: unknown;
@@ -499,7 +524,10 @@ function isPlanShell(v: unknown): v is PlanShell {
   return (
     isRecord(v) &&
     isStr(v.plan_id) &&
-    isNum(v.total_usdc) &&
+    // Never signed or printed — the card totals the steps — but a wrong type
+    // still marks a payload this build does not understand.
+    isOptionalNum(v.total_usdc) &&
+    isOptionalStroops(v.total_stroops) &&
     isNum(v.total_eta) &&
     Array.isArray(v.steps) &&
     v.steps.every(isPlanStep) &&
@@ -531,7 +559,12 @@ function isPlanShell(v: unknown): v is PlanShell {
  * envelope itself is unusable. */
 export function screenDecomposeResponse(v: unknown): DecomposeResponse | null {
   if (!isPlanShell(v)) return null;
-  const provenance = screenProvenance(v);
+  const provenance = {
+    ...screenProvenance(v),
+    // A malformed asset costs its label, never the plan: the network
+    // route's asset names the unit instead.
+    asset: isPlanAsset(v.asset) ? v.asset : undefined,
+  };
   if (!Array.isArray(v.notices))
     return { ...v, ...provenance, notices: undefined };
   const notices = v.notices.filter(isPlanFloorNotice);

@@ -25,6 +25,46 @@ export const isUnbound = (n: PlanFloorNotice): boolean =>
 export const isUnreachable = (n: PlanFloorNotice): boolean =>
   n.reason_code === "unreachable_endpoint";
 
+/** An operator's own agent, left out while plans use only the platform's
+ *  built-in agents. Its reputation and endpoint were never the question. */
+export const isExternalNotRouted = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "external_not_routed";
+
+/** A built-in agent left out because its worker would only simulate the
+ *  step — a buyer is never charged for simulated output. */
+export const isSimulatedWorker = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "simulated_worker";
+
+/** Left out by how plans are built, not by anything about the agent: the
+ *  floor never judged it, and no bound was read for it. */
+export const isRoutingPolicy = (n: PlanFloorNotice): boolean =>
+  isExternalNotRouted(n) || isSimulatedWorker(n);
+
+/** A step the planner proposed and the backend dropped before the buyer
+ *  authorized its price, because it would have had nothing to work on: an
+ *  image to read that the request does not carry, a build to review that no
+ *  step makes, a target language nobody named. */
+export const isMissingInput = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "no_image_input" || n.reason_code === "no_step_input";
+
+/** An agent left out because the model provider behind it is down. */
+export const isProviderUnavailable = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "provider_unavailable";
+
+/**
+ * A notice about how the plan was SHAPED rather than a verdict of the floor:
+ * routing policy, a step with no input, a provider that is down. None of them
+ * says anything about the agent's reputation, so none reads a bound and none
+ * is counted as the floor acting.
+ */
+export const isPlanShaping = (n: PlanFloorNotice): boolean =>
+  isRoutingPolicy(n) || isMissingInput(n) || isProviderUnavailable(n);
+
+/** An aggregate notice that names no single agent (the in-platform-only
+ *  notice can stand for every operator agent at once). */
+export const namesNoAgent = (n: PlanFloorNotice): boolean =>
+  !n.agent_id.trim() && !n.agent_name?.trim();
+
 /**
  * Whether a notice records the floor acting on an agent: every notice except
  * an unbound or unreachable one. The ONE definition both the floor summary and the exclusions
@@ -38,7 +78,7 @@ export const isUnreachable = (n: PlanFloorNotice): boolean =>
  * unreachable one was left out on its endpoint's health, not its standing.
  */
 export const isFloorAction = (n: PlanFloorNotice): boolean =>
-  !isUnbound(n) && !isUnreachable(n);
+  !isUnbound(n) && !isUnreachable(n) && !isPlanShaping(n);
 
 /**
  * An agent held off because it was rated since its last reputation read and

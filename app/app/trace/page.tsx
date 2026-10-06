@@ -9,11 +9,11 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArtifactViewer } from "@/components/ui/artifact-viewer";
 import { DisputeSection } from "@/components/disputes/dispute-section";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
@@ -25,10 +25,21 @@ import { formatSpent, relabelAmounts, traceSpend } from "@/lib/trace-amounts";
 import { useFetch } from "@/lib/use-fetch";
 import type { ArtifactResponse, TraceLine } from "@/lib/types";
 import { AttestationCard } from "./attestation-card";
-import { OnChainReceipts } from "./on-chain-receipts";
-import { StageMark, StepMarks } from "./trace-line-marks";
+import { HandoffMark, StageMark, StepMarks } from "./trace-line-marks";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
+
+// The artifact tab — its viewer and the on-chain receipts beside it — is a
+// chunk of its own: it appears only once a run has produced an artifact, and
+// the route sits at its first-load budget.
+const ArtifactViewer = dynamic(
+  () => import("@/components/ui/artifact-viewer").then((m) => m.ArtifactViewer),
+  { ssr: false },
+);
+const OnChainReceipts = dynamic(
+  () => import("./on-chain-receipts").then((m) => m.OnChainReceipts),
+  { ssr: false },
+);
 
 const levelColor: Record<TraceLine["level"], string> = {
   input: "text-cyan",
@@ -80,6 +91,7 @@ const TraceRow = memo(function TraceRow({
       </span>
       <span className="flex-1 min-w-0 break-words text-text/90 leading-5">
         <StageMark line={line} />
+        <HandoffMark line={line} />
         {relabelAmounts(line.msg, asset)}
         <StepMarks line={line} />
       </span>
