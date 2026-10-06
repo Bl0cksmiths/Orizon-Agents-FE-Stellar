@@ -40,6 +40,31 @@ export const isSimulatedWorker = (n: PlanFloorNotice): boolean =>
 export const isRoutingPolicy = (n: PlanFloorNotice): boolean =>
   isExternalNotRouted(n) || isSimulatedWorker(n);
 
+/** A step the planner proposed and the backend dropped before the buyer
+ *  authorized its price, because it would have had nothing to work on: an
+ *  image to read that the request does not carry, a build to review that no
+ *  step makes, a target language nobody named. */
+export const isMissingInput = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "no_image_input" || n.reason_code === "no_step_input";
+
+/** An agent left out because the model provider behind it is down. */
+export const isProviderUnavailable = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "provider_unavailable";
+
+/**
+ * A notice about how the plan was SHAPED rather than a verdict of the floor:
+ * routing policy, a step with no input, a provider that is down. None of them
+ * says anything about the agent's reputation, so none reads a bound and none
+ * is counted as the floor acting.
+ */
+export const isPlanShaping = (n: PlanFloorNotice): boolean =>
+  isRoutingPolicy(n) || isMissingInput(n) || isProviderUnavailable(n);
+
+/** An aggregate notice that names no single agent (the in-platform-only
+ *  notice can stand for every operator agent at once). */
+export const namesNoAgent = (n: PlanFloorNotice): boolean =>
+  !n.agent_id.trim() && !n.agent_name?.trim();
+
 /**
  * Whether a notice records the floor acting on an agent: every notice except
  * an unbound or unreachable one. The ONE definition both the floor summary and the exclusions
@@ -53,7 +78,7 @@ export const isRoutingPolicy = (n: PlanFloorNotice): boolean =>
  * unreachable one was left out on its endpoint's health, not its standing.
  */
 export const isFloorAction = (n: PlanFloorNotice): boolean =>
-  !isUnbound(n) && !isUnreachable(n) && !isRoutingPolicy(n);
+  !isUnbound(n) && !isUnreachable(n) && !isPlanShaping(n);
 
 /**
  * An agent held off because it was rated since its last reputation read and
