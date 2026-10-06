@@ -2947,3 +2947,53 @@ describe("disputeView — escrow v2 settlement", () => {
     expect("settlementState" in legacy).toBe(false);
   });
 });
+
+describe("getTaskDisputes — the settlement's exact amounts", () => {
+  it("passes the stroops fields and the asset through", async () => {
+    const body = taskDisputes({
+      settlement_state: "settled",
+      settlement: settlement({
+        steps: [
+          step(0, {
+            price_stroops: 540_000,
+            paid_stroops: "540000",
+            returned_stroops: 0,
+          }),
+        ],
+        authorized_stroops: 540_000,
+        settled_stroops: 540_000,
+        returned_stroops: 0,
+        asset: { code: "XLM", issuer: null, decimals: 7 },
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
+  });
+
+  it.each([
+    ["a fractional price", { price_stroops: 1.5 }],
+    ["a negative charge", { paid_stroops: -1 }],
+    ["a return as a decimal string", { returned_stroops: "0.5" }],
+  ])("refuses a step carrying %s", async (_name, over) => {
+    const body = taskDisputes({
+      settlement: settlement({
+        steps: [{ ...step(0), ...over } as SettlementStepView],
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+
+  it.each([
+    ["authorized", { authorized_stroops: -5 }],
+    ["settled", { settled_stroops: "x" }],
+    ["returned", { returned_stroops: 0.1 }],
+    ["asset", { asset: "XLM" }],
+  ])("refuses a malformed %s figure", async (_name, over) => {
+    const body = taskDisputes({
+      settlement: settlement(over as Partial<SettlementView>),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+});
