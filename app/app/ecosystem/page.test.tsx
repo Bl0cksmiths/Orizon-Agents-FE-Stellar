@@ -13,6 +13,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -34,7 +35,11 @@ vi.mock("@/lib/ecosystem", async (importOriginal) => ({
   getEcosystemAdoption,
 }));
 
-import { OPERATOR_DOCS_URL, type EcosystemAdoption } from "@/lib/ecosystem";
+import {
+  OPERATOR_DOCS_URL,
+  PARTIAL_REFRESH_MS,
+  type EcosystemAdoption,
+} from "@/lib/ecosystem";
 import { saveAdoptionSnapshot } from "@/lib/use-adoption-snapshot";
 import { AdoptionView } from "./adoption-view";
 import EcosystemPage from "./page";
@@ -213,6 +218,67 @@ describe("AdoptionView — a partial read", () => {
     render(<AdoptionView adoption={zero()} />);
     expect(text(document.body)).not.toContain("Couldn't verify");
     expect(text(document.body)).not.toContain("May be incomplete");
+  });
+});
+
+describe("AdoptionView — a partial report (complete: false)", () => {
+  const coverage = {
+    agents_listed: 9,
+    agents_accounted: 7,
+    settlement_ledgers_scanned: 4_200,
+    settlement_ledgers_in_window: 120_960,
+    external_charges: 12,
+    external_charges_unattributed: 3,
+  };
+
+  it("marks the figures as lower bounds, with what was read", () => {
+    render(
+      <AdoptionView
+        adoption={zero({ complete: false, degraded: true, coverage })}
+      />,
+    );
+    const marker = screen.getByRole("region", { name: /partial report/i });
+    expect(text(marker)).toContain(
+      "Partial — figures are lower bounds, refreshing.",
+    );
+    expect(text(marker)).toContain("Agents accounted for: 7 of 9 listed.");
+    expect(text(marker)).toContain(
+      "3 of 12 charges to external agents have no payer read yet",
+    );
+    // The degraded sentence would only repeat the marker less precisely.
+    expect(text(document.body)).not.toContain("Couldn't verify every agent");
+  });
+
+  it("calls each target's count a lower bound", () => {
+    render(<AdoptionView adoption={zero({ complete: false, coverage })} />);
+    for (const label of [
+      "Externally operated agents",
+      "Unique operator wallets",
+      "Workflows routed to external agents and settled",
+    ]) {
+      expect(text(target(label))).toContain("A lower bound");
+    }
+  });
+
+  it("puts the marker above the targets, where the figures are read", () => {
+    render(<AdoptionView adoption={zero({ complete: false, coverage })} />);
+    const marker = screen.getByRole("region", { name: /partial report/i });
+    const targets = screen.getByRole("heading", { name: "SOW §6.3 targets" });
+    expect(
+      marker.compareDocumentPosition(targets) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no marker for a complete report, or one predating the field", () => {
+    for (const adoption of [zero({ complete: true, coverage }), zero()]) {
+      render(<AdoptionView adoption={adoption} />);
+      expect(
+        screen.queryByRole("region", { name: /partial report/i }),
+      ).toBeNull();
+      expect(text(document.body)).not.toContain("lower bound");
+      cleanup();
+    }
   });
 });
 
@@ -610,6 +676,34 @@ describe("EcosystemPage — states", () => {
     await vi.waitFor(() =>
       expect(text(document.body)).not.toContain("last snapshot"),
     );
+  });
+
+  it("reads a partial report again on its own until a complete one lands", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      getEcosystemAdoption
+        .mockResolvedValueOnce(zero({ complete: false, coverage: null }))
+        .mockResolvedValue(zero({ complete: true }));
+      render(<EcosystemPage />);
+      await screen.findByRole("region", { name: /partial report/i });
+      expect(getEcosystemAdoption).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PARTIAL_REFRESH_MS);
+      });
+      await vi.waitFor(() =>
+        expect(
+          screen.queryByRole("region", { name: /partial report/i }),
+        ).toBeNull(),
+      );
+      expect(getEcosystemAdoption).toHaveBeenCalledTimes(2);
+      // Complete now: nothing more is scheduled.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PARTIAL_REFRESH_MS * 2);
+      });
+      expect(getEcosystemAdoption).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renders the payload once it lands", async () => {
