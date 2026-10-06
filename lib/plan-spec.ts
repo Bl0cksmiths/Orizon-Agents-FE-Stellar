@@ -22,14 +22,15 @@ export type SpecDraft = {
 
 export type SpecField = keyof SpecDraft;
 
-/** Client-side bounds, so a mistake is named beside its field. The backend
- *  checks the brief again on its own terms. */
+/** The backend's own bounds on a brief (`Spec` in its
+ *  app/services/prompt_improver.py), checked here first so a mistake is named
+ *  beside its field instead of coming back as a refused request. */
 export const SPEC_LIMITS = {
   summary: 300,
-  goal: 500,
+  goal: 300,
   deliverable: 300,
   /** Items per list. */
-  items: 10,
+  items: 8,
   /** Characters per list item. */
   item: 200,
 } as const;
