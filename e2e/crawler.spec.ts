@@ -16,6 +16,7 @@
  * script the renderer could not fetch into a ChunkLoadError.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { AUTO_RELOAD_KEY } from "../lib/error-recovery";
 import { DEMO_PUBLISHED_PORT } from "./demo-server";
 import { mockApi } from "./mocks";
 import {
@@ -70,6 +71,39 @@ const PUBLIC_PAGES: PublicPage[] = [
     h1: /Litepaper/,
   },
 ];
+
+/** Set by playwright.crawl.config.ts: the suite runs against `next start`. */
+const PRODUCTION = process.env.CRAWL_PRODUCTION === "1";
+
+const HOME = PUBLIC_PAGES[0];
+
+/** The guide itself, whose code blocks carry copy buttons. */
+const GUIDE_PAGE: PublicPage = {
+  path: "/guide/list-your-agent",
+  title: "List your agent on Orizon — Orizon Agents",
+  h1: /^List your agent on Orizon$/,
+};
+
+/** /demo with its video published, from the second server's fixture. */
+const PUBLISHED_DEMO: PublicPage = {
+  ...PUBLIC_PAGES[2],
+  path: `http://localhost:${DEMO_PUBLISHED_PORT}/demo`,
+};
+
+/** The development build's chunks for the two telemetry components. */
+const TELEMETRY_CHUNK =
+  /\/_next\/static\/chunks\/[^?]*vercel_(analytics|speed-insights)[^/?]*\.js/;
+/** The home page's own chunk, in a development or a production build. */
+const PAGE_CHUNK = /\/_next\/static\/chunks\/app\/page(-[0-9a-f]+)?\.js/;
+/** The root layout's own chunk. */
+const LAYOUT_CHUNK = /\/_next\/static\/chunks\/app\/layout(-[0-9a-f]+)?\.js/;
+/** The /evidence route's own chunk. */
+const EVIDENCE_CHUNK =
+  /\/_next\/static\/chunks\/app\/\(marketing\)\/evidence\/page[^/]*\.js/;
+
+/** The scripts they inject: Vercel's CDN in development, /_vercel/ live. */
+const TELEMETRY_SCRIPT =
+  /va\.vercel-scripts\.com\/|\/_vercel\/(insights|speed-insights)\//;
 
 /** Past webpack's chunk-load timeout (120s): any chunk still pending fails. */
 const VIRTUAL_TIME_MS = 125_000;
@@ -137,6 +171,17 @@ test.describe("Googlebot renders each public page as itself", () => {
       expect(errors).toEqual([]);
     });
   }
+
+  test("/demo with its video published keeps its title and heading, with no error", async ({
+    page,
+  }) => {
+    test.skip(PRODUCTION, "the production run serves the unpublished demo");
+    const errors = collectPageErrors(page);
+    await render(page, PUBLISHED_DEMO.path);
+    await expectRealPage(page, PUBLISHED_DEMO);
+    await expect(page.locator('[data-demo-player="facade"]')).toHaveCount(2);
+    expect(errors).toEqual([]);
+  });
 });
 
 /** Makes the named parts throw in this page's renders (lib/fault-injection.ts). */
@@ -148,28 +193,6 @@ async function breakParts(page: Page, parts: FaultPoint[]) {
     { key: FAULTS_GLOBAL, parts },
   );
 }
-
-const HOME = PUBLIC_PAGES[0];
-
-/** The guide itself, whose code blocks carry copy buttons. */
-const GUIDE_PAGE: PublicPage = {
-  path: "/guide/list-your-agent",
-  title: "List your agent on Orizon — Orizon Agents",
-  h1: /^List your agent on Orizon$/,
-};
-
-/** /demo with its video published, from the second server's fixture. */
-const PUBLISHED_DEMO: PublicPage = {
-  ...PUBLIC_PAGES[2],
-  path: `http://localhost:${DEMO_PUBLISHED_PORT}/demo`,
-};
-
-/** The development build's chunks for the two telemetry components. */
-const TELEMETRY_CHUNK =
-  /\/_next\/static\/chunks\/[^?]*vercel_(analytics|speed-insights)[^/?]*\.js/;
-/** The scripts they inject: Vercel's CDN in development, /_vercel/ live. */
-const TELEMETRY_SCRIPT =
-  /va\.vercel-scripts\.com\/|\/_vercel\/(insights|speed-insights)\//;
 
 test.describe("a part that fails stays local, and the page stays itself", () => {
   test("the wallet provider throwing leaves the page whole", async ({
@@ -190,6 +213,7 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
   }) => {
     // Their components load in chunks of their own (components/telemetry.tsx),
     // named after their packages in a development build.
+    test.skip(PRODUCTION, "a production build names its chunks by hash");
     const lost: string[] = [];
     await page.route(TELEMETRY_CHUNK, async (route) => {
       lost.push(route.request().url());
@@ -294,6 +318,7 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
   test("the demo player throwing leaves a plain player for each part", async ({
     page,
   }) => {
+    test.skip(PRODUCTION, "the production run serves the unpublished demo");
     await breakParts(page, ["demo-player"]);
     await render(page, PUBLISHED_DEMO.path);
     await expectRealPage(page, PUBLISHED_DEMO);
@@ -319,5 +344,101 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
     expect(await page.locator("main pre code").count()).toBeGreaterThan(0);
     await expect(page.locator("main pre code").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /^Copy / })).toHaveCount(0);
+  });
+});
+
+/** Answers 404 for every request matching `chunk`; returns the count. */
+async function loseChunk(page: Page, chunk: RegExp) {
+  const lost = { count: 0 };
+  await page.route(chunk, async (route) => {
+    lost.count += 1;
+    await route.fulfill({ status: 404, body: "Not Found" });
+  });
+  return lost;
+}
+
+test.describe("a page whose own code never arrives", () => {
+  // Deploy skew as the renderer meets it: the HTML names chunks the site no
+  // longer serves (or the renderer chose not to fetch), and virtual time
+  // turns the wait into a ChunkLoadError at once.
+  test("keeps its content, with plain stand-ins for its interactive parts", async ({
+    page,
+  }) => {
+    const lost = await loseChunk(page, PAGE_CHUNK);
+    await render(page, HOME.path);
+    expect(lost.count).toBeGreaterThan(0);
+    await expectRealPage(page, HOME);
+    await expect(page.getByRole("banner")).toHaveAttribute(
+      "data-nav",
+      "static",
+    );
+    await expect(page.locator("#use-cases")).toHaveAttribute(
+      "data-use-cases",
+      "static",
+    );
+    await expectEverySectionShown(page);
+  });
+});
+
+/**
+ * Makes the page's automatic reload look already spent, so the error screen
+ * shows instead of reloading: the stamp reads as "a moment ago" at `at`.
+ */
+async function reloadAlreadySpent(page: Page, at: number) {
+  await page.addInitScript(
+    ({ key, at }) => sessionStorage.setItem(key, String(at)),
+    { key: AUTO_RELOAD_KEY, at },
+  );
+}
+
+/** The error screen is never indexed: noindex in <head>. */
+async function expectNoindex(page: Page) {
+  await expect(
+    page.locator('head meta[name="robots"][content="noindex"]'),
+  ).toHaveCount(1);
+}
+
+test.describe("an error screen is never indexed as the page", () => {
+  test("the site's error screen carries noindex, under the page's own title", async ({
+    page,
+  }) => {
+    // A route's code lost on the way to it reaches the route's error screen
+    // (e2e/chunk-recovery.spec.ts); with the reload spent, it stays up.
+    await page.goto("/guide");
+    // Through the menu, as a visitor would: it opens only once the page has
+    // hydrated, so the link below is followed by the router, not reloaded.
+    const sheet = page.getByRole("dialog");
+    await expect(async () => {
+      await page.getByRole("button", { name: "Open menu" }).click();
+      await expect(sheet).toBeVisible({ timeout: 1_000 });
+    }).toPass();
+    await page.evaluate(
+      (key) => sessionStorage.setItem(key, String(Date.now())),
+      AUTO_RELOAD_KEY,
+    );
+    await loseChunk(page, EVIDENCE_CHUNK);
+    await sheet.locator('a[href="/evidence"]').click();
+    await expect(page.locator('[data-error-boundary="root"]')).toBeVisible({
+      timeout: 30_000,
+    });
+    await expectNoindex(page);
+    await expect(page).not.toHaveTitle("");
+    await expect(page).not.toHaveTitle(/didn't load|fault/i);
+  });
+
+  test("the last-resort screen names the document and carries noindex", async ({
+    page,
+  }) => {
+    test.skip(
+      !PRODUCTION,
+      "development shows its error overlay instead of app/global-error.tsx",
+    );
+    // The incident itself: the root layout's own chunk lost to the renderer.
+    await reloadAlreadySpent(page, Date.now() + VIRTUAL_TIME_MS);
+    await loseChunk(page, LAYOUT_CHUNK);
+    await render(page, HOME.path);
+    await expect(page.locator('[data-error-boundary="global"]')).toBeAttached();
+    await expect(page).toHaveTitle("Orizon Agents");
+    await expectNoindex(page);
   });
 });
