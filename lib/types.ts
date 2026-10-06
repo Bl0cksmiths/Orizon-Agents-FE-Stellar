@@ -910,6 +910,15 @@ export type SettlementStepView = {
    * this build does not know still reads as "not paid", never as paid.
    */
   unpaid_reason?: string | null;
+  // The pricing contract's exact figures, in integer stroops (a JSON integer
+  // or a digit string). OPTIONAL: a backend predating them sends the floats
+  // above alone, and the reconciliation converts those as the backend does.
+  /** What the plan priced this step at — what the buyer authorized for it. */
+  price_stroops?: number | string | null;
+  /** What the settlement paid this step's operator. */
+  paid_stroops?: number | string | null;
+  /** What of this step's price went back to the buyer. */
+  returned_stroops?: number | string | null;
 };
 
 /** A workflow's settlement: what moved, who paid, and until when to dispute. */
@@ -934,6 +943,15 @@ export type SettlementView = {
    * claim about money the chain has not been read for.
    */
   returned_usdc?: number | null;
+  // The pricing contract's exact figures (integer stroops), all optional.
+  /** What the buyer's authorization moved into escrow (`max_amount`). */
+  authorized_stroops?: number | string | null;
+  /** What the settlement paid out in all: `settled_usdc`, exactly. */
+  settled_stroops?: number | string | null;
+  /** What went back to the payer in all: `returned_usdc`, exactly. */
+  returned_stroops?: number | string | null;
+  /** What every amount on the settlement is in. */
+  asset?: PlanAsset | null;
 };
 
 /** One buyer's dispute of one settled step. */
