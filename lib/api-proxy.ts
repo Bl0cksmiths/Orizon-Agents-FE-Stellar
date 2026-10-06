@@ -64,8 +64,9 @@ export const CDN_SHORT_S = 5;
 /** How long a partial registry read is reused before the backend is asked
  * again: the refill takes ~45 s and the surfaces want to see it finish. */
 export const PARTIAL_FRESH_MS = 5_000;
-/** Largest page a paged read serves. */
-export const MAX_PAGE_LIMIT = 200;
+/** Largest page a paged read serves — the backend's own bound on
+ * `GET /api/agents?limit=`, so a page means the same thing on either. */
+export const MAX_PAGE_LIMIT = 1_000;
 
 export type CachedReadConfig = {
   /** The backend path under `/api`, e.g. "/metrics/overview". */
