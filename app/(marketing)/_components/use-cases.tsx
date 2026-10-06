@@ -31,7 +31,11 @@ export function UseCases() {
   }
 
   return (
-    <section id="use-cases" className="relative py-20 md:py-28">
+    <section
+      id="use-cases"
+      data-use-cases="interactive"
+      className="relative py-20 md:py-28"
+    >
       <div className="mx-auto max-w-7xl px-6">
         <UseCasesHeading />
 

@@ -112,3 +112,32 @@ export function UseCaseFlow({ useCase }: { useCase: UseCase }) {
     </Card>
   );
 }
+
+/**
+ * The use cases without their tabs: every case listed under its own heading,
+ * with no script to run. What the section shows when its tabs fail
+ * (components/isolate.tsx), so the section's content stays on the page.
+ */
+export function UseCasesList() {
+  return (
+    <section
+      id="use-cases"
+      data-use-cases="static"
+      className="relative py-20 md:py-28"
+    >
+      <div className="mx-auto max-w-7xl px-6">
+        <UseCasesHeading />
+        <ul className="mt-12 space-y-8">
+          {USE_CASES.map((useCase) => (
+            <li key={useCase.id}>
+              <h3 className="mb-3 font-mono text-[11px] uppercase tracking-[0.2em] text-text">
+                {useCase.title}
+              </h3>
+              <UseCaseFlow useCase={useCase} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
