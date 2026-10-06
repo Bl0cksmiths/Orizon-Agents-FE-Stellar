@@ -57,7 +57,12 @@ export type Task = {
   id: string;
   intent: string;
   agents: number;
+  /** DEPRECATED — `spent_stroops` as a float of the asset. */
   spent: number;
+  /** The run's bill in stroops: what a paid run's settle moved, or what a
+   *  simulated run's delivered steps are priced at. Null while running and
+   *  on a task written before it existed; read through `taskSpent`. */
+  spent_stroops?: number | string | null;
   status: TaskStatus;
   started: string;
   /**
