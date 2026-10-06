@@ -2997,3 +2997,29 @@ describe("getTaskDisputes — the settlement's exact amounts", () => {
     await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
   });
 });
+
+describe("disputeView — the receipt's reconciliation", () => {
+  it("reconciles a v2 settlement step by step", () => {
+    const v = settled({
+      res: taskDisputes({
+        settlement_state: "settled",
+        settlement: settlement({
+          steps: [
+            step(0, { price_usdc: 0.01, paid_usdc: 0.01 }),
+            step(1, { price_usdc: 0.02, paid_usdc: 0, delivered: false }),
+          ],
+          settled_usdc: 0.01,
+          returned_usdc: 0.02,
+        }),
+      }),
+    });
+    expect(v.reconciliation?.planned).toBe(300_000n);
+    expect(v.reconciliation?.charged).toBe(100_000n);
+    expect(v.reconciliation?.returned).toBe(200_000n);
+    expect(v.reconciliation?.balanced).toBe(true);
+  });
+
+  it("draws none for a settlement that reports no payouts", () => {
+    expect(settled().reconciliation).toBeUndefined();
+  });
+});

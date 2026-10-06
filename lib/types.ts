@@ -1,4 +1,5 @@
 import type { PlanAsset } from "./money";
+import type { Reconciliation } from "./reconcile";
 
 /** The registry statuses this build has a tone for. A backend may add more,
  * so `Agent.status` is typed as any string: narrow with `isAgentStatus`
@@ -1204,6 +1205,12 @@ export type DisputePanelView =
       settlementState?: SettlementState | null;
       /** What came back to the payer; absent where no state is reported. */
       remainder?: SettlementRemainder;
+      /**
+       * Planned against charged against returned, per step and in all
+       * (`reconcileSettlement`); absent on a settlement that reports no
+       * per-step payouts (escrow v1, or a backend predating them).
+       */
+      reconciliation?: Reconciliation;
       /**
        * The panel stopped re-reading an unconfirmed settlement: whatever it
        * says is only as fresh as the last read.

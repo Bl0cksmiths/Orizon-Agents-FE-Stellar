@@ -26,6 +26,7 @@ import {
 } from "./api";
 import { DISPUTE_READ_GRANT_HEADER } from "./dispute-read-grant";
 import { STROOPS_PER_UNIT, formatSettled, parseStroops } from "./money";
+import { reconcileSettlement } from "./reconcile";
 import type {
   CreditPolicy,
   Dispute,
@@ -1142,6 +1143,7 @@ export function disputeView(input: {
       };
     });
   const remainder = settlementRemainder(settlement, settlementState);
+  const reconciliation = reconcileSettlement(settlement, settlementState);
 
   return {
     kind: "settled",
@@ -1161,6 +1163,7 @@ export function disputeView(input: {
     steps,
     ...(settlementState === undefined ? {} : { settlementState }),
     ...(remainder === undefined ? {} : { remainder }),
+    ...(reconciliation === null ? {} : { reconciliation }),
     ...(settlementState === "unconfirmed" && waitOver
       ? { settlementStoppedChecking: true }
       : {}),
