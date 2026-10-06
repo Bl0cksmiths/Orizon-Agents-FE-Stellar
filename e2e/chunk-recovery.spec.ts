@@ -103,6 +103,24 @@ async function lose(page: Page, chunk: RegExp, times = Infinity) {
   });
 }
 
+/**
+ * Runs `act`, then waits for the automatic reload it should cause: the next
+ * document's `load`, and the guard stamp that reload left in the tab's
+ * session. Waiting on the reload itself, not on a count of requests, keeps
+ * the next step off the old document while it is still being torn down.
+ * Without an automatic reload no `load` comes, and this fails.
+ */
+async function expectAutomaticReload(page: Page, act: () => Promise<void>) {
+  const loaded = page.waitForEvent("load", { timeout: 30_000 });
+  await act();
+  await loaded;
+  const stamp = await page.evaluate(
+    (key) => sessionStorage.getItem(key),
+    AUTO_RELOAD_KEY,
+  );
+  expect(stamp, "the reload's guard stamp").not.toBeNull();
+}
+
 test.describe("a chunk lost to a deploy", () => {
   test("reloads a console page whose lazy chunk is gone, once, and the page works with no error screen", async ({
     page,
@@ -112,10 +130,12 @@ test.describe("a chunk lost to a deploy", () => {
     seen.documents = 0;
 
     await lose(page, CODE_VIEWER_CHUNK, 1);
-    await page.getByRole("tab", { name: "files" }).click();
+    await expectAutomaticReload(page, () =>
+      page.getByRole("tab", { name: "files" }).click(),
+    );
+    expect(seen.documents).toBe(1);
 
-    // One reload, which reopens the workflow; its code viewer now loads.
-    await expect.poll(() => seen.documents, { timeout: 30_000 }).toBe(1);
+    // The reloaded page reopens the workflow; its code viewer now loads.
     await expect(page.getByRole("tab", { name: /artifact/ })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -133,20 +153,20 @@ test.describe("a chunk lost to a deploy", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
     await lose(page, EVIDENCE_CHUNK, 1);
-    await page.evaluate(() => {
-      const link = document.querySelector<HTMLAnchorElement>(
-        'a[href="/evidence"]',
-      );
-      if (!link) throw new Error("no link to /evidence on /guide");
-      link.click();
-    });
+    await expectAutomaticReload(page, () =>
+      page.evaluate(() => {
+        const link = document.querySelector<HTMLAnchorElement>(
+          'a[href="/evidence"]',
+        );
+        if (!link) throw new Error("no link to /evidence on /guide");
+        link.click();
+      }),
+    );
+    expect(seen.documents).toBe(1);
 
     await expect(page).toHaveURL(/\/evidence$/);
-    await expect(page.locator("main h1")).not.toHaveText(ERROR_HEADING, {
-      timeout: 30_000,
-    });
     await expect(page.locator("main h1")).toBeVisible();
-    expect(seen.documents).toBe(1);
+    await expect(page.locator("main h1")).not.toHaveText(ERROR_HEADING);
     expect(seen.errorScreens).toBe(0);
   });
 });
