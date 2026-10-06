@@ -427,6 +427,45 @@ export function unverifiedSentence(a: EcosystemAdoption): string | null {
   return `${who}. Whatever they would add is missing from the figures below until they can be read again — a gap, not a zero.`;
 }
 
+/** Counts as the page prints them: "120,960". */
+const count = (n: number) => n.toLocaleString("en-US");
+
+/**
+ * The partial-report marker (`complete: false`), or null for a complete
+ * report — including one from a backend that predates the field. The
+ * headline says the figures are floors and that a fuller build is on its way;
+ * the details say, from `coverage`, how much this one read. A part it could
+ * not read is said as unread, never as a zero.
+ */
+export function partialReport(
+  a: Pick<EcosystemAdoption, "complete" | "coverage">,
+): { headline: string; details: string[] } | null {
+  if (a.complete !== false) return null;
+  const c = a.coverage;
+  const details: string[] = [];
+  if (c) {
+    details.push(
+      c.agents_listed === null
+        ? `Agents accounted for: ${count(c.agents_accounted)} — the registry listing could not be read, so how many exist is unknown.`
+        : `Agents accounted for: ${count(c.agents_accounted)} of ${count(c.agents_listed)} listed.`,
+    );
+    details.push(
+      c.settlement_ledgers_in_window === 0
+        ? "Settlement history could not be read in this build."
+        : `Settlement history read: ${count(c.settlement_ledgers_scanned)} of ${count(c.settlement_ledgers_in_window)} ledgers.`,
+    );
+    if (c.external_charges_unattributed > 0) {
+      details.push(
+        `${count(c.external_charges_unattributed)} of ${count(c.external_charges)} charges to external agents have no payer read yet, so they are not counted.`,
+      );
+    }
+  }
+  return {
+    headline: "Partial — figures are lower bounds, refreshing.",
+    details,
+  };
+}
+
 /**
  * "the last 7 days", "the last 6.9 days", "the last 1 day". One decimal at
  * most, rounded DOWN: a measured 6.96 is "6.9", never a precise-sounding 7,
