@@ -276,7 +276,8 @@ export function isTask(t: unknown): t is Task {
     (t.settlement === undefined ||
       t.settlement === null ||
       isStr(t.settlement)) &&
-    (t.seal === undefined || t.seal === null || isStr(t.seal))
+    (t.seal === undefined || t.seal === null || isStr(t.seal)) &&
+    (t.seal_kind === undefined || t.seal_kind === null || isStr(t.seal_kind))
   );
 }
 
