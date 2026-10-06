@@ -114,4 +114,26 @@ describe("the last-resort error screen", () => {
     expect(screen.getByRole("status").textContent).toBe(ERROR_COPY.reloading);
     expect(screen.queryByRole("heading")).toBeNull();
   });
+
+  it("names the document and keeps it out of search results, on the screen and while reloading", () => {
+    // It replaces the whole document, <head> included: without its own
+    // title a search engine names the page after the heading, and without
+    // noindex it indexes the error as the page.
+    for (const error of [
+      new Error("boom"),
+      Object.assign(new Error("Loading chunk 4 failed."), {
+        name: "ChunkLoadError",
+      }),
+    ]) {
+      const { container, unmount } = show(error);
+      const head = container.querySelector("html > head");
+      expect(head?.querySelector("title")?.textContent).toBe(
+        ERROR_COPY.documentTitle,
+      );
+      expect(
+        head?.querySelector('meta[name="robots"]')?.getAttribute("content"),
+      ).toBe("noindex");
+      unmount();
+    }
+  });
 });
