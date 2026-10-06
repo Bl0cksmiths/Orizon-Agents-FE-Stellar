@@ -14,7 +14,6 @@ import { decompose } from "@/lib/api";
 import type { DecomposeResponse, PlanSpec } from "@/lib/types";
 import { focusRing } from "@/lib/ui";
 import { useAsyncAction } from "@/lib/use-async-action";
-import { ExecutionPlan } from "./_components/execution-plan";
 import {
   GUARD_NOTICE_ID,
   decomposeErrorCopy,
@@ -28,6 +27,16 @@ import {
 const loadGuardNotice = () => import("./_components/guard-notice");
 const GuardNotice = dynamic(
   () => loadGuardNotice().then((m) => m.GuardNotice),
+  { ssr: false },
+);
+
+// The plan card — its pay flows, wallet checks and notices — is its own chunk
+// too: nothing on the page needs it until a plan comes back, and the route
+// sits at its first-load budget. Fetched as each request goes out, so it is
+// in hand by the time the plan is.
+const loadExecutionPlan = () => import("./_components/execution-plan");
+const ExecutionPlan = dynamic(
+  () => loadExecutionPlan().then((m) => m.ExecutionPlan),
   { ssr: false },
 );
 
@@ -86,6 +95,7 @@ export default function OrchestratorPage() {
     if (!ask.intent || plan.pending) return;
     asked.current = ask;
     void loadGuardNotice();
+    void loadExecutionPlan();
     // reset() first so the previous answer drops while the new one is in
     // flight instead of lingering under the spinner.
     plan.reset();
