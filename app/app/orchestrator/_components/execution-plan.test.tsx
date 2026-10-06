@@ -1438,12 +1438,23 @@ describe("ExecutionPlan · orchestrator v2: tiers, models and the brief", () => 
       },
       understood_as: spec,
       steps: [
-        // Named by the backend itself.
-        step({ agent_id: "seo.brief", tier: "low", model: "claude-haiku-4-5" }),
-        // Labelled from its tier, as its tier's built-in model.
-        step({ tier: "complex" }),
-        // No tier: nothing to label it by.
-        step({ agent_id: "ext.render", agent_name: "ext.render", tier: null }),
+        // A built-in worker, its model named by the backend.
+        step({
+          agent_id: "seo.brief",
+          tier: "low",
+          executor: "built_in",
+          model: "claude-haiku-4-5",
+        }),
+        // A built-in worker with no model named: read off its tier.
+        step({ tier: "complex", executor: "built_in", model: null }),
+        // An external agent: its tier, and no Claude label.
+        step({
+          agent_id: "ext.render",
+          agent_name: "ext.render",
+          tier: "moderate",
+          executor: "external",
+          model: null,
+        }),
       ],
     });
   const rows = () =>
@@ -1458,9 +1469,29 @@ describe("ExecutionPlan · orchestrator v2: tiers, models and the brief", () => 
     expect(first.textContent).toMatch(/low tier/i);
     expect(first.textContent).toContain("runs on Claude Haiku 4.5");
     expect(second.textContent).toMatch(/complex tier/i);
-    expect(second.textContent).toContain("built-in model: Claude Opus 5.5");
-    expect(third.textContent).not.toMatch(/ tier\b/i);
-    expect(third.textContent).not.toMatch(/runs on|built-in model/);
+    expect(second.textContent).toContain("runs on Claude Opus 5.5");
+    expect(third.textContent).toMatch(/moderate tier/i);
+    expect(third.textContent).toContain("Runs on the operator's own agent");
+    expect(third.textContent).not.toMatch(/claude/i);
+  });
+
+  it("claims no model for a step from a backend predating the executor", () => {
+    const p = v2();
+    render(
+      <ExecutionPlan
+        plan={{
+          ...p,
+          steps: p.steps.map(({ executor: _e, ...s }) => ({
+            ...s,
+            model: "claude-opus-5-5",
+          })),
+        }}
+      />,
+    );
+    for (const row of Array.from(rows())) {
+      expect(row.textContent).toMatch(/ tier\b/i);
+      expect(row.textContent).not.toMatch(/runs on|claude/i);
+    }
   });
 
   it("shows the brief above the steps, and how the plan was made", () => {
