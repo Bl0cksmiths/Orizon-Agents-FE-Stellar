@@ -1,15 +1,18 @@
 import { track } from "@vercel/analytics";
 import type { ErrorKind } from "./error-recovery";
 
-/** What the boundary did about the error: reloaded by itself, or showed the
- * error screen. */
-export type ErrorRecovery = "auto-reload" | "shown";
+/** What the boundary did about the error: reloaded by itself, showed the
+ * error screen, or drew a local fallback for one part of the page
+ * (components/isolate.tsx) while the rest of it carried on. */
+export type ErrorRecovery = "auto-reload" | "shown" | "isolated";
 
 export type ErrorReport = {
   kind: ErrorKind;
   /** The page's path. Its query and fragment are dropped before sending. */
   route: string;
   recovery: ErrorRecovery;
+  /** The part a local boundary stood in for, by its fixed name. */
+  part?: string;
 };
 
 const MESSAGE_MAX = 120;
@@ -44,8 +47,9 @@ export function scrubForTelemetry(text: string): string {
  * `track()` here must never mask the error the boundary is handling.
  *
  * Sent: the digest, the scrubbed message (no URL queries, Stellar keys,
- * emails or long hex), the kind, the path without its query, and what the
- * boundary did about it. Nothing else about the visitor.
+ * emails or long hex), the kind, the path without its query, what the
+ * boundary did about it, and for a local boundary the part it stood in for.
+ * Nothing else about the visitor.
  */
 export function reportClientError(
   error: Error & { digest?: string },
@@ -62,6 +66,7 @@ export function reportClientError(
         ROUTE_MAX,
       ),
       recovery: report.recovery,
+      ...(report.part ? { part: report.part } : {}),
     });
   } catch {
     // Telemetry must never throw inside an error boundary.

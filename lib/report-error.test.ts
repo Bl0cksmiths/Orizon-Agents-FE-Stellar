@@ -57,6 +57,27 @@ describe("reportClientError", () => {
     expect(sent()).toMatchObject({ kind: "chunk", recovery: "auto-reload" });
   });
 
+  it("names the part a local boundary drew its fallback for", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    reportClientError(new Error("boom"), {
+      kind: "render",
+      route: "/",
+      recovery: "isolated",
+      part: "nav",
+    });
+    expect(sent()).toMatchObject({ recovery: "isolated", part: "nav" });
+  });
+
+  it("sends no part for a page-wide boundary", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    reportClientError(new Error("boom"), {
+      kind: "render",
+      route: "/",
+      recovery: "shown",
+    });
+    expect(sent()).not.toHaveProperty("part");
+  });
+
   it("sends the route without its query or fragment", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     reportClientError(new Error("boom"), {
