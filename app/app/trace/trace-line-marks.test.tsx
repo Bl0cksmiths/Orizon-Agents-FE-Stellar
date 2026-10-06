@@ -69,6 +69,13 @@ describe("StepMarks", () => {
     expect(container.textContent).not.toContain("Claude Haiku 4.5");
   });
 
+  it("marks nothing for a tier it cannot name and no model", () => {
+    const { container } = render(
+      <StepMarks line={line("code.gen → done", { tier: "extreme" })} />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
   it("marks nothing on a line from a backend predating the tags", () => {
     const { container } = render(<StepMarks line={line("code.gen → done")} />);
     expect(container.innerHTML).toBe("");
