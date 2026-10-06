@@ -229,7 +229,14 @@ export type PlanModels = {
   planner?: string | null;
   improver?: string | null;
   guard?: string | null;
+  /** The model a built-in worker runs a step of each tier on, at plan time. */
+  tiers?: Record<Tier, string> | null;
 };
+
+/** One line of how a plan was reached (`PlanStage`), in the order the stages
+ *  ran. `stage` is "guard" | "improve" | "recheck" | "plan" today, but any
+ *  string on the wire. */
+export type PlanStage = { stage: string; msg: string };
 
 export type DecomposeResponse = {
   plan_id: string;
@@ -265,6 +272,9 @@ export type DecomposeResponse = {
   guard?: PlanGuardResult | null;
   /** Which model did each planning stage. Absent from older backends. */
   models?: PlanModels | null;
+  /** How the plan was reached, one line per stage. Absent from older
+   *  backends, empty from the legacy planner. */
+  stages?: PlanStage[];
 };
 
 /** Response of POST /api/orchestrator/execute. */
