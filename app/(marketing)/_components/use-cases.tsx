@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { entrance } from "@/components/ui/entrance";
+import { faultPoint } from "@/lib/fault-injection";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import {
@@ -10,6 +11,7 @@ import {
 } from "./use-case-flow";
 
 export function UseCases() {
+  faultPoint("use-cases");
   const [active, setActive] = useState(cases[0].id);
   const current = cases.find((c) => c.id === active) ?? cases[0];
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
