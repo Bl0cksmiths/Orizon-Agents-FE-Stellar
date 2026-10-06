@@ -74,6 +74,9 @@ export type Task = {
    * not know as `unconfirmed`. See `SEAL_STATES`.
    */
   seal?: string | null;
+  /** What the seal attests (`TaskSummary.seal_kind`), set together with
+   * `seal`; any string on the wire, read through `readSealKind`. */
+  seal_kind?: string | null;
 };
 
 export type PlanStep = {
@@ -709,6 +712,15 @@ export const SEAL_STATES = [
 export type SealState = (typeof SEAL_STATES)[number];
 
 /**
+ * What a run's seal attests (`SealKind` in the backend's app/schemas.py):
+ * `paid` — a paid delivery; `delivery_only` — the work was delivered but
+ * nobody could be paid (no confirmed on-chain owner, a free run), so the
+ * seal records delivery alone, with no receipt and a zero total.
+ */
+export const SEAL_KINDS = ["paid", "delivery_only"] as const;
+export type SealKind = (typeof SEAL_KINDS)[number];
+
+/**
  * One step's payout as the receipt may state it. `paid` only when the
  * settlement is confirmed AND the backend reported the amount; everything
  * else says what is known and no more.
@@ -923,6 +935,9 @@ export type TaskDisputes = {
    * `unconfirmed` (lib/seal-state.ts).
    */
   seal?: SealState | null;
+  /** What the seal attests, as on `Task.seal_kind`; absent on an older
+   *  backend or for a word this build does not know. */
+  seal_kind?: SealKind | null;
   /** The seal's transaction hash once it is known; absent on an older
    *  backend, null while unknown. */
   proof_tx?: string | null;
@@ -1034,12 +1049,17 @@ export type DisputePanelView =
       settlementState?: SettlementState | null;
       /** The panel stopped re-reading an unconfirmed settlement. */
       settlementStoppedChecking?: boolean;
+      /** A seal on a run with no settlement — a delivery-only one. */
+      seal?: SealState | null;
+      sealKind?: SealKind | null;
     }
   | {
       kind: "settled";
       /** The run's attestation seal, when the backend reports one: null
        *  when none was submitted, absent on a backend that predates it. */
       seal?: SealState | null;
+      /** What that seal attests; absent when the backend does not say. */
+      sealKind?: SealKind | null;
       viewer: DisputeViewer;
       window: {
         open: boolean;
