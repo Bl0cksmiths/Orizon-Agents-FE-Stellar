@@ -196,6 +196,29 @@ test.describe("exact pricing · the plan card", () => {
     expect(sideways).toBeLessThanOrEqual(0);
   });
 
+  test("names each step's real sources when the planner states them", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    const sources = [null, [1], [1, 2], [3], [4]];
+    await openPlan(page, {
+      ...PIPELINE,
+      steps: PIPELINE.steps.map((s, i) => ({ ...s, inputs_from: sources[i] })),
+    });
+    await expect(page.getByText(/uses output from/)).toHaveText([
+      "↑ uses output from step 01",
+      "↑ uses output from steps 01 and 02",
+      "↑ uses output from step 03",
+      "↑ uses output from step 04",
+    ]);
+    await expect(page.getByText(/hands its output/)).toHaveCount(0);
+    await motionSettled(page.locator("main"));
+    const card = page
+      .getByRole("heading", { name: /execution plan/i })
+      .locator("xpath=ancestor::div[contains(@class,'glow-card')][1]");
+    expect(await overflowingDescendants(card)).toEqual([]);
+  });
+
   for (const width of [360, 768, 1920]) {
     test(`keeps the pipeline card inside a ${width}px screen`, async ({
       page,
