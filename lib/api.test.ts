@@ -30,6 +30,7 @@ import {
   FOLLOW_UP_QUIET_MS,
   fetchWithTimeout,
   isAbortError,
+  isComputingError,
   isWakingError,
   listAgentsPage,
   readAtOf,
@@ -377,6 +378,15 @@ describe("cached reads", () => {
     expect(readAtOf(agents)).toBe(1_700_000_000_000);
   });
 
+  it("dates a snapshot the backend served directly by its own age", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(2_000_000_000_000);
+    fetchMock.mockResolvedValueOnce(
+      withHeaders([agentFixture], { "X-Snapshot-Age": "120" }),
+    );
+    const agents = await listAgents();
+    expect(readAtOf(agents)).toBe(2_000_000_000_000 - 120_000);
+  });
+
   it("dates nothing that did not come from the cache", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, [agentFixture]));
     expect(readAtOf(await listAgents())).toBeNull();
@@ -468,6 +478,20 @@ describe("cached reads", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("isComputingError", () => {
+  it("knows a report the backend is still building", () => {
+    expect(
+      isComputingError(
+        new Error(
+          "GET /ecosystem/adoption → 202 — the adoption report is still being built",
+        ),
+      ),
+    ).toBe(true);
+    expect(isComputingError(new Error("GET /x → 503"))).toBe(false);
+    expect(isComputingError(null)).toBe(false);
   });
 });
 

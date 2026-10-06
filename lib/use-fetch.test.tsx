@@ -44,6 +44,56 @@ function deferred<T>() {
 }
 
 describe("useFetch", () => {
+  it("waits, retrying, while the backend builds a report", async () => {
+    vi.useFakeTimers();
+    try {
+      const building = Object.assign(
+        new Error(
+          "GET /ecosystem/adoption → 202 — the adoption report is still being built",
+        ),
+        { retryAfterMs: 30_000 },
+      );
+      const fn = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(building)
+        .mockResolvedValue("report");
+      const { result } = renderHook(() => useFetch(fn, [], { maxRetries: 1 }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(result.current.waiting).toBe(true);
+      expect(result.current.retrying).toBe(true);
+      // The Retry-After is honoured: nothing is asked before it is up.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(29_000);
+      });
+      expect(fn).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      expect(result.current.data).toBe("report");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives a report being built the waking retry budget", async () => {
+    vi.useFakeTimers();
+    try {
+      const building = new Error(
+        "GET /ecosystem/adoption → 202 — the adoption report is still being built",
+      );
+      const fn = vi.fn<() => Promise<string>>().mockRejectedValue(building);
+      renderHook(() => useFetch(fn, [], { retryBaseMs: 10, maxRetries: 1 }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000);
+      });
+      expect(fn).toHaveBeenCalledTimes(WAKE_MAX_RETRIES + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps retrying a waking backend past the ordinary budget", async () => {
     vi.useFakeTimers();
     try {

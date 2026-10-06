@@ -8,6 +8,8 @@
  * missed; and an exclusion reason this build does not know still excludes.
  */
 
+import { isComputingError } from "./api-freshness";
+import { isTransientFetchError } from "./use-fetch";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   TARGET_COPY,
@@ -491,6 +493,24 @@ describe("getEcosystemAdoption", () => {
     // Never `no-store`: its Pragma would make Vercel's CDN refresh the
     // minutes-long read in the foreground instead of serving the snapshot.
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ cache: "default" });
+  });
+
+  it("rejects a 202 as a report still being built, with its Retry-After", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 202,
+      headers: new Headers({ "retry-after": "30" }),
+      json: async () => ({
+        status: "computing",
+        message: "The adoption report is being computed.",
+        retry_after_seconds: 30,
+      }),
+      text: async () => "",
+    });
+    const err = await getEcosystemAdoption().catch((e: unknown) => e);
+    expect(isComputingError(err)).toBe(true);
+    expect(err).toMatchObject({ status: 202, retryAfterMs: 30_000 });
+    expect(isTransientFetchError(err)).toBe(true);
   });
 
   it("lets the caller cancel the read", async () => {
