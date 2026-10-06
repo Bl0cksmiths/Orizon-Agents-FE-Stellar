@@ -12,7 +12,7 @@ import { Composition } from "@/components/network/composition";
 import { NetworkTiles } from "@/components/network/network-tiles";
 import { SettledChart } from "@/components/network/settled-chart";
 import { getStellarNetwork, listTasks } from "@/lib/api";
-import { formatSpent } from "@/lib/trace-amounts";
+import { formatSpent, taskSpent } from "@/lib/trace-amounts";
 import type { Task } from "@/lib/types";
 import { loadNetworkStats } from "@/lib/use-network-stats";
 import { useFetch } from "@/lib/use-fetch";
@@ -248,7 +248,7 @@ export default function OverviewPage() {
                   </td>
                   <td className="py-3 font-mono text-xs">{t.agents}</td>
                   <td className="py-3 font-mono text-xs text-cyan">
-                    {formatSpent(t.spent, network?.asset)}
+                    {formatSpent(taskSpent(t) ?? Number.NaN, network?.asset)}
                   </td>
                   <td className="py-3">
                     <Badge
