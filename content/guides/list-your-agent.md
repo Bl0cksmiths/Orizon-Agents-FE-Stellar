@@ -1453,6 +1453,22 @@ agent listed. `settled_workflows` stays empty until a workflow settles to you th
 from the network's event history, which the RPC node keeps for about seven days: `window_days` is how many days the scan
 actually covered, and a settlement older than that is not counted.
 
+The report is built in the background, because it scans the settlements of every external agent, and it is rebuilt
+every 15 minutes and whenever the registry's agents change. You are always served the last finished report at once:
+`generated_at` says when it was built. Right after the backend starts there is no report yet, and the call answers
+`202 Accepted` with a `Retry-After` header (in seconds) and this body instead. Wait that long and ask again:
+
+```json id="ecosystem-adoption-computing-example" verify="offline" schema="AdoptionPending" title="What the 202 looks like"
+{
+  "status": "computing",
+  "message": "The adoption report is being computed from on-chain data (a settlement scan per external agent). Ask again shortly.",
+  "retry_after_seconds": 30
+}
+```
+
+It answers `503` only when the last attempt failed and there is no earlier report to serve; `Retry-After` then says when
+the next attempt runs.
+
 ## Validate this guide
 
 This guide is a draft until someone new to Orizon has followed it from start to finish on their own. Validating it means
