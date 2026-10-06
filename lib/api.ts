@@ -711,10 +711,19 @@ export const getStellarNetwork = (signal?: AbortSignal) =>
     { signal, cached: true },
   );
 
+/**
+ * Unsigned XDR for `PaymentEscrow.authorize`. The cap travels twice, as the
+ * same stroops: `max_amount_stroops`, the exact integer a backend on the
+ * pricing contract signs, and `max_amount_usdc`, a decimal an older backend
+ * reads as a float and rounds back to those stroops (`usdc_to_i128`). An
+ * older backend ignores the field it does not know (`AuthorizeReq` forbids
+ * no extras). Build both with `authorizeCap` (lib/plan-pricing.ts).
+ */
 export const buildAuthorize = (body: {
   payer: string;
   agent_id: string;
   max_amount_usdc: number;
+  max_amount_stroops?: number;
   ttl_seconds?: number;
 }) =>
   post<AuthorizeBuild, typeof body>(
