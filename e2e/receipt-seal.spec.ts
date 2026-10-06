@@ -88,11 +88,9 @@ test.describe("the receipt's seal", () => {
       proofTx: SEAL_TX,
     });
     await expect(
-      receipt(page)
-        .getByRole("status")
-        .filter({
-          hasText: "Attested on Stellar — delivered, no payment made",
-        }),
+      receipt(page).getByRole("status").filter({
+        hasText: "Attested on Stellar — delivered, no payment made",
+      }),
     ).toBeVisible();
     await expect(receipt(page)).not.toContainText(/payment stands/);
     await expect(
