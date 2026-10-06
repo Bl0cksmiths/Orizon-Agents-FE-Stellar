@@ -247,3 +247,66 @@ test.describe("exact pricing · the receipt's reconciliation", () => {
     ).toEqual([]);
   });
 });
+
+test.describe("the pipeline in the run's trace and the plan's notices", () => {
+  test("marks each handoff line in the trace", async ({ page }) => {
+    await mockTaskReadToken(page);
+    await mockApi(page);
+    await mockNetwork(page);
+    await mockTraceStream(page, mockDisputeTaskId, [
+      { t: "00.000", level: "input", msg: "intent received → 'landing page'" },
+      { t: "00.400", level: "exec", msg: "research.pro → brief drafted" },
+      {
+        t: "00.500",
+        level: "exec",
+        msg: "seo.brief uses output from: research.pro",
+      },
+      { t: "00.900", level: "exec", msg: "seo.brief → keywords drafted" },
+      { t: "01.000", level: "out", msg: "workflow settled" },
+    ]);
+    await mockDisputeApi(page, { settlement: null, settlementState: null });
+    await page.goto(`/app/trace?task=${mockDisputeTaskId}`);
+    const handoff = page
+      .getByText("seo.brief uses output from: research.pro")
+      .locator("xpath=..");
+    await expect(handoff).toContainText("handoff");
+    await expect(
+      page.getByText("research.pro → brief drafted"),
+    ).not.toContainText("handoff");
+  });
+
+  test("says in plain words that operator agents were left out", async ({
+    page,
+  }) => {
+    await mockWallet(page);
+    await mockApi(page);
+    await mockNetwork(page);
+    await mockDecomposeSequence(page, [
+      {
+        ...PIPELINE,
+        floor_bps: 5500,
+        notices: [
+          {
+            kind: "excluded",
+            agent_id: "acme_writer",
+            agent_name: "acme.writer",
+            reason: "external agents are not routed",
+            reason_code: "external_not_routed",
+            lower_bound_bps: null,
+            floor_bps: 5500,
+          },
+        ],
+      },
+    ]);
+    await page.goto("/app/orchestrator");
+    await page.getByRole("textbox", { name: /intent/i }).fill(PIPELINE.intent);
+    await page.getByRole("button", { name: /decompos/i }).click();
+    await expect(page.getByRole("main")).toContainText(
+      "1 operator agent was left out: plans use only the platform's own agents for now",
+    );
+    await page.getByText(/Reputation floor ·/).click();
+    await expect(page.getByRole("main")).toContainText(
+      "Plans currently use only the platform's own agents, so this operator's agent was not considered.",
+    );
+  });
+});
