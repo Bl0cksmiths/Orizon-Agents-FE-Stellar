@@ -455,7 +455,10 @@ export function ExecutionPlan({
               <div className="text-muted uppercase tracking-widest text-[10px]">
                 eta
               </div>
-              <div className="text-violet text-lg">
+              {/* The readable violet: plain `text-violet` measures 4.15:1 on
+                  the card once its decor gradient is judged (e2e/dispute-axe),
+                  under AA for this 18px figure. */}
+              <div className="text-violet-readable text-lg">
                 {plan.total_eta.toFixed(1)}s
               </div>
             </div>
