@@ -364,13 +364,16 @@ test.describe("a page whose own code never arrives", () => {
   test("keeps its content, with plain stand-ins for its interactive parts", async ({
     page,
   }) => {
+    test.skip(
+      !PRODUCTION,
+      "a development build splits chunks by compile order, so what the lost chunk holds varies run to run (at times the error screens' own code)",
+    );
     const lost = await loseChunk(page, PAGE_CHUNK);
     await render(page, HOME.path);
     expect(lost.count).toBeGreaterThan(0);
     await expectRealPage(page, HOME);
-    // Whatever the lost chunk held (in a development build, every client
-    // part of the page; in a production one, those only this page uses) is
-    // replaced by its stand-in, and every section still reads.
+    // Whatever the lost chunk held (the client parts only this page uses)
+    // is replaced by its stand-in, and every section still reads.
     await expect(page.getByRole("banner")).toBeVisible();
     for (const title of ["Startup Builder", "Smart Contract Analysis"]) {
       await expect(page.locator("#use-cases").getByText(title)).toBeVisible();
