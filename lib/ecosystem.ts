@@ -427,6 +427,11 @@ export function unverifiedSentence(a: EcosystemAdoption): string | null {
   return `${who}. Whatever they would add is missing from the figures below until they can be read again — a gap, not a zero.`;
 }
 
+/** How long the page waits before reading a partial report again. The
+ *  backend resumes a partial build on its next one; a minute keeps the page
+ *  close behind it without asking for a build every few seconds. */
+export const PARTIAL_REFRESH_MS = 60_000;
+
 /** Counts as the page prints them: "120,960". */
 const count = (n: number) => n.toLocaleString("en-US");
 
