@@ -57,7 +57,7 @@ import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import type { PlanSpec } from "@/lib/types";
 import { ModelTag, TierBadge } from "@/components/console/tier-badge";
-import { stepModel } from "@/lib/plan-tier";
+import { stepRunner } from "@/lib/plan-tier";
 import { FiatFund } from "./fiat-fund";
 import { PlanProvenance } from "./plan-provenance";
 import { UnderstoodAsPanel } from "./understood-as-panel";
@@ -832,10 +832,10 @@ export function ExecutionPlan({
 }
 
 /**
- * The model a step runs on, under its rationale. The backend's own name for
- * it reads "runs on"; one read off the step's tier reads "built-in model",
- * because only a built-in worker runs on it — a step routed to an external
- * agent runs on its operator's own stack.
+ * Who runs a step, under its rationale: the Claude model a built-in worker
+ * runs it on, or the operator's own agent for an external one. Nothing when
+ * that is not known — a backend predating `executor` gets the tier badge
+ * alone, never a model claim for an agent that may not be a built-in one.
  */
 function StepModel({
   step,
@@ -844,13 +844,16 @@ function StepModel({
   step: DecomposeResponse["steps"][number];
   models: DecomposeResponse["models"];
 }) {
-  const m = stepModel(step, models);
-  if (!m) return null;
+  const runner = stepRunner(step, models);
+  if (!runner) return null;
+  if (runner.kind === "external") {
+    return (
+      <span className="mt-1 block font-mono text-[10px] tracking-wide text-muted">
+        Runs on the operator&apos;s own agent
+      </span>
+    );
+  }
   return (
-    <ModelTag
-      model={m.name}
-      prefix={m.fromTier ? "built-in model:" : "runs on"}
-      className="mt-1 block"
-    />
+    <ModelTag model={runner.model} prefix="runs on" className="mt-1 block" />
   );
 }
