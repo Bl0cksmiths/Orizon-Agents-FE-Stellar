@@ -7,9 +7,9 @@
  * app/global-error.tsx replaced the whole document, <title> included; Google
  * took the screen's heading for the title and indexed the error as the page.
  *
- * The emulation: Googlebot Smartphone's user agent, a phone-width viewport as
- * tall as a long page (the renderer grows its viewport to the page rather
- * than scrolling), no service worker, no stored state, no permissions. The
+ * The emulation: Googlebot Smartphone's user agent, a phone-width viewport
+ * that grows to the page's full height once it has loaded (the renderer never
+ * scrolls), no service worker, no stored state, no permissions. The
  * renderer also runs on virtual time, so a timer the page sets fires as soon
  * as the page is otherwise idle: every visit here fast-forwards the page's
  * clock past webpack's 120-second chunk timeout, the timer that turns a
@@ -17,14 +17,21 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { mockApi } from "./mocks";
-import { FAULTS_GLOBAL, type FaultPoint } from "../lib/fault-injection";
+import {
+  FAULTS_GLOBAL,
+  injectedFaultMessage,
+  type FaultPoint,
+} from "../lib/fault-injection";
+
+/** Googlebot Smartphone's layout width, in CSS pixels. */
+const CRAWL_WIDTH = 412;
 
 const GOOGLEBOT_SMARTPHONE =
   "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.70 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
 test.use({
   userAgent: GOOGLEBOT_SMARTPHONE,
-  viewport: { width: 412, height: 5000 },
+  viewport: { width: CRAWL_WIDTH, height: 1200 },
   deviceScaleFactor: 2.625,
   isMobile: true,
   hasTouch: true,
@@ -74,7 +81,9 @@ function collectPageErrors(page: Page): string[] {
 }
 
 /**
- * Opens `path` as the renderer would, then runs the page's clock on past
+ * Opens `path` as the renderer would: it loads the page, grows the viewport
+ * to the page's full height (the renderer never scrolls, so this is how
+ * content further down comes into view), and runs the page's clock on past
  * every pending timeout, as the renderer's virtual time does.
  */
 async function render(page: Page, path: string) {
@@ -83,6 +92,10 @@ async function render(page: Page, path: string) {
   const response = await page.goto(path);
   expect(response?.status(), `${path} answers 200`).toBe(200);
   await page.waitForLoadState("networkidle");
+  const height = await page.evaluate(
+    () => document.documentElement.scrollHeight,
+  );
+  await page.setViewportSize({ width: CRAWL_WIDTH, height });
   await page.clock.runFor(VIRTUAL_TIME_MS);
 }
 
@@ -96,6 +109,21 @@ async function expectRealPage(page: Page, { path, title, h1 }: PublicPage) {
   ).toHaveCount(0);
 }
 
+/** No scroll entrance is still waiting at opacity 0 (components/ui/
+ * reveal-on-scroll.tsx): the renderer sees every section. */
+async function expectEverySectionShown(page: Page) {
+  await expect
+    .poll(() =>
+      page
+        .locator(".reveal")
+        .evaluateAll(
+          (els) =>
+            els.filter((el) => getComputedStyle(el).opacity !== "1").length,
+        ),
+    )
+    .toBe(0);
+}
+
 test.describe("Googlebot renders each public page as itself", () => {
   for (const spec of PUBLIC_PAGES) {
     test(`${spec.path} keeps its title and heading, with no error`, async ({
@@ -104,6 +132,7 @@ test.describe("Googlebot renders each public page as itself", () => {
       const errors = collectPageErrors(page);
       await render(page, spec.path);
       await expectRealPage(page, spec);
+      await expectEverySectionShown(page);
       expect(errors).toEqual([]);
     });
   }
@@ -203,5 +232,47 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
     await expect(
       banner.getByRole("button", { name: "Open menu" }),
     ).toBeVisible();
+  });
+
+  test("the scroll entrances throwing leave every section shown", async ({
+    page,
+  }) => {
+    await breakParts(page, ["reveal"]);
+    await render(page, HOME.path);
+    await expectRealPage(page, HOME);
+    // The sections wait at opacity 0 for the observer that failed; its
+    // stand-in shows them all at rest.
+    expect(await page.locator(".reveal").count()).toBeGreaterThan(0);
+    await expectEverySectionShown(page);
+  });
+
+  test("the use cases throwing leave them listed, and the page whole", async ({
+    page,
+  }) => {
+    await breakParts(page, ["use-cases"]);
+    await render(page, HOME.path);
+    await expectRealPage(page, HOME);
+    const section = page.locator("#use-cases");
+    await expect(section).toHaveAttribute("data-use-cases", "static");
+    for (const title of [
+      "Startup Builder",
+      "Autonomous Marketing",
+      "Research Automation",
+      "Smart Contract Analysis",
+    ]) {
+      await expect(section.getByRole("heading", { name: title })).toBeVisible();
+    }
+  });
+
+  test("the backend warm-up throwing leaves the page whole", async ({
+    page,
+  }) => {
+    const logged: string[] = [];
+    page.on("console", (m) => logged.push(m.text()));
+    await breakParts(page, ["backend-warmup"]);
+    await render(page, HOME.path);
+    await expectRealPage(page, HOME);
+    // It drew nothing to look for, so the proof it failed is its report.
+    expect(logged.join("\n")).toContain(injectedFaultMessage("backend-warmup"));
   });
 });
