@@ -165,7 +165,14 @@ export type ExclusionReason =
   /** A bound agent whose endpoint failed its latest health check, left out
    *  while that failure is fresh (D-084). Not a reputation verdict: its
    *  `lower_bound_bps` is null on purpose. */
-  | "unreachable_endpoint";
+  | "unreachable_endpoint"
+  /** A built-in agent whose worker would only simulate its step: left out
+   *  so a buyer is never charged for simulated output. Routing policy, not
+   *  a verdict about the agent. */
+  | "simulated_worker"
+  /** An operator's own agent, left out while plans use only the platform's
+   *  built-in agents (`PLANNER_ROUTE_EXTERNAL`). Routing policy too. */
+  | "external_not_routed";
 
 /** One reputation-floor action taken while building the plan
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are
