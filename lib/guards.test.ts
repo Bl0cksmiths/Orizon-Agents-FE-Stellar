@@ -1877,3 +1877,84 @@ describe("known-value narrowing (lib/types)", () => {
     ]);
   });
 });
+
+describe("screenDecomposeResponse — exact pricing fields", () => {
+  const step = {
+    agent_id: "agt_11c0",
+    rationale: "builds the page",
+    est_price_usdc: 0.054,
+    price_stroops: 540_000,
+    est_eta_seconds: 4.5,
+  };
+  const valid = {
+    plan_id: "pln_px",
+    intent: "landing page",
+    steps: [step],
+    total_usdc: 0.054,
+    total_stroops: 540_000,
+    asset: { code: "XLM", issuer: null, decimals: 7 },
+    total_eta: 4.5,
+  };
+  const screen = (v: unknown) => screenDecomposeResponse(v);
+
+  it("keeps a plan priced in stroops, its total and its asset", () => {
+    const plan = screen(valid);
+    expect(plan?.steps[0].price_stroops).toBe(540_000);
+    expect(plan?.total_stroops).toBe(540_000);
+    expect(plan?.asset).toEqual({ code: "XLM", issuer: null, decimals: 7 });
+  });
+
+  it("accepts stroops sent as a digit string", () => {
+    const plan = screen({
+      ...valid,
+      steps: [{ ...step, price_stroops: "540000" }],
+      total_stroops: "540000",
+    });
+    expect(plan).not.toBeNull();
+  });
+
+  it("keeps a plan from a backend that predates the stroops fields", () => {
+    const { price_stroops: _p, ...legacyStep } = step;
+    const { total_stroops: _t, asset: _a, ...legacy } = valid;
+    expect(screen({ ...legacy, steps: [legacyStep] })).not.toBeNull();
+  });
+
+  it("keeps a plan that has dropped the legacy float fields", () => {
+    const { est_price_usdc: _p, ...exactStep } = step;
+    const { total_usdc: _t, ...exact } = valid;
+    expect(screen({ ...exact, steps: [exactStep] })).not.toBeNull();
+  });
+
+  it("rejects a step with no readable price at all", () => {
+    const { est_price_usdc: _p, ...exactStep } = step;
+    expect(
+      screen({ ...valid, steps: [{ ...exactStep, price_stroops: 0.5 }] }),
+    ).toBeNull();
+    expect(
+      screen({ ...valid, steps: [{ ...exactStep, price_stroops: null }] }),
+    ).toBeNull();
+  });
+
+  it("rejects a malformed stroop price rather than guessing one", () => {
+    // A legacy figure beside it is no excuse: the two would disagree.
+    for (const bad of [-1, 1.5, "1.5", "12abc", true]) {
+      expect(
+        screen({ ...valid, steps: [{ ...step, price_stroops: bad }] }),
+      ).toBeNull();
+    }
+    expect(screen({ ...valid, total_stroops: "-3" })).toBeNull();
+  });
+
+  it("drops an unusable asset and keeps the plan", () => {
+    for (const bad of [
+      "XLM",
+      { issuer: null },
+      { code: 7 },
+      { code: "XLM", decimals: "7" },
+    ]) {
+      const plan = screen({ ...valid, asset: bad });
+      expect(plan).not.toBeNull();
+      expect(plan?.asset).toBeUndefined();
+    }
+  });
+});
