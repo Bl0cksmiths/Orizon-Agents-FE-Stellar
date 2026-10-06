@@ -50,6 +50,7 @@ import type {
   BindErrorCode,
   BindReq,
   DecomposeResponse,
+  PlanSpec,
   EndpointCheck,
   ExecuteResponse,
   Flow,
@@ -666,10 +667,15 @@ export const getTrace = (taskId: string, signal?: AbortSignal) =>
     { signal },
   );
 
-export const decompose = (intent: string) =>
-  post<DecomposeResponse, { intent: string }>(
+/** Plans an intent. `spec` is the buyer's edit of the brief a previous plan
+ *  was built from ("We understood this as…"): sent beside the intent it
+ *  answers, and checked again by the backend before it plans from it. Left
+ *  out of the body entirely when absent, so an older backend sees exactly
+ *  the request it always did. */
+export const decompose = (intent: string, spec?: PlanSpec) =>
+  post<DecomposeResponse, { intent: string; spec?: PlanSpec }>(
     "/orchestrator/decompose",
-    { intent },
+    spec ? { intent, spec } : { intent },
     ensureScreened("/orchestrator/decompose", screenDecomposeResponse),
   );
 

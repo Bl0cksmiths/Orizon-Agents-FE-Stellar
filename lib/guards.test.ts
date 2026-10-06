@@ -1003,6 +1003,205 @@ describe("screenDecomposeResponse", () => {
   });
 });
 
+describe("screenDecomposeResponse — the orchestrator v2 fields", () => {
+  const step = {
+    agent_id: "code.gen",
+    rationale: "codes",
+    est_price_usdc: 0.03,
+    est_eta_seconds: 4.5,
+  };
+  const valid = {
+    plan_id: "pln_v2",
+    intent: "tetris",
+    steps: [step],
+    total_usdc: 0.03,
+    total_eta: 4.5,
+  };
+  const spec = {
+    goal: "A playable tetris game",
+    deliverable: "One HTML file",
+    constraints: ["No external libraries"],
+    done_criteria: ["Pieces rotate", "Lines clear"],
+    summary: "Build a tetris game as one HTML file.",
+  };
+  const screen = (v: unknown) => screenDecomposeResponse(v);
+
+  it("keeps a plan from a backend predating every v2 field", () => {
+    const plan = screen(valid);
+    expect(plan).not.toBeNull();
+    expect(plan?.understood_as).toBeUndefined();
+    expect(plan?.guard).toBeUndefined();
+    expect(plan?.models).toBeUndefined();
+  });
+
+  it("keeps a step's tier and model, and their null and absent forms", () => {
+    for (const extra of [
+      { tier: "low", model: "claude-haiku-4-5" },
+      { tier: null, model: null },
+      // A tier this build has no badge for is still a plan to pay for.
+      { tier: "extreme" },
+      {},
+    ]) {
+      expect(
+        screen({ ...valid, steps: [{ ...step, ...extra }] }),
+        JSON.stringify(extra),
+      ).not.toBeNull();
+    }
+  });
+
+  it("keeps a step's executor, and its null and absent forms", () => {
+    for (const executor of ["built_in", "external", "a_new_kind", null]) {
+      expect(
+        screen({ ...valid, steps: [{ ...step, executor }] }),
+        String(executor),
+      ).not.toBeNull();
+    }
+  });
+
+  it("rejects a step whose executor is not a string", () => {
+    // It decides whether a Claude model is claimed for the step.
+    for (const executor of [true, 1, { kind: "external" }]) {
+      expect(
+        screen({ ...valid, steps: [{ ...step, executor }] }),
+        JSON.stringify(executor),
+      ).toBeNull();
+    }
+  });
+
+  it("rejects a step whose tier or model is not a string", () => {
+    // Both render as text on the card; an object there throws during render.
+    for (const extra of [
+      { tier: 2 },
+      { tier: { name: "low" } },
+      { model: { id: "claude-opus-5-5" } },
+      { model: true },
+    ]) {
+      expect(
+        screen({ ...valid, steps: [{ ...step, ...extra }] }),
+        JSON.stringify(extra),
+      ).toBeNull();
+    }
+  });
+
+  it("keeps a well-formed brief, check and model list", () => {
+    const plan = screen({
+      ...valid,
+      tier: "moderate",
+      understood_as: spec,
+      guard: { verdict: "allow", tier: "moderate", reasons: [] },
+      models: {
+        planner: "claude-opus-5-5",
+        improver: "claude-sonnet-5-5",
+        guard: "jev-1.13.0",
+      },
+    });
+    expect(plan?.understood_as).toEqual(spec);
+    expect(plan?.guard?.tier).toBe("moderate");
+    expect(plan?.models?.planner).toBe("claude-opus-5-5");
+    expect(plan?.tier).toBe("moderate");
+  });
+
+  it("keeps a null brief, which means the request was planned as written", () => {
+    const plan = screen({ ...valid, understood_as: null });
+    expect(plan).not.toBeNull();
+    expect(plan?.understood_as).toBeNull();
+  });
+
+  // The brief, the check and the model list say how the plan was made; none
+  // of them is what the buyer pays for. A malformed one is dropped and the
+  // plan kept, as a malformed floor notice is — never the whole plan lost.
+  it("drops a malformed brief but keeps the plan", () => {
+    for (const bad of [
+      { ...spec, goal: 1 },
+      { ...spec, constraints: "none" },
+      { ...spec, done_criteria: [1, 2] },
+      { ...spec, summary: undefined },
+      "build tetris",
+      [spec],
+    ]) {
+      const plan = screen({ ...valid, understood_as: bad });
+      expect(plan, JSON.stringify(bad)).not.toBeNull();
+      expect(plan?.understood_as, JSON.stringify(bad)).toBeUndefined();
+    }
+  });
+
+  it("drops a malformed check or model list but keeps the plan", () => {
+    const plan = screen({
+      ...valid,
+      guard: { verdict: 1, tier: "low" },
+      models: { planner: { id: "x" } },
+      tier: 3,
+    });
+    expect(plan).not.toBeNull();
+    expect(plan?.guard).toBeUndefined();
+    expect(plan?.models).toBeUndefined();
+    expect(plan?.tier).toBeUndefined();
+  });
+
+  it("keeps the per-tier models and the planning stages", () => {
+    const tiers = {
+      low: "claude-haiku-4-5",
+      moderate: "claude-sonnet-5-5",
+      complex: "claude-opus-5-5",
+    };
+    const stages = [
+      { stage: "guard", msg: "Request checked by jev (tier: low)" },
+      { stage: "plan", msg: "Planned by Claude Opus 5.5 (effort low)" },
+    ];
+    const plan = screen({
+      ...valid,
+      models: { planner: "claude-opus-5-5", tiers },
+      stages,
+    });
+    expect(plan?.models?.tiers).toEqual(tiers);
+    expect(plan?.stages).toEqual(stages);
+  });
+
+  it("drops a malformed tier map, and a stage that is not one", () => {
+    const plan = screen({
+      ...valid,
+      models: { planner: "claude-opus-5-5", tiers: { low: 1 } },
+      stages: [{ stage: "plan", msg: "Planned" }, { stage: 2, msg: "x" }, "y"],
+    });
+    expect(plan).not.toBeNull();
+    expect(plan?.models).toBeUndefined();
+    expect(plan?.stages).toEqual([{ stage: "plan", msg: "Planned" }]);
+    expect(screen({ ...valid, stages: "guard" })?.stages).toBeUndefined();
+  });
+
+  it("drops a check whose reasons are not a list of strings", () => {
+    const plan = screen({
+      ...valid,
+      guard: { verdict: "allow", reasons: "fine" },
+    });
+    expect(plan?.guard).toBeUndefined();
+  });
+});
+
+describe("isTraceLine — stage, tier and model", () => {
+  const line = {
+    t: "00.100",
+    level: "exec",
+    msg: "Planned by Claude Opus 5.5",
+  };
+
+  it("accepts them as strings, null, or absent", () => {
+    expect(isTraceLine(line)).toBe(true);
+    expect(
+      isTraceLine({ ...line, stage: "plan", tier: "complex", model: "x" }),
+    ).toBe(true);
+    expect(isTraceLine({ ...line, stage: null, tier: null, model: null })).toBe(
+      true,
+    );
+  });
+
+  it("rejects one that is not a string", () => {
+    expect(isTraceLine({ ...line, stage: 1 })).toBe(false);
+    expect(isTraceLine({ ...line, tier: {} })).toBe(false);
+    expect(isTraceLine({ ...line, model: ["claude"] })).toBe(false);
+  });
+});
+
 describe("isReputationInfo", () => {
   const valid = {
     agent_id: "agt_01",

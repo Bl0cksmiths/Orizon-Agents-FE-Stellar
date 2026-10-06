@@ -66,3 +66,89 @@ export function decomposeErrorCopy(e: unknown): string {
 export function isPlanExpired(e: unknown): boolean {
   return hasCode(e, "plan_expired") || fieldsOf(e).status === 410;
 }
+
+/**
+ * The request check's answers to a decompose (orchestrator v2), each shown as
+ * its own notice rather than as an error string:
+ *
+ * - `blocked` (422 `intent_blocked`): the request was judged unsafe, or an
+ *   attempt to steer the agents off their instructions. `reason` is the
+ *   backend's plain-words why, when it sends one.
+ * - `needs_detail` (422 `intent_needs_detail`): too vague, a test ping, or not
+ *   a request agents could act on. `question` is what to add.
+ * - `unavailable` (503 `intent_unavailable`): the check itself could not run,
+ *   and the backend fails closed. Retryable after `Retry-After`.
+ * - `paused` (503 `planning_paused`): the day's AI planning budget is spent.
+ *   Curated examples still plan; AI planning resumes after `Retry-After`.
+ *
+ * Null for any other failure, which keeps `decomposeErrorCopy`'s wording.
+ */
+export type DecomposeRefusal =
+  | { kind: "blocked"; reason: string | null }
+  | { kind: "needs_detail"; question: string | null }
+  | { kind: "unavailable"; retryAfterMs: number | null }
+  | { kind: "paused"; retryAfterMs: number | null };
+
+/** The longest reason or question a notice prints. Ours, from our backend,
+ *  but a notice is not the place for an essay. */
+const MAX_DETAIL = 400;
+
+const isObj = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * A refusal's own sentence (`reason`, `question`), wherever the backend puts
+ * it: on the envelope's `error`, at the top of the body, or inside an object
+ * `detail`. Failing those, the envelope's message — unless that is only the
+ * code read back with spaces, which would be the machine string in disguise.
+ */
+function detailOf(e: unknown, field: string, code: string): string | null {
+  const body = isObj(e) && "body" in e ? e.body : undefined;
+  if (!isObj(body)) return null;
+  const error = isObj(body.error) ? body.error : {};
+  const detail = isObj(body.detail) ? body.detail : {};
+  const candidates = [error[field], body[field], detail[field]];
+  let text = candidates.find(
+    (c): c is string => typeof c === "string" && c.trim() !== "",
+  );
+  if (text === undefined && typeof error.message === "string") {
+    const m = error.message.trim();
+    if (m && m !== code && m !== code.replace(/_/g, " ")) text = m;
+  }
+  if (text === undefined) return null;
+  const t = text.trim();
+  return t.length > MAX_DETAIL ? `${t.slice(0, MAX_DETAIL - 1)}…` : t;
+}
+
+export function decomposeRefusal(e: unknown): DecomposeRefusal | null {
+  if (hasCode(e, "intent_blocked")) {
+    return { kind: "blocked", reason: detailOf(e, "reason", "intent_blocked") };
+  }
+  if (hasCode(e, "intent_needs_detail")) {
+    return {
+      kind: "needs_detail",
+      question: detailOf(e, "question", "intent_needs_detail"),
+    };
+  }
+  const wait = retryAfterOf(e);
+  if (hasCode(e, "intent_unavailable")) {
+    return { kind: "unavailable", retryAfterMs: wait };
+  }
+  if (hasCode(e, "planning_paused")) {
+    return { kind: "paused", retryAfterMs: wait };
+  }
+  return null;
+}
+
+/** The `Retry-After` an `ApiError` carries, in ms; null when it has none. */
+function retryAfterOf(e: unknown): number | null {
+  if (!isObj(e) || !("retryAfterMs" in e)) return null;
+  const ms = e.retryAfterMs;
+  return typeof ms === "number" && Number.isFinite(ms) && ms >= 0 ? ms : null;
+}
+
+/** The request check's notice's id, for the intent box's `aria-describedby`
+ *  while a needs-detail question is waiting on it. One form, one notice. Here
+ *  rather than beside the notice, so the page can name it without loading the
+ *  notice's chunk. */
+export const GUARD_NOTICE_ID = "intent-check-notice";

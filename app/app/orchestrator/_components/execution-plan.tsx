@@ -55,7 +55,12 @@ import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
+import type { PlanSpec } from "@/lib/types";
+import { ModelTag, TierBadge } from "@/components/console/tier-badge";
+import { stepRunner } from "@/lib/plan-tier";
 import { FiatFund } from "./fiat-fund";
+import { PlanProvenance } from "./plan-provenance";
+import { UnderstoodAsPanel } from "./understood-as-panel";
 import { isPlanExpired } from "./plan-errors";
 import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
 import {
@@ -139,17 +144,21 @@ function bytesToHex(v: unknown): string | null {
  * network read, which names the asset its amounts are denominated in.
  * The task read token from execute responses is stored by lib/api.ts.
  *
- * `onReplan` is the one flow the card does not own: asking for a new plan is
- * the page's decompose, so the page hands it down for the planner-fallback
- * notice rather than the card calling the API itself.
+ * `onReplan` and `onRespec` are the flows the card does not own: asking for
+ * a new plan is the page's decompose, so the page hands them down — for the
+ * planner-fallback notice, and for an edited brief — rather than the card
+ * calling the API itself.
  */
 export function ExecutionPlan({
   plan,
   onReplan,
+  onRespec,
 }: {
   plan: DecomposeResponse;
   /** Decomposes this plan's intent again — offered on a fallback plan. */
   onReplan?: () => void;
+  /** Decomposes this plan's intent again from an edited brief. */
+  onRespec?: (spec: PlanSpec) => void;
 }) {
   const router = useRouter();
   const wallet = useWallet();
@@ -447,12 +456,28 @@ export function ExecutionPlan({
               <div className="text-muted uppercase tracking-widest text-[10px]">
                 eta
               </div>
-              <div className="text-violet text-lg">
+              {/* The readable violet: plain `text-violet` measures 4.15:1 on
+                  the card once its decor gradient is judged (e2e/dispute-axe),
+                  under AA for this 18px figure. */}
+              <div className="text-violet-readable text-lg">
                 {plan.total_eta.toFixed(1)}s
               </div>
             </div>
           </div>
         </div>
+
+        <PlanProvenance plan={plan} />
+
+        {/* First of the frames above the steps: what the plan answers. A
+            buyer who meets the brief after the steps has already judged the
+            plan against their own words, not the brief it was built from. */}
+        {plan.understood_as && (
+          <UnderstoodAsPanel
+            spec={plan.understood_as}
+            onRespec={onRespec}
+            busy={executing || held !== null}
+          />
+        )}
 
         {/* Above the steps, not below them. The floor is the frame the plan
             was built in, and a buyer who reads the steps first has already
@@ -548,9 +573,17 @@ export function ExecutionPlan({
                     <Badge tone="magenta">▾ below floor</Badge>
                   </span>
                 )}
+                <TierBadge tier={s.tier} />
               </div>
               <span className="text-sm text-muted">→</span>
-              <div className="flex-1 text-sm">{s.rationale}</div>
+              {/* No min-w-0: in this wrapping row it would let the rationale
+                  shrink to a sliver beside the badges instead of taking its
+                  own line on a phone. The model tag wraps anywhere, so its
+                  min-content width never widens the row. */}
+              <div className="flex-1 text-sm">
+                {s.rationale}
+                <StepModel step={s} models={plan.models} />
+              </div>
               <div className="font-mono text-xs text-cyan">
                 {s.est_price_usdc.toFixed(3)} · {s.est_eta_seconds.toFixed(1)}s
               </div>
@@ -795,5 +828,32 @@ export function ExecutionPlan({
         />
       </Card>
     </m.div>
+  );
+}
+
+/**
+ * Who runs a step, under its rationale: the Claude model a built-in worker
+ * runs it on, or the operator's own agent for an external one. Nothing when
+ * that is not known — a backend predating `executor` gets the tier badge
+ * alone, never a model claim for an agent that may not be a built-in one.
+ */
+function StepModel({
+  step,
+  models,
+}: {
+  step: DecomposeResponse["steps"][number];
+  models: DecomposeResponse["models"];
+}) {
+  const runner = stepRunner(step, models);
+  if (!runner) return null;
+  if (runner.kind === "external") {
+    return (
+      <span className="mt-1 block font-mono text-[10px] tracking-wide text-muted">
+        Runs on the operator&apos;s own agent
+      </span>
+    );
+  }
+  return (
+    <ModelTag model={runner.model} prefix="runs on" className="mt-1 block" />
   );
 }

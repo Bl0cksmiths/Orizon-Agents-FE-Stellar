@@ -111,6 +111,19 @@ export type PlanStep = {
   /** True when the starvation backstop re-admitted this step below the
    * routing floor — kept workable, flagged as a degraded choice. */
   degraded?: boolean;
+  /** How demanding the planner judged this step (`PlanStep.tier`): a built-in
+   *  worker runs it on that tier's model. One of `TIERS` today, but any string
+   *  on the wire; read through `readTier`, which shows no tier rather than a
+   *  wrong one. Absent from backends predating it. */
+  tier?: string | null;
+  /** Who runs this step: one of the backend's built-in workers, or an
+   *  external agent on its operator's own stack. Any string on the wire;
+   *  read through `stepRunner`. Absent from backends predating it, and then
+   *  no model is claimed for the step — only its tier is shown. */
+  executor?: string | null;
+  /** The model a built-in step runs on, by exact id. Null for an external
+   *  agent, and when the backend does not name one. */
+  model?: string | null;
 };
 
 /** The notice kinds this build has copy and a mark for. A backend may add
@@ -184,6 +197,51 @@ export type PlanFloorNotice = {
   awaiting_fresh_read?: boolean;
 };
 
+/** How demanding a request or step is, as the guard and planner judge it.
+ *  Each tier runs on its own model: low → Claude Haiku 4.5, moderate →
+ *  Claude Sonnet 5.5, complex → Claude Opus 5.5 (the backend's defaults). */
+export const TIERS = ["low", "moderate", "complex"] as const;
+export type Tier = (typeof TIERS)[number];
+export const isTier = (v: unknown): v is Tier => TIERS.some((k) => k === v);
+
+/**
+ * What the backend understood the buyer to be asking for (`Spec`): the
+ * request rewritten as a structured brief before planning. The buyer can edit
+ * it and plan again — the edited copy goes back as `spec`, and the backend
+ * checks it again before it plans from it.
+ */
+export type PlanSpec = {
+  goal: string;
+  deliverable: string;
+  constraints: string[];
+  done_criteria: string[];
+  /** One plain sentence, the panel's headline. */
+  summary: string;
+};
+
+/** The request check's answer for an intent that passed it. `verdict` is
+ *  "allow" on any plan that arrives; `tier` the request's own tier. */
+export type PlanGuardResult = {
+  verdict: string;
+  tier?: string | null;
+  reasons?: string[] | null;
+};
+
+/** Which model did each stage of planning, as the backend names them: an id
+ *  ("claude-opus-5-5") or a display name. Read through `modelLabel`. */
+export type PlanModels = {
+  planner?: string | null;
+  improver?: string | null;
+  guard?: string | null;
+  /** The model a built-in worker runs a step of each tier on, at plan time. */
+  tiers?: Record<Tier, string> | null;
+};
+
+/** One line of how a plan was reached (`PlanStage`), in the order the stages
+ *  ran. `stage` is "guard" | "improve" | "recheck" | "plan" today, but any
+ *  string on the wire. */
+export type PlanStage = { stage: string; msg: string };
+
 export type DecomposeResponse = {
   plan_id: string;
   intent: string;
@@ -208,6 +266,19 @@ export type DecomposeResponse = {
    *  Always false on curated demo-kit plans. Absent from older backends, which
    *  reads as false. Carries no provider error text, by design. */
   planner_fallback?: boolean;
+  /** The request's tier, as the planner used it. Absent from older backends. */
+  tier?: string | null;
+  /** The brief the plan was built from. Null when the backend planned from
+   *  the request as written (the rewrite was judged not to be the same
+   *  request); absent from older backends. Either way no panel is shown. */
+  understood_as?: PlanSpec | null;
+  /** The request check's answer. Absent from older backends. */
+  guard?: PlanGuardResult | null;
+  /** Which model did each planning stage. Absent from older backends. */
+  models?: PlanModels | null;
+  /** How the plan was reached, one line per stage. Absent from older
+   *  backends, empty from the legacy planner. */
+  stages?: PlanStage[];
 };
 
 /** Response of POST /api/orchestrator/execute. */
@@ -233,6 +304,14 @@ export type TraceLine = {
    * parsing `msg`. Absent on a backend that predates it.
    */
   settlement?: SettlementState | null;
+  /** Which planning stage this line reports ("guard" | "improve" | "plan"),
+   *  when the backend tags it. Any string on the wire; read through
+   *  `traceStage`. Absent from backends predating it. */
+  stage?: string | null;
+  /** The tier of the step this line reports, when it reports one. */
+  tier?: string | null;
+  /** The model that did the work this line reports, when it names one. */
+  model?: string | null;
 };
 
 export type ArtifactFile = {

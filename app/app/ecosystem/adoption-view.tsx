@@ -31,6 +31,7 @@ import {
   teamFundedLabel,
   missSentence,
   noSettledSentence,
+  partialReport,
   settledWindowSentence,
   shortAddress,
   targetRows,
@@ -63,6 +64,7 @@ export function AdoptionView({
   const rows = targetRows(adoption);
   const ours = excludedOwners(adoption);
   const unverified = unverifiedSentence(adoption);
+  const partial = partialReport(adoption);
   const settledWindow = settledWindowSentence(adoption);
   const network = adoption.network;
 
@@ -74,6 +76,8 @@ export function AdoptionView({
           {formatLocalTime(adoption.generated_at * 1_000)}
         </time>
       </p>
+
+      {partial && <PartialMarker partial={partial} />}
 
       {unverified && (
         <div className="clip-cyber-sm space-y-1 border border-violet/40 bg-violet/5 px-4 py-3 font-mono text-xs text-text">
@@ -105,6 +109,7 @@ export function AdoptionView({
             <TargetItem
               key={row.key}
               row={row}
+              partial={!!partial}
               unverified={!!unverified}
               windowNote={
                 row.key === "settled_external_workflows" ? settledWindow : null
@@ -171,10 +176,13 @@ export function AdoptionView({
 
 function TargetItem({
   row,
+  partial,
   unverified,
   windowNote,
 }: {
   row: TargetRow;
+  /** The report is partial: this count is a floor. */
+  partial: boolean;
   unverified: boolean;
   /** The ledger window this count covers, when the backend says; null
    * otherwise, and for the targets it does not bound. */
@@ -206,12 +214,56 @@ function TargetItem({
       </p>
       <p className={body}>{copy.counts}</p>
       {windowNote && <p className={body}>{windowNote}</p>}
-      {unverified && (
+      {partial ? (
         <p className={body}>
-          May be incomplete: some agents could not be verified right now.
+          A lower bound: this report is partial, and the true count may be
+          higher.
         </p>
+      ) : (
+        unverified && (
+          <p className={body}>
+            May be incomplete: some agents could not be verified right now.
+          </p>
+        )
       )}
     </li>
+  );
+}
+
+/**
+ * A partial report (`complete: false`): every figure below is a floor, and a
+ * fuller build is on its way. A labelled region rather than a live one — it
+ * arrives with the figures it qualifies, not after them — placed above the
+ * targets so it is read before any count is.
+ */
+function PartialMarker({
+  partial,
+}: {
+  partial: { headline: string; details: string[] };
+}) {
+  return (
+    <section
+      aria-label="Partial report"
+      className="clip-cyber-sm space-y-2 border border-violet/40 bg-violet/5 px-4 py-3"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="violet">
+          <span aria-hidden="true">≥</span>partial
+        </Badge>
+        <p className="min-w-0 font-mono text-xs text-text">
+          {partial.headline}
+        </p>
+      </div>
+      {partial.details.length > 0 && (
+        <ul className="space-y-1">
+          {partial.details.map((d) => (
+            <li key={d} className={cn(body, "[overflow-wrap:anywhere]")}>
+              {d}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

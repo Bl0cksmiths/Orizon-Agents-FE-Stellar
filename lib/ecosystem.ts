@@ -102,6 +102,32 @@ export type EcosystemAdoption = {
    * way the page says nothing about a window rather than guessing one.
    */
   window_days?: number | null;
+  /**
+   * False when the build behind this report ran out of time or could not
+   * read everything: every figure is then a floor — the truth may be higher,
+   * never lower — and the backend resumes on its next build. Absent on a
+   * backend that predates it, which means complete.
+   */
+  complete?: boolean | null;
+  /** How much the build read; null when it could not say. See `partialReport`. */
+  coverage?: AdoptionCoverage | null;
+};
+
+/** How much of what the report rests on its build actually read. */
+export type AdoptionCoverage = {
+  /** On-chain agent ids outside the seeded namespace; null when the registry
+   *  listing could not be read. */
+  agents_listed: number | null;
+  /** Agents with an owner verdict: counted as external, or excluded as ours. */
+  agents_accounted: number;
+  /** The settlement scan's reach: ledgers read, of those the RPC node holds
+   *  (0 when the node could not be asked). */
+  settlement_ledgers_scanned: number;
+  settlement_ledgers_in_window: number;
+  /** Charges to external agents found, and how many have no payer read yet —
+   *  those are never counted. */
+  external_charges: number;
+  external_charges_unattributed: number;
 };
 
 export const ADOPTION_PATH = "/ecosystem/adoption";
@@ -179,6 +205,21 @@ function isExcludedWallet(v: unknown): v is ExcludedWallet {
   );
 }
 
+/** Every coverage figure a finite number — `agents_listed` may be null — or
+ *  the whole block null or absent. A string would print as a count. */
+function isCoverage(v: unknown): v is AdoptionCoverage | null | undefined {
+  if (v === undefined || v === null) return true;
+  return (
+    isRecord(v) &&
+    (v.agents_listed === null || isNum(v.agents_listed)) &&
+    isNum(v.agents_accounted) &&
+    isNum(v.settlement_ledgers_scanned) &&
+    isNum(v.settlement_ledgers_in_window) &&
+    isNum(v.external_charges) &&
+    isNum(v.external_charges_unattributed)
+  );
+}
+
 /**
  * The whole payload, checked as a whole. Not screened item by item as the
  * agent list is: every figure on this page is a claim to a reviewer, and a
@@ -206,7 +247,11 @@ export function isEcosystemAdoption(v: unknown): v is EcosystemAdoption {
     // and is shown as no window at all, not rejected as malformed.
     (v.window_days === undefined ||
       v.window_days === null ||
-      isNum(v.window_days))
+      isNum(v.window_days)) &&
+    // Strictly boolean, like `met`: it decides whether every figure is called
+    // a lower bound, and the string "false" is truthy.
+    isOptionalBool(v.complete) &&
+    isCoverage(v.coverage)
   );
 }
 
@@ -372,12 +417,58 @@ export function exclusionReason(raw: string): string {
  */
 export function unverifiedSentence(a: EcosystemAdoption): string | null {
   const n = a.unreadable_agents?.length ?? 0;
-  if (n === 0 && a.degraded !== true) return null;
+  // A partial report is degraded by definition, and its own marker already
+  // says every figure is a floor; this sentence adds only the agents it names.
+  if (n === 0 && (a.degraded !== true || a.complete === false)) return null;
   const who =
     n === 0
       ? "Couldn't verify every agent right now"
       : `Couldn't verify ${n} agent${n === 1 ? "" : "s"} right now`;
   return `${who}. Whatever they would add is missing from the figures below until they can be read again — a gap, not a zero.`;
+}
+
+/** How long the page waits before reading a partial report again. The
+ *  backend resumes a partial build on its next one; a minute keeps the page
+ *  close behind it without asking for a build every few seconds. */
+export const PARTIAL_REFRESH_MS = 60_000;
+
+/** Counts as the page prints them: "120,960". */
+const count = (n: number) => n.toLocaleString("en-US");
+
+/**
+ * The partial-report marker (`complete: false`), or null for a complete
+ * report — including one from a backend that predates the field. The
+ * headline says the figures are floors and that a fuller build is on its way;
+ * the details say, from `coverage`, how much this one read. A part it could
+ * not read is said as unread, never as a zero.
+ */
+export function partialReport(
+  a: Pick<EcosystemAdoption, "complete" | "coverage">,
+): { headline: string; details: string[] } | null {
+  if (a.complete !== false) return null;
+  const c = a.coverage;
+  const details: string[] = [];
+  if (c) {
+    details.push(
+      c.agents_listed === null
+        ? `Agents accounted for: ${count(c.agents_accounted)} — the registry listing could not be read, so how many exist is unknown.`
+        : `Agents accounted for: ${count(c.agents_accounted)} of ${count(c.agents_listed)} listed.`,
+    );
+    details.push(
+      c.settlement_ledgers_in_window === 0
+        ? "Settlement history could not be read in this build."
+        : `Settlement history read: ${count(c.settlement_ledgers_scanned)} of ${count(c.settlement_ledgers_in_window)} ledgers.`,
+    );
+    if (c.external_charges_unattributed > 0) {
+      details.push(
+        `${count(c.external_charges_unattributed)} of ${count(c.external_charges)} charges to external agents have no payer read yet, so they are not counted.`,
+      );
+    }
+  }
+  return {
+    headline: "Partial — figures are lower bounds, refreshing.",
+    details,
+  };
 }
 
 /**

@@ -7,7 +7,11 @@
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/lib/api";
-import { decomposeErrorCopy, isPlanExpired } from "./plan-errors";
+import {
+  decomposeErrorCopy,
+  decomposeRefusal,
+  isPlanExpired,
+} from "./plan-errors";
 
 const PATH = "POST /orchestrator/decompose";
 
@@ -108,5 +112,165 @@ describe("isPlanExpired", () => {
     ["a network error", new Error("network down"), false],
   ] as const)("%s → %s", (_name, e, expected) => {
     expect(isPlanExpired(e)).toBe(expected);
+  });
+});
+
+describe("decomposeRefusal — the request check's answers", () => {
+  /** The envelope with a refusal's own field, as the backend sends it. */
+  const refused = (
+    status: number,
+    code: string,
+    extra: Record<string, unknown> = {},
+    message = code.replace(/_/g, " "),
+    retryAfterMs?: number,
+  ) =>
+    new ApiError(
+      `${PATH} → ${status} — ${message}`,
+      status,
+      retryAfterMs,
+      code,
+      {
+        detail: code,
+        error: { code, message, request_id: "r1", ...extra },
+      },
+    );
+
+  it("reads a blocked request with its reason", () => {
+    expect(
+      decomposeRefusal(
+        refused(422, "intent_blocked", {
+          reason: "It asks for help breaking into someone's account.",
+        }),
+      ),
+    ).toEqual({
+      kind: "blocked",
+      reason: "It asks for help breaking into someone's account.",
+    });
+  });
+
+  it("reads the reason from the top of the body, or from an object detail", () => {
+    const top = new ApiError(
+      `${PATH} → 422 — intent blocked`,
+      422,
+      undefined,
+      "intent_blocked",
+      {
+        error: { code: "intent_blocked", message: "intent blocked" },
+        reason: "Unsafe.",
+      },
+    );
+    expect(decomposeRefusal(top)).toEqual({
+      kind: "blocked",
+      reason: "Unsafe.",
+    });
+    const detail = new ApiError(
+      `${PATH} → 422`,
+      422,
+      undefined,
+      "intent_blocked",
+      {
+        detail: { code: "intent_blocked", reason: "Unsafe too." },
+      },
+    );
+    expect(decomposeRefusal(detail)).toEqual({
+      kind: "blocked",
+      reason: "Unsafe too.",
+    });
+  });
+
+  it("takes the envelope's own sentence as the reason when no field carries one", () => {
+    expect(
+      decomposeRefusal(
+        refused(
+          422,
+          "intent_blocked",
+          {},
+          "This asks the agents to ignore their instructions.",
+        ),
+      ),
+    ).toEqual({
+      kind: "blocked",
+      reason: "This asks the agents to ignore their instructions.",
+    });
+  });
+
+  it("has no reason rather than the code read back as one", () => {
+    expect(decomposeRefusal(refused(422, "intent_blocked"))).toEqual({
+      kind: "blocked",
+      reason: null,
+    });
+  });
+
+  it("reads a request that needs more detail with its question", () => {
+    expect(
+      decomposeRefusal(
+        refused(422, "intent_needs_detail", {
+          question: "What should the app do?",
+        }),
+      ),
+    ).toEqual({ kind: "needs_detail", question: "What should the app do?" });
+    expect(decomposeRefusal(refused(422, "intent_needs_detail"))).toEqual({
+      kind: "needs_detail",
+      question: null,
+    });
+  });
+
+  it("reads an unavailable check and a paused planner with their waits", () => {
+    expect(
+      decomposeRefusal(
+        refused(503, "intent_unavailable", {}, undefined, 30_000),
+      ),
+    ).toEqual({ kind: "unavailable", retryAfterMs: 30_000 });
+    expect(
+      decomposeRefusal(
+        refused(503, "planning_paused", {}, undefined, 3_600_000),
+      ),
+    ).toEqual({ kind: "paused", retryAfterMs: 3_600_000 });
+    expect(decomposeRefusal(refused(503, "planning_paused"))).toEqual({
+      kind: "paused",
+      retryAfterMs: null,
+    });
+  });
+
+  it("reads a backend predating the envelope by the message's last token", () => {
+    expect(decomposeRefusal(legacy(422, "intent_blocked"))).toEqual({
+      kind: "blocked",
+      reason: null,
+    });
+    expect(decomposeRefusal(legacy(503, "planning_paused"))).toEqual({
+      kind: "paused",
+      retryAfterMs: null,
+    });
+  });
+
+  it("caps a reason at a readable length and trims it", () => {
+    const long = "x".repeat(2_000);
+    const r = decomposeRefusal(
+      refused(422, "intent_blocked", { reason: `  ${long}  ` }),
+    );
+    expect(r?.kind).toBe("blocked");
+    expect(r && "reason" in r && r.reason!.length).toBeLessThanOrEqual(400);
+    expect(r && "reason" in r && r.reason!.endsWith("…")).toBe(true);
+  });
+
+  it("ignores a reason that is not a string", () => {
+    expect(
+      decomposeRefusal(
+        refused(422, "intent_blocked", { reason: { text: "x" } }),
+      ),
+    ).toEqual({ kind: "blocked", reason: null });
+  });
+
+  it("is null for every other failure", () => {
+    for (const e of [
+      enveloped(503, "no_routable_agents"),
+      enveloped(504, "decompose_timeout"),
+      enveloped(422, "validation_error"),
+      new Error("network down"),
+      "boom",
+      null,
+    ]) {
+      expect(decomposeRefusal(e)).toBeNull();
+    }
   });
 });

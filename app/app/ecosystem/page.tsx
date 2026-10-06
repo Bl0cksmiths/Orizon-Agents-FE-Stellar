@@ -11,13 +11,14 @@
  * page — an empty page here would read as "no operators", which is a claim.
  */
 
+import { useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { WakeStatus } from "@/components/console/wake-status";
 import { getStellarNetwork, isComputingError } from "@/lib/api";
-import { getEcosystemAdoption } from "@/lib/ecosystem";
+import { PARTIAL_REFRESH_MS, getEcosystemAdoption } from "@/lib/ecosystem";
 import { formatLocalTime } from "@/lib/local-time";
 import { useAdoptionSnapshot } from "@/lib/use-adoption-snapshot";
 import { useFetch } from "@/lib/use-fetch";
@@ -36,6 +37,19 @@ export default function EcosystemPage() {
   // A backend still waking is a wait, not a failure: the status line covers
   // it, and the error box is kept for reads that really failed.
   const failure = waiting ? null : error;
+
+  // A partial report is a floor the backend is still filling in: its next
+  // build resumes where this one stopped. Read again on a slow cadence until a
+  // complete one lands — `reload` keeps the figures on screen meanwhile, so
+  // the marker's "refreshing" is true and nothing flashes.
+  const partial = data?.complete === false;
+  useEffect(() => {
+    if (!partial) return;
+    const timer = setTimeout(reload, PARTIAL_REFRESH_MS);
+    return () => clearTimeout(timer);
+    // `error` too: a refresh that fails leaves `data` as it was, and must
+    // not end the cadence it belongs to.
+  }, [partial, data, error, reload]);
 
   // What the settled amounts are in. Best-effort and shared with the top bar
   // through the GET dedupe: while it is unknown the amounts carry no unit,
