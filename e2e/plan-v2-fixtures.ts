@@ -48,9 +48,13 @@ export const mockPlanV2: DecomposeResponse = {
     { stage: "recheck", msg: "Improved request re-checked by jev" },
     { stage: "plan", msg: "Planned by Claude Opus 5.5 (effort high)" },
   ],
+  // Two built-in workers — one with its model named, one left to its tier —
+  // and an external agent, which runs on its operator's own stack.
   steps: mockPlan.steps.map((s, i) => ({
     ...s,
     tier: (["low", "moderate", "complex"] as const)[i % 3],
+    executor: i === 2 ? "external" : "built_in",
+    model: i === 0 ? "claude-haiku-4-5" : null,
   })),
 };
 
