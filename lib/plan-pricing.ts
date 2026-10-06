@@ -13,6 +13,7 @@
  * `total_usdc`, a float sum that can round a stroop under it.
  */
 import {
+  knownAsset,
   parseStroops,
   stroopsToDecimal,
   unitsToStroops,
@@ -77,7 +78,7 @@ export function planPricing(plan: DecomposeResponse): PlanPricing {
     steps.push(fromUnits);
   }
   const total = steps.reduce((a, b) => a + b, 0n);
-  const asset = plan.asset ?? null;
+  const asset = knownAsset(plan.asset);
   const stated = parseStroops(plan.total_stroops);
   if (stated !== null && stated !== total) {
     return {

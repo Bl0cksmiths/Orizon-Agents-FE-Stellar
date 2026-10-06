@@ -141,8 +141,22 @@ export function stroopsToDecimal(
 export function assetLabel(asset: AssetRef): string {
   if (!asset) return "";
   const code = typeof asset === "string" ? asset : asset.code;
-  if (!code) return "";
+  if (!code || code.toUpperCase() === UNKNOWN_CODE) return "";
   return code.toLowerCase() === "native" ? "XLM" : code.toUpperCase();
+}
+
+/** The code the backend gives an asset it could not read (`money.UNKNOWN`). */
+const UNKNOWN_CODE = "UNKNOWN";
+
+/**
+ * The plan's asset when it names one, or null — for an absent asset, an
+ * empty code, or the backend's `UNKNOWN` — so the caller falls back to the
+ * network route's asset rather than printing no unit, or the word UNKNOWN.
+ */
+export function knownAsset(
+  asset: PlanAsset | null | undefined,
+): PlanAsset | null {
+  return asset && assetLabel(asset) ? asset : null;
 }
 
 /** The decimals an asset's amounts carry: the plan's word, or Stellar's 7. */

@@ -202,3 +202,15 @@ describe("authorizeCap", () => {
     expect(authorizeCap(870_000n).max_amount_usdc).toBe(0.087);
   });
 });
+
+describe("planPricing — the plan's asset", () => {
+  it("drops an asset the backend could not read", () => {
+    const p = priced(
+      plan({
+        steps: [step({ price_stroops: 1 })],
+        asset: { code: "UNKNOWN", issuer: null, decimals: 7 },
+      }),
+    );
+    expect(p.asset).toBe(null);
+  });
+});

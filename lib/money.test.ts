@@ -5,6 +5,7 @@ import {
   decimalToStroops,
   formatSettled,
   formatStroops,
+  knownAsset,
   parseStroops,
   stroopsToDecimal,
   stroopsToUnits,
@@ -221,5 +222,26 @@ describe("formatSettled with exact stroops", () => {
 
   it("does not lose stroops on a large number", () => {
     expect(formatSettled(99_999_999_999, "native")).toBe("9999.9999999 XLM");
+  });
+});
+
+describe("an asset the backend could not read", () => {
+  // The backend answers `{code: "UNKNOWN"}` — never a guessed "USDC" — while
+  // a non-native SAC's name has not been read. That is no asset to print.
+  it("gets no label", () => {
+    expect(assetLabel({ code: "UNKNOWN", issuer: null, decimals: 7 })).toBe("");
+    expect(formatStroops(120_000n, { code: "UNKNOWN", issuer: null })).toBe(
+      "0.012",
+    );
+  });
+
+  it("is not a known asset, so the network's names the unit instead", () => {
+    expect(knownAsset({ code: "UNKNOWN", issuer: null, decimals: 7 })).toBe(
+      null,
+    );
+    expect(knownAsset({ code: "", issuer: null })).toBe(null);
+    expect(knownAsset(null)).toBe(null);
+    const xlm = { code: "XLM", issuer: null, decimals: 7 };
+    expect(knownAsset(xlm)).toBe(xlm);
   });
 });
