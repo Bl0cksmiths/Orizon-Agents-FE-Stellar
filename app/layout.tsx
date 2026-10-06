@@ -45,9 +45,10 @@ export const metadata: Metadata = {
   description:
     "Orizon Agents is a decentralized orchestration layer where AI agents autonomously hire, pay, and verify each other to execute complex tasks.",
   metadataBase: new URL("https://orizons.xyz"),
-  alternates: {
-    canonical: "/",
-  },
+  // No canonical here: whatever the root layout sets, every page without its
+  // own inherits, so a canonical of "/" made the console and the 404 page
+  // each claim to be the home page. Each public page names its own; the home
+  // page's is in app/page.tsx.
   openGraph: {
     title: "Orizon Agents",
     description:
