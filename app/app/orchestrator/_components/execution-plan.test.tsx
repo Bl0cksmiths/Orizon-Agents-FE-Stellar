@@ -1406,3 +1406,92 @@ describe("ExecutionPlan · each step's reputation badge", () => {
     },
   );
 });
+
+describe("ExecutionPlan · orchestrator v2: tiers, models and the brief", () => {
+  const spec = {
+    goal: "A working calculator",
+    deliverable: "One HTML file",
+    constraints: ["No external libraries"],
+    done_criteria: ["Adds and divides"],
+    summary: "Build a calculator web app as one HTML file.",
+  };
+  const v2 = () =>
+    plan({
+      tier: "moderate",
+      guard: { verdict: "allow", tier: "moderate", reasons: [] },
+      models: {
+        guard: "jev-1.13.0",
+        improver: "claude-sonnet-5-5",
+        planner: "claude-opus-5-5",
+      },
+      understood_as: spec,
+      steps: [
+        step({ agent_id: "seo.brief", tier: "low", model: "claude-haiku-4-5" }),
+        step({ tier: "complex", model: "claude-opus-5-5" }),
+        // An external agent: a tier, but no model — it runs on its own stack.
+        step({
+          agent_id: "ext.render",
+          agent_name: "ext.render",
+          tier: "moderate",
+          model: null,
+        }),
+      ],
+    });
+  const rows = () =>
+    screen
+      .getByRole("heading", { name: /execution plan/i })
+      .closest("div.glow-card")!
+      .querySelectorAll("ol > li");
+
+  it("badges each step's tier and names the model it runs on", () => {
+    render(<ExecutionPlan plan={v2()} />);
+    const [first, second, third] = Array.from(rows());
+    expect(first.textContent).toMatch(/low tier/i);
+    expect(first.textContent).toContain("runs on Claude Haiku 4.5");
+    expect(second.textContent).toMatch(/complex tier/i);
+    expect(second.textContent).toContain("runs on Claude Opus 5.5");
+    expect(third.textContent).toMatch(/moderate tier/i);
+    expect(third.textContent).not.toMatch(/runs on/);
+  });
+
+  it("shows the brief above the steps, and how the plan was made", () => {
+    render(<ExecutionPlan plan={v2()} />);
+    const panel = screen.getByRole("heading", {
+      name: /we understood this as/i,
+    });
+    const firstStep = rows()[0];
+    // Before the steps in reading order.
+    expect(
+      panel.compareDocumentPosition(firstStep) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("list", { name: /how this plan was made/i }).textContent,
+    ).toMatch(/planned by Claude Opus 5\.5/);
+  });
+
+  it("re-plans from an edited brief through the page's callback", () => {
+    const onRespec = vi.fn();
+    render(<ExecutionPlan plan={v2()} onRespec={onRespec} />);
+    fireEvent.click(screen.getByRole("button", { name: /edit the brief/i }));
+    fireEvent.change(screen.getByLabelText(/^deliverable/i), {
+      target: { value: "A zip of HTML, CSS and JS" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /re-plan/i }));
+    expect(onRespec).toHaveBeenCalledWith({
+      ...spec,
+      deliverable: "A zip of HTML, CSS and JS",
+    });
+  });
+
+  it("shows none of it for a plan from a backend predating it", () => {
+    render(<ExecutionPlan plan={plan()} />);
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/ tier\b/i);
+    expect(text).not.toMatch(/runs on/);
+    expect(text).not.toMatch(/we understood this as/i);
+    expect(
+      screen.queryByRole("list", { name: /how this plan was made/i }),
+    ).toBeNull();
+  });
+});
