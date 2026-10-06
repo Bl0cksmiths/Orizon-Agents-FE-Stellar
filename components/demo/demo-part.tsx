@@ -16,7 +16,9 @@ import {
 } from "@/lib/demo/display";
 import type { DemoPart as Part } from "@/lib/demo/load";
 import { inlineLink } from "@/lib/ui";
+import { Isolate } from "@/components/isolate";
 import { DemoPlayer } from "./demo-player";
+import { DemoPlayerStatic } from "./demo-player-static";
 
 const term = "font-mono text-[10px] uppercase tracking-[0.25em] text-muted";
 const value = "font-mono text-xs text-text";
@@ -68,7 +70,20 @@ export function DemoPart({ part, index }: { part: Part; index: number }) {
         </p>
       )}
       <div className="mt-6">
-        <DemoPlayer video={part} chapters={part.chapters} index={index} />
+        {/* A player that fails leaves the part's poster and chapters as
+            plain links to the video, not an error screen for the page. */}
+        <Isolate
+          name="demo-player"
+          fallback={
+            <DemoPlayerStatic
+              video={part}
+              chapters={part.chapters}
+              index={index}
+            />
+          }
+        >
+          <DemoPlayer video={part} chapters={part.chapters} index={index} />
+        </Isolate>
       </div>
     </section>
   );
