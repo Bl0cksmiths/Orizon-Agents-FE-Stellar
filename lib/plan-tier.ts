@@ -56,19 +56,29 @@ export function modelLabel(v: string | null | undefined): string | null {
 }
 
 /**
- * The model a step runs on: the step's own, when the backend names one, or
- * else its tier's built-in model from the plan's `models.tiers` — said as
- * such (`fromTier`), because only a built-in worker runs on it; a step routed
- * to an external agent runs on its operator's own stack. Null when neither is
- * known.
+ * Who runs a step, as the plan card says it:
+ *
+ * - `external`: an external agent, on its operator's own stack. Never a
+ *   Claude label, whatever the step's tier — the tier map describes the
+ *   built-in workers only.
+ * - `built_in` with a model: one of the backend's built-in workers, on the
+ *   model the backend names for the step, or else its tier's model from the
+ *   plan's `models.tiers`.
+ * - null: nothing to say. Either a built-in step whose model cannot be named,
+ *   or a step from a backend that predates `executor` — which cannot tell a
+ *   built-in agent from an external one, so no model is claimed for it.
  */
-export function stepModel(
-  step: Pick<PlanStep, "model" | "tier">,
+export type StepRunner =
+  { kind: "built_in"; model: string } | { kind: "external" };
+
+export function stepRunner(
+  step: Pick<PlanStep, "executor" | "model" | "tier">,
   models: Pick<PlanModels, "tiers"> | null | undefined,
-): { name: string; fromTier: boolean } | null {
-  const own = modelLabel(step.model);
-  if (own) return { name: own, fromTier: false };
+): StepRunner | null {
+  if (step.executor === "external") return { kind: "external" };
+  if (step.executor !== "built_in") return null;
   const tier = readTier(step.tier);
-  const name = tier ? modelLabel(models?.tiers?.[tier]) : null;
-  return name ? { name, fromTier: true } : null;
+  const model =
+    modelLabel(step.model) ?? (tier ? modelLabel(models?.tiers?.[tier]) : null);
+  return model ? { kind: "built_in", model } : null;
 }
