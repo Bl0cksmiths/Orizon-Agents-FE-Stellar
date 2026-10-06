@@ -10,6 +10,18 @@ import { useErrorRecovery } from "@/lib/use-error-recovery";
  * fonts. It is styled inline in the site's palette and says what the other
  * error screens say; a deploy-skew chunk error reloads by itself
  * (lib/use-error-recovery.ts).
+ *
+ * It replaces the whole document, <head> included, so it brings its own
+ * <title> and a robots noindex. That is how Google came to list the home page
+ * as "system fault": its renderer met an error in the root layout, this
+ * screen replaced the document, and with no <title> Google named the page
+ * after the screen's heading and indexed the error as the page. With
+ * noindex, a crawler that meets this screen drops the URL until its next
+ * successful crawl instead. That is the trade-off, taken on purpose: a
+ * transient crash can cost the page its place in the index for a while, but
+ * an error screen is never what the index shows for it. The local
+ * boundaries in the root layout (components/isolate.tsx) keep this screen
+ * for failures nothing else can catch.
  */
 
 const palette = {
@@ -101,6 +113,10 @@ export default function GlobalError({
 
   return (
     <html lang="en" data-error-boundary="global">
+      <head>
+        <title>{ERROR_COPY.documentTitle}</title>
+        <meta name="robots" content="noindex" />
+      </head>
       <body style={styles.body}>
         <main id="main" style={styles.main}>
           {phase === "reloading" ? (
