@@ -13,6 +13,7 @@ import { Footer } from "./(marketing)/_components/footer";
 import { Marquee } from "@/components/ui/marquee";
 import { BackendWarmup } from "@/components/backend-warmup";
 import { Isolate } from "@/components/isolate";
+import { RevealAtRest } from "@/components/ui/reveal-at-rest";
 import { RevealOnScroll } from "@/components/ui/reveal-on-scroll";
 import { getHeroStats } from "@/lib/public-network-stats";
 
@@ -94,8 +95,11 @@ export default async function Home() {
         <BackendWarmup />
       </Isolate>
       {/* The sections are server components; their scroll entrances are the
-          `.reveal` class, played by this one observer. */}
-      <RevealOnScroll />
+          `.reveal` class, played by this one observer. If it fails, every
+          section is shown at rest rather than left hidden. */}
+      <Isolate name="reveal" fallback={<RevealAtRest />}>
+        <RevealOnScroll />
+      </Isolate>
       {/* Nav and Footer sit OUTSIDE <main> on purpose: <header>/<footer> only
           expose the banner/contentinfo landmarks when they are not descendants
           of main, and the layout's "Skip to content" link (href="#main") has to
