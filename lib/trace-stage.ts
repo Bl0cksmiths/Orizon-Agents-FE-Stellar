@@ -57,3 +57,21 @@ export function traceLineModel(line: Pick<TraceLine, "model">): string | null {
 export function traceLineTier(line: Pick<TraceLine, "tier">): Tier | null {
   return readTier(line.tier);
 }
+
+/** The handoff lane's wording: "<step> uses output from: <a>, <b>". */
+const HANDOFF = /\buses output from(?::\s*|\s+)(.+)$/i;
+
+/**
+ * The earlier steps a line says this step builds on, or null when it is not
+ * such a line. The backend writes one per step that reads its upstream's
+ * output, so the trace shows the pipeline's handoffs as they happen.
+ */
+export function traceHandoff(line: Pick<TraceLine, "msg">): string[] | null {
+  const m = HANDOFF.exec(line.msg.trim());
+  if (!m) return null;
+  const sources = m[1]
+    .split(/\s*(?:,|\band\b)\s*/i)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return sources.length > 0 ? sources : null;
+}

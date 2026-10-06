@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  traceHandoff,
   STAGE_COPY,
   traceLineModel,
   traceLineTier,
@@ -85,5 +86,35 @@ describe("traceLineModel / traceLineTier", () => {
     const l = line("code.gen → done");
     expect(traceLineModel(l)).toBeNull();
     expect(traceLineTier(l)).toBeNull();
+  });
+});
+
+describe("traceHandoff", () => {
+  const line = (msg: string): Pick<TraceLine, "msg"> => ({ msg });
+
+  it("reads the steps a line says it builds on", () => {
+    expect(
+      traceHandoff(
+        line("copywrite.v3 uses output from: research.pro, seo.brief"),
+      ),
+    ).toEqual(["research.pro", "seo.brief"]);
+    expect(traceHandoff(line("uses output from: design.figma"))).toEqual([
+      "design.figma",
+    ]);
+  });
+
+  it("tolerates the wording without a colon, and an 'and'", () => {
+    expect(
+      traceHandoff(
+        line("code.critic uses output from code.gen and design.figma"),
+      ),
+    ).toEqual(["code.gen", "design.figma"]);
+  });
+
+  it("reads nothing on any other line", () => {
+    expect(
+      traceHandoff(line("code.gen → calculator app generated")),
+    ).toBeNull();
+    expect(traceHandoff(line("uses output from:"))).toBeNull();
   });
 });
