@@ -111,6 +111,12 @@ describe("traceHandoff", () => {
     ).toEqual(["code.gen", "design.figma"]);
   });
 
+  it("reads an operator step's handoff too", () => {
+    expect(
+      traceHandoff(line("external.acme receives output from: research.pro")),
+    ).toEqual(["research.pro"]);
+  });
+
   it("reads nothing on any other line", () => {
     expect(
       traceHandoff(line("code.gen → calculator app generated")),
