@@ -8,7 +8,7 @@ import {
 import "./globals.css";
 import { Isolate } from "@/components/isolate";
 import { Analytics, SpeedInsights } from "@/components/telemetry";
-import { WalletProvider, WalletUnavailable } from "@/lib/wallet";
+import { WalletBoundary } from "@/components/wallet-boundary";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -90,15 +90,10 @@ export default function RootLayout({
         </a>
         {/* At the root because the public nav's Connect Wallet reads it too;
             the wallet kit itself loads only on connect (lib/wallet.tsx).
-            Isolated: if the provider fails, the page renders under the
-            unavailable stand-in instead of the whole document becoming
-            app/global-error.tsx. */}
-        <Isolate
-          name="wallet"
-          fallback={<WalletUnavailable>{children}</WalletUnavailable>}
-        >
-          <WalletProvider>{children}</WalletProvider>
-        </Isolate>
+            Isolated (components/wallet-boundary.tsx): if the provider fails,
+            the page renders with the wallet unavailable instead of the whole
+            document becoming app/global-error.tsx. */}
+        <WalletBoundary>{children}</WalletBoundary>
         <Isolate name="analytics">
           <Analytics />
         </Isolate>
