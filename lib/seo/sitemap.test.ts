@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sitemapEntries } from "./sitemap";
+import { newestDay, sitemapEntries } from "./sitemap";
 
 const root = path.resolve(__dirname, "../..");
 const fixtures = path.join(root, "test/fixtures");
@@ -72,12 +72,28 @@ describe("sitemapEntries: the URL set", () => {
   });
 });
 
+describe("newestDay", () => {
+  it("picks the newest day, whatever the order", () => {
+    expect(newestDay(["2026-09-29", "2026-10-02", "2025-12-31"])).toBe(
+      "2026-10-02",
+    );
+  });
+
+  it("has none to pick from nothing", () => {
+    expect(newestDay([])).toBeUndefined();
+  });
+});
+
 describe("sitemapEntries: lastmod", () => {
   it("dates the home page by content/site.json", () => {
     const site = JSON.parse(
       readFileSync(path.join(root, "content/site.json"), "utf8"),
     ) as { home: { updated: string } };
     expect(lastmod("https://orizons.xyz")).toBe(site.home.updated);
+  });
+
+  it("dates the guide index by its newest guide", () => {
+    expect(lastmod("https://orizons.xyz/guide")).toBe("2026-09-29");
   });
 
   it("dates each guide by its frontmatter", () => {

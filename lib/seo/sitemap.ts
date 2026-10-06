@@ -7,7 +7,7 @@
  * learn to ignore the dates altogether.
  *
  * - The home page: content/site.json (lib/seo/site.ts says why).
- * - Each guide: its own `updated` frontmatter.
+ * - Each guide: its own `updated` frontmatter; the guide index, its newest.
  * - /demo: its newest part's publication day; undated while unpublished.
  * - /evidence: its snapshot's as-of day.
  * - /litepaper: the litepaper's cover date.
@@ -53,7 +53,10 @@ export function sitemapEntries(): SitemapEntry[] {
     { loc: SITE_URL, lastmod: site.home.updated },
     ...(guides.length
       ? [
-          { loc: `${SITE_URL}/guide` },
+          {
+            loc: `${SITE_URL}/guide`,
+            lastmod: newestDay(guides.map((g) => g.meta.updated)),
+          },
           ...guides.map((guide) => ({
             loc: `${SITE_URL}${guidePath(guide.slug)}`,
             lastmod: guide.meta.updated,
