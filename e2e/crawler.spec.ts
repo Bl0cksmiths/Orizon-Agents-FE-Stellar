@@ -16,6 +16,7 @@
  * script the renderer could not fetch into a ChunkLoadError.
  */
 import { test, expect, type Page } from "@playwright/test";
+import { DEMO_PUBLISHED_PORT } from "./demo-server";
 import { mockApi } from "./mocks";
 import {
   FAULTS_GLOBAL,
@@ -150,6 +151,12 @@ async function breakParts(page: Page, parts: FaultPoint[]) {
 
 const HOME = PUBLIC_PAGES[0];
 
+/** /demo with its video published, from the second server's fixture. */
+const PUBLISHED_DEMO: PublicPage = {
+  ...PUBLIC_PAGES[2],
+  path: `http://localhost:${DEMO_PUBLISHED_PORT}/demo`,
+};
+
 /** The development build's chunks for the two telemetry components. */
 const TELEMETRY_CHUNK =
   /\/_next\/static\/chunks\/[^?]*vercel_(analytics|speed-insights)[^/?]*\.js/;
@@ -275,5 +282,24 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
     await expectRealPage(page, HOME);
     // It drew nothing to look for, so the proof it failed is its report.
     expect(logged.join("\n")).toContain(injectedFaultMessage("backend-warmup"));
+  });
+
+  test("the demo player throwing leaves a plain player for each part", async ({
+    page,
+  }) => {
+    await breakParts(page, ["demo-player"]);
+    await render(page, PUBLISHED_DEMO.path);
+    await expectRealPage(page, PUBLISHED_DEMO);
+    // Each part keeps its poster, its YouTube link and its chapters, as
+    // plain links to the video.
+    await expect(page.locator('[data-demo-player="static"]')).toHaveCount(2);
+    for (const n of [1, 2]) {
+      await expect(
+        page.getByRole("link", { name: `Watch part ${n} on YouTube` }),
+      ).toHaveAttribute("href", /^https:\/\/www\.youtube\.com\/watch\?v=/);
+    }
+    await expect(
+      page.locator('ol a[href*="youtube.com/watch"][href*="&t="]').first(),
+    ).toBeVisible();
   });
 });
