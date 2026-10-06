@@ -234,6 +234,9 @@ test.describe("exact pricing · the plan card", () => {
   }
 });
 
+/** The Orizon platform treasury: every built-in agent's on-chain owner. */
+const TREASURY = "GDOGIRT73NAQ7VRCIOK7G76EK7MAOC55EDT5GG4EKRE4VPVWSWG7KSP3";
+
 /** An exact amount as the backend sends it: stroops, and its display. */
 const amt = (stroops: number) => ({
   stroops,
@@ -258,6 +261,9 @@ const STEPS: SettlementStepView[] = PIPELINE.steps.map((s, i) => {
     planned: amt(price),
     charged: amt(paid),
     returned: amt(price - paid),
+    // Built-in agents are owned on-chain by the platform treasury.
+    payee: paid > 0 ? TREASURY : null,
+    payee_role: paid > 0 ? "platform_treasury" : null,
   };
 });
 
@@ -311,6 +317,28 @@ test.describe("exact pricing · the receipt's reconciliation", () => {
     ).toHaveAttribute(
       "href",
       `https://stellar.expert/explorer/testnet/tx/${settlement.charge_tx}`,
+    );
+    expect(await disputeScan(page)).toEqual([]);
+  });
+
+  test("says each payout went to the platform treasury, and links it", async ({
+    page,
+  }) => {
+    await openReceipt(page);
+    const research = page
+      .getByRole("region", { name: "Receipt" })
+      .getByRole("listitem")
+      .filter({ hasText: "research.pro" });
+    await expect(research).toContainText(
+      "paid 0.024 XLM to the Orizon platform treasury",
+    );
+    await expect(
+      research.getByRole("link", {
+        name: "view step 1 payee on stellar.expert",
+      }),
+    ).toHaveAttribute(
+      "href",
+      `https://stellar.expert/explorer/testnet/account/${TREASURY}`,
     );
     expect(await disputeScan(page)).toEqual([]);
   });
