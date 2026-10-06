@@ -55,9 +55,11 @@ import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
+import type { PlanSpec } from "@/lib/types";
 import { ModelTag, TierBadge } from "@/components/console/tier-badge";
 import { FiatFund } from "./fiat-fund";
 import { PlanProvenance } from "./plan-provenance";
+import { UnderstoodAsPanel } from "./understood-as-panel";
 import { isPlanExpired } from "./plan-errors";
 import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
 import {
@@ -141,17 +143,21 @@ function bytesToHex(v: unknown): string | null {
  * network read, which names the asset its amounts are denominated in.
  * The task read token from execute responses is stored by lib/api.ts.
  *
- * `onReplan` is the one flow the card does not own: asking for a new plan is
- * the page's decompose, so the page hands it down for the planner-fallback
- * notice rather than the card calling the API itself.
+ * `onReplan` and `onRespec` are the flows the card does not own: asking for
+ * a new plan is the page's decompose, so the page hands them down — for the
+ * planner-fallback notice, and for an edited brief — rather than the card
+ * calling the API itself.
  */
 export function ExecutionPlan({
   plan,
   onReplan,
+  onRespec,
 }: {
   plan: DecomposeResponse;
   /** Decomposes this plan's intent again — offered on a fallback plan. */
   onReplan?: () => void;
+  /** Decomposes this plan's intent again from an edited brief. */
+  onRespec?: (spec: PlanSpec) => void;
 }) {
   const router = useRouter();
   const wallet = useWallet();
@@ -457,6 +463,17 @@ export function ExecutionPlan({
         </div>
 
         <PlanProvenance plan={plan} />
+
+        {/* First of the frames above the steps: what the plan answers. A
+            buyer who meets the brief after the steps has already judged the
+            plan against their own words, not the brief it was built from. */}
+        {plan.understood_as && (
+          <UnderstoodAsPanel
+            spec={plan.understood_as}
+            onRespec={onRespec}
+            busy={executing || held !== null}
+          />
+        )}
 
         {/* Above the steps, not below them. The floor is the frame the plan
             was built in, and a buyer who reads the steps first has already
