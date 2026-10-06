@@ -5,10 +5,9 @@ import {
   Michroma,
   Share_Tech_Mono,
 } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { Isolate } from "@/components/isolate";
+import { Analytics, SpeedInsights } from "@/components/telemetry";
 import { WalletProvider, WalletUnavailable } from "@/lib/wallet";
 
 const sans = Inter({
