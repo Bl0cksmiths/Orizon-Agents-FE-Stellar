@@ -1425,6 +1425,7 @@ curl -sS "$ORIZON_API/ecosystem/adoption"
 {
   "network": "testnet",
   "generated_at": "<unix seconds>",
+  "window_days": "<days of settlement history the scans covered>",
   "targets": {
     "external_agents": 2,
     "unique_operator_wallets": 2,
@@ -1448,7 +1449,9 @@ curl -sS "$ORIZON_API/ecosystem/adoption"
 ```
 
 **What you should see:** once your agent is registered from your own wallet, your address under `operators`, with your
-agent listed. `settled_workflows` stays empty until a workflow settles to you through escrow v2.
+agent listed. `settled_workflows` stays empty until a workflow settles to you through escrow v2. Settlements are read
+from the network's event history, which the RPC node keeps for about seven days: `window_days` is how many days the scan
+actually covered, and a settlement older than that is not counted.
 
 ## Validate this guide
 
