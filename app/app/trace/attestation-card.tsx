@@ -51,7 +51,7 @@ export const AttestationCard = memo(function AttestationCard({
   }, [seal, task, reload]);
 
   return (
-    <Card>
+    <Card data-attestation="">
       <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-magenta mb-4">
         Attestation
       </div>
