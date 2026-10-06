@@ -82,6 +82,10 @@ export function claimAutoReload(
 
 /** The error screens' words, shared by every boundary. */
 export const ERROR_COPY = {
+  /** The last-resort screen's own <title>: it replaces the whole document,
+   * and a document without one is named by search engines after its first
+   * heading. */
+  documentTitle: "Orizon Agents",
   heading: "This page didn't load",
   reloading: "Loading the latest version of this page…",
   message: {
