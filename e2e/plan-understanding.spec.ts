@@ -92,19 +92,17 @@ test.describe("orchestrator v2 — the plan card", () => {
     await expect(provenance).toContainText(/complex tier/i);
 
     await expect(steps(page)).toHaveCount(3);
-    // Labelled from `models.tiers`, as the tier's built-in model.
     await expect(steps(page).nth(0)).toContainText(/low tier/i);
-    await expect(steps(page).nth(0)).toContainText(
-      "built-in model: Claude Haiku 4.5",
-    );
+    await expect(steps(page).nth(0)).toContainText("runs on Claude Haiku 4.5");
+    // Built in, no model named: read off its tier from `models.tiers`.
     await expect(steps(page).nth(1)).toContainText(/moderate tier/i);
-    await expect(steps(page).nth(1)).toContainText(
-      "built-in model: Claude Sonnet 5.5",
-    );
+    await expect(steps(page).nth(1)).toContainText("runs on Claude Sonnet 5.5");
+    // External: its tier, and never a Claude label.
     await expect(steps(page).nth(2)).toContainText(/complex tier/i);
     await expect(steps(page).nth(2)).toContainText(
-      "built-in model: Claude Opus 5.5",
+      "Runs on the operator's own agent",
     );
+    await expect(steps(page).nth(2)).not.toContainText(/claude/i);
 
     // The brief is read before the steps it frames.
     const briefBox = await brief(page).boundingBox();
@@ -192,6 +190,22 @@ test.describe("orchestrator v2 — the plan card", () => {
     await expect(notice(page)).not.toContainText(/add more detail/i);
     expect(asked[1].spec?.goal).toBe("A spreadsheet app instead");
     await axe(page);
+  });
+
+  test("a plan without executors shows each tier but claims no model", async ({
+    page,
+  }) => {
+    await ask(page, [
+      ok({
+        ...mockPlanV2,
+        steps: mockPlanV2.steps.map(({ executor: _e, ...s }) => s),
+      }),
+    ]);
+    await expect(steps(page)).toHaveCount(3);
+    for (let i = 0; i < 3; i++) {
+      await expect(steps(page).nth(i)).toContainText(/ tier\b/i);
+      await expect(steps(page).nth(i)).not.toContainText(/runs on/i);
+    }
   });
 
   test("a plan from an older backend is today's card", async ({ page }) => {
