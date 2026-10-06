@@ -139,6 +139,10 @@ export type PlanStep = {
   /** The model a built-in step runs on, by exact id. Null for an external
    *  agent, and when the backend does not name one. */
   model?: string | null;
+  /** The earlier steps (1-based) whose outputs this step uses, as the
+   *  planner states them. Null for a step that builds on nothing; absent
+   *  from backends predating it. Read through `planInputs`. */
+  inputs_from?: number[] | null;
 };
 
 /** The notice kinds this build has copy and a mark for. A backend may add
