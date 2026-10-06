@@ -186,7 +186,8 @@ body {
 
 /* Entrances, in CSS so the marketing pages paint them before any script runs.
    `.enter` plays once on first paint; `.reveal` waits until the element
-   scrolls into view (components/ui/reveal-on-scroll.tsx sets data-revealed).
+   scrolls into view (components/ui/reveal-on-scroll.tsx arms the page, then
+   sets data-revealed).
    Per element (components/ui/entrance.ts): --motion-delay, --motion-duration,
    the start offset --motion-from (default: 24px below) and, for `.enter`, the
    start opacity --motion-opacity (default: 0). */
@@ -200,9 +201,13 @@ body {
   animation: enter var(--motion-duration, 0.5s) ease-in-out
     var(--motion-delay, 0s) backwards;
 }
-.reveal {
+/* Hidden only once the observer has armed the page: until then (no script,
+   or one that failed to load) every section is shown at rest. */
+[data-reveal="armed"] .reveal {
   opacity: 0;
   transform: var(--motion-from, translateY(24px));
+}
+.reveal {
   transition-property: opacity, transform;
   transition-duration: var(--motion-duration, 0.5s);
   transition-timing-function: ease-in-out;
