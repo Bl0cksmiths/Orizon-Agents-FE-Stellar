@@ -11,7 +11,12 @@
  * - /demo: the newer of its newest part's publication day and the day its
  *   evidence table was generated; undated while unpublished.
  * - /evidence: its snapshot's as-of day.
- * - /litepaper: the litepaper's cover date.
+ * - /litepaper and its PDF: the litepaper's cover date.
+ *
+ * The PDF is listed because it is the litepaper itself, the document a reader
+ * cites and shares, at a stable URL. Its other renderings (the HTML book, the
+ * Word file, the Markdown) say the same words, so listing them too would only
+ * ask search engines to index duplicates.
  *
  * Left out on purpose: /app/** (the console, which is noindexed; listing a
  * noindexed URL contradicts it), /api/** (JSON, not pages), and the error and
@@ -84,5 +89,11 @@ export function sitemapEntries(): SitemapEntry[] {
       lastmod: evidence.snapshot.as_of,
     },
     { loc: `${SITE_URL}${LITEPAPER_PATH}`, lastmod: litepaper.date },
+    ...litepaper.downloads
+      .filter((file) => file.format === "pdf")
+      .map((pdf) => ({
+        loc: `${SITE_URL}${pdf.href}`,
+        lastmod: litepaper.date,
+      })),
   ];
 }

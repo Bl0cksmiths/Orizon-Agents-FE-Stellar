@@ -38,6 +38,7 @@ describe("sitemapEntries: the URL set", () => {
       "https://orizons.xyz/demo",
       "https://orizons.xyz/evidence",
       "https://orizons.xyz/litepaper",
+      "https://orizons.xyz/litepaper/orizon-agents-litepaper.pdf",
     ]);
   });
 
@@ -48,6 +49,7 @@ describe("sitemapEntries: the URL set", () => {
       "https://orizons.xyz/demo",
       "https://orizons.xyz/evidence",
       "https://orizons.xyz/litepaper",
+      "https://orizons.xyz/litepaper/orizon-agents-litepaper.pdf",
     ]);
   });
 
@@ -139,6 +141,12 @@ describe("sitemapEntries: lastmod", () => {
 
   it("dates /litepaper by the litepaper's cover", () => {
     expect(lastmod("https://orizons.xyz/litepaper")).toBe("2026-09-27");
+  });
+
+  it("dates the litepaper's PDF by the same cover", () => {
+    expect(
+      lastmod("https://orizons.xyz/litepaper/orizon-agents-litepaper.pdf"),
+    ).toBe("2026-09-27");
   });
 
   it("writes every date as a W3C day, never a time", () => {
