@@ -1,0 +1,109 @@
+/**
+ * The public pages as Google's renderer sees them.
+ *
+ * The incident this guards: Google listed orizons.xyz as "system fault", with
+ * the old last-resort error screen's words as the snippet. When Googlebot
+ * rendered the home page, an error escaped the root layout, and
+ * app/global-error.tsx replaced the whole document, <title> included; Google
+ * took the screen's heading for the title and indexed the error as the page.
+ *
+ * The emulation: Googlebot Smartphone's user agent, a phone-width viewport as
+ * tall as a long page (the renderer grows its viewport to the page rather
+ * than scrolling), no service worker, no stored state, no permissions. The
+ * renderer also runs on virtual time, so a timer the page sets fires as soon
+ * as the page is otherwise idle: every visit here fast-forwards the page's
+ * clock past webpack's 120-second chunk timeout, the timer that turns a
+ * script the renderer could not fetch into a ChunkLoadError.
+ */
+import { test, expect, type Page } from "@playwright/test";
+import { mockApi } from "./mocks";
+
+const GOOGLEBOT_SMARTPHONE =
+  "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.70 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
+test.use({
+  userAgent: GOOGLEBOT_SMARTPHONE,
+  viewport: { width: 412, height: 5000 },
+  deviceScaleFactor: 2.625,
+  isMobile: true,
+  hasTouch: true,
+  serviceWorkers: "block",
+});
+
+/** A public page, and what it says it is. */
+type PublicPage = { path: string; title: string | RegExp; h1: RegExp };
+
+const PUBLIC_PAGES: PublicPage[] = [
+  {
+    path: "/",
+    title: "Orizon Agents — Orchestration for autonomous digital labor",
+    h1: /^The orchestration layer for autonomous digital labor\.$/,
+  },
+  {
+    path: "/evidence",
+    title: "Evidence index: every claim linked to its proof — Orizon Agents",
+    h1: /evidence index/i,
+  },
+  {
+    path: "/demo",
+    title: "Demo: Orizon Agents, end to end — Orizon Agents",
+    h1: /^Orizon Agents, end to end$/,
+  },
+  {
+    path: "/guide",
+    title: "Guides — Orizon Agents",
+    h1: /^Operator guides$/,
+  },
+  {
+    path: "/litepaper",
+    // The fixture book's title and version, whichever book is served.
+    title: /Litepaper.*, v[\d.]+ — Orizon Agents$/,
+    h1: /Litepaper/,
+  },
+];
+
+/** Past webpack's chunk-load timeout (120s): any chunk still pending fails. */
+const VIRTUAL_TIME_MS = 125_000;
+
+/** Every error the page throws that nothing caught, by message. */
+function collectPageErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  return errors;
+}
+
+/**
+ * Opens `path` as the renderer would, then runs the page's clock on past
+ * every pending timeout, as the renderer's virtual time does.
+ */
+async function render(page: Page, path: string) {
+  await page.clock.install();
+  await mockApi(page);
+  const response = await page.goto(path);
+  expect(response?.status(), `${path} answers 200`).toBe(200);
+  await page.waitForLoadState("networkidle");
+  await page.clock.runFor(VIRTUAL_TIME_MS);
+}
+
+/** The page is itself: its own title and heading, and no error screen. */
+async function expectRealPage(page: Page, { path, title, h1 }: PublicPage) {
+  await expect(page, `${path}'s own title`).toHaveTitle(title);
+  await expect(page.locator("main h1")).toHaveText(h1);
+  await expect(page.locator("[data-error-boundary]")).toHaveCount(0);
+  await expect(
+    page.locator('meta[name="robots"][content*="noindex"]'),
+  ).toHaveCount(0);
+}
+
+test.describe("Googlebot renders each public page as itself", () => {
+  for (const spec of PUBLIC_PAGES) {
+    test(`${spec.path} keeps its title and heading, with no error`, async ({
+      page,
+    }) => {
+      const errors = collectPageErrors(page);
+      await render(page, spec.path);
+      await expectRealPage(page, spec);
+      expect(errors).toEqual([]);
+    });
+  }
+});
