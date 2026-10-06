@@ -181,12 +181,22 @@ function loadSession(): StoredSession | null {
   }
 }
 
+/**
+ * Remembers (or forgets) the session. Never throws: storage that refuses
+ * writes (a private window, a full or blocked store) only means the next
+ * visit starts disconnected, and must not fail the connect or disconnect
+ * that called it.
+ */
 function saveSession(s: StoredSession | null) {
   if (typeof window === "undefined") return;
-  if (s) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-  } else {
-    window.localStorage.removeItem(STORAGE_KEY);
+  try {
+    if (s) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    } else {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    // Not remembered; the connection itself is unaffected.
   }
 }
 
