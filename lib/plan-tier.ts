@@ -19,25 +19,17 @@ export function readTier(v: unknown): Tier | null {
   return isTier(t) ? t : null;
 }
 
-/** Each tier's badge: its word (the badge never relies on colour alone), the
- *  sentence a screen reader hears, and its tone. Tones step up in emphasis
- *  with the tier and never use magenta, which on the plan card means "your
- *  protection is weaker than it looks". */
+/** Each tier's badge: its word, printed with "tier" so the badge never
+ *  relies on colour alone, and its tone. Tones step up in emphasis with the
+ *  tier and never use magenta, which on the plan card means "your protection
+ *  is weaker than it looks". */
 export const TIER_COPY: Record<
   Tier,
-  { label: string; spoken: string; tone: "muted" | "cyan" | "violet" }
+  { label: string; tone: "muted" | "cyan" | "violet" }
 > = {
-  low: { label: "low", spoken: "Low tier", tone: "muted" },
-  moderate: {
-    label: "moderate",
-    spoken: "Moderate tier",
-    tone: "cyan",
-  },
-  complex: {
-    label: "complex",
-    spoken: "Complex tier",
-    tone: "violet",
-  },
+  low: { label: "low", tone: "muted" },
+  moderate: { label: "moderate", tone: "cyan" },
+  complex: { label: "complex", tone: "violet" },
 };
 
 const CLAUDE_ID = /^claude-([a-z]+)-(\d+)(?:-(\d+))?$/;

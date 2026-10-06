@@ -21,12 +21,12 @@ describe("readTier", () => {
 });
 
 describe("TIER_COPY", () => {
-  it("says each tier in words a buyer reads, not only a colour", () => {
+  it("names each tier in a word, and never in magenta", () => {
     expect(TIER_COPY.low.label).toBe("low");
     expect(TIER_COPY.moderate.label).toBe("moderate");
     expect(TIER_COPY.complex.label).toBe("complex");
     for (const t of ["low", "moderate", "complex"] as const) {
-      expect(TIER_COPY[t].spoken).toMatch(/tier/i);
+      expect(TIER_COPY[t].tone).not.toBe("magenta");
     }
   });
 });
