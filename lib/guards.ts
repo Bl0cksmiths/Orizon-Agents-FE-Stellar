@@ -314,7 +314,9 @@ export function isTraceLine(v: unknown): v is TraceLine {
     // on an older backend, null on every other line, and a string when set —
     // any string, since `readSettlementState` reads one it cannot name as
     // unconfirmed rather than dropping the line.
-    (v.settlement === undefined || v.settlement === null || isStr(v.settlement)) &&
+    (v.settlement === undefined ||
+      v.settlement === null ||
+      isStr(v.settlement)) &&
     // Orchestrator v2's per-line tags. Rendered as text beside the line, so
     // each is a string or nothing; an object would throw during render.
     isOptionalStr(v.stage) &&

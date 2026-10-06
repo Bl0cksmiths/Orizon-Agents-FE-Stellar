@@ -1129,7 +1129,11 @@ describe("screenDecomposeResponse — the orchestrator v2 fields", () => {
 });
 
 describe("isTraceLine — stage, tier and model", () => {
-  const line = { t: "00.100", level: "exec", msg: "Planned by Claude Opus 5.5" };
+  const line = {
+    t: "00.100",
+    level: "exec",
+    msg: "Planned by Claude Opus 5.5",
+  };
 
   it("accepts them as strings, null, or absent", () => {
     expect(isTraceLine(line)).toBe(true);
