@@ -8,7 +8,12 @@
  * money".
  */
 
-import { SEAL_STATES, type SealState } from "./types";
+import {
+  SEAL_KINDS,
+  SEAL_STATES,
+  type SealKind,
+  type SealState,
+} from "./types";
 
 const KNOWN: ReadonlySet<string> = new Set(SEAL_STATES);
 
@@ -51,3 +56,54 @@ export const SEAL_SENTENCE: Record<SealState, string> = {
 /** What a run with no seal submitted is told: there was nothing to attest. */
 export const NO_SEAL_SENTENCE =
   "No attestation seal was submitted for this run — it paid no agent on-chain, so there is nothing to attest.";
+
+const KINDS: ReadonlySet<string> = new Set(SEAL_KINDS);
+
+/**
+ * What the seal attests, as this build can use it: absent and null kept
+ * apart, and a word it does not know read as absent — today's wording, the
+ * one an older backend gets, rather than a guess at what the new word means.
+ */
+export function readSealKind(
+  v: string | null | undefined,
+): SealKind | null | undefined {
+  if (v === undefined || v === null) return v;
+  return KINDS.has(v) ? (v as SealKind) : undefined;
+}
+
+/**
+ * A delivery-only seal (`seal_kind: "delivery_only"`): the work was
+ * delivered, nobody could be paid, and the seal records the delivery alone.
+ * Nothing here may imply a payment, or a window to dispute one.
+ */
+export const DELIVERY_SEAL_LABEL: Record<SealState, string> = {
+  sealed: "Attested on Stellar — delivered, no payment made",
+  pending: "Attesting delivery… checking the ledger",
+  unconfirmed: "Delivery attestation not confirmed yet",
+  failed: "Delivery attestation failed — no payment was made",
+};
+
+export const DELIVERY_SEAL_SENTENCE: Record<SealState, string> = {
+  sealed:
+    "The run's delivery is recorded on the Stellar ledger. No payment was made for it — there was no operator on-chain to pay.",
+  pending:
+    "The delivery attestation was submitted and the backend is confirming it on the ledger. No payment was made for this run.",
+  unconfirmed:
+    "The backend could not confirm the delivery attestation in time; it may still land. No payment was made for this run.",
+  failed:
+    "The delivery attestation is not on the ledger. No payment was made for this run, so nothing else is affected.",
+};
+
+/** The label and sentence for a seal, by what it attests. A paid seal, or
+ * one whose kind is not known, keeps the paid wording. */
+export function sealWords(
+  state: SealState,
+  kind: SealKind | null | undefined,
+): { label: string; sentence: string } {
+  return kind === "delivery_only"
+    ? {
+        label: DELIVERY_SEAL_LABEL[state],
+        sentence: DELIVERY_SEAL_SENTENCE[state],
+      }
+    : { label: SEAL_LABEL[state], sentence: SEAL_SENTENCE[state] };
+}
