@@ -23,6 +23,7 @@ import {
   teamFunding,
   missSentence,
   noSettledSentence,
+  partialReport,
   settledWindowSentence,
   shortAddress,
   targetRows,
@@ -545,5 +546,113 @@ describe("getEcosystemAdoption", () => {
     await expect(getEcosystemAdoption()).rejects.toThrow(
       "GET /ecosystem/adoption → 404 — Not Found",
     );
+  });
+});
+
+describe("a partial report (complete: false)", () => {
+  const coverage = {
+    agents_listed: 9,
+    agents_accounted: 7,
+    settlement_ledgers_scanned: 4_200,
+    settlement_ledgers_in_window: 120_960,
+    external_charges: 12,
+    external_charges_unattributed: 3,
+  };
+
+  it("is accepted with its coverage, and from a backend predating both", () => {
+    expect(isEcosystemAdoption(zero({ complete: false, coverage }))).toBe(true);
+    expect(isEcosystemAdoption(zero({ complete: true, coverage: null }))).toBe(
+      true,
+    );
+    expect(
+      isEcosystemAdoption(
+        zero({ coverage: { ...coverage, agents_listed: null } }),
+      ),
+    ).toBe(true);
+    expect(isEcosystemAdoption(zero())).toBe(true);
+  });
+
+  // Strict, like `met`: the string "false" is truthy, and a non-boolean here
+  // decides whether every figure on the page is called a lower bound.
+  it("is refused when complete is not a boolean", () => {
+    for (const complete of ["false", 0, 1, {}]) {
+      expect(
+        isEcosystemAdoption({ ...zero(), complete }),
+        JSON.stringify(complete),
+      ).toBe(false);
+    }
+  });
+
+  it("is refused when a coverage figure is missing or not a number", () => {
+    const { external_charges: _drop, ...missing } = coverage;
+    for (const bad of [
+      missing,
+      { ...coverage, agents_accounted: "7" },
+      { ...coverage, agents_listed: "9" },
+      "partial",
+    ]) {
+      expect(
+        isEcosystemAdoption({ ...zero(), coverage: bad }),
+        JSON.stringify(bad),
+      ).toBe(false);
+    }
+  });
+
+  it("says nothing for a complete report, or one predating the field", () => {
+    expect(partialReport(zero({ complete: true, coverage }))).toBeNull();
+    expect(partialReport(zero())).toBeNull();
+    expect(partialReport(zero({ complete: null }))).toBeNull();
+  });
+
+  it("marks the figures as lower bounds being refreshed", () => {
+    const p = partialReport(zero({ complete: false, coverage }));
+    expect(p?.headline).toBe("Partial — figures are lower bounds, refreshing.");
+  });
+
+  it("says how much was read, in plain counts", () => {
+    expect(partialReport(zero({ complete: false, coverage }))?.details).toEqual(
+      [
+        "Agents accounted for: 7 of 9 listed.",
+        "Settlement history read: 4,200 of 120,960 ledgers.",
+        "3 of 12 charges to external agents have no payer read yet, so they are not counted.",
+      ],
+    );
+  });
+
+  it("says a listing or a history it could not read, never a zero", () => {
+    const p = partialReport(
+      zero({
+        complete: false,
+        coverage: {
+          ...coverage,
+          agents_listed: null,
+          settlement_ledgers_scanned: 0,
+          settlement_ledgers_in_window: 0,
+          external_charges: 0,
+          external_charges_unattributed: 0,
+        },
+      }),
+    );
+    expect(p?.details).toEqual([
+      "Agents accounted for: 7 — the registry listing could not be read, so how many exist is unknown.",
+      "Settlement history could not be read in this build.",
+    ]);
+  });
+
+  it("has no details when the backend sent no coverage", () => {
+    expect(
+      partialReport(zero({ complete: false, coverage: null }))?.details,
+    ).toEqual([]);
+  });
+
+  it("leaves the degraded sentence to the partial marker unless agents are named", () => {
+    expect(
+      unverifiedSentence(zero({ complete: false, degraded: true })),
+    ).toBeNull();
+    expect(
+      unverifiedSentence(
+        zero({ complete: false, degraded: true, unreadable_agents: ["a"] }),
+      ),
+    ).toMatch(/^Couldn't verify 1 agent/);
   });
 });
