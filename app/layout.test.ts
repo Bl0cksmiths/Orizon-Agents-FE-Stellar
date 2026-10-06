@@ -10,19 +10,52 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isComponent, unisolated } from "@/test/isolation";
 
-const LAYOUT = readFileSync(join(__dirname, "layout.tsx"), "utf8");
+const read = (path: string) =>
+  readFileSync(join(__dirname, "..", path), "utf8");
+const LAYOUT = read("app/layout.tsx");
+
+/**
+ * Client components that are boundaries themselves: each wraps everything it
+ * renders in an <Isolate>, and is checked for it below. The wallet's is one
+ * because it needs the page twice (see the last test).
+ */
+const BOUNDARIES: Record<string, string> = {
+  WalletBoundary: "components/wallet-boundary.tsx",
+};
 
 describe("the root layout", () => {
   it("renders every component inside a local boundary", () => {
-    expect(unisolated(LAYOUT, isComponent)).toEqual([]);
+    expect(
+      unisolated(LAYOUT, (tag) => isComponent(tag) && !(tag in BOUNDARIES)),
+    ).toEqual([]);
   });
 
+  it.each(Object.entries(BOUNDARIES))(
+    "%s renders everything inside a local boundary",
+    (_, file) => {
+      const source = read(file);
+      expect(source).toContain("<Isolate");
+      expect(unisolated(source, isComponent)).toEqual([]);
+    },
+  );
+
   it("still renders the wallet provider and both telemetry components", () => {
-    // The guard above passes for a layout with nothing in it; this keeps it
+    // The guards above pass for a layout with nothing in it; this keeps them
     // reading the layout that is really there.
-    for (const tag of ["WalletProvider", "Analytics", "SpeedInsights"]) {
+    for (const tag of ["WalletBoundary", "Analytics", "SpeedInsights"]) {
       expect(LAYOUT).toContain(`<${tag}`);
     }
+    expect(read(BOUNDARIES.WalletBoundary)).toContain("<WalletProvider");
+  });
+
+  it("sends the page once", () => {
+    // Written twice in this server component (say, as a boundary's children
+    // and again in its fallback), the page goes into the RSC payload twice,
+    // the second time as a reference to the first, and Next 14.2's React can
+    // resolve that reference to null mid-hydration: the page then fails to
+    // hydrate on a share of loads. A boundary that needs the page twice is a
+    // client component that receives it once (components/wallet-boundary.tsx).
+    expect(LAYOUT.match(/\{children\}/g)).toHaveLength(1);
   });
 });
 
