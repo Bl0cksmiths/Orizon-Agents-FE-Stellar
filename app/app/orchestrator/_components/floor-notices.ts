@@ -25,6 +25,21 @@ export const isUnbound = (n: PlanFloorNotice): boolean =>
 export const isUnreachable = (n: PlanFloorNotice): boolean =>
   n.reason_code === "unreachable_endpoint";
 
+/** An operator's own agent, left out while plans use only the platform's
+ *  built-in agents. Its reputation and endpoint were never the question. */
+export const isExternalNotRouted = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "external_not_routed";
+
+/** A built-in agent left out because its worker would only simulate the
+ *  step — a buyer is never charged for simulated output. */
+export const isSimulatedWorker = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "simulated_worker";
+
+/** Left out by how plans are built, not by anything about the agent: the
+ *  floor never judged it, and no bound was read for it. */
+export const isRoutingPolicy = (n: PlanFloorNotice): boolean =>
+  isExternalNotRouted(n) || isSimulatedWorker(n);
+
 /**
  * Whether a notice records the floor acting on an agent: every notice except
  * an unbound or unreachable one. The ONE definition both the floor summary and the exclusions
@@ -38,7 +53,7 @@ export const isUnreachable = (n: PlanFloorNotice): boolean =>
  * unreachable one was left out on its endpoint's health, not its standing.
  */
 export const isFloorAction = (n: PlanFloorNotice): boolean =>
-  !isUnbound(n) && !isUnreachable(n);
+  !isUnbound(n) && !isUnreachable(n) && !isRoutingPolicy(n);
 
 /**
  * An agent held off because it was rated since its last reputation read and
