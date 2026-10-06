@@ -46,6 +46,7 @@ export function NavBar() {
 
   return (
     <header
+      data-nav="interactive"
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300",
         // An open menu over the hero gets the scrolled bar's backdrop too, so
