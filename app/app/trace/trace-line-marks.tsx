@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { ModelTag, TierBadge } from "@/components/console/tier-badge";
 import {
   STAGE_COPY,
+  traceHandoff,
   traceLineModel,
   traceLineTier,
   traceStage,
@@ -26,6 +27,19 @@ export function StageMark({ line }: { line: TraceLine }) {
       <span className="sr-only">Planning stage: </span>
       <span aria-hidden="true">◆</span>
       {STAGE_COPY[stage].label}
+    </Badge>
+  );
+}
+
+/** Opens a line that reports a pipeline handoff: this step building on the
+ *  output of the steps before it. The line's own words name them. */
+export function HandoffMark({ line }: { line: TraceLine }) {
+  if (!traceHandoff(line)) return null;
+  return (
+    <Badge tone="cyan" className="mr-2 align-middle">
+      <span className="sr-only">Builds on earlier steps: </span>
+      <span aria-hidden="true">⤷</span>
+      handoff
     </Badge>
   );
 }

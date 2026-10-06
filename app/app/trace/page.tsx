@@ -26,7 +26,7 @@ import { useFetch } from "@/lib/use-fetch";
 import type { ArtifactResponse, TraceLine } from "@/lib/types";
 import { AttestationCard } from "./attestation-card";
 import { OnChainReceipts } from "./on-chain-receipts";
-import { StageMark, StepMarks } from "./trace-line-marks";
+import { HandoffMark, StageMark, StepMarks } from "./trace-line-marks";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +80,7 @@ const TraceRow = memo(function TraceRow({
       </span>
       <span className="flex-1 min-w-0 break-words text-text/90 leading-5">
         <StageMark line={line} />
+        <HandoffMark line={line} />
         {relabelAmounts(line.msg, asset)}
         <StepMarks line={line} />
       </span>
