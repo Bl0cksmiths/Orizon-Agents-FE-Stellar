@@ -38,6 +38,10 @@ const planCard = (page: Page) =>
 const brief = (page: Page) =>
   page.getByRole("region", { name: /we understood this as/i });
 const steps = (page: Page) => planCard(page).locator("ol > li");
+/** The check's notice: its alert region, by id — Next's route announcer is
+ *  an empty alert of its own on every page. */
+const notice = (page: Page) =>
+  page.locator('#intent-check-notice[role="alert"]');
 
 async function axe(page: Page) {
   const { violations } = await new AxeBuilder({ page })
@@ -210,7 +214,7 @@ test.describe("orchestrator v2 — the request check's notices", () => {
         reason: "It asks for help getting into someone else's account.",
       }),
     ]);
-    const alert = page.getByRole("alert");
+    const alert = notice(page);
     await expect(alert).toContainText(/can.t plan this request/i);
     await expect(alert).toContainText(
       "It asks for help getting into someone else's account.",
@@ -234,7 +238,7 @@ test.describe("orchestrator v2 — the request check's notices", () => {
       ],
       "calc",
     );
-    const alert = page.getByRole("alert");
+    const alert = notice(page);
     await expect(alert).toContainText(
       "What should the calculator be able to do?",
     );
@@ -249,7 +253,7 @@ test.describe("orchestrator v2 — the request check's notices", () => {
     await intentBox(page).fill("a calculator web app that adds and divides");
     await decomposeButton(page).click();
     await expect(brief(page)).toBeVisible();
-    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(notice(page)).toHaveCount(0);
     await expect(intentBox(page)).not.toHaveAttribute("aria-describedby", /.+/);
     expect(asked.map((a) => a.intent)).toEqual([
       "calc",
@@ -264,7 +268,7 @@ test.describe("orchestrator v2 — the request check's notices", () => {
       refusal(503, "intent_unavailable", {}, { "Retry-After": "2" }),
       ok(mockPlanV2),
     ]);
-    await expect(page.getByRole("alert")).toContainText(/nothing was charged/i);
+    await expect(notice(page)).toContainText(/nothing was charged/i);
     const retry = page.getByRole("button", { name: /try again/i });
     await expect(retry).toBeDisabled();
     await expect(page.getByText(/available in \d+ s/)).toBeVisible();
@@ -286,7 +290,7 @@ test.describe("orchestrator v2 — the request check's notices", () => {
       refusal(503, "planning_paused", {}, { "Retry-After": "7200" }),
       ok(mockPlanV2),
     ]);
-    const alert = page.getByRole("alert");
+    const alert = notice(page);
     await expect(alert).toContainText(/paused/i);
     await expect(alert).toContainText(/resumes/i);
     await expect(alert.locator("time")).toHaveCount(1);
@@ -299,7 +303,7 @@ test.describe("orchestrator v2 — the request check's notices", () => {
     await page.getByRole("button", { name: /tetris game in html/i }).click();
     await decomposeButton(page).click();
     await expect(planCard(page)).toBeVisible();
-    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(notice(page)).toHaveCount(0);
     expect(asked[1]).toEqual({ intent: "tetris game in html" });
   });
 
@@ -308,7 +312,7 @@ test.describe("orchestrator v2 — the request check's notices", () => {
     await ask(page, [
       refusal(503, "intent_unavailable", {}, { "Retry-After": "30" }),
     ]);
-    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(notice(page)).toBeVisible();
     const scroll = await page.evaluate(
       () => document.documentElement.scrollWidth,
     );
