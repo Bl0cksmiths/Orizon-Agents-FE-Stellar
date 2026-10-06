@@ -36,6 +36,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 const connect = vi.fn();
 vi.mock("@/lib/wallet", () => ({
   useWallet: () => ({
+    available: true,
     connected: false,
     address: null,
     connect,
