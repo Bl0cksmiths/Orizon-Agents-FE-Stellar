@@ -6,34 +6,11 @@
  * or no row at all — never a subset.
  */
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type { PublicNetworkStats } from "@/lib/public-network-stats";
 
 import { Hero } from "./hero";
-
-// The hero animates with framer-motion; every `m.<tag>` renders as the plain
-// element without its motion props.
-vi.mock("framer-motion", async () => {
-  const React = await import("react");
-  const MOTION = new Set(["initial", "animate", "transition"]);
-  const m = new Proxy(
-    {},
-    {
-      get:
-        (_, tag: string) =>
-        ({ children, ...props }: Record<string, unknown>) =>
-          React.createElement(
-            tag,
-            Object.fromEntries(
-              Object.entries(props).filter(([k]) => !MOTION.has(k)),
-            ),
-            children as React.ReactNode,
-          ),
-    },
-  );
-  return { m };
-});
 
 afterEach(cleanup);
 

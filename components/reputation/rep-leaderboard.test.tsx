@@ -11,10 +11,10 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import type { Agent, ReputationBatch, ReputationInfo } from "@/lib/types";
-import { RepLeaderboard } from "./rep-leaderboard";
+import { LEADERBOARD_PAGE_SIZE, RepLeaderboard } from "./rep-leaderboard";
 
 afterEach(cleanup);
 
@@ -190,5 +190,63 @@ describe("RepLeaderboard — what a prior chip claims", () => {
     for (const tr of rows) {
       expect(tr.querySelector("td")?.textContent).toBe("—unranked");
     }
+  });
+});
+
+describe("RepLeaderboard — a window of the ranking", () => {
+  const roster = (n: number) =>
+    Array.from({ length: n }, (_, i) => agent(`agt_${i}`));
+  const bodyRows = (container: HTMLElement) =>
+    container.querySelectorAll("tbody tr");
+
+  it("ranks everyone but renders the top page first", () => {
+    const agents = roster(120);
+    const { container } = render(
+      <RepLeaderboard
+        agents={agents}
+        batch={batchOf(agents.map((a) => prior(a.id)))}
+        loading={false}
+        agentsError={null}
+        batchError={null}
+      />,
+    );
+    expect(bodyRows(container)).toHaveLength(LEADERBOARD_PAGE_SIZE);
+    expect(container.textContent).toContain("Showing the top 50");
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    expect(bodyRows(container)).toHaveLength(100);
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    expect(bodyRows(container)).toHaveLength(120);
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
+  });
+
+  it("starts the window over when the sort changes", () => {
+    const agents = roster(120);
+    const { container } = render(
+      <RepLeaderboard
+        agents={agents}
+        batch={batchOf(agents.map((a) => prior(a.id)))}
+        loading={false}
+        agentsError={null}
+        batchError={null}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    fireEvent.click(screen.getByRole("button", { name: /ratings/i }));
+    expect(bodyRows(container)).toHaveLength(LEADERBOARD_PAGE_SIZE);
+  });
+
+  it("holds the skeleton and the waking line while a waking roster is retried", () => {
+    const { container } = render(
+      <RepLeaderboard
+        agents={null}
+        batch={null}
+        loading={false}
+        waiting
+        agentsError={null}
+        batchError={null}
+      />,
+    );
+    expect(container.querySelector("[data-wake-status]")).not.toBeNull();
+    expect(container.textContent).not.toContain("agent registry unavailable");
   });
 });

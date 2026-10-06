@@ -73,8 +73,12 @@ export const batchWithDefects: unknown = {
   },
 } satisfies Record<keyof ReputationBatch, unknown>;
 
-async function answerWith(page: Page, glob: string, body: unknown) {
-  await page.route(glob, (route) =>
+async function answerWith(
+  page: Page,
+  match: string | ((url: URL) => boolean),
+  body: unknown,
+) {
+  await page.route(match, (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -85,7 +89,9 @@ async function answerWith(page: Page, glob: string, body: unknown) {
 
 /** `GET /api/agents` answers with `body`, verbatim. */
 export async function mockRawAgents(page: Page, body: unknown): Promise<void> {
-  await answerWith(page, "**/api/agents", body);
+  // By path, so the registry's paged read (`/api/agents?limit=50`) is
+  // answered too — verbatim, as a server that does not page.
+  await answerWith(page, (url) => url.pathname === "/api/agents", body);
 }
 
 /** `GET /api/stellar/reputation` answers with `body`, verbatim. */

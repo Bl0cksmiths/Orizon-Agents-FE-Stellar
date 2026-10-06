@@ -18,13 +18,13 @@ import { DisputeSection } from "@/components/disputes/dispute-section";
 import { ErrorNote } from "@/components/ui/error-note";
 import { KVRow } from "@/components/ui/kv-row";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
-import { StellarExpertLink } from "@/components/ui/stellar-link";
 import { getArtifact, getStellarNetwork, openTraceStream } from "@/lib/api";
 import { escrowGeneration } from "@/lib/escrow-generation";
 import { traceSettlementState } from "@/lib/settlement-state";
 import { formatSpent, relabelAmounts, traceSpend } from "@/lib/trace-amounts";
 import { useFetch } from "@/lib/use-fetch";
 import type { ArtifactResponse, TraceLine } from "@/lib/types";
+import { AttestationCard } from "./attestation-card";
 import { OnChainReceipts } from "./on-chain-receipts";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
@@ -614,26 +614,15 @@ function TracePageInner() {
                 ))}
               </dl>
             </Card>
-            <Card>
-              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-magenta mb-4">
-                Attestation
-              </div>
-              <div
-                className={cn(
-                  "font-mono text-xs break-all leading-5",
-                  attestationUnavailable ? "text-magenta/90" : "text-muted",
-                )}
-              >
-                {attestationText}
-              </div>
-              {proofTx && (
-                <StellarExpertLink
-                  kind="tx"
-                  id={proofTx}
-                  className="mt-3 inline-block"
-                />
-              )}
-            </Card>
+            {/* Owns the task read for the run's seal, so its answers
+                re-render this card alone — never the trace and its log. */}
+            <AttestationCard
+              taskId={taskId}
+              done={done}
+              fallbackText={attestationText}
+              unavailable={attestationUnavailable}
+              proofTx={proofTx}
+            />
           </div>
         </div>
       )}

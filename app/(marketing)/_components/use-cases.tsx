@@ -1,9 +1,9 @@
 "use client";
-import { m } from "framer-motion";
 import { useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
+import { entrance } from "@/components/ui/entrance";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 
@@ -114,7 +114,9 @@ export function UseCases() {
           })}
         </div>
 
-        <m.div
+        {/* Keyed by case, so a new tab mounts a new panel and its entrance
+            plays again. */}
+        <div
           key={current.id}
           id={`usecase-panel-${current.id}`}
           role="tabpanel"
@@ -122,10 +124,8 @@ export function UseCases() {
           // Focusable so the keyboard path continues from the tabs into the
           // panel content rather than skipping it.
           tabIndex={0}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className={cn("mt-8", focusRing)}
+          style={entrance({ duration: 0.4, from: "translateY(12px)" })}
+          className={cn("enter mt-8", focusRing)}
         >
           <Card>
             <div className="grid gap-6 md:grid-cols-[1fr_2fr_1fr] items-center">
@@ -142,18 +142,20 @@ export function UseCases() {
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   {current.chain.map((agent, i) => (
-                    <m.div
+                    <div
                       key={agent}
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.35, delay: i * 0.08 }}
-                      className="flex items-center gap-2"
+                      style={entrance({
+                        delay: i * 0.08,
+                        duration: 0.35,
+                        from: "translateX(-12px)",
+                      })}
+                      className="enter flex items-center gap-2"
                     >
                       <Badge tone="violet">{agent}</Badge>
                       {i < current.chain.length - 1 && (
                         <span className="text-cyan text-xs">→</span>
                       )}
-                    </m.div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -166,7 +168,7 @@ export function UseCases() {
               </div>
             </div>
           </Card>
-        </m.div>
+        </div>
       </div>
     </section>
   );

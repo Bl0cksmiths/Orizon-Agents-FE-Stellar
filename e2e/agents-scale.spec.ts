@@ -42,6 +42,10 @@ test.describe("the registry at scale", () => {
     }));
     await mockApi(page, { agents });
     await page.goto("/app/agents");
+    // The table opens on a window of the registry, and the rest is a click
+    // away — the whole of it at once was the first-paint cost.
+    await expect(page.getByRole("rowheader")).toHaveCount(50);
+    await page.getByRole("button", { name: "Show all" }).click();
     await expect(page.getByRole("rowheader")).toHaveCount(N);
 
     // Every row is in the DOM already; the question is whether a buyer can

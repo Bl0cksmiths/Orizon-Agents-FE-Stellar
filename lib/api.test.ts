@@ -26,6 +26,14 @@ import {
   checkBindEndpoint,
   clearGetCache,
   createBindChallenge,
+  CACHED_GET_TIMEOUT_MS,
+  FOLLOW_UP_QUIET_MS,
+  fetchWithTimeout,
+  isAbortError,
+  isComputingError,
+  isWakingError,
+  listAgentsPage,
+  readAtOf,
   decompose,
   execute,
   getAgentBinding,
@@ -35,10 +43,12 @@ import {
   getNetworkOverview,
   getReputation,
   getReputationParams,
+  getTask,
   getTrace,
   listAgents,
   listAgentsWithSync,
   listReputation,
+  listTasks,
   openTraceStream,
   submitSigned,
   syncAgents,
@@ -130,6 +140,7 @@ describe("listAgentsWithSync", () => {
     await expect(listAgentsWithSync()).resolves.toEqual({
       agents: [agentFixture],
       signal: "synced",
+      readAt: null,
     });
     fetchMock.mockResolvedValueOnce(withHeader("false"));
     await expect(listAgentsWithSync()).resolves.toMatchObject({
@@ -151,9 +162,11 @@ describe("listAgentsWithSync", () => {
     await listAgentsWithSync();
     await listAgentsWithSync();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    // A cached read: never `no-store`, whose Pragma makes the CDN refresh in
+    // the foreground.
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/agents",
-      expect.objectContaining({ cache: "no-store" }),
+      expect.objectContaining({ cache: "default" }),
     );
   });
 
@@ -168,7 +181,7 @@ describe("listAgentsWithSync", () => {
 });
 
 describe("get (via listAgents)", () => {
-  it("hits the /api prefix with no-store and resolves parsed JSON", async () => {
+  it("hits the /api prefix as a cached read and resolves parsed JSON", async () => {
     const agents = [agentFixture];
     fetchMock.mockResolvedValueOnce(jsonResponse(200, agents));
 
@@ -178,7 +191,7 @@ describe("get (via listAgents)", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/agents",
       expect.objectContaining({
-        cache: "no-store",
+        cache: "default",
         signal: expect.any(AbortSignal),
       }),
     );
@@ -325,6 +338,263 @@ describe("get (via listAgents)", () => {
   });
 });
 
+describe("getTask", () => {
+  it("reads one task, seal included, with its read token", async () => {
+    rememberTaskToken("tsk_seal", "tok_seal");
+    const task = {
+      id: "tsk_seal",
+      intent: "x",
+      agents: 1,
+      spent: 0.01,
+      status: "complete",
+      started: "1m ago",
+      seal: "pending",
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, task));
+    await expect(getTask("tsk_seal")).resolves.toEqual(task);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/tasks/tsk_seal");
+    expect(init?.headers).toMatchObject({ "X-Task-Token": "tok_seal" });
+  });
+
+  it("rejects a task this build cannot read", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: "t" }));
+    await expect(getTask("t")).rejects.toThrow("malformed response");
+  });
+});
+
+describe("cached reads", () => {
+  const withHeaders = (body: unknown, headers: Record<string, string>) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "content-type": "application/json", ...headers },
+    });
+
+  it("dates a cached payload by the backend read behind it", async () => {
+    fetchMock.mockResolvedValueOnce(
+      withHeaders([agentFixture], { "X-Orizon-Read-At": "1700000000000" }),
+    );
+    const agents = await listAgents();
+    expect(readAtOf(agents)).toBe(1_700_000_000_000);
+  });
+
+  it("dates a snapshot the backend served directly by its own age", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(2_000_000_000_000);
+    fetchMock.mockResolvedValueOnce(
+      withHeaders([agentFixture], { "X-Snapshot-Age": "120" }),
+    );
+    const agents = await listAgents();
+    expect(readAtOf(agents)).toBe(2_000_000_000_000 - 120_000);
+  });
+
+  it("dates nothing that did not come from the cache", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, [agentFixture]));
+    expect(readAtOf(await listAgents())).toBeNull();
+    expect(readAtOf(null)).toBeNull();
+    expect(readAtOf("x")).toBeNull();
+  });
+
+  it("dates the registry read the interim rule counts", async () => {
+    fetchMock.mockResolvedValueOnce(
+      withHeaders([agentFixture], {
+        "X-Orizon-Read-At": "1700000000000",
+        "X-Registry-Synced": "true",
+      }),
+    );
+    await expect(listAgentsWithSync()).resolves.toMatchObject({
+      readAt: 1_700_000_000_000,
+      signal: "synced",
+    });
+  });
+
+  describe("listAgentsPage", () => {
+    it("asks for a page and reads what the server says about the rest", async () => {
+      fetchMock.mockResolvedValueOnce(
+        withHeaders([agentFixture], {
+          "X-Total-Count": "590",
+          "X-Next-Cursor": "50",
+          "X-Registry-Synced": "true",
+        }),
+      );
+      await expect(listAgentsPage({ limit: 50 })).resolves.toEqual({
+        agents: [agentFixture],
+        paged: true,
+        total: 590,
+        nextCursor: "50",
+        signal: "synced",
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/agents?limit=50",
+        expect.objectContaining({ cache: "default" }),
+      );
+    });
+
+    it("passes the cursor on", async () => {
+      fetchMock.mockResolvedValueOnce(
+        withHeaders([agentFixture], { "X-Total-Count": "51" }),
+      );
+      await expect(
+        listAgentsPage({ limit: 50, cursor: "50" }),
+      ).resolves.toMatchObject({ paged: true, nextCursor: null });
+      expect(fetchMock.mock.calls[0][0]).toBe("/api/agents?limit=50&cursor=50");
+    });
+
+    it("takes an answer with no total as the whole registry", async () => {
+      fetchMock.mockResolvedValueOnce(
+        withHeaders([agentFixture, agentFixture], { "X-Next-Cursor": "9" }),
+      );
+      await expect(listAgentsPage({ limit: 1 })).resolves.toMatchObject({
+        paged: false,
+        total: null,
+        nextCursor: null,
+        signal: "unknown",
+      });
+    });
+
+    it("rejects a failure like every read", async () => {
+      fetchMock.mockResolvedValueOnce(jsonResponse(503, { detail: "x" }));
+      await expect(listAgentsPage({ limit: 50 })).rejects.toThrow(
+        "GET /agents → 503",
+      );
+    });
+  });
+
+  it("gives a cached read the shorter deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockImplementationOnce(
+        (_url, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new Error("aborted")),
+            );
+          }),
+      );
+      const rejects = expect(listReputation()).rejects.toThrow(
+        `GET /stellar/reputation → timeout after ${CACHED_GET_TIMEOUT_MS / 1000}s`,
+      );
+      await vi.advanceTimersByTimeAsync(CACHED_GET_TIMEOUT_MS + 1);
+      await rejects;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("isComputingError", () => {
+  it("knows a report the backend is still building", () => {
+    expect(
+      isComputingError(
+        new Error(
+          "GET /ecosystem/adoption → 202 — the adoption report is still being built",
+        ),
+      ),
+    ).toBe(true);
+    expect(isComputingError(new Error("GET /x → 503"))).toBe(false);
+    expect(isComputingError(null)).toBe(false);
+  });
+});
+
+describe("isWakingError", () => {
+  it("knows the cache's waking answer", () => {
+    expect(
+      isWakingError(
+        new Error(
+          "GET /agents → 503 — the backend is waking up — this usually takes under a minute",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("is not a lapsed deadline: the cache answers well inside one", () => {
+    expect(isWakingError("GET /agents → timeout after 20s")).toBe(false);
+  });
+
+  it("is not every failure", () => {
+    expect(
+      isWakingError(new Error("GET /agents → 503 — service unavailable")),
+    ).toBe(false);
+    expect(isWakingError(new Error("GET /agents → 404"))).toBe(false);
+    expect(isWakingError(null)).toBe(false);
+  });
+});
+
+describe("shared GET with caller signals", () => {
+  /** A read that waits for the test, recording the signal it was given. */
+  function pendingRead() {
+    let resolve!: (v: FetchMockResponse) => void;
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((res, reject) => {
+          resolve = res;
+          signal = init?.signal ?? undefined;
+          signal?.addEventListener("abort", () =>
+            reject(new Error("The operation was aborted")),
+          );
+        }),
+    );
+    return {
+      resolve: (body: unknown) => resolve(jsonResponse(200, body)),
+      aborted: () => signal?.aborted === true,
+    };
+  }
+
+  it("lets one caller go without cancelling the read others wait on", async () => {
+    const read = pendingRead();
+    const a = new AbortController();
+    const b = new AbortController();
+    const first = listAgents(a.signal);
+    const second = listAgents(b.signal);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    a.abort();
+    const err = await first.catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(true);
+    expect(read.aborted()).toBe(false);
+
+    read.resolve([agentFixture]);
+    await expect(second).resolves.toEqual([agentFixture]);
+  });
+
+  it("cancels the read once every caller has let go, and asks afresh next time", async () => {
+    const read = pendingRead();
+    const a = new AbortController();
+    const b = new AbortController();
+    const first = listAgents(a.signal).catch((e: unknown) => e);
+    const second = listAgents(b.signal).catch((e: unknown) => e);
+    a.abort();
+    b.abort();
+    expect(isAbortError(await first)).toBe(true);
+    expect(isAbortError(await second)).toBe(true);
+    expect(read.aborted()).toBe(true);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, [agentFixture]));
+    await expect(listAgents()).resolves.toEqual([agentFixture]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the read running for a caller that brought no signal", async () => {
+    const read = pendingRead();
+    const a = new AbortController();
+    const withSignal = listAgents(a.signal).catch((e: unknown) => e);
+    const pinned = listAgents();
+    a.abort();
+    await withSignal;
+    expect(read.aborted()).toBe(false);
+    read.resolve([agentFixture]);
+    await expect(pinned).resolves.toEqual([agentFixture]);
+  });
+
+  it("rejects at once for a caller whose signal has already fired", async () => {
+    const gone = new AbortController();
+    gone.abort();
+    const err = await listAgents(gone.signal).catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("fetch deadline", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -365,12 +635,68 @@ describe("fetch deadline", () => {
       });
     });
 
-    const rejects = expect(listAgents()).rejects.toThrow(
-      "GET /agents → timeout after 60s",
+    const rejects = expect(listTasks()).rejects.toThrow(
+      "GET /tasks → timeout after 60s",
     );
     await vi.advanceTimersByTimeAsync(GET_TIMEOUT_MS + 1);
     await rejects;
     expect(signal?.aborted).toBe(true);
+  });
+
+  it("cancels on the caller's signal and calls it an abort, not a timeout", async () => {
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          signal = init?.signal ?? undefined;
+          signal?.addEventListener("abort", () =>
+            reject(new Error("The operation was aborted")),
+          );
+        }),
+    );
+    const caller = new AbortController();
+    const out = fetchWithTimeout(
+      "GET",
+      "/flow/default",
+      { signal: caller.signal },
+      60_000,
+    );
+    caller.abort();
+    const err = await out.catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(true);
+    expect(String(err)).not.toMatch(/timeout/);
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("never starts a read whose caller has already gone", async () => {
+    fetchMock.mockImplementationOnce((_url, init) =>
+      init?.signal?.aborted
+        ? Promise.reject(new Error("The operation was aborted"))
+        : Promise.resolve(jsonResponse(200, {})),
+    );
+    const caller = new AbortController();
+    caller.abort();
+    const err = await fetchWithTimeout(
+      "GET",
+      "/flow/default",
+      { signal: caller.signal },
+      60_000,
+    ).catch((e: unknown) => e);
+    expect(isAbortError(err)).toBe(true);
+  });
+
+  it("lets go of the caller's signal once the body is read", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, []));
+    const caller = new AbortController();
+    const remove = vi.spyOn(caller.signal, "removeEventListener");
+    const res = await fetchWithTimeout(
+      "GET",
+      "/flow/default",
+      { signal: caller.signal },
+      60_000,
+    );
+    await res.json();
+    expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 });
 
@@ -401,7 +727,7 @@ describe("listReputation", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/stellar/reputation",
       expect.objectContaining({
-        cache: "no-store",
+        cache: "default",
         signal: expect.any(AbortSignal),
       }),
     );
@@ -486,7 +812,7 @@ describe("getReputationParams", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/stellar/reputation/params",
       expect.objectContaining({
-        cache: "no-store",
+        cache: "default",
         signal: expect.any(AbortSignal),
       }),
     );
@@ -1343,12 +1669,16 @@ describe("openTraceStream polling fallback", () => {
   useStubEventSource();
 
   /** Serves the history endpoint and the task-status endpoint separately. */
-  function serve(history: () => TraceLine[], status: () => string) {
+  function serve(
+    history: () => TraceLine[],
+    status: () => string,
+    seal: () => string | null | undefined = () => undefined,
+  ) {
     fetchMock.mockImplementation((url: string) =>
       Promise.resolve(
         url.startsWith("/api/trace/")
           ? jsonResponse(200, history())
-          : jsonResponse(200, { id: "t", status: status() }),
+          : jsonResponse(200, { id: "t", status: status(), seal: seal() }),
       ),
     );
   }
@@ -1501,9 +1831,12 @@ describe("openTraceStream polling fallback", () => {
     expect(onDone).not.toHaveBeenCalled();
 
     status = "complete";
-    // One tick notices the terminal status, the next confirms the trace
-    // stopped growing — the backend finalizes before its last line lands.
-    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 2 + 10);
+    // One tick notices the terminal status; the run ends once the trace has
+    // stayed quiet past the follow-up window — the backend finalizes before
+    // its ratings and last lines land.
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 2);
+    expect(onDone).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS);
 
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
@@ -1533,6 +1866,139 @@ describe("openTraceStream polling fallback", () => {
     await vi.advanceTimersByTimeAsync(TRACE_POLL_MS); // picks the last line up
 
     expect(lines.map((l) => l.msg)).toEqual(["a", "workflow failed: boom"]);
+    dispose();
+  });
+
+  // A paid run is final the moment its settlement confirms; its ratings and
+  // the seal's reconciliation keep appending lines for minutes afterwards.
+  it("keeps following past a terminal status while the seal is pending", async () => {
+    const lines: TraceLine[] = [];
+    const onDone = vi.fn();
+    const history = [traceLine("0.1", "settled")];
+    let seal: string | null = "pending";
+    serve(
+      () => history,
+      () => "complete",
+      () => seal,
+    );
+
+    const dispose = openTraceStream(
+      "tsk_sealing",
+      (l) => lines.push(l),
+      onDone,
+    );
+    await exhaustReconnects();
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS * 2);
+    expect(onDone).not.toHaveBeenCalled();
+
+    history.push(traceLine("40.0", "rated agt_1 5/5"));
+    history.push(traceLine("60.0", "attestation sealed"));
+    seal = "sealed";
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS);
+    expect(lines.map((l) => l.msg)).toEqual([
+      "settled",
+      "rated agt_1 5/5",
+      "attestation sealed",
+    ]);
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("waits out a quiet spell for the ratings that follow settlement", async () => {
+    const lines: TraceLine[] = [];
+    const onDone = vi.fn();
+    const history = [traceLine("0.1", "settled")];
+    serve(
+      () => history,
+      () => "complete",
+      () => "sealed",
+    );
+
+    const dispose = openTraceStream("tsk_rating", (l) => lines.push(l), onDone);
+    await exhaustReconnects();
+    // A rating lands ~25 s after the run went final: still followed.
+    await vi.advanceTimersByTimeAsync(24_000);
+    expect(onDone).not.toHaveBeenCalled();
+    history.push(traceLine("25.0", "rated agt_1 4/5"));
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS);
+    expect(lines.map((l) => l.msg)).toContain("rated agt_1 4/5");
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it("ends on the stream's done once nothing is left pending", async () => {
+    const onDone = vi.fn();
+    const onFallback = vi.fn();
+    serve(
+      () => [traceLine("0.1", "a")],
+      () => "complete",
+      () => "sealed",
+    );
+    const dispose = openTraceStream(
+      "tsk_done",
+      () => {},
+      onDone,
+      undefined,
+      undefined,
+      { onFallback },
+    );
+    const es = StubEventSource.last();
+    es.emit("open");
+    es.emit("trace", traceLine("0.1", "a"));
+    es.emit("done");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(es.closed).toBe(true);
+    expect(onFallback).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  // The stream's `done` is the run going final, and is said at once — never
+  // held back on the task read that decides whether to keep following.
+  it("says done at once, then follows a pending seal past it, as follow-up and not as a fallback", async () => {
+    const lines: TraceLine[] = [];
+    const onDone = vi.fn();
+    const onFallback = vi.fn();
+    const history = [traceLine("0.1", "settled")];
+    let seal = "pending";
+    serve(
+      () => history,
+      () => "complete",
+      () => seal,
+    );
+    const dispose = openTraceStream(
+      "tsk_follow",
+      (l) => lines.push(l),
+      onDone,
+      undefined,
+      undefined,
+      { onFallback },
+    );
+    const es = StubEventSource.last();
+    es.emit("open");
+    es.emit("trace", traceLine("0.1", "settled"));
+    es.emit("done");
+    expect(onDone).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(es.closed).toBe(true);
+    expect(onFallback).not.toHaveBeenCalled();
+    // No second stream: the history endpoint carries the follow-up.
+    const streams = StubEventSource.instances.length;
+
+    history.push(traceLine("70.0", "attestation sealed"));
+    seal = "sealed";
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 2);
+    expect(lines.map((l) => l.msg)).toEqual(["settled", "attestation sealed"]);
+    await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
+    // Said once: the follow-up ending is not a second end of the run.
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(StubEventSource.instances.length).toBe(streams);
+    // And it has stopped asking.
+    const calls = fetchMock.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 5);
+    expect(fetchMock.mock.calls.length).toBe(calls);
     dispose();
   });
 

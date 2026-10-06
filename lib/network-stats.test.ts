@@ -695,3 +695,18 @@ describe("withRegistrySync — never a mid-refill figure as final", () => {
     );
   });
 });
+
+describe("asOf — when the figures were read", () => {
+  it("is the measured overview's own generation time", () => {
+    expect(statsFromOverview(overviewV2).asOf).toBe(
+      overviewV2.generated_at * 1_000,
+    );
+  });
+
+  it("dates held registry figures by the older of the two reads", () => {
+    const old = { ...statsFromOverview(overviewV2), asOf: 1_000 };
+    const now = { ...statsFromOverview(overviewV2), asOf: 9_000 };
+    expect(withRegistrySync(now, false, old).asOf).toBe(1_000);
+    expect(withRegistrySync(now, true, old).asOf).toBe(9_000);
+  });
+});

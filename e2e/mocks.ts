@@ -1108,6 +1108,7 @@ export const mockSettledNoArtifact = {
 } satisfies import("../lib/types").ArtifactResponse;
 
 const ARTIFACT_RE = /^\/api\/tasks\/([^/]+)\/artifact$/;
+const TASK_RE = /^\/api\/tasks\/([^/]+)$/;
 
 /**
  * The PDAX reads `/app/pdax` makes on mount, as the backend answers them on
@@ -1384,6 +1385,9 @@ export type MockApiOptions = {
    * `mockLegacyOverview`, the shape production serves today; pass
    * `mockOverviewV2` (or its degraded variant) for the measured one. */
   overview?: typeof mockLegacyOverview | import("../lib/types").OverviewV2;
+  /** Fields over the default `GET /api/tasks/{id}` answer — a finished run
+   * with no `seal`, as a backend from before the field sends. */
+  task?: Partial<import("../lib/types").Task>;
 };
 
 export async function mockApi(
@@ -1480,6 +1484,20 @@ export async function mockApi(
     }
     if (method === "GET" && ARTIFACT_RE.test(pathname)) {
       return json(route, options.artifact ?? mockSettledNoArtifact);
+    }
+    const taskFor = TASK_RE.exec(pathname);
+    if (method === "GET" && taskFor) {
+      // A finished run with no seal field, as a backend from before it
+      // answers; `task` adds one (or anything else) for a spec that needs it.
+      return json(route, {
+        id: decodeURIComponent(taskFor[1]),
+        intent: "e2e task",
+        agents: 1,
+        spent: 0.01,
+        status: "complete",
+        started: "just now",
+        ...options.task,
+      });
     }
     if (method === "GET" && pathname === "/api/pdax/environment") {
       return json(route, mockPdaxEnvironment);
@@ -1929,6 +1947,11 @@ export type MockDisputeApiOptions = {
    * predates it.
    */
   settlementState?: TaskDisputes["settlement_state"];
+  /** The run's seal as the read reports it (`seal`, `proof_tx`). Absent by
+   * default — a backend that predates them. */
+  seal?: TaskDisputes["seal"];
+  sealKind?: TaskDisputes["seal_kind"];
+  proofTx?: TaskDisputes["proof_tx"];
 };
 
 /** The `msg` FastAPI puts on a reason over `OpenDisputeReq`'s 500 cap. */
@@ -1976,6 +1999,11 @@ export async function mockDisputeApi(
         ...(options.settlementState === undefined
           ? {}
           : { settlement_state: options.settlementState }),
+        ...(options.seal === undefined ? {} : { seal: options.seal }),
+        ...(options.sealKind === undefined
+          ? {}
+          : { seal_kind: options.sealKind }),
+        ...(options.proofTx === undefined ? {} : { proof_tx: options.proofTx }),
       };
       return json(route, body);
     }

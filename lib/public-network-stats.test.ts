@@ -8,6 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { PROXY_TOKEN_ENV, PROXY_TOKEN_HEADER } from "./proxy-identity";
 import { INTERIM_READ_GAP_MS } from "./registry-sync";
 import {
   BUILD_RETRY_BUDGET_MS,
@@ -481,6 +482,35 @@ describe("readCompleteStats — reads", () => {
       expect(init.cache).toBe("no-store");
       expect((init as { next?: unknown }).next).toBeUndefined();
       expect(init.signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+
+  it("vouches for the frontend with the proxy token on every read, when one is configured", async () => {
+    const routes = {
+      "/api/metrics/overview": LEGACY,
+      "/api/agents": registry(10),
+      "/api/ecosystem/adoption": 503,
+      "/api/stellar/network": NETWORK,
+      "/readiness": {},
+    };
+    const header = (init: RequestInit) =>
+      new Headers(init.headers).get(PROXY_TOKEN_HEADER);
+
+    const withToken = backend(routes);
+    await readCompleteStats(
+      deps(withToken, { ...ENV, [PROXY_TOKEN_ENV]: "s3cret" }).d,
+    );
+    expect(withToken.mock.calls.length).toBe(6);
+    for (const [, init] of withToken.mock.calls) {
+      expect(header(init)).toBe("s3cret");
+      expect(new Headers(init.headers).get("accept")).toBe("application/json");
+    }
+
+    const without = backend(routes);
+    await readCompleteStats(deps(without).d);
+    expect(without.mock.calls.length).toBe(6);
+    for (const [, init] of without.mock.calls) {
+      expect(header(init)).toBeNull();
     }
   });
 

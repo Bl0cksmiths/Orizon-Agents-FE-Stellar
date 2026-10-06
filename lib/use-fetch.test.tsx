@@ -16,7 +16,17 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
-import { isTransientFetchError, retryAfterHintMs, useFetch } from "./use-fetch";
+import { listAgents } from "./api";
+import {
+  WAKE_MAX_RETRIES,
+  isTransientFetchError,
+  retryAfterHintMs,
+  useFetch,
+} from "./use-fetch";
+
+/** A real cached read from lib/api.ts, so the read time travels the way it
+ * does in the app. */
+const cachedRead = (signal: AbortSignal) => listAgents(signal);
 
 afterEach(() => {
   cleanup();
@@ -34,6 +44,270 @@ function deferred<T>() {
 }
 
 describe("useFetch", () => {
+  it("waits, retrying, while the backend builds a report", async () => {
+    vi.useFakeTimers();
+    try {
+      const building = Object.assign(
+        new Error(
+          "GET /ecosystem/adoption → 202 — the adoption report is still being built",
+        ),
+        { retryAfterMs: 30_000 },
+      );
+      const fn = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(building)
+        .mockResolvedValue("report");
+      const { result } = renderHook(() => useFetch(fn, [], { maxRetries: 1 }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(result.current.waiting).toBe(true);
+      expect(result.current.retrying).toBe(true);
+      // Says when it will ask again, so a page can tell the reader.
+      expect(result.current.retryInMs).toBe(30_000);
+      // The Retry-After is honoured: nothing is asked before it is up.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(29_000);
+      });
+      expect(fn).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      expect(result.current.data).toBe("report");
+      expect(result.current.retryInMs).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives a report being built the waking retry budget", async () => {
+    vi.useFakeTimers();
+    try {
+      const building = new Error(
+        "GET /ecosystem/adoption → 202 — the adoption report is still being built",
+      );
+      const fn = vi.fn<() => Promise<string>>().mockRejectedValue(building);
+      renderHook(() => useFetch(fn, [], { retryBaseMs: 10, maxRetries: 1 }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000);
+      });
+      expect(fn).toHaveBeenCalledTimes(WAKE_MAX_RETRIES + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps retrying a waking backend past the ordinary budget", async () => {
+    vi.useFakeTimers();
+    try {
+      const waking = new Error(
+        "GET /agents → 503 — the backend is waking up — this usually takes under a minute",
+      );
+      const fn = vi.fn<() => Promise<string>>().mockRejectedValue(waking);
+      const { result } = renderHook(() =>
+        useFetch(fn, [], { retryBaseMs: 10, maxRetries: 2 }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(fn).toHaveBeenCalledTimes(WAKE_MAX_RETRIES + 1);
+      expect(result.current.retrying).toBe(false);
+      expect(result.current.waiting).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never retries a waking read whose caller turned retries off", async () => {
+    const fn = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValue(
+        new Error(
+          "GET /x → 503 — the backend is waking up — this usually takes under a minute",
+        ),
+      );
+    const { result } = renderHook(() => useFetch(fn, [], { maxRetries: 0 }));
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("is waiting while the first read is out", async () => {
+    const d = deferred<string>();
+    const { result } = renderHook(() => useFetch(() => d.promise, []));
+    expect(result.current.waiting).toBe(true);
+    await act(async () => d.resolve("ok"));
+    expect(result.current.waiting).toBe(false);
+  });
+
+  it("keeps waiting between retries of a backend that is waking", async () => {
+    vi.useFakeTimers();
+    try {
+      const fn = vi
+        .fn<() => Promise<string>>()
+        .mockRejectedValueOnce(
+          new Error(
+            "GET /agents → 503 — the backend is waking up — this usually takes under a minute",
+          ),
+        )
+        .mockResolvedValue("awake");
+      const { result } = renderHook(() =>
+        useFetch(fn, [], { retryBaseMs: 1_000 }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.retrying).toBe(true);
+      expect(result.current.waiting).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      expect(result.current.data).toBe("awake");
+      expect(result.current.waiting).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is not waiting on any other failure, retried or not", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() =>
+        useFetch(() => Promise.reject(new Error("GET /x → 503 — down")), [], {
+          retryBaseMs: 1_000,
+        }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(result.current.retrying).toBe(true);
+      expect(result.current.waiting).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("dates data by when it arrived, with no backend read time to go by", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(5_000);
+    const { result } = renderHook(() => useFetch(async () => ({ v: 1 }), []));
+    await waitFor(() => expect(result.current.data).toEqual({ v: 1 }));
+    expect(result.current.dataAt).toBe(5_000);
+  });
+
+  it("dates a cached answer by the backend read behind it", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(5_000_000);
+    const fetchMock = vi.fn(
+      async () =>
+        new Response("[]", {
+          headers: { "X-Orizon-Read-At": "4000000" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { result } = renderHook(() =>
+        useFetch((signal) => cachedRead(signal), []),
+      );
+      await waitFor(() => expect(result.current.data).toEqual([]));
+      expect(result.current.dataAt).toBe(4_000_000);
+      expect(result.current.lastSuccessAt).toBe(5_000_000);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("has no date without data", () => {
+    const { result } = renderHook(() =>
+      useFetch(() => new Promise<string>(() => {}), []),
+    );
+    expect(result.current.dataAt).toBeNull();
+  });
+
+  it("holds a disabled read back, then runs it once enabled", async () => {
+    const fn = vi.fn(async () => "rest");
+    const { result, rerender } = renderHook(
+      ({ on }) => useFetch(fn, [], { enabled: on }),
+      { initialProps: { on: false } },
+    );
+    expect(result.current.loading).toBe(false);
+    expect(fn).not.toHaveBeenCalled();
+    rerender({ on: true });
+    await waitFor(() => expect(result.current.data).toBe("rest"));
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not revalidate a read on focus once it is disabled", async () => {
+    let now = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const fn = vi.fn(async () => "x");
+    const { result, rerender } = renderHook(
+      ({ on }) =>
+        useFetch(fn, [], {
+          enabled: on,
+          revalidateOnFocus: true,
+          staleAfterMs: 1_000,
+        }),
+      { initialProps: { on: true } },
+    );
+    await waitFor(() => expect(result.current.data).toBe("x"));
+    rerender({ on: false });
+    now += 5_000;
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels the read it started when the component unmounts", async () => {
+    let seen: AbortSignal | undefined;
+    const { unmount } = renderHook(() =>
+      useFetch((signal) => {
+        seen = signal;
+        return new Promise<string>(() => {});
+      }, []),
+    );
+    expect(seen?.aborted).toBe(false);
+    unmount();
+    expect(seen?.aborted).toBe(true);
+  });
+
+  it("cancels the superseded read on reload and on a deps change", async () => {
+    const signals: AbortSignal[] = [];
+    const { result, rerender } = renderHook(
+      ({ id }) =>
+        useFetch(
+          (signal) => {
+            signals.push(signal);
+            return new Promise<string>(() => {});
+          },
+          [id],
+        ),
+      { initialProps: { id: 1 } },
+    );
+    act(() => result.current.reload());
+    expect(signals[0].aborted).toBe(true);
+    rerender({ id: 2 });
+    expect(signals[1].aborted).toBe(true);
+    expect(signals[2].aborted).toBe(false);
+  });
+
+  it("never reports its own cancellation as an error", async () => {
+    const { result, unmount } = renderHook(() =>
+      useFetch(
+        (signal) =>
+          new Promise<string>((_resolve, reject) => {
+            signal.addEventListener("abort", () =>
+              reject(new DOMException("cancelled", "AbortError")),
+            );
+          }),
+        [],
+      ),
+    );
+    act(() => result.current.reload());
+    await act(async () => {});
+    expect(result.current.error).toBeNull();
+    unmount();
+  });
+
   it("resolves data on mount and clears loading", async () => {
     const { result } = renderHook(() => useFetch(async () => "hello", []));
     expect(result.current.loading).toBe(true);

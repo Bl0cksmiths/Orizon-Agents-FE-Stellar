@@ -1,7 +1,6 @@
-"use client";
-import { m } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { entrance } from "@/components/ui/entrance";
 
 const personas = [
   {
@@ -32,14 +31,11 @@ export function Personas() {
 
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {personas.map((p, i) => (
-            <m.div
+            <div
               key={p.label}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, delay: i * 0.08 }}
+              style={entrance({ delay: i * 0.08 })}
               // Two across on a tablet, the third card full width beneath.
-              className="sm:last:col-span-2 lg:last:col-span-1"
+              className="reveal sm:last:col-span-2 lg:last:col-span-1"
             >
               <Card className="h-full">
                 <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-cyan mb-4">
@@ -53,7 +49,7 @@ export function Personas() {
                   ◆ {p.stat}
                 </div>
               </Card>
-            </m.div>
+            </div>
           ))}
         </div>
       </div>

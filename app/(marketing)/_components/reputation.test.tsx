@@ -8,34 +8,11 @@
  * was false. The unit stays the marketing copy's own, because the demo's S11
  * narration discloses that the marketing copy names USDC.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
 import { Reputation } from "./reputation";
-
-// framer-motion's whileInView needs an IntersectionObserver jsdom lacks, so
-// every `m.<tag>` renders as the plain element without its motion props.
-vi.mock("framer-motion", async () => {
-  const React = await import("react");
-  const MOTION = new Set(["initial", "whileInView", "viewport", "transition"]);
-  const m = new Proxy(
-    {},
-    {
-      get:
-        (_, tag: string) =>
-        ({ children, ...props }: Record<string, unknown>) =>
-          React.createElement(
-            tag,
-            Object.fromEntries(
-              Object.entries(props).filter(([k]) => !MOTION.has(k)),
-            ),
-            children as React.ReactNode,
-          ),
-    },
-  );
-  return { m };
-});
 
 afterEach(cleanup);
 

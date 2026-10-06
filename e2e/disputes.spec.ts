@@ -30,6 +30,7 @@ import {
   mockDisputeTaskId,
   mockDisputesRouteMissing,
   mockOtherOwnerAddress,
+  mockProofTx,
   mockReasonTooLongMessage,
   mockSettlementSteps,
   mockSettlementView,
@@ -1476,17 +1477,37 @@ type RenderCounts = {
 };
 
 test.describe("the countdown's re-renders stay inside the receipt", () => {
-  test("a window ticking every second re-renders the receipt and never the trace page", async ({
-    page,
-  }) => {
+  /**
+   * The countdown, measured. `routes` lets a variant slow a read the page
+   * makes alongside the receipt, so a late answer lands inside the window
+   * being measured — the way it does on a loaded machine or a slow backend.
+   */
+  async function countdownStaysInReceipt(
+    page: Page,
+    routes?: (page: Page) => Promise<void>,
+  ) {
     await page.addInitScript(installRenderCounter);
     // Half an hour left: the final hour, where the window ticks every second.
-    await openTrace(page, {
-      settlement: mockSettlementView({
-        settledAtS: nowS() - DISPUTE_WINDOW_S + 30 * 60,
-      }),
-    });
+    await openTrace(
+      page,
+      {
+        settlement: mockSettlementView({
+          settledAtS: nowS() - DISPUTE_WINDOW_S + 30 * 60,
+        }),
+      },
+      { routes },
+    );
     await expect(disputeButtons(page)).toHaveCount(2);
+    // The run's end-of-run read — its artifact and the seal's transaction —
+    // is content arriving, which the page rightly renders; it races the
+    // receipt's own read. The counter starts once it has landed, so what it
+    // measures is the countdown's ticks (and, in the slow variant, the task
+    // read still in flight) and nothing else.
+    await expect(
+      page
+        .locator("[data-attestation]")
+        .locator(`a[href$="/tx/${mockProofTx}"]`),
+    ).toBeVisible();
     const countdown = receipt(page).getByText(/^\d+m( \d+s)? left$/);
     const before = await countdown.textContent();
 
@@ -1517,6 +1538,39 @@ test.describe("the countdown's re-renders stay inside the receipt", () => {
     // None of it reached the page, or the trace log it renders.
     expect(seen.TracePageInner ?? 0).toBe(0);
     expect(seen.TraceRow ?? 0).toBe(0);
+  }
+
+  test("a window ticking every second re-renders the receipt and never the trace page", async ({
+    page,
+  }) => {
+    await countdownStaysInReceipt(page);
+  });
+
+  // The task read (for the run's seal) answers after the receipt is up: its
+  // answer, and the seal it carries, must stay in the card that shows it.
+  test("a task read that lands mid-countdown re-renders the seal, never the trace page", async ({
+    page,
+  }) => {
+    await countdownStaysInReceipt(page, async (p) => {
+      await p.route(
+        (url) => url.pathname === `/api/tasks/${mockDisputeTaskId}`,
+        async (route) => {
+          await new Promise((r) => setTimeout(r, 2_500));
+          await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({
+              id: mockDisputeTaskId,
+              intent: "e2e",
+              agents: 1,
+              spent: 0.01,
+              status: "complete",
+              started: "just now",
+              seal: "sealed",
+            }),
+          });
+        },
+      );
+    });
   });
 });
 

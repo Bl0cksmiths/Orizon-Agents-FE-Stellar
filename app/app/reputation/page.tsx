@@ -31,20 +31,26 @@ import { useFetch } from "@/lib/use-fetch";
 export default function ReputationPage() {
   const {
     data: agents,
-    error: agentsError,
+    error: agentsFailure,
     loading: agentsLoading,
+    waiting: agentsWaiting,
     retrying: agentsRetrying,
     lastSuccessAt: agentsLastSuccessAt,
     reload: reloadAgents,
   } = useFetch(listAgents, [], { revalidateOnFocus: true });
   const {
     data: batch,
-    error: batchError,
+    error: batchFailure,
     loading: batchLoading,
+    waiting: batchWaiting,
     retrying: batchRetrying,
     lastSuccessAt: batchLastSuccessAt,
     reload: reloadBatch,
   } = useFetch(listReputation, [], { revalidateOnFocus: true });
+  // A backend still waking is a wait, shown as one (the skeletons carry the
+  // waking line), never as the failure notes these cards print for errors.
+  const agentsError = agentsWaiting ? null : agentsFailure;
+  const batchError = batchWaiting ? null : batchFailure;
   // Static config. The calculator and ledger card fall back to built-in
   // defaults, but the failure is surfaced rather than swallowed — a default
   // floor rendered as if it were live is a routing claim we cannot back up.
@@ -79,7 +85,7 @@ export default function ReputationPage() {
           back to skeletons and placeholders once per attempt. */}
       <RepStats
         batch={batch}
-        loading={batchLoading}
+        loading={batchLoading || batchWaiting}
         error={batchError}
         retrying={batchRetrying}
         onRetry={reloadBatch}
@@ -103,6 +109,7 @@ export default function ReputationPage() {
           agents={agents}
           batch={batch}
           loading={agentsLoading || batchLoading}
+          waiting={agentsWaiting}
           retrying={agentsRetrying || batchRetrying}
           agentsError={agentsError}
           batchError={batchError}

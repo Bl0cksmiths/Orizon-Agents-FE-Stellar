@@ -47,6 +47,7 @@ import type {
   TaskDisputes,
 } from "./types";
 import { readSettlementState } from "./settlement-state";
+import { readSealKind, readSealState } from "./seal-state";
 
 /**
  * The longest reason the dialog accepts, after trimming. The backend allows
@@ -305,9 +306,14 @@ function acceptedDispute(v: unknown): Dispute | null {
 }
 
 /** The answer as it arrives: every dispute row still unjudged. */
-type RawTaskDisputes = Omit<TaskDisputes, "disputes" | "settlement_state"> & {
+type RawTaskDisputes = Omit<
+  TaskDisputes,
+  "disputes" | "settlement_state" | "seal" | "seal_kind"
+> & {
   disputes: unknown[];
   settlement_state?: string | null;
+  seal?: string | null;
+  seal_kind?: string | null;
 };
 
 /**
@@ -333,7 +339,11 @@ function isTaskDisputes(v: unknown): v is RawTaskDisputes {
     Array.isArray(v.disputes) &&
     // Any string: one this build cannot name is read by
     // `readSettlementState`, never a reason to lose the receipt.
-    isAbsentOr(v.settlement_state, isNullableStr)
+    isAbsentOr(v.settlement_state, isNullableStr) &&
+    // Likewise the seal (`readSealState`), and its transaction hash.
+    isAbsentOr(v.seal, isNullableStr) &&
+    isAbsentOr(v.seal_kind, isNullableStr) &&
+    isAbsentOr(v.proof_tx, isNullableStr)
   );
 }
 
@@ -392,8 +402,15 @@ export async function getTaskDisputes(
     const accepted = acceptedDispute(row);
     if (accepted !== null) disputes.push(accepted);
   }
-  const { settlement_state: state, ...rest } = raw;
+  const {
+    settlement_state: state,
+    seal: rawSeal,
+    seal_kind: rawKind,
+    ...rest
+  } = raw;
   const settlementState = readSettlementState(state);
+  const seal = readSealState(rawSeal);
+  const sealKind = readSealKind(rawKind);
   return {
     ...rest,
     disputes,
@@ -402,6 +419,8 @@ export async function getTaskDisputes(
     ...(settlementState === undefined
       ? {}
       : { settlement_state: settlementState }),
+    ...(seal === undefined ? {} : { seal }),
+    ...(sealKind === undefined ? {} : { seal_kind: sealKind }),
   };
 }
 
@@ -1072,6 +1091,10 @@ export function disputeView(input: {
       ...(settlementState === "unconfirmed" && waitOver
         ? { settlementStoppedChecking: true }
         : {}),
+      // A delivery-only run seals with no settlement: its attestation is
+      // still this receipt's to state.
+      ...(res.seal === undefined ? {} : { seal: res.seal }),
+      ...(res.seal_kind === undefined ? {} : { sealKind: res.seal_kind }),
     };
 
   const viewer = viewerOf(settlement.payer, viewerAddress);
@@ -1108,7 +1131,11 @@ export function disputeView(input: {
     settledAtMs: settlement.settled_at * 1_000,
     settledUsdc: settlement.settled_usdc,
     chargeTx: settlement.charge_tx,
-    proofTx: settlement.proof_tx,
+    // The seal's own hash, from the task, once known: the settlement record
+    // was written before the seal confirmed and may not carry it.
+    proofTx: res.proof_tx ?? settlement.proof_tx,
+    ...(res.seal === undefined ? {} : { seal: res.seal }),
+    ...(res.seal_kind === undefined ? {} : { sealKind: res.seal_kind }),
     policy: settlement.policy,
     steps,
     ...(settlementState === undefined ? {} : { settlementState }),

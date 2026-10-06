@@ -2650,6 +2650,109 @@ describe("getTaskDisputes — the escrow v2 settlement state", () => {
   });
 });
 
+describe("getTaskDisputes — the run's seal", () => {
+  const PROOF = "e".repeat(64);
+
+  it("passes a seal state it knows through, with the seal's transaction", async () => {
+    const body = taskDisputes({ seal: "sealed", proof_tx: PROOF });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).resolves.toEqual(body);
+  });
+
+  it("reads a seal state it cannot name as unconfirmed", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...taskDisputes(), seal: "anchored" }),
+    );
+    expect((await getTaskDisputes(TASK)).seal).toBe("unconfirmed");
+  });
+
+  it("keeps an absent seal absent and a null one null", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, taskDisputes()));
+    const old = await getTaskDisputes(TASK);
+    expect("seal" in old).toBe(false);
+    expect("proof_tx" in old).toBe(false);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, taskDisputes({ seal: null, proof_tx: null })),
+    );
+    const none = await getTaskDisputes(TASK);
+    expect(none.seal).toBeNull();
+    expect(none.proof_tx).toBeNull();
+  });
+
+  it.each([
+    ["a seal that is not a string", { seal: 1 }],
+    ["a seal transaction that is not a string", { proof_tx: 7 }],
+  ])("refuses %s", async (_name, over) => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...taskDisputes(), ...over }),
+    );
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+});
+
+describe("the receipt's seal kind", () => {
+  it("reads the seal kind, keeping absent absent and an unknown word out", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        200,
+        taskDisputes({ seal: "sealed", seal_kind: "delivery_only" }),
+      ),
+    );
+    expect((await getTaskDisputes(TASK)).seal_kind).toBe("delivery_only");
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, taskDisputes()));
+    expect("seal_kind" in (await getTaskDisputes(TASK))).toBe(false);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...taskDisputes(), seal_kind: "partial" }),
+    );
+    expect("seal_kind" in (await getTaskDisputes(TASK))).toBe(false);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...taskDisputes(), seal_kind: 3 }),
+    );
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+
+  it("carries the kind onto the receipt, settled or not", () => {
+    expect(
+      settled({
+        res: taskDisputes({ seal: "sealed", seal_kind: "paid" }),
+      }).sealKind,
+    ).toBe("paid");
+    const none = view({
+      res: taskDisputes({
+        settlement: null,
+        seal: "sealed",
+        seal_kind: "delivery_only",
+      }),
+    });
+    expect(none).toMatchObject({
+      kind: "not_settled",
+      seal: "sealed",
+      sealKind: "delivery_only",
+    });
+  });
+});
+
+describe("disputeView — the run's seal", () => {
+  it("carries the seal state onto the receipt", () => {
+    const v = settled({ res: taskDisputes({ seal: "pending" }) });
+    expect(v.seal).toBe("pending");
+  });
+
+  it("links the seal's own transaction over the settlement record's", () => {
+    const top = "f".repeat(64);
+    const v = settled({
+      res: taskDisputes({ seal: "sealed", proof_tx: top }),
+    });
+    expect(v.proofTx).toBe(top);
+    const fallback = settled({ res: taskDisputes({ seal: "sealed" }) });
+    expect(fallback.proofTx).toBe(settlement().proof_tx);
+  });
+
+  it("says nothing about a seal a backend did not report", () => {
+    expect("seal" in settled()).toBe(false);
+  });
+});
+
 describe("isPlatformAgent", () => {
   it("knows the seeded catalogue by the prefix the backend reserves for it", () => {
     expect(isPlatformAgent("agt_05x7")).toBe(true);

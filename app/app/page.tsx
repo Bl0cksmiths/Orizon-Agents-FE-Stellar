@@ -1,21 +1,22 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ErrorNote } from "@/components/ui/error-note";
 import { LoadingStatus, Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
+import { DataAge } from "@/components/console/data-age";
+import { WakeStatus } from "@/components/console/wake-status";
 import { Composition } from "@/components/network/composition";
 import { NetworkTiles } from "@/components/network/network-tiles";
 import { SettledChart } from "@/components/network/settled-chart";
 import { getStellarNetwork, listTasks } from "@/lib/api";
-import type { NetworkStats } from "@/lib/network-stats";
 import { formatSpent } from "@/lib/trace-amounts";
 import type { Task } from "@/lib/types";
 import { loadNetworkStats } from "@/lib/use-network-stats";
-import { isTransientFetchError, useFetch } from "@/lib/use-fetch";
-import { usePolling } from "@/lib/use-polling";
+import { useFetch } from "@/lib/use-fetch";
+import { usePolledRead } from "@/lib/use-polled-read";
 
 const statusTone: Record<
   Task["status"],
@@ -27,67 +28,28 @@ const statusTone: Record<
   failed: "magenta",
 };
 
+/** Both panels refresh on this cadence; each backs off on its own. */
+const POLL_MS = 5_000;
+
 export default function OverviewPage() {
-  const [stats, setStats] = useState<NetworkStats | null>(null);
-  const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // A terminal failure (a 4xx that will not fix itself) is distinct from a
-  // transient one: polling a 404 forever tells the reader nothing and hides
-  // which of the two they are looking at. Set from isTransientFetchError.
-  const [terminal, setTerminal] = useState(false);
-  const [retrying, setRetrying] = useState(false);
-  // When the manual retry below last succeeded; the poller tracks its own.
-  const [manualSuccessAt, setManualSuccessAt] = useState<number | null>(null);
+  // Two panels, two reads, two failure states: the figures stay up when the
+  // task list fails and the reverse. They used to share one Promise.all, so
+  // one slow or failing read blanked the whole page.
+  const readStats = useCallback(() => loadNetworkStats(), []);
+  const readTasks = useCallback(() => listTasks(), []);
+  const figures = usePolledRead(readStats, POLL_MS);
+  const recent = usePolledRead(readTasks, POLL_MS);
+  const stats = figures.data;
+  const tasks = recent.data;
+  // A failure worth saying out loud: anything but a backend still waking,
+  // which the status line below covers as the wait it is.
+  const statsError = figures.waiting ? null : figures.error;
+  const tasksError = recent.waiting ? null : recent.error;
+
   // What a task's spend is denominated in: the escrow SAC's asset, native XLM
   // on testnet — never the "USDC" a field name suggests. Printed with no unit
   // until the read lands, or if it fails.
   const { data: network } = useFetch(getStellarNetwork, []);
-
-  const load = useCallback(async () => {
-    const [n, t] = await Promise.all([loadNetworkStats(), listTasks()]);
-    setStats(n);
-    setTasks(t);
-    setError(null);
-    setTerminal(false);
-  }, []);
-
-  // `trackStatus` dates the numbers still on screen: the poller keeps the last
-  // payload rendered when a tick fails, and without a timestamp those metrics
-  // present themselves as live for the whole outage.
-  const { lastSuccessAt } = usePolling(
-    async () => {
-      try {
-        await load();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "fetch failed");
-        setTerminal(!isTransientFetchError(e));
-        // Rethrow so the poller backs off while the backend is down.
-        throw e;
-      }
-    },
-    5000,
-    // A terminal failure stops the loop — re-polling a 404 every 5s is noise,
-    // and the manual retry below is the way back.
-    { enabled: !terminal, trackStatus: true },
-  );
-
-  // Manual retry: the poller has backed off to a 20s cadence by the time the
-  // error box is read, so the button fetches immediately instead of waiting.
-  const retry = useCallback(() => {
-    setRetrying(true);
-    load()
-      .then(() => setManualSuccessAt(Date.now()))
-      .catch((e) => {
-        setError(e instanceof Error ? e.message : "fetch failed");
-        setTerminal(!isTransientFetchError(e));
-      })
-      .finally(() => setRetrying(false));
-  }, [load]);
-
-  // The data on screen is whatever landed last — a poll tick or a manual
-  // retry. Dating it by the poller alone would age the numbers by up to a
-  // full backoff window after a hand-triggered refresh.
-  const dataAt = Math.max(lastSuccessAt ?? 0, manualSuccessAt ?? 0) || null;
 
   return (
     <div className="space-y-8">
@@ -98,32 +60,49 @@ export default function OverviewPage() {
             Measured from the agent registry and the chain.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Hidden unless a payload is actually on screen: a first load that
-              never landed is a failure, not stale data, and the ErrorNote
-              below owns that case. */}
-          <StaleBadge
-            stale={Boolean(error)}
-            lastSuccessAt={dataAt}
-            what="network metrics"
-          />
-          <Badge tone={error ? "magenta" : "violet"} dot>
-            {error ? "backend offline" : "streaming"}
-          </Badge>
+        {/* One height whatever it holds — the waking line while the first
+            figures are out, the badges after — so nothing below moves. */}
+        <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-2">
+          {figures.waiting ? (
+            <WakeStatus
+              active
+              what="network metrics"
+              className="w-72 max-w-full"
+            />
+          ) : (
+            <>
+              {/* Hidden unless a payload is actually on screen: a first load
+                  that never landed is a failure, not stale data, and the
+                  ErrorNote below owns that case. */}
+              <StaleBadge
+                stale={Boolean(statsError)}
+                lastSuccessAt={figures.dataAt}
+                what="network metrics"
+              />
+              {/* Old figures that arrived fine: the cache served its last
+                  copy through an outage. */}
+              {!statsError && (
+                <DataAge at={stats?.asOf} what="network metrics" />
+              )}
+              <Badge tone={statsError ? "magenta" : "violet"} dot>
+                {statsError ? "backend offline" : "streaming"}
+              </Badge>
+            </>
+          )}
         </div>
       </div>
 
-      {error && (
+      {statsError && (
         <ErrorNote
           className="clip-cyber-sm"
-          onRetry={retry}
-          retrying={retrying}
+          onRetry={figures.retry}
+          retrying={figures.retrying}
         >
-          {terminal
+          {figures.terminal
             ? "this data isn't available — "
             : "couldn't reach the backend — "}
-          {error}
-          {terminal
+          {statsError}
+          {figures.terminal
             ? " · this won't resolve on its own — retry once it's restored"
             : stats && " · showing the last values received"}
         </ErrorNote>
@@ -141,8 +120,8 @@ export default function OverviewPage() {
           height on four short figures; four beside a 240px sidebar at 768px
           clipped them, since a Card's clip-path cuts what overflows it. */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-        {!stats && !error && <LoadingStatus label="Loading metrics…" />}
-        <NetworkTiles stats={stats} failed={Boolean(error)} />
+        {/* The waking line above announces the load; no second one here. */}
+        <NetworkTiles stats={stats} failed={Boolean(statsError)} />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -155,7 +134,7 @@ export default function OverviewPage() {
           </div>
           {stats ? (
             <SettledChart series={stats.series} />
-          ) : error ? (
+          ) : statsError ? (
             <div className="grid h-36 place-items-center border border-dashed border-border font-mono text-[11px] text-muted">
               throughput unavailable — backend unreachable
             </div>
@@ -174,7 +153,7 @@ export default function OverviewPage() {
           </p>
           {stats ? (
             <Composition stats={stats} />
-          ) : error ? (
+          ) : statsError ? (
             <p className="font-mono text-[11px] text-muted">
               composition unavailable — backend unreachable
             </p>
@@ -195,11 +174,25 @@ export default function OverviewPage() {
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
             {tasks
               ? `${tasks.length} tracked`
-              : error
+              : tasksError
                 ? "unavailable"
                 : "loading…"}
           </span>
         </div>
+        {/* This panel's own failure, with its own retry: the figures above
+            do not depend on it, and stay up. */}
+        {tasksError && (
+          <ErrorNote
+            className="clip-cyber-sm mb-4"
+            onRetry={recent.retry}
+            retrying={recent.retrying}
+          >
+            {tasks
+              ? "couldn't refresh recent tasks — the rows below are from the last read that succeeded. "
+              : "couldn't load recent tasks. "}
+            {tasksError}
+          </ErrorNote>
+        )}
         <ScrollRegion label="Recent tasks table, scrolls horizontally">
           <table className="w-full min-w-[40rem] text-sm">
             {/* The heading above already names this table on screen, so the
@@ -281,7 +274,7 @@ export default function OverviewPage() {
                 </tr>
               )}
               {!tasks &&
-                (error ? (
+                (tasksError ? (
                   <tr>
                     <td
                       colSpan={6}
@@ -294,9 +287,10 @@ export default function OverviewPage() {
                   Array.from({ length: 4 }).map((_, i) => (
                     <tr key={i} className="border-b border-border/50">
                       <td colSpan={6} className="py-3">
-                        <Skeleton className="h-5 w-full" />
-                        {i === 0 && (
-                          <LoadingStatus label="Loading recent tasks…" />
+                        {i === 0 ? (
+                          <WakeStatus active what="recent tasks" />
+                        ) : (
+                          <Skeleton className="h-5 w-full" />
                         )}
                       </td>
                     </tr>

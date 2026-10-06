@@ -24,6 +24,7 @@ import {
   isStellarNetworkInfo,
   isSubmitResult,
   isSyncResponse,
+  isTask,
   isTaskList,
   isTraceLine,
   isTraceLineList,
@@ -514,6 +515,23 @@ describe("isTaskList", () => {
       expect(isTaskList([{ ...task, settlement }])).toBe(true);
     }
     expect(isTaskList([{ ...task, settlement: false }])).toBe(false);
+  });
+
+  // What became of the run's attestation seal (BE `TaskSummary.seal`).
+  it("accepts a seal state as a string, null or absent, and nothing else", () => {
+    for (const seal of ["sealed", "pending", "a-new-word", null, undefined]) {
+      expect(isTaskList([{ ...task, seal }])).toBe(true);
+      expect(isTask({ ...task, seal })).toBe(true);
+    }
+    expect(isTaskList([{ ...task, seal: true }])).toBe(false);
+    expect(isTask({ ...task, seal: 1 })).toBe(false);
+  });
+
+  it("accepts a seal kind as a string, null or absent, and nothing else", () => {
+    for (const seal_kind of ["paid", "delivery_only", "new", null, undefined]) {
+      expect(isTask({ ...task, seal_kind })).toBe(true);
+    }
+    expect(isTask({ ...task, seal_kind: 0 })).toBe(false);
   });
 
   it("rejects a status outside the backend literal (keys the tone map)", () => {

@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SettlementBadge } from "@/components/ui/settlement-badge";
+import { SealStatus } from "@/components/console/seal-status";
 import { KVRow } from "@/components/ui/kv-row";
 import { formatAge } from "@/components/ui/stale-badge";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -31,6 +32,8 @@ import type {
   CreditPolicy,
   DisputePanelView,
   SettlementRemainder,
+  SealKind,
+  SealState,
   SettlementState,
   DisputeViewer,
   SettlementStepView,
@@ -95,6 +98,8 @@ export function ReceiptPanel({
         settlementState={view.settlementState ?? null}
         stoppedChecking={view.settlementStoppedChecking ?? false}
         generation={escrowGeneration}
+        seal={view.seal}
+        sealKind={view.sealKind}
       />
     );
   }
@@ -129,7 +134,13 @@ function NotSettled({
   settlementState,
   stoppedChecking,
   generation,
+  seal,
+  sealKind,
 }: {
+  /** A seal on a run with no settlement — a delivery-only one, attesting
+   *  work that was delivered with nobody to pay. */
+  seal?: SealState | null;
+  sealKind?: SealKind | null;
   headingId: string;
   running: boolean;
   generation: EscrowGeneration;
@@ -170,6 +181,11 @@ function NotSettled({
             : null}
         </p>
       </div>
+      {/* Only a seal that was submitted is stated here: "none submitted" on
+          a run that is not settled says nothing a buyer needs. */}
+      {seal != null && (
+        <SealStatus seal={seal} kind={sealKind} className="mt-2" />
+      )}
     </section>
   );
 }
@@ -486,6 +502,14 @@ function SettledReceipt({
             <TxRow label="charge" hash={view.chargeTx} />
             <TxRow label="seal" hash={view.proofTx} />
           </dl>
+
+          {/* What became of the run's attestation, in words, when the
+              backend reports it; the link to its transaction is the "seal"
+              row just above. Not the payment: a seal that did not land says
+              the payment stands. */}
+          {view.seal !== undefined && (
+            <SealStatus seal={view.seal} kind={view.sealKind} />
+          )}
 
           <WindowState window={view.window} settledAtMs={view.settledAtMs} />
 

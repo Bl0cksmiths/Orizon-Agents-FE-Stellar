@@ -20,10 +20,20 @@
  *   node scripts/smoke-deploy.mjs [origin]
  *   SMOKE_ORIGIN=https://orizons.xyz npm run smoke
  *   ORIZON_CONTRACTS_DIR=/path/to/contract-repo npm run smoke   # local clone
+ *   SMOKE_HOME_BUDGET_MS=5000 npm run smoke   # a looser home page budget
+ *   SMOKE_BROWSER=1 npm run smoke             # also open each page in Chromium
  *
  * The backend sleeps on Render's free tier, so the first request may take up to
  * a minute; the warmup below absorbs that before any assertion runs.
+ *
+ * Then it opens every public page and console route the way a visitor's first
+ * request does, and fails when one does not answer 200 or answers with the
+ * error boundary in place of the page (see PAGES). A reviewer was shown the
+ * boundary's "SYSTEM FAULT" on the live site; the site still answered 200, so
+ * only the page's own words give it away. The home page is also held to a
+ * time budget (HOME_BUDGET_MS), because the same reviewer found it slow.
  */
+import { pathToFileURL } from "node:url";
 import {
   canonicalNetwork,
   compareEscrowPin,
@@ -42,8 +52,95 @@ const ORIGIN = (
 const WARMUP_TIMEOUT_MS = 90_000;
 const CHECK_TIMEOUT_MS = 30_000;
 
+/**
+ * How long the home page may take to arrive in full: the request, the
+ * response and its body. It is served from Vercel's cache, measured at about
+ * 0.15 s on 2026-10-06, so a run over the budget means a visitor waited on
+ * something that should have been cached. SMOKE_HOME_BUDGET_MS overrides it.
+ */
+const HOME_BUDGET_MS = Number(process.env.SMOKE_HOME_BUDGET_MS) || 3000;
+
+/**
+ * The browser pass, SMOKE_BROWSER=1: every page again, in headless Chromium,
+ * each in a fresh context as a first visit. A page can arrive healthy and
+ * then fault once its own code runs (a failed chunk, a client fetch it does
+ * not survive); only a browser sees that. It needs Playwright, so it is
+ * opt-in, and asking for it without Playwright installed is a failure, never
+ * a silent skip. SMOKE_PLAYWRIGHT_MODULES lists the modules tried for it.
+ */
+const BROWSER = process.env.SMOKE_BROWSER === "1";
+const PLAYWRIGHT_MODULES = (
+  process.env.SMOKE_PLAYWRIGHT_MODULES || "playwright,@playwright/test"
+)
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+
+/**
+ * How long each page is watched after its load event for a boundary to
+ * appear: long enough for the console's first API calls to come back or
+ * fail. A page that faults sooner is reported as soon as it does.
+ */
+const SETTLE_MS = Number(process.env.SMOKE_SETTLE_MS) || 5000;
+
+/**
+ * How long the home page may take, in the browser, to fire its load event:
+ * the HTML, its scripts, styles, fonts and images. SMOKE_HOME_LOAD_BUDGET_MS
+ * overrides it.
+ */
+const HOME_LOAD_BUDGET_MS =
+  Number(process.env.SMOKE_HOME_LOAD_BUDGET_MS) || 6000;
+
 /** Reports the live network and its contract ids; see checkContractParity. */
 const NETWORK_PATH = "/api/stellar/network";
+
+/**
+ * Every public page and every console route, as a visitor opens them. The
+ * console routes are client-rendered shells, so a route that fails to build
+ * or crashes on the server shows here; app/sitemap.ts lists the public ones.
+ */
+export const PAGES = Object.freeze([
+  "/",
+  "/evidence",
+  "/demo",
+  "/guide",
+  "/guide/list-your-agent",
+  "/litepaper",
+  "/app",
+  "/app/agents",
+  "/app/bind",
+  "/app/ecosystem",
+  "/app/events",
+  "/app/flow",
+  "/app/operator",
+  "/app/orchestrator",
+  "/app/pdax",
+  "/app/register",
+  "/app/reputation",
+  "/app/send",
+  "/app/trace",
+  "/app/wallet",
+]);
+
+/**
+ * An error boundary, rendered. A boundary that carries `data-error-boundary`
+ * on its root is found whatever its copy says. Until every boundary does, the
+ * eyebrow line of today's boundaries is matched too: "// system fault" in
+ * app/error.tsx and app/global-error.tsx, "// subsystem fault" in
+ * app/app/error.tsx. The "// " keeps prose that merely mentions a system
+ * fault, such as a note on the evidence page, from tripping it.
+ */
+export const ERROR_BOUNDARY =
+  /\bdata-error-boundary\b|\/\/ (?:sub)?system fault\b/i;
+
+/**
+ * The marker that shows `html` is an error boundary, or null when none does.
+ * @param {string} html
+ */
+export function errorBoundaryIn(html) {
+  const found = ERROR_BOUNDARY.exec(html);
+  return found ? found[0] : null;
+}
 
 /** @type {{path: string, expect: (body: unknown) => string | null}[]} */
 const CHECKS = [
@@ -128,6 +225,177 @@ async function fetchJson(path, timeoutMs) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * GETs a page as a browser's first request does, following redirects.
+ * @param {string} path
+ * @param {number} timeoutMs
+ */
+async function fetchPage(path, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = Date.now();
+  try {
+    const res = await fetch(`${ORIGIN}${path}`, {
+      signal: controller.signal,
+      headers: { accept: "text/html" },
+    });
+    const text = await res.text();
+    return { res, text, ms: Date.now() - started };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Every page in PAGES, then the home page's time against HOME_BUDGET_MS: why
+ * each one failed, as failure lines. Prints a row per check as it goes.
+ */
+async function checkPages() {
+  const failures = [];
+  /** How long "/" took to arrive, when it answered 2xx. */
+  let homeMs = null;
+  for (const path of PAGES) {
+    const name = `page ${path}`;
+    try {
+      const { res, text, ms } = await fetchPage(path, CHECK_TIMEOUT_MS);
+      if (path === "/" && res.ok) homeMs = ms;
+      if (!res.ok) {
+        failures.push(`${name} → HTTP ${res.status}`);
+        console.log(`  ✗ ${name} → HTTP ${res.status} (${ms}ms)`);
+        continue;
+      }
+      const marker = errorBoundaryIn(text);
+      if (marker) {
+        failures.push(`${name} → renders the error boundary ("${marker}")`);
+        console.log(
+          `  ✗ ${name} → renders the error boundary ("${marker}") (${ms}ms)`,
+        );
+        continue;
+      }
+      console.log(`  ✓ ${name} → ${res.status} (${ms}ms)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      failures.push(`${name} → ${msg}`);
+      console.log(`  ✗ ${name} → ${msg}`);
+    }
+  }
+
+  // A home page that never arrived has no time to judge, and that is not a
+  // pass: the budget fails beside the page's own failure.
+  const budget = `home page budget → ${
+    homeMs === null
+      ? "no page to time"
+      : `${homeMs}ms, ${homeMs > HOME_BUDGET_MS ? "over" : "within"} the ${HOME_BUDGET_MS}ms budget`
+  }`;
+  if (homeMs === null || homeMs > HOME_BUDGET_MS) {
+    failures.push(budget);
+    console.log(`  ✗ ${budget}`);
+  } else {
+    console.log(`  ✓ ${budget}`);
+  }
+  return failures;
+}
+
+/** Playwright's Chromium from the first of PLAYWRIGHT_MODULES that loads. */
+async function loadChromium() {
+  for (const name of PLAYWRIGHT_MODULES) {
+    try {
+      const { chromium } = await import(name);
+      if (chromium) return chromium;
+    } catch {
+      // Not installed under this name; try the next.
+    }
+  }
+  return null;
+}
+
+/**
+ * Runs in the page: the boundary marker on screen, or null. The attribute is
+ * looked up on the element; the copy is read as the visitor reads it.
+ * @param {string} source  ERROR_BOUNDARY's source
+ */
+function boundaryOnScreen(source) {
+  if (document.querySelector("[data-error-boundary]")) {
+    return "data-error-boundary";
+  }
+  const found = new RegExp(source, "i").exec(document.body?.innerText ?? "");
+  return found ? found[0] : null;
+}
+
+/**
+ * The browser pass over PAGES, then the home page's load time against
+ * HOME_LOAD_BUDGET_MS: why each one failed, as failure lines.
+ */
+async function checkPagesInBrowser() {
+  const chromium = await loadChromium();
+  if (!chromium) {
+    const why = `browser pass → Playwright could not be loaded (tried ${PLAYWRIGHT_MODULES.join(", ")})`;
+    console.log(`  ✗ ${why}`);
+    return [why];
+  }
+  const failures = [];
+  /** How long "/" took to fire its load event, when it answered 2xx. */
+  let homeMs = null;
+  const browser = await chromium.launch();
+  try {
+    for (const path of PAGES) {
+      const name = `browser ${path}`;
+      const context = await browser.newContext();
+      try {
+        const page = await context.newPage();
+        const started = Date.now();
+        const res = await page.goto(`${ORIGIN}${path}`, {
+          waitUntil: "load",
+          timeout: CHECK_TIMEOUT_MS,
+        });
+        const ms = Date.now() - started;
+        const status = res?.status() ?? 0;
+        if (status < 200 || status > 299) {
+          failures.push(`${name} → HTTP ${status}`);
+          console.log(`  ✗ ${name} → HTTP ${status} (${ms}ms)`);
+          continue;
+        }
+        if (path === "/") homeMs = ms;
+        const marker = await page
+          .waitForFunction(boundaryOnScreen, ERROR_BOUNDARY.source, {
+            timeout: SETTLE_MS,
+          })
+          .then((handle) => handle.jsonValue())
+          .catch(() => null);
+        if (marker) {
+          failures.push(`${name} → renders the error boundary ("${marker}")`);
+          console.log(
+            `  ✗ ${name} → renders the error boundary ("${marker}") (${ms}ms)`,
+          );
+          continue;
+        }
+        console.log(`  ✓ ${name} → ${status} (${ms}ms)`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message.split("\n")[0] : err;
+        failures.push(`${name} → ${msg}`);
+        console.log(`  ✗ ${name} → ${msg}`);
+      } finally {
+        await context.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+
+  const budget = `home page load budget → ${
+    homeMs === null
+      ? "no page to time"
+      : `${homeMs}ms, ${homeMs > HOME_LOAD_BUDGET_MS ? "over" : "within"} the ${HOME_LOAD_BUDGET_MS}ms budget`
+  }`;
+  if (homeMs === null || homeMs > HOME_LOAD_BUDGET_MS) {
+    failures.push(budget);
+    console.log(`  ✗ ${budget}`);
+  } else {
+    console.log(`  ✓ ${budget}`);
+  }
+  return failures;
 }
 
 /**
@@ -290,7 +558,14 @@ async function main() {
     failures.push(`escrow v2 pin → ${pin.problems.join("; ")}`);
   }
 
-  const total = CHECKS.length + 2;
+  failures.push(...(await checkPages()));
+  if (BROWSER) {
+    failures.push(...(await checkPagesInBrowser()));
+  } else {
+    console.log("  · browser pass → not requested (SMOKE_BROWSER=1 runs it)");
+  }
+
+  const total = CHECKS.length + 2 + (PAGES.length + 1) * (BROWSER ? 2 : 1);
   if (failures.length > 0) {
     console.error(
       `\n${failures.length}/${total} checks failed against ${ORIGIN}:`,
@@ -319,4 +594,11 @@ async function main() {
   console.log(`\nall ${total} checks passed against ${ORIGIN}`);
 }
 
-await main();
+// Run when invoked (`node scripts/smoke-deploy.mjs`), not when the tests
+// import PAGES and errorBoundaryIn from it.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  await main();
+}

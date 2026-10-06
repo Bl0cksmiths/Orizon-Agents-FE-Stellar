@@ -14,7 +14,14 @@
  * how many it missed instead of letting them read as zero.
  */
 
-import { GET_TIMEOUT_MS, ensure, fetchWithTimeout, httpError } from "./api";
+import { COMPUTING_MESSAGE } from "./api-freshness";
+import {
+  ApiError,
+  CACHED_GET_TIMEOUT_MS,
+  ensure,
+  fetchWithTimeout,
+  httpError,
+} from "./api";
 import { assetLabel } from "./money";
 import { LIST_YOUR_AGENT_PATH } from "./guide/display";
 
@@ -204,16 +211,49 @@ export function isEcosystemAdoption(v: unknown): v is EcosystemAdoption {
 }
 
 /** Reads the adoption figures. Not deduped, for the reason
- * `getAgentReadiness` is not: its retry button must really ask again. */
-export async function getEcosystemAdoption(): Promise<EcosystemAdoption> {
+ * `getAgentReadiness` is not: its retry button must really ask again.
+ *
+ * A cached read (lib/api-proxy.ts): the backend takes minutes over this one,
+ * so the console's route answers with its last snapshot, which the page
+ * dates by the payload's own `generated_at`. */
+export async function getEcosystemAdoption(
+  signal?: AbortSignal,
+): Promise<EcosystemAdoption> {
   const res = await fetchWithTimeout(
     "GET",
     ADOPTION_PATH,
-    { cache: "no-store" },
-    GET_TIMEOUT_MS,
+    { cache: "default", ...(signal ? { signal } : {}) },
+    CACHED_GET_TIMEOUT_MS,
   );
+  if (res.status === 202) throw await computing(res);
   if (!res.ok) throw await httpError("GET", ADOPTION_PATH, res);
   return ensure(ADOPTION_PATH, isEcosystemAdoption)(await res.json());
+}
+
+/**
+ * The backend's `202 {"status":"computing"}`: no report yet, one is being
+ * built, ask again after `Retry-After` (or the body's own figure). An error
+ * the data hooks wait on (`isComputingError`), never a payload — the body is
+ * not a report, and passing it to the guard would call it a malformed one.
+ */
+async function computing(res: Response): Promise<ApiError> {
+  let bodySeconds: number | undefined;
+  try {
+    const body: unknown = await res.json();
+    const s = (body as { retry_after_seconds?: unknown })?.retry_after_seconds;
+    if (typeof s === "number" && Number.isFinite(s) && s > 0) bodySeconds = s;
+  } catch {
+    /* the header, or the default, decides */
+  }
+  const header = Number(res.headers?.get?.("retry-after"));
+  const seconds =
+    Number.isFinite(header) && header > 0 ? header : (bodySeconds ?? 30);
+  return new ApiError(
+    `GET ${ADOPTION_PATH} → 202 — ${COMPUTING_MESSAGE}`,
+    202,
+    seconds * 1_000,
+    "computing",
+  );
 }
 
 /** What each target is called on the page, and what counts toward it. */

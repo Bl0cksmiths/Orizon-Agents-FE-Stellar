@@ -66,6 +66,17 @@ export type Task = {
    * `unconfirmed`.
    */
   settlement?: string | null;
+  /**
+   * What became of a paid run's attestation seal (`TaskSummary.seal`): null
+   * when none was submitted (a simulated run, or one that paid nobody), and
+   * absent on a backend that predates it. Any string on the wire; read
+   * through `readSealState` (lib/seal-state.ts), which reads a word it does
+   * not know as `unconfirmed`. See `SEAL_STATES`.
+   */
+  seal?: string | null;
+  /** What the seal attests (`TaskSummary.seal_kind`), set together with
+   * `seal`; any string on the wire, read through `readSealKind`. */
+  seal_kind?: string | null;
 };
 
 export type PlanStep = {
@@ -125,7 +136,13 @@ export const isPlanFloorNoticeKind = (v: string): v is PlanFloorNoticeKind =>
  * for failing the floor both arrive as `kind: "excluded"`.
  */
 export type ExclusionReason =
-  "below_floor" | "unbound_endpoint" | "floor_relaxed";
+  | "below_floor"
+  | "unbound_endpoint"
+  | "floor_relaxed"
+  /** A bound agent whose endpoint failed its latest health check, left out
+   *  while that failure is fresh (D-084). Not a reputation verdict: its
+   *  `lower_bound_bps` is null on purpose. */
+  | "unreachable_endpoint";
 
 /** One reputation-floor action taken while building the plan
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are
@@ -674,6 +691,36 @@ export const SETTLEMENT_STATES = [
 export type SettlementState = (typeof SETTLEMENT_STATES)[number];
 
 /**
+ * What became of a paid run's attestation seal (`SealState` in the backend's
+ * app/schemas.py), set only once a seal was submitted.
+ *
+ * - `sealed`: the attestation is on the ledger; `proof_tx` is its hash when
+ *   the transaction that wrote it is known.
+ * - `pending`: submitted, not yet confirmed — the backend is reconciling it,
+ *   for about two minutes at most.
+ * - `unconfirmed`: reconciliation ran out of time without an answer either
+ *   way. It MAY still be on the ledger.
+ * - `failed`: provably not on the ledger. The job's payment stands,
+ *   unattested.
+ */
+export const SEAL_STATES = [
+  "sealed",
+  "pending",
+  "unconfirmed",
+  "failed",
+] as const;
+export type SealState = (typeof SEAL_STATES)[number];
+
+/**
+ * What a run's seal attests (`SealKind` in the backend's app/schemas.py):
+ * `paid` — a paid delivery; `delivery_only` — the work was delivered but
+ * nobody could be paid (no confirmed on-chain owner, a free run), so the
+ * seal records delivery alone, with no receipt and a zero total.
+ */
+export const SEAL_KINDS = ["paid", "delivery_only"] as const;
+export type SealKind = (typeof SEAL_KINDS)[number];
+
+/**
  * One step's payout as the receipt may state it. `paid` only when the
  * settlement is confirmed AND the backend reported the amount; everything
  * else says what is known and no more.
@@ -881,6 +928,19 @@ export type TaskDisputes = {
   /** Null until the workflow settles. */
   settlement?: SettlementView | null;
   disputes: Dispute[];
+  /**
+   * What became of the run's attestation seal — the same values as
+   * `Task.seal` (see `SEAL_STATES`); null when none was submitted, absent on
+   * a backend that predates it. A word this build does not know is read as
+   * `unconfirmed` (lib/seal-state.ts).
+   */
+  seal?: SealState | null;
+  /** What the seal attests, as on `Task.seal_kind`; absent on an older
+   *  backend or for a word this build does not know. */
+  seal_kind?: SealKind | null;
+  /** The seal's transaction hash once it is known; absent on an older
+   *  backend, null while unknown. */
+  proof_tx?: string | null;
 };
 
 export type DisputeChallengeReq = { job_id_hex: string; step_index: number };
@@ -989,9 +1049,17 @@ export type DisputePanelView =
       settlementState?: SettlementState | null;
       /** The panel stopped re-reading an unconfirmed settlement. */
       settlementStoppedChecking?: boolean;
+      /** A seal on a run with no settlement — a delivery-only one. */
+      seal?: SealState | null;
+      sealKind?: SealKind | null;
     }
   | {
       kind: "settled";
+      /** The run's attestation seal, when the backend reports one: null
+       *  when none was submitted, absent on a backend that predates it. */
+      seal?: SealState | null;
+      /** What that seal attests; absent when the backend does not say. */
+      sealKind?: SealKind | null;
       viewer: DisputeViewer;
       window: {
         open: boolean;

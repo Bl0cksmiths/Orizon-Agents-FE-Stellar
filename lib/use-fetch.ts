@@ -3,7 +3,10 @@
  * Minimal one-shot data-fetching hook shared by dashboard pages.
  *
  * Runs `fn` on mount (and whenever `deps` change), tracking data / error /
- * loading. Unmount-safe: a torn-down effect never applies its result.
+ * loading. Unmount-safe: a torn-down effect never applies its result, and
+ * the `AbortSignal` handed to `fn` fires the moment the effect is torn down
+ * — unmount, a deps change, a `reload()` — so a read nobody will look at is
+ * cancelled rather than left holding a connection to a sleeping backend.
  * `reload` is a stable callback that re-runs the fetch on demand.
  *
  * When `deps` change, `data` and `error` reset to null so consumers never
@@ -34,9 +37,18 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isComputingError, isWakingError, readAtOf } from "./api-freshness";
 
 /** Extra attempts after the initial one. 4 requests total per mount. */
 const DEFAULT_MAX_RETRIES = 3;
+/**
+ * Attempts a read answered "waking" may make, whatever `maxRetries` says
+ * (unless it is 0). The console's cache answers a cold backend with a 503
+ * after about ten seconds rather than holding the socket for a minute, so a
+ * cold start is several quick answers, not one slow one: eight retries
+ * (3 s → 30 s apart) cover about four minutes of it.
+ */
+export const WAKE_MAX_RETRIES = 8;
 /** First retry delay; doubles per attempt (2s → 4s → 8s). */
 const DEFAULT_RETRY_BASE_MS = 2_000;
 /** Ceiling for the computed backoff, before any Retry-After hint. */
@@ -60,6 +72,8 @@ const FOCUS_RETRY_MIN_MS = 5_000;
  */
 export function isTransientFetchError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
+  // A report the backend is still building answers again after Retry-After.
+  if (isComputingError(error)) return true;
   if (/timeout after/i.test(message)) return true;
   // lib/api.ts formats HTTP failures as "GET /path → 503[ — detail]".
   const status = Number(/→\s*(\d{3})\b/.exec(message)?.[1]);
@@ -128,11 +142,35 @@ export type UseFetchResult<T> = {
    * ```
    */
   lastSuccessAt: number | null;
+  /**
+   * When the backend was read for the `data` on screen: a cached answer's own
+   * read time (lib/api.ts `readAtOf`), which can be minutes before it
+   * arrived, else `lastSuccessAt`. Null with no data. What a page dates its
+   * figures by — `lastSuccessAt` would call an old copy new.
+   */
+  dataAt: number | null;
+  /**
+   * Nothing on screen yet and the hook is still at it: the first read is
+   * out, or it is between retries of a read the backend answered with
+   * "waking" (lib/api.ts `isWakingError`). A page shows its skeleton and the
+   * waking line for this, not an error: a cold start is a wait, not a fault.
+   */
+  waiting: boolean;
+  /** How long the scheduled automatic retry waits (ms) — the backend's
+   * Retry-After when it sent one — or null when none is scheduled. */
+  retryInMs: number | null;
 };
 
 export type UseFetchOptions = {
   /** Keep the last resolved `data` while a deps-change refetch is in flight. */
   keepPreviousData?: boolean;
+  /**
+   * False holds the fetch back — nothing runs, `loading` is false — until it
+   * turns true, when it runs as on mount. For a read that depends on another
+   * read's answer (the rest of a list once its first page is in), without
+   * a conditional hook. Default true.
+   */
+  enabled?: boolean;
   /**
    * Refetch when the tab becomes visible again (visibilitychange → visible,
    * window focus) and the last successful fetch is older than `staleAfterMs`.
@@ -156,14 +194,16 @@ export type UseFetchOptions = {
 };
 
 export function useFetch<T>(
-  fn: () => Promise<T>,
+  fn: (signal: AbortSignal) => Promise<T>,
   deps: unknown[],
   opts?: UseFetchOptions,
 ): UseFetchResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const enabled = opts?.enabled ?? true;
+  const [loading, setLoading] = useState(enabled);
   const [retrying, setRetrying] = useState(false);
+  const [retryInMs, setRetryInMs] = useState<number | null>(null);
   const [lastSuccessAt, setLastSuccessAt] = useState<number | null>(null);
   const [nonce, setNonce] = useState(0);
 
@@ -206,6 +246,8 @@ export function useFetch<T>(
     let alive = true;
     let attempt = 0; // retries spent on this effect run
     let timer: ReturnType<typeof setTimeout> | null = null;
+    // One per effect run: retries share it, teardown fires it.
+    const controller = new AbortController();
 
     const prev = prevDepsRef.current;
     const depsChanged =
@@ -222,13 +264,17 @@ export function useFetch<T>(
       lastSuccessRef.current = null;
     }
     markRetrying(false);
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
 
     const run = () => {
       setLoading(true);
       inFlightRef.current = true;
       lastAttemptAtRef.current = Date.now();
       fnRef
-        .current()
+        .current(controller.signal)
         .then((d) => {
           if (!alive) return;
           lastSuccessRef.current = Date.now();
@@ -242,7 +288,11 @@ export function useFetch<T>(
           if (!alive) return;
           errorRef.current = e instanceof Error ? e.message : String(e);
           setError(errorRef.current);
-          const budget = optsRef.current?.maxRetries ?? DEFAULT_MAX_RETRIES;
+          const asked = optsRef.current?.maxRetries ?? DEFAULT_MAX_RETRIES;
+          const budget =
+            asked > 0 && (isWakingError(e) || isComputingError(e))
+              ? Math.max(asked, WAKE_MAX_RETRIES)
+              : asked;
           if (attempt >= budget || !isTransientFetchError(e)) {
             markRetrying(false);
             return;
@@ -253,6 +303,7 @@ export function useFetch<T>(
             e,
           );
           attempt += 1;
+          setRetryInMs(delay);
           markRetrying(true);
           timer = setTimeout(() => {
             timer = null;
@@ -271,9 +322,10 @@ export function useFetch<T>(
       alive = false;
       inFlightRef.current = false;
       if (timer) clearTimeout(timer);
+      controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, nonce]);
+  }, [...deps, nonce, enabled]);
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
@@ -310,5 +362,20 @@ export function useFetch<T>(
     };
   }, [revalidateOnFocus, staleAfterMs, reload]);
 
-  return { data, error, loading, reload, retrying, lastSuccessAt };
+  const dataAt = data === null ? null : (readAtOf(data) ?? lastSuccessAt);
+  const waiting =
+    data === null &&
+    (loading ||
+      (retrying && (isWakingError(error) || isComputingError(error))));
+  return {
+    data,
+    error,
+    loading,
+    reload,
+    retrying,
+    lastSuccessAt,
+    dataAt,
+    waiting,
+    retryInMs: retrying ? retryInMs : null,
+  };
 }

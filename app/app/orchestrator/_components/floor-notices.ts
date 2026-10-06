@@ -18,18 +18,27 @@ import {
 export const isUnbound = (n: PlanFloorNotice): boolean =>
   n.reason_code === "unbound_endpoint";
 
+/** An agent left out because its bound endpoint failed its latest health
+ *  check (D-084). Like an unbound one it arrives as `kind: "excluded"` with a
+ *  null bound, and like it the floor never judged it: its reputation was not
+ *  the question. It is offered again once a check passes. */
+export const isUnreachable = (n: PlanFloorNotice): boolean =>
+  n.reason_code === "unreachable_endpoint";
+
 /**
  * Whether a notice records the floor acting on an agent: every notice except
- * an unbound one. The ONE definition both the floor summary and the exclusions
+ * an unbound or unreachable one. The ONE definition both the floor summary and the exclusions
  * panel count with — they used to keep one each, and on a `reason_code` this
  * build did not know the summary said "the floor acted on no agents" directly
  * above a panel saying "1 change". An open set, deliberately: a reason code
  * the backend adds is still the floor acting, and a notice with no code comes
  * from a backend that only ever reported floor actions. Only
- * `unbound_endpoint` is known NOT to be one, because an unbound agent was
- * never a candidate for the floor to decide about.
+ * `unbound_endpoint` and `unreachable_endpoint` are known NOT to be one: an
+ * unbound agent was never a candidate for the floor to decide about, and an
+ * unreachable one was left out on its endpoint's health, not its standing.
  */
-export const isFloorAction = (n: PlanFloorNotice): boolean => !isUnbound(n);
+export const isFloorAction = (n: PlanFloorNotice): boolean =>
+  !isUnbound(n) && !isUnreachable(n);
 
 /**
  * An agent held off because it was rated since its last reputation read and

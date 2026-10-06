@@ -1,5 +1,3 @@
-"use client";
-import { m } from "framer-motion";
 import { fallbackReputationLedgerId } from "@/lib/contract-addresses";
 import { DEFAULT_REP_PARAMS } from "@/lib/reputation-math";
 import { cn } from "@/lib/utils";
@@ -11,6 +9,7 @@ import {
   defaultExplorerNetwork,
   stellarExpertUrl,
 } from "@/components/ui/stellar-link";
+import { entrance } from "@/components/ui/entrance";
 
 // Link follows the build's passphrase env. The marketing page has no
 // /reputation/params read to defer to, so this id is ALWAYS the build-time
@@ -86,12 +85,7 @@ export function Reputation() {
         />
 
         <div className="mt-14 grid gap-5 lg:grid-cols-2">
-          <m.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.5 }}
-          >
+          <div className="reveal">
             <div className="grid grid-cols-2 gap-4">
               {stats.map((s) => (
                 <Card key={s.label} className="p-5">
@@ -109,14 +103,9 @@ export function Reputation() {
               Wash-trading costs real USDC per fake rating. And when the chain
               is unreachable, scores fall back to the prior — never fabricated.
             </p>
-          </m.div>
+          </div>
 
-          <m.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.5, delay: 0.08 }}
-          >
+          <div className="reveal" style={entrance({ delay: 0.08 })}>
             <Card aria-hidden="true" className="h-full">
               <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
                 <span>{"// reputation ledger — routing view"}</span>
@@ -152,15 +141,12 @@ export function Reputation() {
                 │ = routing floor — below it, agents never get hired
               </p>
             </Card>
-          </m.div>
+          </div>
         </div>
 
-        <m.div
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.5, delay: 0.16 }}
-          className="mt-10 flex flex-col gap-4 sm:flex-row sm:flex-wrap"
+        <div
+          style={entrance({ delay: 0.16 })}
+          className="reveal mt-10 flex flex-col gap-4 sm:flex-row sm:flex-wrap"
         >
           {/* On a phone the label runs to two lines, so the button grows
               with it instead of clipping at the fixed height. */}
@@ -179,7 +165,7 @@ export function Reputation() {
           >
             View the ledger contract
           </a>
-        </m.div>
+        </div>
       </div>
     </section>
   );

@@ -11,6 +11,7 @@ import { CTA } from "./(marketing)/_components/cta";
 import { Footer } from "./(marketing)/_components/footer";
 import { Marquee } from "@/components/ui/marquee";
 import { BackendWarmup } from "@/components/backend-warmup";
+import { RevealOnScroll } from "@/components/ui/reveal-on-scroll";
 import { getHeroStats } from "@/lib/public-network-stats";
 
 // The hero's network figures are read on the server and the page is
@@ -78,6 +79,9 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <BackendWarmup />
+      {/* The sections are server components; their scroll entrances are the
+          `.reveal` class, played by this one observer. */}
+      <RevealOnScroll />
       {/* Nav and Footer sit OUTSIDE <main> on purpose: <header>/<footer> only
           expose the banner/contentinfo landmarks when they are not descendants
           of main, and the layout's "Skip to content" link (href="#main") has to

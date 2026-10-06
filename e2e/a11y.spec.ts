@@ -10,6 +10,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { WCAG_TAGS, disputeScan } from "./dispute-axe";
+import { entrancesSettled } from "./entrances-settled";
 import {
   DISPUTE_WINDOW_S,
   mockApi,
@@ -54,6 +55,13 @@ const ROUTES = [
  * are both on screen before the page is judged.
  */
 const READY: Partial<Record<string, (page: Page) => Promise<void>>> = {
+  // Hydrated, so the sections in view have started their reveal, and then
+  // every entrance run out: the sweep judges the settled page, not text
+  // caught mid-fade.
+  "/": async (page) => {
+    await page.waitForLoadState("networkidle");
+    await entrancesSettled(page);
+  },
   // The four measured tiles, so the sweep judges the figures and their
   // captions rather than the loading skeletons.
   "/app": async (page) => {

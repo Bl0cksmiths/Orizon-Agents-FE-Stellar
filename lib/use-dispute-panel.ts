@@ -182,6 +182,9 @@ export function pendingKey(res: TaskDisputes): string {
   // refund does, record or no record, and is bounded the same way.
   if (res.settlement_state === "unconfirmed")
     keys.push("settlement:unconfirmed");
+  // A seal the backend is still confirming: the run went final before it
+  // (for up to ~2 minutes), and its outcome lands on this receipt.
+  if (res.seal === "pending") keys.push("seal:pending");
   return keys.sort().join(",");
 }
 
@@ -234,7 +237,10 @@ export function disputePollMs(state: DisputePollState | null): number | null {
   // An unconfirmed settlement is re-read on the chain-wait cadence: fast,
   // then slow, then not at all — and the receipt then says it stopped.
   let ms: number | null = null;
-  if (res.settlement_state === "unconfirmed" && state.doneAtRequest) {
+  if (
+    (res.settlement_state === "unconfirmed" || res.seal === "pending") &&
+    state.doneAtRequest
+  ) {
     if (waitedMs < PENDING_FAST_WAIT_MS) return CREDIT_POLL_MS;
     if (waitedMs < PENDING_WAIT_MS) ms = ADJUDICATION_POLL_MS;
   }

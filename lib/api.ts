@@ -15,6 +15,7 @@ import {
   isStellarNetworkInfo,
   isSubmitResult,
   isSyncResponse,
+  isTask,
   isTaskList,
   isTraceLine,
   isTraceLineList,
@@ -23,7 +24,19 @@ import {
   screenDecomposeResponse,
   screenReputationBatch,
 } from "./guards";
+import {
+  NEXT_CURSOR_HEADER,
+  READ_AT_HEADER,
+  TOTAL_COUNT_HEADER,
+} from "./api-contract";
+import {
+  isComputingError,
+  isWakingError,
+  noteReadAt as noteReadAtHeader,
+  readAtOf,
+} from "./api-freshness";
 import { headerSyncSignal, type SyncSignal } from "./registry-sync";
+import { isSealPending } from "./seal-state";
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
 import type {
   Agent,
@@ -61,6 +74,11 @@ const base = "/api";
 // The backend sleeps on Render's free tier and takes 30-60s to wake, so a 30s
 // deadline turned every first visit into a hard failure.
 export const GET_TIMEOUT_MS = 60_000;
+// The shared reads the console's own route handlers cache (app/api/,
+// lib/api-proxy.ts). Those answer within about ten seconds whatever the
+// backend is doing — a copy, or a 503 saying it is waking — so a read still
+// silent at twenty has lost its connection, not met a cold start.
+export const CACHED_GET_TIMEOUT_MS = 20_000;
 // execute/decompose can be slow, so POSTs get a much longer leash. This MUST
 // stay above the backend's own decompose budget (DECOMPOSE_TIMEOUT_SECONDS,
 // 90s) plus the reputation fetch that precedes it — otherwise the client
@@ -91,7 +109,7 @@ const BODY_READERS = new Set([
  */
 function guardBody(
   res: Response,
-  timer: ReturnType<typeof setTimeout>,
+  done: () => void,
   signal: AbortSignal,
   expired: () => Error,
 ): Response {
@@ -112,11 +130,26 @@ function guardBody(
           if (signal.aborted) throw expired();
           throw err;
         } finally {
-          clearTimeout(timer);
+          done();
         }
       };
     },
   });
+}
+
+/** What a read cancelled by its caller rejects with — an unmounted
+ * component's, say. Never a timeout, never shown: nobody is waiting. */
+export function abortError(): DOMException {
+  return new DOMException("the read was cancelled", "AbortError");
+}
+
+/** Whether a rejection is a caller's own cancellation. */
+export function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
 }
 
 /**
@@ -126,6 +159,10 @@ function guardBody(
  * (network drop, non-OK status) propagates untouched.
  * Exported so sibling clients (e.g. lib/pdax.ts) share the same plumbing;
  * `path` is relative to the shared `/api` base.
+ *
+ * `init.signal`, when given, cancels the exchange as well — a component
+ * unmounting, a superseded read — and rejects with `abortError()`, told
+ * apart from the deadline so nothing retries or reports it.
  */
 export async function fetchWithTimeout(
   method: "GET" | "POST",
@@ -134,12 +171,26 @@ export async function fetchWithTimeout(
   timeoutMs: number,
 ): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   // A caller that never reads the body would otherwise hold the event loop
   // open for the full deadline (node only — browsers return a number).
   (timer as unknown as { unref?: () => void }).unref?.();
+  const caller = init.signal ?? null;
+  const cancel = () => controller.abort();
+  if (caller?.aborted) controller.abort();
+  else caller?.addEventListener("abort", cancel, { once: true });
+  const done = () => {
+    clearTimeout(timer);
+    caller?.removeEventListener("abort", cancel);
+  };
   const expired = () =>
-    new Error(`${method} ${path} → timeout after ${timeoutMs / 1000}s`);
+    timedOut
+      ? new Error(`${method} ${path} → timeout after ${timeoutMs / 1000}s`)
+      : abortError();
   let res: Response;
   try {
     res = await fetch(`${base}${path}`, {
@@ -147,11 +198,11 @@ export async function fetchWithTimeout(
       signal: controller.signal,
     });
   } catch (err) {
-    clearTimeout(timer);
+    done();
     if (controller.signal.aborted) throw expired();
     throw err;
   }
-  return guardBody(res, timer, controller.signal, expired);
+  return guardBody(res, done, controller.signal, expired);
 }
 
 /**
@@ -263,7 +314,17 @@ async function httpError(
 // rejections are evicted immediately so retries always hit the network.
 export const GET_DEDUPE_MS = 1_000;
 
-type GetCacheEntry = { promise: Promise<unknown>; settledAt: number | null };
+type GetCacheEntry = {
+  promise: Promise<unknown>;
+  settledAt: number | null;
+  /** Cancels the shared request once nobody is waiting for it. */
+  controller: AbortController;
+  /** Callers waiting with a signal of their own. */
+  holders: number;
+  /** A caller with no signal is waiting: the request runs to the end. */
+  pinned: boolean;
+  inFlight: boolean;
+};
 const getCache = new Map<string, GetCacheEntry>();
 
 /** Drops all deduped GET entries — exposed for tests. */
@@ -271,33 +332,120 @@ export function clearGetCache(): void {
   getCache.clear();
 }
 
+/** Per-call options for a GET. */
+export type GetOptions = {
+  /** Cancels this caller's wait. The shared request itself is cancelled only
+   * when every caller waiting on it has let go. */
+  signal?: AbortSignal;
+  /** A read the console's route handlers cache: asked without `no-store`,
+   * whose `Pragma: no-cache` would make Vercel's CDN refresh in the
+   * foreground, and given `CACHED_GET_TIMEOUT_MS`. */
+  cached?: boolean;
+};
+
+/** A response header, read defensively: tests answer with plain objects. */
+function headerOf(res: Response, name: string): string | null {
+  const headers = (res as { headers?: { get?: (n: string) => string | null } })
+    .headers;
+  return headers?.get?.(name) ?? null;
+}
+
+function noteReadAt(value: unknown, res: Response): void {
+  const cached = headerOf(res, READ_AT_HEADER);
+  if (cached !== null) return noteReadAtHeader(value, cached);
+  // Served by the backend directly (no console cache in between): a snapshot
+  // says how old it is in whole seconds.
+  const age = headerOf(res, "x-snapshot-age")?.trim();
+  if (age && /^\d+$/.test(age)) {
+    noteReadAtHeader(value, String(Date.now() - Number(age) * 1_000));
+  }
+}
+
+/**
+ * One caller's view of a shared request: it settles as the request does, or
+ * rejects with `abortError()` the moment the caller's signal fires. The last
+ * caller to let go of an in-flight request cancels it — a page navigated
+ * away from does not keep a minute-long read of a sleeping backend open.
+ */
+function hold<T>(
+  path: string,
+  entry: GetCacheEntry,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  if (!signal) {
+    entry.pinned = true;
+    return entry.promise as Promise<T>;
+  }
+  if (signal.aborted) return Promise.reject(abortError());
+  entry.holders += 1;
+  return new Promise<T>((resolve, reject) => {
+    const letGo = () => {
+      reject(abortError());
+      entry.holders -= 1;
+      if (entry.holders === 0 && !entry.pinned && entry.inFlight) {
+        if (getCache.get(path) === entry) getCache.delete(path);
+        entry.controller.abort();
+      }
+    };
+    signal.addEventListener("abort", letGo, { once: true });
+    entry.promise.then(
+      (value) => {
+        signal.removeEventListener("abort", letGo);
+        resolve(value as T);
+      },
+      (err: unknown) => {
+        signal.removeEventListener("abort", letGo);
+        reject(err);
+      },
+    );
+  });
+}
+
 function get<T>(
   path: string,
   parse?: (v: unknown) => T,
   headers?: Record<string, string>,
+  opts: GetOptions = {},
 ): Promise<T> {
+  // Nobody is waiting: start nothing.
+  if (opts.signal?.aborted) return Promise.reject(abortError());
   const hit = getCache.get(path);
   if (
     hit &&
     (hit.settledAt === null || Date.now() - hit.settledAt < GET_DEDUPE_MS)
   ) {
-    return hit.promise as Promise<T>;
+    return hold<T>(path, hit, opts.signal);
   }
+  const controller = new AbortController();
   const promise = (async () => {
     const res = await fetchWithTimeout(
       "GET",
       path,
-      { cache: "no-store", ...(headers ? { headers } : {}) },
-      GET_TIMEOUT_MS,
+      {
+        cache: opts.cached ? "default" : "no-store",
+        ...(headers ? { headers } : {}),
+        signal: controller.signal,
+      },
+      opts.cached ? CACHED_GET_TIMEOUT_MS : GET_TIMEOUT_MS,
     );
     if (!res.ok) throw await httpError("GET", path, res);
     const json: unknown = await res.json();
-    return parse ? parse(json) : (json as T);
+    const out = parse ? parse(json) : (json as T);
+    noteReadAt(out, res);
+    return out;
   })();
-  const entry: GetCacheEntry = { promise, settledAt: null };
+  const entry: GetCacheEntry = {
+    promise,
+    settledAt: null,
+    controller,
+    holders: 0,
+    pinned: false,
+    inFlight: true,
+  };
   getCache.set(path, entry);
   promise.then(
     () => {
+      entry.inFlight = false;
       entry.settledAt = Date.now();
       // A resolved payload must not outlive its dedupe window: per-task
       // paths (/trace/{id}, artifact bodies) are fetched once and would
@@ -309,10 +457,11 @@ function get<T>(
       (evict as unknown as { unref?: () => void }).unref?.();
     },
     () => {
+      entry.inFlight = false;
       if (getCache.get(path) === entry) getCache.delete(path);
     },
   );
-  return promise;
+  return hold<T>(path, entry, opts.signal);
 }
 
 async function post<T, B>(
@@ -388,35 +537,113 @@ function taskAuthHeaders(taskId: string): Record<string, string> | undefined {
  * the clock and hand a post-submit refresh the state from before the submit.
  */
 export { ensure, httpError, post, taskAuthHeaders };
+// The cache's two facts, re-exported where every read already imports from.
+export { isComputingError, isWakingError, readAtOf };
 
-export const listAgents = () =>
-  get<Agent[]>("/agents", ensureScreened("/agents", screenAgentList));
+export const listAgents = (signal?: AbortSignal) =>
+  get<Agent[]>(
+    "/agents",
+    ensureScreened("/agents", screenAgentList),
+    undefined,
+    { signal, cached: true },
+  );
 /**
  * GET /api/agents with what the backend says about its registry: the
  * `X-Registry-Synced` header (lib/registry-sync.ts), "unknown" on a backend
  * from before it. Not deduped — the network figures share it themselves, and
  * the interim rule needs each read to be a read.
  */
-export async function listAgentsWithSync(): Promise<{
+export async function listAgentsWithSync(signal?: AbortSignal): Promise<{
   agents: Agent[];
   signal: SyncSignal;
+  /** When the backend was read for this answer, if it came from the
+   * console's cache — what the interim rule must date it by, since one
+   * cached copy read twice is still one read. */
+  readAt: number | null;
 }> {
   const res = await fetchWithTimeout(
     "GET",
     "/agents",
-    { cache: "no-store" },
-    GET_TIMEOUT_MS,
+    { cache: "default", ...(signal ? { signal } : {}) },
+    CACHED_GET_TIMEOUT_MS,
   );
   if (!res.ok) throw await httpError("GET", "/agents", res);
   const agents = ensureScreened("/agents", screenAgentList)(await res.json());
-  return { agents, signal: headerSyncSignal(res.headers) };
+  noteReadAt(agents, res);
+  return {
+    agents,
+    signal: headerSyncSignal(res.headers),
+    readAt: readAtOf(agents),
+  };
 }
-export const listTasks = () =>
-  get<Task[]>("/tasks", ensure("/tasks", isTaskList));
+
+/** One page of the registry — or, from a server that does not page, all of
+ * it. */
+export type AgentPage = {
+  agents: Agent[];
+  /** Whether the server honoured `limit` (it sent `X-Total-Count`). False
+   * means `agents` is the whole registry. */
+  paged: boolean;
+  /** How many agents the whole registry holds, when the server said. A
+   * registry count: published only when `signal` is "synced". */
+  total: number | null;
+  /** The next page's cursor; null on the last page or an unpaged answer. */
+  nextCursor: string | null;
+  signal: SyncSignal;
+};
+
+/**
+ * GET /api/agents?limit=&cursor= — a small first page, so the registry table
+ * can paint before the whole list has crossed the wire. Feature-detected:
+ * a server that ignores the query answers with the whole list and no
+ * `X-Total-Count`, and that is returned as an unpaged answer, not an error.
+ * Not deduped, like `listAgentsWithSync`.
+ */
+export async function listAgentsPage(
+  query: { limit: number; cursor?: string | null },
+  signal?: AbortSignal,
+): Promise<AgentPage> {
+  const params = new URLSearchParams({ limit: String(query.limit) });
+  if (query.cursor) params.set("cursor", query.cursor);
+  const res = await fetchWithTimeout(
+    "GET",
+    `/agents?${params.toString()}`,
+    { cache: "default", ...(signal ? { signal } : {}) },
+    CACHED_GET_TIMEOUT_MS,
+  );
+  if (!res.ok) throw await httpError("GET", "/agents", res);
+  const agents = ensureScreened("/agents", screenAgentList)(await res.json());
+  noteReadAt(agents, res);
+  const rawTotal = headerOf(res, TOTAL_COUNT_HEADER);
+  const total =
+    rawTotal !== null && /^\d+$/.test(rawTotal) ? Number(rawTotal) : null;
+  const paged = total !== null;
+  return {
+    agents,
+    paged,
+    total,
+    nextCursor: paged ? headerOf(res, NEXT_CURSOR_HEADER) : null,
+    signal: headerSyncSignal(res.headers),
+  };
+}
+/**
+ * One task: its status, what happened to its money (`settlement`) and to its
+ * attestation seal (`seal`). Read with the task's token when this session
+ * holds one, like every per-task read.
+ */
+export const getTask = (taskId: string, signal?: AbortSignal) =>
+  get<Task>(
+    `/tasks/${encodeURIComponent(taskId)}`,
+    ensure("/tasks/{id}", isTask),
+    taskAuthHeaders(taskId),
+    { signal },
+  );
+export const listTasks = (signal?: AbortSignal) =>
+  get<Task[]>("/tasks", ensure("/tasks", isTaskList), undefined, { signal });
 /** GET /api/metrics/overview in either shape the backend serves: the
  * measured one, or the legacy one whose figures are never displayed (see
  * `LegacyOverview`). Anything else is malformed and rejects as usual. */
-export const getNetworkOverview = () =>
+export const getNetworkOverview = (signal?: AbortSignal) =>
   get<LegacyOverview | OverviewV2>(
     "/metrics/overview",
     ensure(
@@ -424,14 +651,19 @@ export const getNetworkOverview = () =>
       (v): v is LegacyOverview | OverviewV2 =>
         isOverviewV2(v) || isLegacyOverview(v),
     ),
+    undefined,
+    { signal, cached: true },
   );
-export const getFlow = () =>
-  get<Flow>("/flow/default", ensure("/flow/default", isFlow));
-export const getTrace = (taskId: string) =>
+export const getFlow = (signal?: AbortSignal) =>
+  get<Flow>("/flow/default", ensure("/flow/default", isFlow), undefined, {
+    signal,
+  });
+export const getTrace = (taskId: string, signal?: AbortSignal) =>
   get<TraceLine[]>(
     `/trace/${taskId}`,
     ensure(`/trace/${taskId}`, isTraceLineList),
     taskAuthHeaders(taskId),
+    { signal },
   );
 
 export const decompose = (intent: string) =>
@@ -456,18 +688,21 @@ export const execute = (
     return res;
   });
 
-export const getArtifact = (taskId: string) =>
+export const getArtifact = (taskId: string, signal?: AbortSignal) =>
   get<ArtifactResponse>(
     `/tasks/${taskId}/artifact`,
     ensure(`/tasks/${taskId}/artifact`, isArtifactResponse),
     taskAuthHeaders(taskId),
+    { signal },
   );
 
 // ── Stellar / x402 ──────────────────────────────────────────
-export const getStellarNetwork = () =>
+export const getStellarNetwork = (signal?: AbortSignal) =>
   get<StellarNetworkInfo>(
     "/stellar/network",
     ensure("/stellar/network", isStellarNetworkInfo),
+    undefined,
+    { signal, cached: true },
   );
 
 export const buildAuthorize = (body: {
@@ -499,29 +734,37 @@ export const buildReclaim = (body: { payer: string; auth_id_hex: string }) =>
     ensure("/stellar/build/reclaim", isXdrResponse),
   );
 
-export const listReputation = () =>
+export const listReputation = (signal?: AbortSignal) =>
   get<ReputationBatch>(
     "/stellar/reputation",
     ensureScreened("/stellar/reputation", screenReputationBatch),
+    undefined,
+    { signal, cached: true },
   );
-export const getReputationParams = () =>
+export const getReputationParams = (signal?: AbortSignal) =>
   get<ReputationParams>(
     "/stellar/reputation/params",
     ensure("/stellar/reputation/params", isReputationParams),
+    undefined,
+    { signal, cached: true },
   );
-export const getReputation = (agentId: string) =>
+export const getReputation = (agentId: string, signal?: AbortSignal) =>
   get<ReputationInfo>(
     `/stellar/reputation/${agentId}`,
     ensure(`/stellar/reputation/${agentId}`, isReputationInfo),
+    undefined,
+    { signal },
   );
 
 /** What this agent has actually been paid, over the RPC's retention window.
  *  Not cheap on the backend (an event scan plus a contract read per hit), so
  *  it is fetched once per dashboard mount and never polled. */
-export const getSettlement = (agentId: string) =>
+export const getSettlement = (agentId: string, signal?: AbortSignal) =>
   get<AgentSettlement>(
     `/stellar/settlement/${encodeURIComponent(agentId)}`,
     ensure("/stellar/settlement", isAgentSettlement),
+    undefined,
+    { signal },
   );
 
 export const submitSigned = (signedXdr: string) =>
@@ -741,6 +984,16 @@ export const TRACE_POLL_MS = 4_000;
 const MAX_TRACE_POLLS = 150;
 /** Consecutive poll rejections before the fallback gives up. */
 const MAX_POLL_FAILURES = 3;
+/**
+ * How long a finished run's trace must stay quiet before it is followed no
+ * further. A paid run turns `complete` the moment its settlement confirms;
+ * its ratings are follow-up work after that — one on-chain submit per step,
+ * each polling up to ~30 s — and keep appending to the trace. Over the
+ * history endpoint nothing marks the true end, so the run is followed until
+ * its seal is no longer pending and no line has arrived for this long. Still
+ * bounded by MAX_TRACE_POLLS.
+ */
+export const FOLLOW_UP_QUIET_MS = 40_000;
 
 /**
  * Subscribe to a live SSE trace stream.
@@ -801,7 +1054,9 @@ export function openTraceStream(
   let polling = false;
   let polls = 0;
   let pollFailures = 0;
-  let terminalSeen = false;
+  // When the run was first seen finished with nothing new arriving; reset by
+  // every line that lands. The run ends once this is FOLLOW_UP_QUIET_MS old.
+  let quietSince: number | null = null;
 
   // EventSource cannot set headers, so the task read token (when this
   // session holds one) rides along as a query param instead.
@@ -837,6 +1092,9 @@ export function openTraceStream(
     }, MAX_OUTAGE_MS);
   };
 
+  // The run's end was already said (the stream's `done`), and what is left is
+  // follow-up: its end is not a second end of the run.
+  let doneSaid = false;
   const settle = (ok: boolean) => {
     if (settled) return;
     settled = true;
@@ -845,6 +1103,7 @@ export function openTraceStream(
     if (pollTimer !== null) clearTimeout(pollTimer);
     pollTimer = null;
     es?.close();
+    if (doneSaid) return;
     if (ok) onDone?.();
     else (onError ?? onDone)?.();
   };
@@ -884,12 +1143,17 @@ export function openTraceStream(
    */
   const taskFinished = async (): Promise<boolean> => {
     try {
-      const task = await get<{ status?: unknown }>(
+      const task = await get<{ status?: unknown; seal?: unknown }>(
         `/tasks/${taskId}`,
         undefined,
         taskAuthHeaders(taskId),
       );
-      return task?.status === "complete" || task?.status === "failed";
+      const terminal = task?.status === "complete" || task?.status === "failed";
+      // A seal still being confirmed is the run's own work, and its outcome
+      // is a line still to come.
+      const sealing =
+        typeof task?.seal === "string" && isSealPending(task.seal);
+      return terminal && !sealing;
     } catch {
       return false;
     }
@@ -903,15 +1167,17 @@ export function openTraceStream(
       if (settled) return;
       pollFailures = 0;
       if (drain(history)) {
-        terminalSeen = false;
-      } else if (terminalSeen) {
-        // Confirmed twice: the trace stopped growing and the task is
-        // terminal. A single check could seal the run one line early —
-        // the backend finalizes the task before emitting its last line.
-        settle(true);
-        return;
+        quietSince = null;
+      } else if (quietSince !== null) {
+        // Finished, and quiet for long enough: its follow-up is done. A
+        // single check could end the run one line early — the backend
+        // finalizes the task before its ratings and seal land.
+        if (Date.now() - quietSince >= FOLLOW_UP_QUIET_MS) {
+          settle(true);
+          return;
+        }
       } else if (await taskFinished()) {
-        terminalSeen = true;
+        quietSince = Date.now();
       }
       if (settled) return;
     } catch {
@@ -932,12 +1198,42 @@ export function openTraceStream(
     }, TRACE_POLL_MS);
   };
 
-  /** SSE is unusable — keep the run visible over the history endpoint. */
-  const startPolling = () => {
+  /** Keep the run visible over the history endpoint: because SSE is
+   *  unusable (`announce`, the degraded mode the UI is told about), or to
+   *  follow a run's follow-up work after its stream has ended. */
+  const startPolling = (announce = true) => {
     if (settled || polling) return;
     polling = true;
-    opts?.onFallback?.();
+    if (announce) opts?.onFallback?.();
     void poll();
+  };
+
+  /**
+   * The stream said `done`: the run is final, and that is said at once —
+   * never held back on a read. What may remain is follow-up: a stream opened
+   * after the task went final can end on the replay alone while the run's
+   * seal is still being confirmed and its ratings still written. Then the
+   * history endpoint follows it the rest of the way, quietly — nothing is
+   * degraded — forwarding the lines it adds, and ending without a second
+   * `onDone`.
+   */
+  const endOrFollow = async () => {
+    doneSaid = true;
+    onDone?.();
+    let sealing = false;
+    try {
+      const task = await get<{ seal?: unknown }>(
+        `/tasks/${taskId}`,
+        undefined,
+        taskAuthHeaders(taskId),
+      );
+      sealing = typeof task?.seal === "string" && isSealPending(task.seal);
+    } catch {
+      /* unknown: end as the stream said */
+    }
+    if (settled) return;
+    if (sealing) startPolling(false);
+    else settle(true);
   };
 
   const connect = () => {
@@ -1019,7 +1315,12 @@ export function openTraceStream(
     });
     source.addEventListener("done", () => {
       established();
-      settle(true);
+      // Closed at once, so the browser never reconnects a finished stream.
+      dead = true;
+      clearConnectTimer();
+      clearOutageTimer();
+      source.close();
+      void endOrFollow();
     });
     source.addEventListener("error", failed);
   };

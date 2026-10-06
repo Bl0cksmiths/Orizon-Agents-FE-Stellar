@@ -155,7 +155,7 @@
               "date": "2026-09-30"
             },
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 25 registrations, 14 by team wallets and 11 by 7 outside operators",
+              "label": "AgentRegistry contract on Stellar Expert: every registration; at the 2026-10-01 count, 25 registrations, 14 by team wallets and 11 by 7 outside operators",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
@@ -229,7 +229,7 @@
               "date": "2026-09-19"
             },
             {
-              "label": "Rating of research.pro (agt_09l5): 70 out of 100, written on-chain by the platform's scoring key — 2026-09-19",
+              "label": "Rating of agt_09l5, one of the platform's own catalogue agents (skills: research, citations): 70 out of 100, written on-chain by the platform's scoring key — 2026-09-19",
               "url": "https://stellar.expert/explorer/testnet/tx/cfc0b964906c3695f94cd2d3a1d4e8a8511fe5784a2c5d8b6c26e794a32fb201",
               "kind": "tx",
               "tx_hash": "cfc0b964906c3695f94cd2d3a1d4e8a8511fe5784a2c5d8b6c26e794a32fb201",
@@ -306,21 +306,21 @@
               "date": "2026-09-30"
             },
             {
-              "label": "Rating of faulty_test_v2 after failed run 1 of 3: 20 out of 100, lower bound 5677 to 5596 — 2026-09-30",
+              "label": "Rating of faulty_test_v2 after failed run 1 of 3: 20 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/tx/e7885bf192688ed4b65006abe82b5b5f58737b15fd06bfaa9c54de13fa0b9663",
               "kind": "tx",
               "tx_hash": "e7885bf192688ed4b65006abe82b5b5f58737b15fd06bfaa9c54de13fa0b9663",
               "date": "2026-09-30"
             },
             {
-              "label": "Rating of faulty_test_v2 after failed run 2 of 3: 20 out of 100, lower bound 5596 to 5518 — 2026-09-30",
+              "label": "Rating of faulty_test_v2 after failed run 2 of 3: 20 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/tx/2980361e248b6a1284e17a2a7ec38d354991afc25f6f982270eb0710fa1aa388",
               "kind": "tx",
               "tx_hash": "2980361e248b6a1284e17a2a7ec38d354991afc25f6f982270eb0710fa1aa388",
               "date": "2026-09-30"
             },
             {
-              "label": "Rating of faulty_test_v2 after failed run 3 of 3: 20 out of 100, lower bound 5518 to 5443 — 2026-09-30",
+              "label": "Rating of faulty_test_v2 after failed run 3 of 3: 20 out of 100, written on-chain by the platform's scoring key — 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/tx/cc83982bd11e39fe61f3446df7f9cfa4a30a741d77ab717abf204894bbf4e30f",
               "kind": "tx",
               "tx_hash": "cc83982bd11e39fe61f3446df7f9cfa4a30a741d77ab717abf204894bbf4e30f",
@@ -402,7 +402,7 @@
               "kind": "doc"
             },
             {
-              "label": "ReputationLedger contract on Stellar Expert: 41 ratings, one of them a dispute",
+              "label": "ReputationLedger contract on Stellar Expert: every rating written so far, dispute ratings included",
               "url": "https://stellar.expert/explorer/testnet/contract/CDCSOBEVZUPQZV5GV4D6KYHZCLNGW2KXY74RUHSZ3EZUXF34DPW422ZT",
               "kind": "contract"
             },
@@ -422,7 +422,7 @@
         },
         {
           "id": "6.1-D3-b",
-          "claim": "The matching partial-refund transaction on Stellar Expert.",
+          "claim": "The matching refund transaction on Stellar Expert (the SOW's partial-refund tx): here, the disputed step credited in full.",
           "status": "present",
           "links": [
             {
@@ -486,9 +486,18 @@
               "date": "2026-09-30"
             },
             {
-              "label": "Open the live receipt for team run 3 on orizons.xyz",
-              "url": "https://orizons.xyz/app/trace?task=tsk_7e1c369cebaf41b3",
-              "kind": "page"
+              "label": "The receipt for team run 3 as recorded on 2026-09-30, kept on-chain: its settlement, paying the 0.01 XLM step to calculatorai (the receipt page itself no longer opens: the backend kept the task in memory, and a restart cleared it)",
+              "url": "https://stellar.expert/explorer/testnet/tx/785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+              "kind": "tx",
+              "tx_hash": "785428bf6552208750b375703556c534da557dccd64df8d1db7f954a04ca554b",
+              "date": "2026-09-30"
+            },
+            {
+              "label": "The receipt for team run 3, kept on-chain: its attestation seal, which ties the payout to the job — 2026-09-30",
+              "url": "https://stellar.expert/explorer/testnet/tx/efca274fb83b50865cfc20dc40b6949e5abd1ae23ed3e7a7622e6c9eda37c0a8",
+              "kind": "tx",
+              "tx_hash": "efca274fb83b50865cfc20dc40b6949e5abd1ae23ed3e7a7622e6c9eda37c0a8",
+              "date": "2026-09-30"
             },
             {
               "label": "Frontend pull request #68: the Dispute button on the trace and receipt view (merged)",
@@ -647,7 +656,7 @@
               "date": "2026-09-30"
             },
             {
-              "label": "AgentRegistry contract on Stellar Expert: all 25 registrations, 14 by team wallets and 11 by 7 outside operators",
+              "label": "AgentRegistry contract on Stellar Expert: every registration; at the 2026-10-01 count, 25 registrations, 14 by team wallets and 11 by 7 outside operators",
               "url": "https://stellar.expert/explorer/testnet/contract/CAPHXWU53UZUZJGV7IAE57NNMH3YYB5MTWO6YA53KKMXSFVLOITBJ3GQ",
               "kind": "contract"
             },
@@ -743,7 +752,7 @@
               "date": "2026-09-30"
             },
             {
-              "label": "AttestationRegistry contract on Stellar Expert: 8 pre-sprint seals, then the three team runs' seals of 2026-09-30",
+              "label": "AttestationRegistry contract on Stellar Expert: every seal, 8 of them from before the sprint; the three team runs below were sealed there on 2026-09-30",
               "url": "https://stellar.expert/explorer/testnet/contract/CBYUZKOET43UXTBXZUJIBBJW5ODGD2J2AZVVXCR3QONGOCAHOXQQHEGK",
               "kind": "contract"
             },
@@ -1355,7 +1364,7 @@
       "target": "≥ 1",
       "achieved": "1",
       "status": "met",
-      "reason": "Met on 1 refund, from the team's own test run of 2026-09-30: the platform upheld a dispute that the team's harness raised against a 0.01 XLM step paid by the team key GCNQA…A2GP to calculatorai, owned by the team's admin wallet. It wrote a dispute rating and paid the buyer 0.01 XLM back from the platform's signing key (see Deliverable 3). The ledger's lifetime dispute count is 1 across all agents. No dispute has been raised on an outside operator's work.",
+      "reason": "Met on 1 refund, from the team's own test run of 2026-09-30: the platform upheld a dispute that the team's harness raised against a 0.01 XLM step paid by the team key GCNQA…A2GP to calculatorai, owned by the team's admin wallet. It wrote a dispute rating and credited the buyer 0.01 XLM from the platform's signing key: the disputed step in full, which was the whole charge of that one-step run (see Deliverable 3). A credit is sized to the disputed step, up to its full charge, and no dispute has yet been credited for less than that. Partial delivery, where a run pays only for the steps that were delivered, is shown separately by the partial-delivery settlement linked below; it has no dispute behind it and is not counted here. At this measurement, 15:30 UTC on 2026-09-30, the ledger's lifetime dispute count was 1 across all agents. No dispute has been raised on an outside operator's work.",
       "method": "Read the dispute ratings the platform wrote to the ReputationLedger (from its keys' full transaction history) and traced each back, through the derived job id the backend records a dispute under, to the charge it disputes. A refund counts only when that charge counts and the platform then paid its payer back over the asset contract, no more than the charge. A transfer with no dispute behind it (such as a refund drill) does not count. The ledger's lifetime dispute count for every agent is read as a cross-check.",
       "links": [
         {
@@ -1378,10 +1387,17 @@
           "date": "2026-09-30"
         },
         {
-          "label": "Refund of 0.01 XLM to the payer of the disputed charge — 2026-09-30 (counted)",
+          "label": "Refund of 0.01 XLM to the payer of the disputed charge, the disputed step in full — 2026-09-30 (counted)",
           "url": "https://stellar.expert/explorer/testnet/tx/cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
           "kind": "tx",
           "tx_hash": "cb2c57929006470f9f554989dd8071e8539d245df529df956693944a78e1e25f",
+          "date": "2026-09-30"
+        },
+        {
+          "label": "Partial-delivery settlement on the v2 escrow: of a 0.21 XLM authorization, 0.01 XLM paid for the delivered step and 0.2 XLM returned to the buyer — 2026-09-30 (not counted: no dispute behind it)",
+          "url": "https://stellar.expert/explorer/testnet/tx/0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b",
+          "kind": "tx",
+          "tx_hash": "0ada07084b5aa1c196fb8e45b15d3712dcbefaf320a315a84e8cf2ab7adc556b",
           "date": "2026-09-30"
         }
       ]
@@ -1524,7 +1540,7 @@
       "target": "Yes",
       "achieved": "Yes",
       "status": "met",
-      "reason": "Met on 2026-09-30, when the first dispute was refunded on-chain (see the dispute refund row). That dispute is on the team's own test run.",
+      "reason": "Met on 2026-09-30, when the first dispute was refunded on-chain (see the dispute refund row): the platform credited the disputed 0.01 XLM step in full. The window, the credit and the negative rating are live. A credit is sized to the disputed step, up to its full charge, and no dispute has yet been credited for less than that. Partial delivery, where a run pays only for the steps that were delivered, is shown separately by the partial-delivery settlement under the dispute refund row. That dispute is on the team's own test run.",
       "method": "Checked that the live backend publishes the dispute routes (open, read, uphold, reject); that a dispute window can open at all, which needs a settled payment, and so the escrow v2 contract live; that its readiness report shows refunds switched on (disputes.reconcile.enabled, true only when refunds and the refund sweep are both on); and that at least one dispute has been refunded on-chain (the dispute refund row above). Yes when all hold, Partly when the routes are deployed but the rest does not, and No when the routes are not.",
       "links": [
         {

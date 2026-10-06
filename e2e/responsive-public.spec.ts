@@ -24,6 +24,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { WCAG_TAGS } from "./dispute-axe";
+import { entrancesSettled } from "./entrances-settled";
 import { mockApi } from "./mocks";
 import { motionSettled } from "./motion-settled";
 
@@ -61,15 +62,23 @@ async function open(page: Page, path: PublicPage): Promise<void> {
     }
     // A fast sweep can carry a short section past the screen between two
     // frames, so it never registers as seen; bring any such one into view.
-    const faded = Array.from(
-      document.querySelectorAll<HTMLElement>('[style*="opacity"]'),
-    ).filter((el) => el.style.opacity !== "" && el.style.opacity !== "1");
+    // The marketing sections reveal through a class (`.reveal`, shown once
+    // `data-revealed` is set); anything else fades through an inline style.
+    const faded = [
+      ...Array.from(
+        document.querySelectorAll<HTMLElement>(".reveal:not([data-revealed])"),
+      ),
+      ...Array.from(
+        document.querySelectorAll<HTMLElement>('[style*="opacity"]'),
+      ).filter((el) => el.style.opacity !== "" && el.style.opacity !== "1"),
+    ];
     for (const el of faded) {
       el.scrollIntoView({ block: "center" });
       await pause();
     }
     window.scrollTo(0, 0);
   });
+  await entrancesSettled(page);
   await motionSettled(page.locator("body"));
 }
 

@@ -17,7 +17,7 @@ import { screenDecomposeResponse } from "@/lib/guards";
 import type { DecomposeResponse, PlanFloorNotice } from "@/lib/types";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
-import { isFloorAction } from "./floor-notices";
+import { isFloorAction, isUnreachable } from "./floor-notices";
 
 afterEach(cleanup);
 
@@ -48,6 +48,13 @@ function screened(notices: Record<string, unknown>[]): DecomposeResponse {
 }
 
 const UNBOUND = { reason_code: "unbound_endpoint", lower_bound_bps: null };
+/** A bound agent whose endpoint failed its latest health check (D-084). Its
+ *  bound is null on purpose: no reputation verdict was taken. */
+const UNREACHABLE = {
+  reason_code: "unreachable_endpoint",
+  lower_bound_bps: null,
+  reason: "endpoint failed its latest health check",
+};
 
 describe("isFloorAction — one rule for both counts", () => {
   it.each([
@@ -56,6 +63,7 @@ describe("isFloorAction — one rule for both counts", () => {
     ["a reason code this build does not know", true],
     ["a legacy notice with no reason code", true],
     ["unbound_endpoint", false],
+    ["unreachable_endpoint", false],
   ] as const)("%s → %s", (name, expected) => {
     const over =
       name === "a reason code this build does not know"
@@ -99,6 +107,7 @@ describe("the floor summary and the exclusions panel agree", () => {
       1,
     ],
     ["an unbound agent alone", [wire("a", UNBOUND)], 0],
+    ["an unreachable agent alone", [wire("a", UNREACHABLE)], 0],
     [
       "every shape at once",
       [
@@ -109,6 +118,7 @@ describe("the floor summary and the exclusions panel agree", () => {
         wire("e", { kind: "delisted", reason_code: undefined }),
         wire("f", UNBOUND),
         wire("g", UNBOUND),
+        wire("h", UNREACHABLE),
       ],
       5,
     ],
@@ -174,4 +184,37 @@ it("screens every fixture notice through intact", () => {
     screened([wire("a", { reason_code: "quarantined" }), wire("b", UNBOUND)])
       .notices ?? [];
   expect(all).toHaveLength(2);
+});
+
+describe("isUnreachable — an endpoint that failed its health check", () => {
+  it.each([
+    ["unreachable_endpoint", true],
+    ["unbound_endpoint", false],
+    ["below_floor", false],
+  ] as const)("%s → %s", (code, expected) => {
+    const [n] = screened([wire("a", { reason_code: code })]).notices ?? [];
+    expect(isUnreachable(n)).toBe(expected);
+  });
+
+  it("is said apart in the summary, never as the floor acting", () => {
+    const plan = screened([wire("a"), wire("b", UNREACHABLE)]);
+    const { container } = render(<FloorSummary plan={plan} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("the floor acted on 1 agent");
+    expect(text).toContain(
+      "1 agent whose endpoint failed its latest health check was left out",
+    );
+  });
+
+  it("wears its own mark in the panel, with no numbers row", () => {
+    const plan = screened([wire("a", UNREACHABLE)]);
+    const { container } = render(<ExclusionsPanel plan={plan} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("unreachable");
+    expect(text).toContain("1 with an unreachable endpoint");
+    expect(text).not.toContain("none on record");
+    expect(text).not.toContain("lower bound");
+    expect(text).not.toContain("No reputation entry exists");
+    expect(text).not.toContain("The reputation floor acted on");
+  });
 });

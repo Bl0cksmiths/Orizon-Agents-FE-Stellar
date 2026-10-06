@@ -53,6 +53,7 @@ import {
   isAwaitingFreshRead,
   isFloorAction,
   isUnbound,
+  isUnreachable,
   knownKind,
 } from "./floor-notices";
 
@@ -100,6 +101,11 @@ export function FloorSummary({
   // never candidates, and have not failed or been judged on anything.
   const unbound = new Set(notices.filter(isUnbound).map((n) => n.agent_id))
     .size;
+  // Likewise apart: their endpoint failed its latest health check. Not a
+  // reputation verdict, and not the floor acting.
+  const unreachable = new Set(
+    notices.filter(isUnreachable).map((n) => n.agent_id),
+  ).size;
   // Agents the backend reported under a kind this build has no wording for.
   // Counted and pointed at rather than left out: the exclusions panel lists
   // them neutrally with the backend's own reason, and the counts here must
@@ -199,6 +205,10 @@ export function FloorSummary({
           (unbound === 1
             ? " · 1 agent with no endpoint bound was never a candidate"
             : ` · ${unbound} agents with no endpoint bound were never candidates`)}
+        {unreachable > 0 &&
+          (unreachable === 1
+            ? " · 1 agent whose endpoint failed its latest health check was left out"
+            : ` · ${unreachable} agents whose endpoints failed their latest health check were left out`)}
         {undescribed > 0 &&
           ` · ${undescribed === 1 ? "1 agent" : `${undescribed} agents`} reported under a kind this card has no wording for, listed below`}
         {hidden > 0 && ` · ${hiddenNoticesText(hidden)}`}

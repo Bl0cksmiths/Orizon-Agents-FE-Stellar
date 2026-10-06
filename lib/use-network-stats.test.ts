@@ -367,6 +367,52 @@ describe("loadNetworkStats — the registry sync", () => {
     expect(r.agents).toHaveBeenCalledTimes(2);
   });
 
+  it("on the derived path, never counts one cached copy read twice", async () => {
+    // The console's cache answered both reads with the same copy, dated by
+    // the one backend read behind it: a single sample, however far apart
+    // the two requests were.
+    const backendReadAt = clockMs - 60_000;
+    const r = readers({
+      agents: vi.fn(async () => ({
+        ...listed(agents),
+        readAt: backendReadAt,
+      })),
+    });
+    await loadNetworkStats(r);
+    clockMs += INTERIM_READ_GAP_MS;
+    const s = await loadNetworkStats(r);
+    expect(r.agents).toHaveBeenCalledTimes(2);
+    expect(s.syncing).toBe(true);
+    expect(s.registered).toMatchObject({ pending: true });
+  });
+
+  it("on the derived path, confirms across two cached copies the gap apart", async () => {
+    const reads = [clockMs - 1_000, clockMs - 1_000 + INTERIM_READ_GAP_MS];
+    let i = 0;
+    const r = readers({
+      agents: vi.fn(async () => ({
+        ...listed(agents),
+        readAt: reads[Math.min(i++, 1)],
+      })),
+    });
+    await loadNetworkStats(r);
+    clockMs += INTERIM_READ_GAP_MS;
+    const s = await loadNetworkStats(r);
+    expect(s.syncing).toBe(false);
+    expect(s.registered).toEqual({ ok: true, value: 2 });
+  });
+
+  it("on the derived path, dates the figures by the registry read", async () => {
+    const r = readers({
+      agents: vi.fn(async () => ({
+        ...listed(agents, "synced"),
+        readAt: clockMs - 90_000,
+      })),
+    });
+    const s = await loadNetworkStats(r);
+    expect(s.asOf).toBe(clockMs - 90_000);
+  });
+
   it("on the derived path, takes the agents header's word at once", async () => {
     const r = readers({ agents: vi.fn(async () => listed(agents, "synced")) });
     const s = await loadNetworkStats(r);

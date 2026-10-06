@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { after, test } from "node:test";
 
 const SCRIPT = fileURLToPath(new URL("./smoke-deploy.mjs", import.meta.url));
+const { PAGES } = await import("./smoke-deploy.mjs");
 
 /** @param {string} char */
 const id = (char) => `C${char.repeat(55)}`;
@@ -48,6 +49,12 @@ const NETWORK = Object.freeze({
   },
 });
 
+/** A page as the site serves it when nothing is wrong. */
+const page = (title) =>
+  Object.freeze({
+    html: `<!doctype html><html><head><title>${title}</title></head><body><main id="main"><h1>${title}</h1></main></body></html>`,
+  });
+
 /** Every route the smoke checks, answered healthily. */
 const HEALTHY = Object.freeze({
   "/api/health": { status: "ok" },
@@ -56,7 +63,14 @@ const HEALTHY = Object.freeze({
   "/api/metrics/overview": { agents_online: 3, throughput: [1, 2] },
   "/api/stellar/network": NETWORK,
   "/api/tasks": [],
+  ...Object.fromEntries(PAGES.map((path) => [path, page(`Orizon ${path}`)])),
 });
+
+/**
+ * The API checks, the contract parity and the escrow pin, then the pages and
+ * the home page's time budget.
+ */
+const TOTAL = 8 + PAGES.length + 1;
 
 const scratch = mkdtempSync(join(tmpdir(), "smoke-deploy-"));
 const books = join(scratch, "contracts");
@@ -77,7 +91,8 @@ after(() => {
 
 /**
  * A local origin answering `routes`; a path mapped to a number answers that
- * HTTP status with a small error body instead.
+ * HTTP status with a small error body instead, and one mapped to `{ html }`
+ * answers that page, `delayMs` late when it has one.
  * @param {Record<string, unknown>} routes
  * @returns {Promise<string>} the origin
  */
@@ -88,6 +103,13 @@ async function origin(routes) {
     if (typeof body === "number") {
       res.writeHead(body, { "content-type": "application/json" });
       res.end(JSON.stringify({ detail: "Not Found" }));
+      return;
+    }
+    if (typeof body?.html === "string") {
+      setTimeout(() => {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(body.html);
+      }, body.delayMs ?? 0);
       return;
     }
     res.writeHead(200, { "content-type": "application/json" });
@@ -125,7 +147,7 @@ function smoke(target, env = {}) {
 test("exits 0 when every check passes and the contracts match", async () => {
   const { code, out } = await smoke(await origin(HEALTHY));
   assert.equal(code, 0, out);
-  assert.match(out, /all 8 checks passed/);
+  assert.match(out, new RegExp(`all ${TOTAL} checks passed`));
   assert.match(out, /3 live contract ids match/);
   // An unset pin is pending, never a pass or a failure.
   assert.match(
@@ -188,7 +210,7 @@ test("exits 1 and names the proxy when a proxied route 404s", async () => {
     await origin({ ...HEALTHY, "/api/agents": 404 }),
   );
   assert.equal(code, 1, out);
-  assert.match(out, /1\/8 checks failed/);
+  assert.match(out, new RegExp(`1/${TOTAL} checks failed`));
   assert.match(out, /\/api\/agents → HTTP 404/);
   assert.match(out, /check NEXT_PUBLIC_API_BASE/);
 });
@@ -256,3 +278,165 @@ test("exits 1 when the backend reports a network other than the expected", async
   assert.equal(code, 1, out);
   assert.match(out, /expected network mainnet, got testnet/);
 });
+
+// The fault a reviewer saw: a page that renders the error boundary instead
+// of itself. The site still answers 200, so only the page's own words show
+// it — the boundary's copy, or the stable attribute every boundary carries.
+for (const [what, html] of [
+  [
+    "the root boundary's copy",
+    `<main id="main"><p>// system fault</p><h1>SYSTEM FAULT</h1></main>`,
+  ],
+  [
+    "the console boundary's copy",
+    `<div><p>// subsystem fault</p><h2>SUBSYSTEM FAULT</h2></div>`,
+  ],
+  [
+    "the boundary's attribute, whatever its copy",
+    `<main id="main" data-error-boundary="root"><h1>Something went wrong</h1></main>`,
+  ],
+]) {
+  test(`exits 1 when a page renders the error boundary: ${what}`, async () => {
+    const { code, out } = await smoke(
+      await origin({ ...HEALTHY, "/app/agents": { html } }),
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /✗ page \/app\/agents → renders the error boundary/);
+    assert.match(out, new RegExp(`1/${TOTAL} checks failed`));
+  });
+}
+
+test("passes a page that only mentions a system fault in its prose", async () => {
+  const { code, out } = await smoke(
+    await origin({
+      ...HEALTHY,
+      "/evidence": {
+        html: `<main id="main"><p>A reviewer saw a system fault on 2026-10-05.</p></main>`,
+      },
+    }),
+  );
+  assert.equal(code, 0, out);
+});
+
+test("exits 1 when a page does not answer 200", async () => {
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/evidence": 500 }),
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ page \/evidence → HTTP 500/);
+  // The API answered, so the proxy hint is not printed for a page.
+  assert.doesNotMatch(out, /NEXT_PUBLIC_API_BASE/);
+});
+
+test("opens every public page and console route", () => {
+  for (const path of ["/", "/evidence", "/demo", "/guide", "/litepaper"]) {
+    assert.ok(PAGES.includes(path), `${path} is a public page`);
+  }
+  for (const path of [
+    "/app",
+    "/app/agents",
+    "/app/orchestrator",
+    "/app/trace",
+  ]) {
+    assert.ok(PAGES.includes(path), `${path} is a console route`);
+  }
+});
+
+// A reviewer called the site slow to load. The home page is the page they
+// open first, so it is held to a time budget like any other check.
+test("exits 1 when the home page takes longer than its budget", async () => {
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/": { ...HEALTHY["/"], delayMs: 400 } }),
+    { SMOKE_HOME_BUDGET_MS: "150" },
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ home page budget → \d+ms, over the 150ms budget/);
+  assert.match(out, new RegExp(`1/${TOTAL} checks failed`));
+});
+
+test("passes a home page inside its budget, and says by how much", async () => {
+  const { code, out } = await smoke(await origin(HEALTHY));
+  assert.equal(code, 0, out);
+  assert.match(out, /✓ home page budget → \d+ms, within the 3000ms budget/);
+});
+
+test("exits 1 when the home page never answers, and still reports the budget", async () => {
+  const { code, out } = await smoke(await origin({ ...HEALTHY, "/": 503 }));
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ page \/ → HTTP 503/);
+  assert.match(out, /✗ home page budget → no page to time/);
+});
+
+// The browser pass. The fault a reviewer saw can happen after the HTML
+// arrives, once the page's own code runs; only a browser sees that. It is
+// opt-in because it needs Playwright, which smoke.yml does not install.
+
+test("exits 1 when the browser pass is asked for and Playwright is missing", async () => {
+  const { code, out } = await smoke(await origin(HEALTHY), {
+    SMOKE_BROWSER: "1",
+    SMOKE_PLAYWRIGHT_MODULES: "no-such-playwright",
+  });
+  assert.equal(code, 1, out);
+  assert.match(
+    out,
+    /✗ browser pass → Playwright could not be loaded \(tried no-such-playwright\)/,
+  );
+});
+
+test("says the browser pass did not run when it was not asked for", async () => {
+  const { code, out } = await smoke(await origin(HEALTHY));
+  assert.equal(code, 0, out);
+  assert.match(out, /browser pass → not requested \(SMOKE_BROWSER=1 runs it\)/);
+});
+
+const chromium = await import("playwright")
+  .then((m) => m.chromium)
+  .catch(() => null);
+
+/**
+ * A page whose HTML is healthy and whose script then renders `boundary`. The
+ * boundary travels base64-encoded, so the HTML the plain pass reads holds
+ * none of its words; only a browser running the script sees it.
+ */
+const faultsAfterLoad = (boundary) => ({
+  html: `<!doctype html><html><body><main id="main"><h1>Agents</h1></main><script>setTimeout(() => { document.body.innerHTML = atob("${Buffer.from(boundary).toString("base64")}"); }, 200);</script></body></html>`,
+});
+
+test(
+  "the browser pass fails a page that faults only after it loads",
+  { skip: chromium ? false : "Playwright is not installed here" },
+  async () => {
+    const { code, out } = await smoke(
+      await origin({
+        ...HEALTHY,
+        "/app/agents": faultsAfterLoad(
+          `<div data-error-boundary="console"><h2>Something broke</h2></div>`,
+        ),
+        "/demo": faultsAfterLoad(
+          `<main><p style="text-transform:uppercase">// system fault</p></main>`,
+        ),
+      }),
+      { SMOKE_BROWSER: "1", SMOKE_SETTLE_MS: "1000" },
+    );
+    assert.equal(code, 1, out);
+    // The HTML is healthy, so only the browser sees either fault.
+    assert.match(out, /✓ page \/app\/agents → 200/);
+    assert.match(
+      out,
+      /✗ browser \/app\/agents → renders the error boundary \("data-error-boundary"\)/,
+    );
+    assert.match(
+      out,
+      /✗ browser \/demo → renders the error boundary \("\/\/ SYSTEM FAULT"\)/,
+    );
+    assert.match(out, /✓ browser \/evidence → 200/);
+    assert.match(
+      out,
+      /✓ home page load budget → \d+ms, within the \d+ms budget/,
+    );
+    assert.match(
+      out,
+      new RegExp(`2/${TOTAL + PAGES.length + 1} checks failed`),
+    );
+  },
+);
