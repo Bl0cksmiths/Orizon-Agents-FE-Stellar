@@ -6,8 +6,8 @@
  * it — and a seal that failed says plainly that the payment stands.
  */
 
-import { NO_SEAL_SENTENCE, SEAL_LABEL, SEAL_SENTENCE } from "@/lib/seal-state";
-import type { SealState } from "@/lib/types";
+import { NO_SEAL_SENTENCE, sealWords } from "@/lib/seal-state";
+import type { SealKind, SealState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const GLYPH: Record<SealState, string> = {
@@ -26,8 +26,12 @@ const TONE: Record<SealState, string> = {
 
 export function SealStatus({
   seal,
+  kind,
   className,
 }: {
+  /** What the seal attests. `delivery_only` is worded with no payment and
+   *  no dispute; absent (an older backend) keeps the paid wording. */
+  kind?: SealKind | null;
   /** null: no seal was submitted. (Absent — an older backend — renders
    *  nothing: the caller keeps its own wording then.) */
   seal: SealState | null;
@@ -47,9 +51,11 @@ export function SealStatus({
     <div role="status" className={cn("space-y-1", className)}>
       <p className={cn("font-mono text-xs font-semibold", TONE[seal])}>
         <span aria-hidden="true">{GLYPH[seal]} </span>
-        {SEAL_LABEL[seal]}
+        {sealWords(seal, kind).label}
       </p>
-      <p className="text-xs leading-5 text-muted">{SEAL_SENTENCE[seal]}</p>
+      <p className="text-xs leading-5 text-muted">
+        {sealWords(seal, kind).sentence}
+      </p>
     </div>
   );
 }
