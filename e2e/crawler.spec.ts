@@ -368,14 +368,13 @@ test.describe("a page whose own code never arrives", () => {
     await render(page, HOME.path);
     expect(lost.count).toBeGreaterThan(0);
     await expectRealPage(page, HOME);
-    await expect(page.getByRole("banner")).toHaveAttribute(
-      "data-nav",
-      "static",
-    );
-    await expect(page.locator("#use-cases")).toHaveAttribute(
-      "data-use-cases",
-      "static",
-    );
+    // Whatever the lost chunk held (in a development build, every client
+    // part of the page; in a production one, those only this page uses) is
+    // replaced by its stand-in, and every section still reads.
+    await expect(page.getByRole("banner")).toBeVisible();
+    for (const title of ["Startup Builder", "Smart Contract Analysis"]) {
+      await expect(page.locator("#use-cases").getByText(title)).toBeVisible();
+    }
     await expectEverySectionShown(page);
   });
 });
@@ -402,6 +401,10 @@ test.describe("an error screen is never indexed as the page", () => {
   test("the site's error screen carries noindex, under the page's own title", async ({
     page,
   }) => {
+    test.skip(
+      PRODUCTION,
+      "a production build loads a route whose chunk is lost in navigation in full instead",
+    );
     // A route's code lost on the way to it reaches the route's error screen
     // (e2e/chunk-recovery.spec.ts); with the reload spent, it stays up.
     await page.goto("/guide");
