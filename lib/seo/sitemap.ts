@@ -86,7 +86,10 @@ export function demoLastmod(demo: PublishedDemo): string {
   const evidenceDay = new Date(demo.evidence.generated_at * 1000)
     .toISOString()
     .slice(0, 10);
-  return newestDay([...demo.parts.map((p) => p.published_at), evidenceDay])!;
+  return demo.parts.reduce(
+    (newest, part) => (part.published_at > newest ? part.published_at : newest),
+    evidenceDay,
+  );
 }
 
 /** Cut to `max` characters, ending on an ellipsis when anything was cut. */
