@@ -121,6 +121,13 @@ async function breakParts(page: Page, parts: FaultPoint[]) {
 
 const HOME = PUBLIC_PAGES[0];
 
+/** The development build's chunks for the two telemetry components. */
+const TELEMETRY_CHUNK =
+  /\/_next\/static\/chunks\/[^?]*vercel_(analytics|speed-insights)[^/?]*\.js/;
+/** The scripts they inject: Vercel's CDN in development, /_vercel/ live. */
+const TELEMETRY_SCRIPT =
+  /va\.vercel-scripts\.com\/|\/_vercel\/(insights|speed-insights)\//;
+
 test.describe("a part that fails stays local, and the page stays itself", () => {
   test("the wallet provider throwing leaves the page whole", async ({
     page,
@@ -133,5 +140,38 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
     await expect(
       page.getByRole("button", { name: "Connect Wallet" }),
     ).toHaveCount(0);
+  });
+
+  test("the analytics and speed insights code failing to load leaves the page whole", async ({
+    page,
+  }) => {
+    // Their components load in chunks of their own (components/telemetry.tsx),
+    // named after their packages in a development build.
+    const lost: string[] = [];
+    await page.route(TELEMETRY_CHUNK, async (route) => {
+      lost.push(route.request().url());
+      await route.fulfill({ status: 404, body: "Not Found" });
+    });
+    await render(page, HOME.path);
+    await expectRealPage(page, HOME);
+    expect(lost.some((u) => u.includes("vercel_analytics"))).toBe(true);
+    expect(lost.some((u) => u.includes("vercel_speed-insights"))).toBe(true);
+  });
+
+  test("the analytics scripts throwing leaves the page whole", async ({
+    page,
+  }) => {
+    let served = 0;
+    await page.route(TELEMETRY_SCRIPT, async (route) => {
+      served += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/javascript",
+        body: 'throw new Error("analytics script broke");',
+      });
+    });
+    await render(page, HOME.path);
+    await expectRealPage(page, HOME);
+    expect(served).toBeGreaterThan(0);
   });
 });
