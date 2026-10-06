@@ -918,15 +918,33 @@ export type SettlementStepView = {
    * this build does not know still reads as "not paid", never as paid.
    */
   unpaid_reason?: string | null;
-  // The pricing contract's exact figures, in integer stroops (a JSON integer
-  // or a digit string). OPTIONAL: a backend predating them sends the floats
-  // above alone, and the reconciliation converts those as the backend does.
-  /** What the plan priced this step at — what the buyer authorized for it. */
-  price_stroops?: number | string | null;
-  /** What the settlement paid this step's operator. */
-  paid_stroops?: number | string | null;
-  /** What of this step's price went back to the buyer. */
-  returned_stroops?: number | string | null;
+  // The step's money as the backend reconciles it (ADR 0015), each an exact
+  // amount. OPTIONAL: a backend predating them sends the floats above alone,
+  // and the reconciliation converts those as the backend does. Null where the
+  // record does not know the figure: `charged`/`returned` on a v1 settlement,
+  // which moved one total, and `planned` on a record too old to have kept it.
+  /** The plan's price for the step — what the buyer authorized for it. */
+  planned?: WireAmount | null;
+  /** What the settlement paid its operator (0 when it was not paid). */
+  charged?: WireAmount | null;
+  /** `planned − charged`: what went back to the buyer in the settle. */
+  returned?: WireAmount | null;
+};
+
+/** One exact amount on the wire (`money.Amount`): integer stroops, and the
+ *  backend's own display string of it. The page prints `stroops` through its
+ *  one formatter, which follows the same rule. */
+export type WireAmount = { stroops: number | string; display: string };
+
+/** A settlement's money in total (`SettlementTotals`): `charged + returned ==
+ *  authorized` exactly, and `surplus` is what was authorized above the plan's
+ *  total. Null where the record does not know the figure. */
+export type SettlementTotals = {
+  authorized: WireAmount | null;
+  planned: WireAmount | null;
+  charged: WireAmount;
+  returned: WireAmount | null;
+  surplus: WireAmount | null;
 };
 
 /** A workflow's settlement: what moved, who paid, and until when to dispute. */
@@ -951,15 +969,11 @@ export type SettlementView = {
    * claim about money the chain has not been read for.
    */
   returned_usdc?: number | null;
-  // The pricing contract's exact figures (integer stroops), all optional.
-  /** What the buyer's authorization moved into escrow (`max_amount`). */
-  authorized_stroops?: number | string | null;
-  /** What the settlement paid out in all: `settled_usdc`, exactly. */
-  settled_stroops?: number | string | null;
-  /** What went back to the payer in all: `returned_usdc`, exactly. */
-  returned_stroops?: number | string | null;
-  /** What every amount on the settlement is in. */
+  /** What every amount on the settlement is in. Absent from older
+   *  backends. */
   asset?: PlanAsset | null;
+  /** The run's money in total, reconciled. Absent from older backends. */
+  totals?: SettlementTotals | null;
 };
 
 /** One buyer's dispute of one settled step. */

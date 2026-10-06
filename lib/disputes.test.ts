@@ -2949,20 +2949,26 @@ describe("disputeView — escrow v2 settlement", () => {
 });
 
 describe("getTaskDisputes — the settlement's exact amounts", () => {
-  it("passes the stroops fields and the asset through", async () => {
+  const amt = (stroops: number | string) => ({ stroops, display: "x" });
+
+  it("passes the exact amounts, the totals and the asset through", async () => {
     const body = taskDisputes({
       settlement_state: "settled",
       settlement: settlement({
         steps: [
           step(0, {
-            price_stroops: 540_000,
-            paid_stroops: "540000",
-            returned_stroops: 0,
+            planned: amt(540_000),
+            charged: amt("540000"),
+            returned: amt(0),
           }),
         ],
-        authorized_stroops: 540_000,
-        settled_stroops: 540_000,
-        returned_stroops: 0,
+        totals: {
+          authorized: amt(540_000),
+          planned: amt(540_000),
+          charged: amt(540_000),
+          returned: amt(0),
+          surplus: amt(0),
+        },
         asset: { code: "XLM", issuer: null, decimals: 7 },
       }),
     });
@@ -2971,9 +2977,10 @@ describe("getTaskDisputes — the settlement's exact amounts", () => {
   });
 
   it.each([
-    ["a fractional price", { price_stroops: 1.5 }],
-    ["a negative charge", { paid_stroops: -1 }],
-    ["a return as a decimal string", { returned_stroops: "0.5" }],
+    ["a fractional price", { planned: amt(1.5) }],
+    ["a negative charge", { charged: amt(-1) }],
+    ["a return as a decimal string", { returned: amt("0.5") }],
+    ["an amount with no display", { planned: { stroops: 5 } }],
   ])("refuses a step carrying %s", async (_name, over) => {
     const body = taskDisputes({
       settlement: settlement({
@@ -2984,10 +2991,17 @@ describe("getTaskDisputes — the settlement's exact amounts", () => {
     await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
   });
 
+  const totals = {
+    authorized: amt(1),
+    planned: amt(1),
+    charged: amt(1),
+    returned: amt(0),
+    surplus: amt(0),
+  };
   it.each([
-    ["authorized", { authorized_stroops: -5 }],
-    ["settled", { settled_stroops: "x" }],
-    ["returned", { returned_stroops: 0.1 }],
+    ["authorized", { totals: { ...totals, authorized: amt(-5) } }],
+    ["charged", { totals: { ...totals, charged: null } }],
+    ["returned", { totals: { ...totals, returned: amt(0.1) } }],
     ["asset", { asset: "XLM" }],
   ])("refuses a malformed %s figure", async (_name, over) => {
     const body = taskDisputes({

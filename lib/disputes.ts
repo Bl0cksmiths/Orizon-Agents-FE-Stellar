@@ -209,9 +209,22 @@ const isNullableAmount = (v: unknown): v is number | null =>
 /** `delivered` strictly boolean: it decides whether a step can be disputed at
  * all, and the string "false" is truthy. Escrow v2's payout fields are
  * optional — a v1 backend sends neither — and typed whenever they are sent. */
-/** An exact amount in stroops (`parseStroops`), or an explicit null. */
-const isNullableStroops = (v: unknown): boolean =>
-  v === null || parseStroops(v) !== null;
+/** An exact amount (`money.Amount`) — whole, non-negative stroops and the
+ *  backend's display string — or an explicit null. */
+const isNullableWireAmount = (v: unknown): boolean =>
+  v === null ||
+  (isRecord(v) && parseStroops(v.stroops) !== null && isStr(v.display));
+
+/** The settlement's totals: `charged` always, the rest exact or null. */
+const isSettlementTotals = (v: unknown): boolean =>
+  v === null ||
+  (isRecord(v) &&
+    isRecord(v.charged) &&
+    isNullableWireAmount(v.charged) &&
+    isNullableWireAmount(v.authorized) &&
+    isNullableWireAmount(v.planned) &&
+    isNullableWireAmount(v.returned) &&
+    isNullableWireAmount(v.surplus));
 
 /** The settlement's asset: a code, an optional issuer and decimals. */
 const isNullableAsset = (v: unknown): boolean =>
@@ -236,9 +249,9 @@ function isSettlementStep(v: unknown): v is SettlementStepView {
     isAbsentOr(v.unpaid_reason, isNullableStr) &&
     // The exact figures, when sent, are whole stroops or nothing: a price
     // of 1.5 stroops is unprintable, and the step is refused with it.
-    isAbsentOr(v.price_stroops, isNullableStroops) &&
-    isAbsentOr(v.paid_stroops, isNullableStroops) &&
-    isAbsentOr(v.returned_stroops, isNullableStroops)
+    isAbsentOr(v.planned, isNullableWireAmount) &&
+    isAbsentOr(v.charged, isNullableWireAmount) &&
+    isAbsentOr(v.returned, isNullableWireAmount)
   );
 }
 
@@ -256,9 +269,7 @@ function isSettlement(v: unknown): v is SettlementView {
     v.steps.every(isSettlementStep) &&
     isCreditPolicy(v.policy) &&
     isAbsentOr(v.returned_usdc, isNullableAmount) &&
-    isAbsentOr(v.authorized_stroops, isNullableStroops) &&
-    isAbsentOr(v.settled_stroops, isNullableStroops) &&
-    isAbsentOr(v.returned_stroops, isNullableStroops) &&
+    isAbsentOr(v.totals, isSettlementTotals) &&
     isAbsentOr(v.asset, isNullableAsset)
   );
 }

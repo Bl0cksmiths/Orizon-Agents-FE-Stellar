@@ -13,7 +13,9 @@ import { reconcileSettlement } from "@/lib/reconcile";
 import type {
   SettlementState,
   SettlementStepView,
+  SettlementTotals,
   SettlementView,
+  WireAmount,
 } from "@/lib/types";
 import { AmountAssetProvider } from "./amount-asset";
 import { ReconciliationTable } from "./reconciliation";
@@ -36,6 +38,26 @@ const step = (
   ...over,
 });
 
+const amt = (stroops: number): WireAmount => ({ stroops, display: "—" });
+const money = (planned: number, charged: number, returned: number) => ({
+  planned: amt(planned),
+  charged: amt(charged),
+  returned: amt(returned),
+});
+const totals = (
+  authorized: number,
+  planned: number,
+  charged: number,
+  returned: number,
+  surplus: number,
+): SettlementTotals => ({
+  authorized: amt(authorized),
+  planned: amt(planned),
+  charged: amt(charged),
+  returned: amt(returned),
+  surplus: amt(surplus),
+});
+
 const settlement = (over: Partial<SettlementView> = {}): SettlementView => ({
   job_id_hex: "ab".repeat(16),
   payer: "GPAYER",
@@ -52,27 +74,19 @@ const settlement = (over: Partial<SettlementView> = {}): SettlementView => ({
   steps: [
     step(0, {
       agent_name: "research.pro",
-      price_stroops: 240_000,
-      paid_stroops: 240_000,
-      returned_stroops: 0,
+      ...money(240_000, 240_000, 0),
     }),
     step(1, {
       agent_name: "copywrite.v3",
       delivered: false,
-      price_stroops: 123_457,
-      paid_stroops: 0,
-      returned_stroops: 123_457,
+      ...money(123_457, 0, 123_457),
     }),
     step(2, {
       agent_name: "code.gen",
-      price_stroops: 540_000,
-      paid_stroops: 540_000,
-      returned_stroops: 0,
+      ...money(540_000, 540_000, 0),
     }),
   ],
-  authorized_stroops: 903_457,
-  settled_stroops: 780_000,
-  returned_stroops: 123_457,
+  totals: totals(903_457, 903_457, 780_000, 123_457, 0),
   ...over,
 });
 
@@ -147,7 +161,9 @@ describe("ReconciliationTable", () => {
   });
 
   it("says plainly when the figures do not add up", () => {
-    const { container } = show(settlement({ settled_stroops: 780_001 }));
+    const { container } = show(
+      settlement({ totals: totals(903_457, 903_457, 780_001, 123_456, 0) }),
+    );
     const alert = screen.getByRole("alert");
     expect(alert.textContent).toContain("These figures do not add up");
     expect(alert.textContent).toContain(
@@ -176,12 +192,8 @@ describe("ReconciliationTable", () => {
   it("names the authorization's headroom the escrow also returned", () => {
     const { container } = show(
       settlement({
-        steps: [
-          step(0, { price_stroops: 0, paid_stroops: 0, returned_stroops: 0 }),
-        ],
-        authorized_stroops: 10_000,
-        settled_stroops: 0,
-        returned_stroops: 10_000,
+        steps: [step(0, money(0, 0, 0))],
+        totals: totals(10_000, 0, 0, 10_000, 10_000),
       }),
     );
     expect(container.textContent).toContain(

@@ -10,9 +10,9 @@
  * carries any authorization above the plan's price (the minimum cap a
  * zero-priced plan signs), shown as the authorization's headroom.
  *
- * Read from the backend's integer `*_stroops` fields where it sends them,
- * and otherwise from the legacy floats, converted exactly as the backend
- * converts them. A figure the record does not establish is null — shown as
+ * Read from the backend's exact amounts (`planned`, `charged`, `returned`
+ * per step and the settlement's `totals`) where it sends them, and otherwise
+ * from the legacy floats, converted exactly as the backend converts them. A figure the record does not establish is null — shown as
  * not known — never a guessed zero: an unconfirmed settlement has charged
  * nothing yet and returned nothing yet, and a failed one still holds the
  * custody.
@@ -28,6 +28,7 @@ import type {
   SettlementState,
   SettlementStepView,
   SettlementView,
+  WireAmount,
 } from "./types";
 
 export type ReconRow = {
@@ -35,23 +36,25 @@ export type ReconRow = {
   stepIndex: number;
   agent: string;
   delivered: boolean;
-  planned: bigint;
+  /** Null on a record too old to have kept the plan's price for it. */
+  planned: bigint | null;
   /** Null while not established (unconfirmed, or a payout not reported). */
   charged: bigint | null;
   /** Null while not established, and while a failed settlement holds it. */
   returned: bigint | null;
-  /** `charged + returned === planned`; null while either is unknown. */
+  /** `charged + returned === planned`; null while any is unknown. */
   balanced: boolean | null;
 };
 
 export type Reconciliation = {
   rows: ReconRow[];
-  planned: bigint;
+  planned: bigint | null;
   charged: bigint | null;
   returned: bigint | null;
   /** What the authorization moved into escrow, when the backend says. */
   authorized: bigint | null;
-  /** What the escrow returned beyond the steps' own returns. */
+  /** What the escrow returned beyond the steps' own returns: the part of
+   *  the authorization above the plan's price (`totals.surplus`). */
   headroom: bigint | null;
   /** Every check passed; false with `issues` when one failed; null while
    *  the figures are not all known. */
@@ -60,7 +63,7 @@ export type Reconciliation = {
   issues: string[];
   /** A failed settlement: the custody is still held in escrow. */
   held: boolean;
-  /** Every figure came from the exact `*_stroops` fields. */
+  /** Every figure came from the backend's exact amounts. */
   exact: boolean;
   /** The settlement's own asset, when it names one. */
   asset: PlanAsset | null;
@@ -72,24 +75,47 @@ export type Reconciliation = {
 const fromUnits = (v: number | null | undefined): bigint | null =>
   typeof v === "number" ? unitsToStroops(v) : null;
 
-/** What the settlement paid this step, or null where it does not say. */
-function paidOf(step: SettlementStepView): bigint | null {
-  return parseStroops(step.paid_stroops) ?? fromUnits(step.paid_usdc);
+/** An exact wire amount's stroops, or null. */
+const exactOf = (a: WireAmount | null | undefined): bigint | null =>
+  a ? parseStroops(a.stroops) : null;
+
+/** Whether the backend sent the step's exact field at all (null included:
+ *  a null it sent is its word that the figure is not known). */
+const sent = (
+  step: SettlementStepView,
+  key: "planned" | "charged" | "returned",
+) => step[key] !== undefined;
+
+/**
+ * The plan's price for a step. The exact `planned` when the backend sends it;
+ * otherwise as the backend itself reads an older record: `price_usdc` is the
+ * plan's price, except on a delivered v2 step that was paid nothing, where it
+ * is the 0.0 credit basis — and that price is unknown, never a guessed zero.
+ */
+function plannedOf(step: SettlementStepView): bigint | null {
+  if (sent(step, "planned")) return exactOf(step.planned);
+  const paidNothingDelivered =
+    step.paid_usdc !== undefined &&
+    step.paid_usdc !== null &&
+    step.delivered &&
+    step.unpaid_reason != null;
+  return paidNothingDelivered ? null : fromUnits(step.price_usdc);
+}
+
+/** What the settlement paid the step, or null where it does not say. */
+function chargedOf(step: SettlementStepView): bigint | null {
+  return sent(step, "charged")
+    ? exactOf(step.charged)
+    : fromUnits(step.paid_usdc);
 }
 
 /** Whether the record is escrow v2's: it reports per-step payouts or the
- *  exact figures. A v1 settlement charged one total and holds no custody,
+ *  run's totals. A v1 settlement charged one total and holds no custody,
  *  so it has nothing to reconcile step by step. */
 function isPerStep(s: SettlementView): boolean {
   return (
-    s.steps.some(
-      (x) =>
-        (x.paid_usdc !== undefined && x.paid_usdc !== null) ||
-        parseStroops(x.paid_stroops) !== null ||
-        parseStroops(x.returned_stroops) !== null,
-    ) ||
-    parseStroops(s.authorized_stroops) !== null ||
-    parseStroops(s.returned_stroops) !== null
+    s.steps.some((x) => chargedOf(x) !== null) ||
+    exactOf(s.totals?.authorized) !== null
   );
 }
 
@@ -106,13 +132,10 @@ export function reconcileSettlement(
   // A backend with no state wrote this record only for a confirmed charge.
   const phase = state ?? "settled";
 
-  let exact = true;
   const rows: ReconRow[] = [...settlement.steps]
     .sort((a, b) => a.step_index - b.step_index)
     .map((step) => {
-      const exactPrice = parseStroops(step.price_stroops);
-      if (exactPrice === null) exact = false;
-      const planned = exactPrice ?? fromUnits(step.price_usdc) ?? 0n;
+      const planned = plannedOf(step);
       let charged: bigint | null;
       let returned: bigint | null;
       switch (phase) {
@@ -129,15 +152,14 @@ export function reconcileSettlement(
           charged = 0n;
           returned = planned;
           break;
-        case "settled": {
-          charged = paidOf(step);
-          const exactReturn = parseStroops(step.returned_stroops);
-          if (parseStroops(step.paid_stroops) === null || exactReturn === null)
-            exact = false;
-          returned =
-            exactReturn ?? (charged === null ? null : planned - charged);
+        case "settled":
+          charged = chargedOf(step);
+          returned = sent(step, "returned")
+            ? exactOf(step.returned)
+            : planned === null || charged === null
+              ? null
+              : planned - charged;
           break;
-        }
       }
       return {
         stepIndex: step.step_index,
@@ -147,59 +169,76 @@ export function reconcileSettlement(
         charged,
         returned,
         balanced:
-          charged === null || returned === null
+          planned === null || charged === null || returned === null
             ? null
             : charged >= 0n && returned >= 0n && charged + returned === planned,
       };
     });
 
-  const planned = rows.reduce((a, r) => a + r.planned, 0n);
+  const planned = sum(rows.map((r) => r.planned));
   const charged = sum(rows.map((r) => r.charged));
   const returned = sum(rows.map((r) => r.returned));
-  const authorized = parseStroops(settlement.authorized_stroops);
+  const totals = settlement.totals ?? null;
+  const authorized = exactOf(totals?.authorized);
+  const reportedPlanned = exactOf(totals?.planned);
   const reportedCharged =
-    parseStroops(settlement.settled_stroops) ??
-    fromUnits(settlement.settled_usdc);
+    exactOf(totals?.charged) ?? fromUnits(settlement.settled_usdc);
   const reportedReturned =
-    parseStroops(settlement.returned_stroops) ??
-    fromUnits(settlement.returned_usdc);
+    exactOf(totals?.returned) ?? fromUnits(settlement.returned_usdc);
+  const surplus = exactOf(totals?.surplus);
 
   const issues: string[] = [];
   for (const r of rows) {
     if (r.balanced === false)
       issues.push(`step ${r.stepIndex + 1}: charged + returned ≠ planned`);
   }
+  if (
+    planned !== null &&
+    reportedPlanned !== null &&
+    planned !== reportedPlanned
+  )
+    issues.push("the steps' prices do not sum to the planned total");
   if (phase === "settled" && charged !== null && reportedCharged !== null) {
     if (charged !== reportedCharged)
       issues.push("the steps' charges do not sum to the settlement's total");
   }
-  let headroom: bigint | null = null;
+  let headroom: bigint | null = surplus;
   if (returned !== null && reportedReturned !== null && phase !== "failed") {
-    headroom = reportedReturned - returned;
-    if (headroom < 0n)
+    const beyond = reportedReturned - returned;
+    if (beyond < 0n)
       issues.push("the escrow returned less than the steps' returns");
+    else if (surplus !== null && beyond !== surplus)
+      issues.push(
+        "the return beyond the steps is not the authorization's surplus",
+      );
+    headroom = headroom ?? (beyond >= 0n ? beyond : null);
   }
   if (
     authorized !== null &&
-    charged !== null &&
+    reportedCharged !== null &&
     reportedReturned !== null &&
-    phase !== "failed" &&
-    authorized !== charged + reportedReturned
+    phase === "settled" &&
+    authorized !== reportedCharged + reportedReturned
   ) {
     issues.push("charged + returned ≠ authorized");
   }
-  if (authorized !== null && authorized < planned) {
+  if (authorized !== null && planned !== null && authorized < planned) {
     issues.push("the authorization is smaller than the plan");
   }
 
-  const known = charged !== null && returned !== null;
+  const known = planned !== null && charged !== null && returned !== null;
+  const exact =
+    totals !== null &&
+    settlement.steps.every(
+      (x) => sent(x, "planned") && sent(x, "charged") && sent(x, "returned"),
+    );
   return {
     rows,
     planned,
     charged,
     returned,
     authorized,
-    headroom: headroom !== null && headroom >= 0n ? headroom : null,
+    headroom,
     balanced: issues.length > 0 ? false : known ? true : null,
     issues,
     held: phase === "failed",

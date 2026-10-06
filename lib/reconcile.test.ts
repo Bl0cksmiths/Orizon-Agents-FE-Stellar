@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { reconcileSettlement } from "./reconcile";
-import type { SettlementStepView, SettlementView } from "./types";
+import type {
+  SettlementStepView,
+  SettlementTotals,
+  SettlementView,
+  WireAmount,
+} from "./types";
+
+const amt = (stroops: number | string): WireAmount => ({
+  stroops,
+  display: "—",
+});
 
 const step = (
   i: number,
@@ -15,6 +25,31 @@ const step = (
   creditable_usdc: 0,
   output_summary: null,
   ...over,
+});
+
+/** A step as the pricing contract sends it: exact planned/charged/returned. */
+const exactStep = (
+  i: number,
+  planned: number | string,
+  charged: number | string,
+  returned: number | string,
+  over: Partial<SettlementStepView> = {},
+) =>
+  step(i, {
+    planned: amt(planned),
+    charged: amt(charged),
+    returned: amt(returned),
+    ...over,
+  });
+
+const totals = (
+  t: Record<keyof SettlementTotals, number | string | null>,
+): SettlementTotals => ({
+  authorized: t.authorized === null ? null : amt(t.authorized),
+  planned: t.planned === null ? null : amt(t.planned),
+  charged: amt(t.charged ?? 0),
+  returned: t.returned === null ? null : amt(t.returned),
+  surplus: t.surplus === null ? null : amt(t.surplus),
 });
 
 const settlement = (over: Partial<SettlementView> = {}): SettlementView => ({
@@ -38,26 +73,17 @@ const settlement = (over: Partial<SettlementView> = {}): SettlementView => ({
  *  undelivered, the first a platform agent nobody could pay. */
 const exact = settlement({
   steps: [
-    step(0, {
-      price_stroops: 90_000,
-      paid_stroops: 0,
-      returned_stroops: 90_000,
-    }),
-    step(1, {
-      delivered: false,
-      price_stroops: 120_000,
-      paid_stroops: 0,
-      returned_stroops: 120_000,
-    }),
-    step(2, {
-      price_stroops: 540_000,
-      paid_stroops: 540_000,
-      returned_stroops: 0,
-    }),
+    exactStep(0, 90_000, 0, 90_000),
+    exactStep(1, 120_000, 0, 120_000, { delivered: false }),
+    exactStep(2, 540_000, 540_000, 0),
   ],
-  authorized_stroops: 750_000,
-  settled_stroops: 540_000,
-  returned_stroops: 210_000,
+  totals: totals({
+    authorized: 750_000,
+    planned: 750_000,
+    charged: 540_000,
+    returned: 210_000,
+    surplus: 0,
+  }),
   settled_usdc: 0.054,
   asset: { code: "XLM", issuer: null, decimals: 7 },
 });
@@ -90,19 +116,16 @@ describe("reconcileSettlement — a settlement on the pricing contract", () => {
 
   it("flags a step whose charge and return do not make its price", () => {
     const off = reconcileSettlement(
-      {
-        ...exact,
-        steps: [
-          step(0, {
-            price_stroops: 100,
-            paid_stroops: 60,
-            returned_stroops: 39,
-          }),
-        ],
-        authorized_stroops: 100,
-        settled_stroops: 60,
-        returned_stroops: 39,
-      },
+      settlement({
+        steps: [exactStep(0, 100, 60, 39)],
+        totals: totals({
+          authorized: 100,
+          planned: 100,
+          charged: 60,
+          returned: 40,
+          surplus: 0,
+        }),
+      }),
       "settled",
     );
     expect(off?.balanced).toBe(false);
@@ -112,54 +135,95 @@ describe("reconcileSettlement — a settlement on the pricing contract", () => {
 
   it("flags totals that disagree with the settlement's own", () => {
     const off = reconcileSettlement(
-      { ...exact, settled_stroops: 540_001 },
+      {
+        ...exact,
+        totals: { ...exact.totals!, charged: amt(540_001) },
+      },
       "settled",
     );
     expect(off?.balanced).toBe(false);
     expect(off?.issues).toContain(
       "the steps' charges do not sum to the settlement's total",
     );
+    expect(off?.issues).toContain("charged + returned ≠ authorized");
   });
 
-  it("shows a return above the steps' prices as the authorization's headroom", () => {
+  it("shows the authorization's surplus the escrow also returned", () => {
     // A plan priced at zero still authorizes the minimum cap: the escrow
     // returns all of it, and that is more than the steps' returns.
     const r0 = reconcileSettlement(
-      {
-        ...exact,
-        steps: [
-          step(0, { price_stroops: 0, paid_stroops: 0, returned_stroops: 0 }),
-        ],
-        authorized_stroops: 10_000,
-        settled_stroops: 0,
-        returned_stroops: 10_000,
-      },
+      settlement({
+        steps: [exactStep(0, 0, 0, 0)],
+        totals: totals({
+          authorized: 10_000,
+          planned: 0,
+          charged: 0,
+          returned: 10_000,
+          surplus: 10_000,
+        }),
+      }),
       "settled",
     );
     expect(r0?.headroom).toBe(10_000n);
     expect(r0?.balanced).toBe(true);
   });
 
+  it("flags a surplus that is not what the escrow returned beyond the steps", () => {
+    const off = reconcileSettlement(
+      settlement({
+        steps: [exactStep(0, 0, 0, 0)],
+        totals: totals({
+          authorized: 10_000,
+          planned: 0,
+          charged: 0,
+          returned: 10_000,
+          surplus: 9_999,
+        }),
+      }),
+      "settled",
+    );
+    expect(off?.balanced).toBe(false);
+  });
+
   it("handles amounts past 2^53 exactly", () => {
     const big = "90071992547409930001";
     const r1 = reconcileSettlement(
-      {
-        ...exact,
-        steps: [
-          step(0, {
-            price_stroops: big,
-            paid_stroops: big,
-            returned_stroops: 0,
-          }),
-        ],
-        authorized_stroops: big,
-        settled_stroops: big,
-        returned_stroops: 0,
-      },
+      settlement({
+        steps: [exactStep(0, big, big, 0)],
+        totals: totals({
+          authorized: big,
+          planned: big,
+          charged: big,
+          returned: 0,
+          surplus: 0,
+        }),
+      }),
       "settled",
     );
     expect(r1?.charged).toBe(90_071_992_547_409_930_001n);
     expect(r1?.balanced).toBe(true);
+  });
+
+  it("leaves a price the record did not keep unknown, never zero", () => {
+    const r2 = reconcileSettlement(
+      settlement({
+        steps: [
+          step(0, { planned: null, charged: amt(0), returned: null }),
+          exactStep(1, 540_000, 540_000, 0),
+        ],
+        totals: totals({
+          authorized: null,
+          planned: null,
+          charged: 540_000,
+          returned: null,
+          surplus: null,
+        }),
+      }),
+      "settled",
+    );
+    expect(r2?.rows[0].planned).toBeNull();
+    expect(r2?.planned).toBeNull();
+    expect(r2?.balanced).toBeNull();
   });
 });
 
@@ -168,11 +232,7 @@ describe("reconcileSettlement — an older backend", () => {
   // and each step's return is its price less its payout.
   const legacy = settlement({
     steps: [
-      step(0, {
-        price_usdc: 0.009,
-        paid_usdc: 0,
-        unpaid_reason: "no_onchain_owner",
-      }),
+      step(0, { price_usdc: 0.009, paid_usdc: 0 }),
       step(1, { price_usdc: 0.054, paid_usdc: 0.054 }),
       step(2, { delivered: false, price_usdc: 0.014, paid_usdc: 0 }),
     ],
@@ -190,6 +250,25 @@ describe("reconcileSettlement — an older backend", () => {
     expect(r?.exact).toBe(false);
   });
 
+  // The backend's own rule: a delivered step paid nothing for a named reason
+  // kept no plan price on an old record (its price_usdc is the 0.0 credit
+  // basis), so its price is unknown.
+  it("does not read a paid-nothing step's credit basis as its price", () => {
+    const r = reconcileSettlement(
+      settlement({
+        steps: [
+          step(0, {
+            price_usdc: 0,
+            paid_usdc: 0,
+            unpaid_reason: "no_onchain_owner",
+          }),
+        ],
+      }),
+      "settled",
+    );
+    expect(r?.rows[0].planned).toBeNull();
+  });
+
   it("is not drawn for a v1 settlement, which reports no payouts", () => {
     const v1 = settlement({ steps: [step(0, { price_usdc: 0.054 })] });
     expect(reconcileSettlement(v1, "settled")).toBeNull();
@@ -202,8 +281,8 @@ describe("reconcileSettlement — by settlement state", () => {
     const r = reconcileSettlement(
       settlement({
         steps: [
-          step(0, { price_stroops: 5, delivered: false }),
-          step(1, { price_stroops: 7, delivered: false }),
+          step(0, { planned: amt(5), delivered: false }),
+          step(1, { planned: amt(7), delivered: false }),
         ],
       }),
       "released",

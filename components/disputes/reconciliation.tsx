@@ -27,11 +27,19 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
   const decimals = recon.asset?.decimals ?? undefined;
   const figure = (v: bigint) => stroopsToDecimal(v, decimals);
   const amount = (v: bigint) => formatStroops(v, asset);
-  // What a cell says when the record does not establish a figure: pending
-  // while the settlement is unconfirmed, held while a failed one keeps it.
-  const unknown = (column: "charged" | "returned") =>
-    recon.held && column === "returned" ? "held" : "pending";
-  const cell = (v: bigint | null, column: "charged" | "returned") =>
+  // What a cell says when the record does not establish a figure: a price
+  // too old to have been kept, a return a failed settlement still holds, or
+  // anything else not confirmed yet.
+  const unknown = (column: "planned" | "charged" | "returned") =>
+    column === "planned"
+      ? "not recorded"
+      : recon.held && column === "returned"
+        ? "held"
+        : "pending";
+  const cell = (
+    v: bigint | null,
+    column: "planned" | "charged" | "returned",
+  ) =>
     v === null ? (
       <span className="text-muted">{unknown(column)}</span>
     ) : (
@@ -98,7 +106,7 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
                     <span className="text-muted"> · not delivered</span>
                   )}
                 </th>
-                <td className={num}>{figure(r.planned)}</td>
+                <td className={num}>{cell(r.planned, "planned")}</td>
                 <td className={num}>{cell(r.charged, "charged")}</td>
                 <td className={num}>{cell(r.returned, "returned")}</td>
               </tr>
@@ -109,7 +117,7 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
               <th scope="row" className="px-2 py-2 text-left">
                 Total
               </th>
-              <td className={num}>{figure(recon.planned)}</td>
+              <td className={num}>{cell(recon.planned, "planned")}</td>
               <td className={num}>{cell(recon.charged, "charged")}</td>
               <td className={num}>{cell(recon.returned, "returned")}</td>
             </tr>
