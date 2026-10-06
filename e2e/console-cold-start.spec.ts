@@ -122,6 +122,51 @@ test.describe("a backend that is asleep", () => {
   });
 });
 
+test.describe("a report the backend is still building", () => {
+  test("the ecosystem page says it is building, honours Retry-After, then shows the report", async ({
+    page,
+  }) => {
+    await mockApi(page, { adoption: mockAdoptionWithOperator });
+    // Building for the first two seconds — by the clock, since a dev build
+    // mounts the page twice and the two first reads may arrive in any order.
+    let firstAt: number | null = null;
+    const askedAt: number[] = [];
+    await page.route(byPath("/api/ecosystem/adoption"), (route) => {
+      const now = Date.now();
+      firstAt ??= now;
+      askedAt.push(now);
+      return now - firstAt < 2_000
+        ? route.fulfill({
+            status: 202,
+            contentType: "application/json",
+            headers: { "retry-after": "3", "cache-control": "no-store" },
+            body: JSON.stringify({
+              status: "computing",
+              message: "The adoption report is being computed.",
+              retry_after_seconds: 3,
+            }),
+          })
+        : route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify(mockAdoptionWithOperator),
+          });
+    });
+    await page.goto("/app/ecosystem");
+    await expect(page.getByText(/Building the adoption report…/)).toBeVisible({
+      timeout: 1_000,
+    });
+    await expect(page.getByText(/checks again in 3 s/)).toBeVisible();
+    await expect(alerts(page)).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "SOW §6.3 targets" }),
+    ).toBeVisible({ timeout: 10_000 });
+    // The Retry-After was honoured: the read that brought the report came
+    // three seconds after the one that was told to wait.
+    const last = askedAt[askedAt.length - 1];
+    expect(last - (firstAt ?? last)).toBeGreaterThanOrEqual(2_900);
+  });
+});
+
 test.describe("a backend that is slow", () => {
   test("the overview shows its skeleton and status at once, then the figures", async ({
     page,
