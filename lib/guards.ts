@@ -30,6 +30,7 @@ import type {
   PlanGuardResult,
   PlanModels,
   PlanSpec,
+  PlanStage,
   PlanStep,
   ReputationBatch,
   ReputationInfo,
@@ -433,21 +434,32 @@ function isPlanModels(v: unknown): v is PlanModels {
     isRecord(v) &&
     isOptionalStr(v.planner) &&
     isOptionalStr(v.improver) &&
-    isOptionalStr(v.guard)
+    isOptionalStr(v.guard) &&
+    // Each tier's model labels a step, so all three are strings or none is.
+    (v.tiers === undefined ||
+      v.tiers === null ||
+      (isRecord(v.tiers) &&
+        isStr(v.tiers.low) &&
+        isStr(v.tiers.moderate) &&
+        isStr(v.tiers.complex)))
   );
 }
+
+const isPlanStage = (v: unknown): v is PlanStage =>
+  isRecord(v) && isStr(v.stage) && isStr(v.msg);
 
 /** Everything about a plan except the parts screened one by one below: the
  * notice items, and orchestrator v2's account of how the plan was made. */
 type PlanShell = Omit<
   DecomposeResponse,
-  "notices" | "tier" | "understood_as" | "guard" | "models"
+  "notices" | "tier" | "understood_as" | "guard" | "models" | "stages"
 > & {
   notices?: unknown;
   tier?: unknown;
   understood_as?: unknown;
   guard?: unknown;
   models?: unknown;
+  stages?: unknown;
 };
 
 /**
@@ -459,7 +471,9 @@ type PlanShell = Omit<
  * the request as written, which is not the same as not saying.
  */
 function screenProvenance(v: PlanShell): {
-  [K in "tier" | "understood_as" | "guard" | "models"]: DecomposeResponse[K];
+  [
+    K in "tier" | "understood_as" | "guard" | "models" | "stages"
+  ]: DecomposeResponse[K];
 } {
   return {
     tier: isOptionalStr(v.tier) ? v.tier : undefined,
@@ -471,6 +485,8 @@ function screenProvenance(v: PlanShell): {
           : undefined,
     guard: isPlanGuardResult(v.guard) ? v.guard : undefined,
     models: isPlanModels(v.models) ? v.models : undefined,
+    // Item by item, as notices are: an unusable line is dropped, never the rest.
+    stages: Array.isArray(v.stages) ? v.stages.filter(isPlanStage) : undefined,
   };
 }
 
