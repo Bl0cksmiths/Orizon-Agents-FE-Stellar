@@ -31,6 +31,7 @@ import {
   type FriendlyError,
 } from "@/lib/wallet-errors";
 import { installWalletPickerA11y } from "@/lib/wallet-picker-a11y";
+import { faultPoint } from "@/lib/fault-injection";
 
 import { HORIZON_URL, NETWORK_NAME, NETWORK_PASSPHRASE } from "@/lib/env";
 
@@ -270,6 +271,7 @@ function withDeadline<T>(
 }
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  faultPoint("wallet");
   const installed = true; // kit modal handles the "no wallet" state inline
   const [address, setAddress] = useState<string | null>(null);
   const [walletId, setWalletId] = useState<string | null>(null);
