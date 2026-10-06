@@ -8,7 +8,8 @@ import {
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
-import { WalletProvider } from "@/lib/wallet";
+import { Isolate } from "@/components/isolate";
+import { WalletProvider, WalletUnavailable } from "@/lib/wallet";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -89,8 +90,16 @@ export default function RootLayout({
           Skip to content
         </a>
         {/* At the root because the public nav's Connect Wallet reads it too;
-            the wallet kit itself loads only on connect (lib/wallet.tsx). */}
-        <WalletProvider>{children}</WalletProvider>
+            the wallet kit itself loads only on connect (lib/wallet.tsx).
+            Isolated: if the provider fails, the page renders under the
+            unavailable stand-in instead of the whole document becoming
+            app/global-error.tsx. */}
+        <Isolate
+          name="wallet"
+          fallback={<WalletUnavailable>{children}</WalletUnavailable>}
+        >
+          <WalletProvider>{children}</WalletProvider>
+        </Isolate>
         <Analytics />
         <SpeedInsights />
       </body>
