@@ -571,6 +571,37 @@ describe("EcosystemPage — states", () => {
     );
   });
 
+  const BUILDING = Object.assign(
+    new Error(
+      "GET /ecosystem/adoption → 202 — the adoption report is still being built",
+    ),
+    { status: 202, retryAfterMs: 30_000 },
+  );
+
+  it("says the report is being built, not that it failed", async () => {
+    getEcosystemAdoption.mockRejectedValue(BUILDING);
+    render(<EcosystemPage />);
+    const status = await screen.findByText(/Building the adoption report…/);
+    expect(status.closest('[role="status"]')).not.toBeNull();
+    expect(text(document.body)).toMatch(/checks again in 30 s/);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(text(document.body)).not.toContain("No external operators");
+  });
+
+  it("builds beside the last snapshot when it has one", async () => {
+    saveAdoptionSnapshot(zero());
+    getEcosystemAdoption.mockRejectedValue(BUILDING);
+    render(<EcosystemPage />);
+    await screen.findByText(/Building the adoption report…/);
+    expect(text(document.body)).toContain(
+      "Showing the last snapshot this browser saved",
+    );
+    expect(
+      screen.getByRole("heading", { name: "SOW §6.3 targets" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("replaces the snapshot with the live read once it lands", async () => {
     saveAdoptionSnapshot(zero());
     getEcosystemAdoption.mockResolvedValue(zero());
