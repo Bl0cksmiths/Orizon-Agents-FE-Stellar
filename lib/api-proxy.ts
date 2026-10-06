@@ -91,8 +91,13 @@ export type Copy = {
   /** The body exactly as the backend sent it. */
   text: string;
   value: unknown;
-  /** Epoch ms the read completed. */
+  /** Epoch ms the read completed — what this proxy's freshness runs on. */
   readAt: number;
+  /** Epoch ms the data itself dates from: the read, less the backend's own
+   * `X-Snapshot-Age` when it serves a snapshot. What the browser is told. */
+  dataAt?: number;
+  /** The backend's validator, sent back as `If-None-Match` on the next read. */
+  etag?: string;
   partial: boolean;
   /** The `passHeaders` the backend sent, by their configured spelling. */
   headers: Record<string, string>;
@@ -250,6 +255,7 @@ export class CachedRead {
   private async fetchUpstream(): Promise<Copy> {
     const { path, upstreamTimeoutMs, accept, partial, passHeaders } =
       this.config;
+    const held = this.copy;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), upstreamTimeoutMs);
     let res: Response;
@@ -257,7 +263,13 @@ export class CachedRead {
     try {
       res = await this.deps.fetch(`${this.deps.base}/api${path}`, {
         method: "GET",
-        headers: { ...this.deps.headers?.(), accept: "application/json" },
+        headers: {
+          ...this.deps.headers?.(),
+          accept: "application/json",
+          // Revalidate what is held: an unchanged snapshot answers 304 with
+          // no body, which for the adoption report saves its whole payload.
+          ...(held?.etag ? { "if-none-match": held.etag } : {}),
+        },
         // Next's own fetch cache would answer stale reads by blocking the
         // response on the refresh; this module is the cache.
         cache: "no-store",
@@ -279,6 +291,24 @@ export class CachedRead {
       );
     } finally {
       clearTimeout(timer);
+    }
+    const now = this.deps.now();
+    const dataAt = snapshotDataAt(res.headers, now);
+    if (res.status === 304 && held) {
+      // Unchanged: the same body, read again just now.
+      return { ...held, readAt: now, dataAt: dataAt ?? held.dataAt };
+    }
+    if (res.status === 202) {
+      // The backend has no report yet and is building one. Not an answer to
+      // cache, and never one that replaces a copy: relayed as it came, with
+      // its Retry-After, only to a request that has nothing better.
+      throw new UpstreamError(
+        `GET ${path} is still being computed`,
+        202,
+        "backend_computing",
+        text,
+        res.headers.get("retry-after") ?? undefined,
+      );
     }
     if (!res.ok) {
       throw new UpstreamError(
@@ -307,14 +337,25 @@ export class CachedRead {
       const v = res.headers.get(name);
       if (v !== null) headers[name] = v;
     }
+    const etag = res.headers.get("etag");
     return {
       text,
       value,
-      readAt: this.deps.now(),
+      readAt: now,
+      ...(dataAt === undefined ? {} : { dataAt }),
+      ...(etag ? { etag } : {}),
       partial: partial?.(value, res.headers) ?? false,
       headers,
     };
   }
+}
+
+/** When a snapshot's data dates from, by the backend's `X-Snapshot-Age`
+ * (whole seconds); undefined when it sent none or sent nonsense. */
+function snapshotDataAt(headers: Headers, now: number): number | undefined {
+  const raw = headers.get("x-snapshot-age");
+  if (raw === null || !/^\d+$/.test(raw.trim())) return undefined;
+  return now - Number(raw.trim()) * 1_000;
 }
 
 /** The answer for a request that has no copy to fall back on. */
@@ -328,6 +369,18 @@ function failure(error: unknown): ReadOutcome {
     };
   }
   const { status } = error;
+  if (status === 202) {
+    // "Still computing": relayed as the backend worded it, so the browser
+    // can say so and ask again when it was told to.
+    return {
+      ok: false,
+      status: 202,
+      code: error.code,
+      message: error.message,
+      retryAfter: error.retryAfter,
+      upstreamBody: error.body,
+    };
+  }
   // A 4xx is the backend's answer about the request — a missing route on an
   // older backend, a rate limit — and the browser's error handling keys on
   // it (a 404 is not retried, a 429 waits its Retry-After). Relay it.
@@ -426,7 +479,7 @@ export function toResponse(
     "content-type": JSON_TYPE,
     "cache-control": BROWSER_CACHE,
     "vercel-cdn-cache-control": cdnDirective(copy, state, config.freshMs, now),
-    [READ_AT_HEADER]: String(copy.readAt),
+    [READ_AT_HEADER]: String(copy.dataAt ?? copy.readAt),
     [CACHE_STATE_HEADER]: state,
   });
   for (const [k, v] of Object.entries(copy.headers)) headers.set(k, v);
