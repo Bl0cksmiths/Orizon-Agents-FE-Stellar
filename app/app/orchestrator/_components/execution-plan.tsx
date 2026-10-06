@@ -57,6 +57,7 @@ import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import { ModelTag, TierBadge } from "@/components/console/tier-badge";
 import { FiatFund } from "./fiat-fund";
+import { PlanProvenance } from "./plan-provenance";
 import { isPlanExpired } from "./plan-errors";
 import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
 import {
@@ -454,6 +455,8 @@ export function ExecutionPlan({
             </div>
           </div>
         </div>
+
+        <PlanProvenance plan={plan} />
 
         {/* Above the steps, not below them. The floor is the frame the plan
             was built in, and a buyer who reads the steps first has already
