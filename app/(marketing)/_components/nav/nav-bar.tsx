@@ -15,7 +15,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ButtonLink } from "@/components/ui/button";
-import { ConnectWallet } from "@/components/ui/connect-wallet";
+import { Isolate } from "@/components/isolate";
+import {
+  ConnectWallet,
+  WalletUnavailableNote,
+} from "@/components/ui/connect-wallet";
 import { Logo } from "@/components/ui/logo";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
@@ -92,12 +96,19 @@ export function NavBar() {
             Launch App and the toggle with little to spare — so the gaps
             close up and Launch App drops its arrow there. */}
         <div className="flex shrink-0 items-center gap-2 justify-self-end sm:gap-3">
-          <ConnectWallet
-            size="sm"
-            variant="outline"
-            showWalletName={false}
-            className="hidden lg:flex [@media(pointer:coarse)]:[&>button]:min-h-11"
-          />
+          {/* A wallet control that fails says the wallet is unavailable;
+              the rest of the bar carries on. */}
+          <Isolate
+            name="nav-wallet"
+            fallback={<WalletUnavailableNote className="hidden lg:flex" />}
+          >
+            <ConnectWallet
+              size="sm"
+              variant="outline"
+              showWalletName={false}
+              className="hidden lg:flex [@media(pointer:coarse)]:[&>button]:min-h-11"
+            />
+          </Isolate>
           <ButtonLink
             href="/app"
             size="sm"
