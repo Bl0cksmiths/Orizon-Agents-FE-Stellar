@@ -1,3 +1,5 @@
+import type { PlanAsset } from "./money";
+
 /** The registry statuses this build has a tone for. A backend may add more,
  * so `Agent.status` is typed as any string: narrow with `isAgentStatus`
  * before indexing a per-status map, and render anything else neutrally. */
@@ -83,7 +85,14 @@ export type PlanStep = {
   agent_id: string;
   agent_name?: string;
   rationale: string;
+  /** DEPRECATED legacy price in whole units, kept by the backend for older
+   *  clients. Read only through `planPricing`, which prefers
+   *  `price_stroops` and converts this one the way the backend does. */
   est_price_usdc: number;
+  /** The step's price in integer stroops, fixed at plan time — exactly what
+   *  a delivered step settles and an undelivered one returns. A JSON integer
+   *  or a digit string. Absent from backends predating it. */
+  price_stroops?: number | string | null;
   est_eta_seconds: number;
   rep_bps?: number | null;
   /** One of `REPUTATION_SOURCES` today, but any string on the wire. Absent
@@ -246,7 +255,16 @@ export type DecomposeResponse = {
   plan_id: string;
   intent: string;
   steps: PlanStep[];
+  /** DEPRECATED legacy total in whole units. Never signed or printed: the
+   *  card totals the steps' stroops (`planPricing`). */
   total_usdc: number;
+  /** The plan's total in integer stroops, `sum(step.price_stroops)` exactly;
+   *  the amount the buyer authorizes. Absent from older backends. */
+  total_stroops?: number | string | null;
+  /** The asset every amount on the plan is in — native XLM on testnet,
+   *  `{code: "XLM", issuer: null, decimals: 7}`. Absent from older
+   *  backends, where the network route's `asset` names it instead. */
+  asset?: PlanAsset | null;
   total_eta: number;
   /** Floor actions behind this plan's shape; empty on the common path where
    * every routed agent clears the floor. Absent from backends predating it. */
