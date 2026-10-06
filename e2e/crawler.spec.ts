@@ -262,6 +262,7 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
     ]) {
       await expect(section.getByRole("heading", { name: title })).toBeVisible();
     }
+    await expectEverySectionShown(page);
   });
 
   test("the backend warm-up throwing leaves the page whole", async ({
