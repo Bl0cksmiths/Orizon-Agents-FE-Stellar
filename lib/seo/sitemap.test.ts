@@ -6,7 +6,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { newestDay, sitemapEntries } from "./sitemap";
+import type { PublishedDemo } from "@/lib/demo/load";
+import { demoLastmod, newestDay, sitemapEntries } from "./sitemap";
 
 const root = path.resolve(__dirname, "../..");
 const fixtures = path.join(root, "test/fixtures");
@@ -81,6 +82,29 @@ describe("newestDay", () => {
 
   it("has none to pick from nothing", () => {
     expect(newestDay([])).toBeUndefined();
+  });
+});
+
+describe("demoLastmod", () => {
+  const demo = (days: string[], generatedAt: number) =>
+    ({
+      status: "published",
+      parts: days.map((published_at) => ({ published_at })),
+      evidence: { generated_at: generatedAt },
+    }) as unknown as PublishedDemo;
+
+  it("is the newest part's day when the evidence table is older", () => {
+    // 2026-10-01T12:05:00Z
+    expect(demoLastmod(demo(["2026-07-24", "2026-10-02"], 1790856300))).toBe(
+      "2026-10-02",
+    );
+  });
+
+  it("is the evidence table's UTC day when it was regenerated after the videos", () => {
+    // 2026-10-05T23:59:59Z, still the 5th in UTC
+    expect(demoLastmod(demo(["2026-07-24", "2026-10-02"], 1791244799))).toBe(
+      "2026-10-05",
+    );
   });
 });
 

@@ -8,7 +8,8 @@
  *
  * - The home page: content/site.json (lib/seo/site.ts says why).
  * - Each guide: its own `updated` frontmatter; the guide index, its newest.
- * - /demo: its newest part's publication day; undated while unpublished.
+ * - /demo: the newer of its newest part's publication day and the day its
+ *   evidence table was generated; undated while unpublished.
  * - /evidence: its snapshot's as-of day.
  * - /litepaper: the litepaper's cover date.
  *
@@ -24,7 +25,7 @@
 import { SITE_URL, guidePath } from "@/lib/guide/display";
 import { loadAllGuides } from "@/lib/guide/load";
 import { DEMO_PATH } from "@/lib/demo/display";
-import { loadDemo } from "@/lib/demo/load";
+import { type PublishedDemo, loadDemo } from "@/lib/demo/load";
 import { EVIDENCE_PATH } from "@/lib/evidence/display";
 import { loadEvidence } from "@/lib/evidence/load";
 import { LITEPAPER_PATH } from "@/lib/litepaper/display";
@@ -41,6 +42,17 @@ export type SitemapEntry = {
 /** The newest of some YYYY-MM-DD days: they sort as strings. */
 export function newestDay(days: readonly string[]): string | undefined {
   return [...days].sort().at(-1);
+}
+
+/**
+ * The published demo's day: what the page shows is its videos and the
+ * evidence table under them, so it changed when either last did.
+ */
+export function demoLastmod(demo: PublishedDemo): string {
+  const evidenceDay = new Date(demo.evidence.generated_at * 1000)
+    .toISOString()
+    .slice(0, 10);
+  return newestDay([...demo.parts.map((p) => p.published_at), evidenceDay])!;
 }
 
 export function sitemapEntries(): SitemapEntry[] {
@@ -65,9 +77,7 @@ export function sitemapEntries(): SitemapEntry[] {
       : []),
     {
       loc: `${SITE_URL}${DEMO_PATH}`,
-      ...(demo.status === "published"
-        ? { lastmod: newestDay(demo.parts.map((p) => p.published_at)) }
-        : {}),
+      ...(demo.status === "published" ? { lastmod: demoLastmod(demo) } : {}),
     },
     {
       loc: `${SITE_URL}${EVIDENCE_PATH}`,
