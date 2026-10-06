@@ -99,8 +99,12 @@ export default function RootLayout({
         >
           <WalletProvider>{children}</WalletProvider>
         </Isolate>
-        <Analytics />
-        <SpeedInsights />
+        <Isolate name="analytics">
+          <Analytics />
+        </Isolate>
+        <Isolate name="speed-insights">
+          <SpeedInsights />
+        </Isolate>
       </body>
     </html>
   );
