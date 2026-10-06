@@ -2,8 +2,8 @@
  * Orchestrator v2 fixtures: a plan carrying the brief it was built from, the
  * request check's answer, the models behind each planning stage and a tier
  * per step; the check's four refusals; and a run's trace with its stage
- * lines. Shaped by the contract the backend lanes build to (BE branch
- * feat/claude-orchestrator), well-formed, not real.
+ * lines. Shaped by the backend's contract (BE feat/claude-orchestrator,
+ * 79738b4), well-formed, not real.
  */
 import type { Page } from "@playwright/test";
 import type { DecomposeResponse, PlanSpec, TraceLine } from "../lib/types";
@@ -20,26 +20,37 @@ export const mockSpec: PlanSpec = {
   summary: "Build a calculator web app as one HTML file that works on phones.",
 };
 
-/** Today's e2e plan, as orchestrator v2 answers it. The third step is an
- *  external agent: it has a tier, but no model — it runs on its own stack. */
+/** The built-in model per tier, as `models.tiers` names them. */
+const TIERS = {
+  low: "claude-haiku-4-5",
+  moderate: "claude-sonnet-5-5",
+  complex: "claude-opus-5-5",
+} as const;
+
+/** Today's e2e plan, as orchestrator v2 answers it (BE feat/claude-orchestrator
+ *  `DecomposeResponse`): a tier per step, the models by exact id with the
+ *  per-tier map, the brief, the check and the planning stages. */
 export const mockPlanV2: DecomposeResponse = {
   ...mockPlan,
   plan_id: "plan_e2e_v2",
-  tier: "moderate",
+  tier: "complex",
   understood_as: mockSpec,
-  guard: { verdict: "allow", tier: "moderate", reasons: [] },
+  guard: { verdict: "allow", tier: "complex", reasons: ["tier_rounded_up"] },
   models: {
     guard: "jev-1.13.0",
     improver: "claude-sonnet-5-5",
     planner: "claude-opus-5-5",
+    tiers: TIERS,
   },
+  stages: [
+    { stage: "guard", msg: "Request checked by jev (tier: complex)" },
+    { stage: "improve", msg: "Prompt improved by Claude Sonnet 5.5" },
+    { stage: "recheck", msg: "Improved request re-checked by jev" },
+    { stage: "plan", msg: "Planned by Claude Opus 5.5 (effort high)" },
+  ],
   steps: mockPlan.steps.map((s, i) => ({
     ...s,
     tier: (["low", "moderate", "complex"] as const)[i % 3],
-    model:
-      i === 2
-        ? null
-        : (["claude-haiku-4-5", "claude-sonnet-5-5"] as const)[i % 2],
   })),
 };
 
@@ -67,6 +78,10 @@ export const mockPlanV2Long: DecomposeResponse = {
     guard: "jev-1.13.0",
     improver: "claude-sonnet-5-5",
     planner: `custom-planner-model-${"0123456789".repeat(4)}`,
+    tiers: {
+      ...TIERS,
+      complex: `custom-worker-model-${"0123456789".repeat(4)}`,
+    },
   },
 };
 
@@ -76,24 +91,28 @@ export type DecomposeAnswer = {
   headers?: Record<string, string>;
 };
 
-/** A refusal in the backend's error envelope. */
+/** A refusal as the backend sends it (`_refused` in app/routers/orchestrator.py):
+ *  the envelope, with the buyer-facing sentence as `error.message` and — for a
+ *  blocked request or a question — again under its own name at the top. */
 export function refusal(
   status: number,
   code: string,
-  extra: Record<string, unknown> = {},
+  message: string,
   headers?: Record<string, string>,
 ): DecomposeAnswer {
+  const field = (
+    { intent_blocked: "reason", intent_needs_detail: "question" } as Record<
+      string,
+      string
+    >
+  )[code];
   return {
     status,
     headers,
     body: {
       detail: code,
-      error: {
-        code,
-        message: code.replace(/_/g, " "),
-        request_id: "e2e0000000000002",
-        ...extra,
-      },
+      error: { code, message, request_id: "e2e0000000000002" },
+      ...(field ? { [field]: message } : {}),
     },
   };
 }
@@ -126,8 +145,8 @@ export const ok = (plan: DecomposeResponse): DecomposeAnswer => ({
   body: plan,
 });
 
-/** A v2 run's trace: the three planning stages, then steps naming their
- *  model and tier — one tagged, one from a backend that only writes prose. */
+/** A v2 run's trace as the backend writes it: untagged lines, the planning
+ *  stages first, then each Claude step naming its model and tier in words. */
 export const mockTraceV2: TraceLine[] = [
   {
     t: "00.000",
@@ -138,18 +157,9 @@ export const mockTraceV2: TraceLine[] = [
     t: "00.180",
     level: "exec",
     msg: "Request checked by jev (tier: moderate)",
-    stage: "guard",
-    tier: "moderate",
-    model: "jev-1.13.0",
   },
-  {
-    t: "01.240",
-    level: "exec",
-    msg: "Prompt improved by Claude Sonnet 5.5",
-    stage: "improve",
-    model: "claude-sonnet-5-5",
-  },
-  // Untagged: the wording alone marks it as a stage.
+  { t: "01.240", level: "exec", msg: "Prompt improved by Claude Sonnet 5.5" },
+  { t: "01.420", level: "exec", msg: "Improved request re-checked by jev" },
   {
     t: "03.900",
     level: "exec",
@@ -158,9 +168,7 @@ export const mockTraceV2: TraceLine[] = [
   {
     t: "04.300",
     level: "exec",
-    msg: "seo.brief → outline drafted on Claude Haiku 4.5",
-    tier: "low",
-    model: "claude-haiku-4-5",
+    msg: "seo.brief on Claude Haiku 4.5 (tier: low)",
   },
   { t: "04.320", level: "cost", msg: "x402 payment → seo.brief :: 0.009 USDC" },
   { t: "06.870", level: "exec", msg: "code.gen → calculator app generated" },
