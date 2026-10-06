@@ -76,18 +76,39 @@ const STEP_FIGURES = [
   "0.052 XLM",
 ];
 
-async function openPlan(page: Page) {
+async function openPlan(page: Page, plan: DecomposeResponse = PIPELINE) {
   await mockWallet(page);
   await mockApi(page);
   // The escrow this build pins, so the card asks for a signature at all: a
   // backend reporting any other escrow pauses on-chain payment.
   await mockNetwork(page, escrowV2Pin ? mockEscrowV2Network : undefined);
-  await mockDecomposeSequence(page, [PIPELINE]);
+  await mockDecomposeSequence(page, [plan]);
   await page.goto("/app/orchestrator");
-  await page.getByRole("textbox", { name: /intent/i }).fill(PIPELINE.intent);
+  await page.getByRole("textbox", { name: /intent/i }).fill(plan.intent);
   await page.getByRole("button", { name: /decompos/i }).click();
-  await expect(page.locator("[data-plan-total]")).toHaveText("0.1513457 XLM");
+  await expect(page.locator("[data-plan-total]")).toBeVisible();
 }
+
+/** The website pipeline at its longest: six specialists, one handing to the
+ *  next, as the planner now composes them. */
+const SIX: DecomposeResponse = {
+  ...PIPELINE,
+  plan_id: "pln_e2e_six",
+  steps: [
+    ...PIPELINE.steps.slice(0, 3),
+    {
+      agent_id: "agt_02k2",
+      agent_name: "design.figma",
+      rationale: "turns the copy into layout tokens for the build",
+      price_stroops: 180_000,
+      est_price_usdc: 0.018,
+      est_eta_seconds: 2,
+    },
+    ...PIPELINE.steps.slice(3),
+  ],
+  total_stroops: 1_693_457,
+  total_usdc: 0.1693457,
+};
 
 test.describe("exact pricing · the plan card", () => {
   test("prints every step and the total to the stroop, in XLM", async ({
@@ -145,6 +166,34 @@ test.describe("exact pricing · the plan card", () => {
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
       .analyze();
     expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+
+  test("lays six steps out at 360px: every agent in order, nothing cut off", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await openPlan(page, SIX);
+    await expect(page.locator("[data-plan-total]")).toHaveText("0.1693457 XLM");
+    await expect(page.getByText("pipeline · 6 agents in order")).toBeVisible();
+    const chips = page.locator("[data-pipeline-agent]");
+    await expect(chips).toHaveCount(6);
+    // Inside the width, whatever row each wraps onto.
+    for (const chip of await chips.all()) {
+      const box = await chip.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(360);
+    }
+    await expect(page.getByText(/hands its output to step/)).toHaveCount(5);
+    await motionSettled(page.locator("main"));
+    const card = page
+      .getByRole("heading", { name: /execution plan/i })
+      .locator("xpath=ancestor::div[contains(@class,'glow-card')][1]");
+    expect(await overflowingDescendants(card)).toEqual([]);
+    const sideways = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(sideways).toBeLessThanOrEqual(0);
   });
 
   for (const width of [360, 768, 1920]) {
