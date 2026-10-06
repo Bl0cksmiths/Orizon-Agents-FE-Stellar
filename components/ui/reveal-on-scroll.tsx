@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { RevealAtRest } from "./reveal-at-rest";
 
 /**
  * Plays every `.reveal` entrance on the page (app/globals.css) once its
@@ -37,7 +38,7 @@ export function RevealOnScroll() {
 
   return (
     <noscript>
-      <style>{".reveal{opacity:1;transform:none}"}</style>
+      <RevealAtRest />
     </noscript>
   );
 }
