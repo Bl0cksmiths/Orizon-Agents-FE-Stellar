@@ -156,6 +156,9 @@ export type UseFetchResult<T> = {
    * waking line for this, not an error: a cold start is a wait, not a fault.
    */
   waiting: boolean;
+  /** How long the scheduled automatic retry waits (ms) — the backend's
+   * Retry-After when it sent one — or null when none is scheduled. */
+  retryInMs: number | null;
 };
 
 export type UseFetchOptions = {
@@ -200,6 +203,7 @@ export function useFetch<T>(
   const enabled = opts?.enabled ?? true;
   const [loading, setLoading] = useState(enabled);
   const [retrying, setRetrying] = useState(false);
+  const [retryInMs, setRetryInMs] = useState<number | null>(null);
   const [lastSuccessAt, setLastSuccessAt] = useState<number | null>(null);
   const [nonce, setNonce] = useState(0);
 
@@ -299,6 +303,7 @@ export function useFetch<T>(
             e,
           );
           attempt += 1;
+          setRetryInMs(delay);
           markRetrying(true);
           timer = setTimeout(() => {
             timer = null;
@@ -371,5 +376,6 @@ export function useFetch<T>(
     lastSuccessAt,
     dataAt,
     waiting,
+    retryInMs: retrying ? retryInMs : null,
   };
 }

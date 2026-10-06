@@ -63,6 +63,8 @@ describe("useFetch", () => {
       });
       expect(result.current.waiting).toBe(true);
       expect(result.current.retrying).toBe(true);
+      // Says when it will ask again, so a page can tell the reader.
+      expect(result.current.retryInMs).toBe(30_000);
       // The Retry-After is honoured: nothing is asked before it is up.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(29_000);
@@ -72,6 +74,7 @@ describe("useFetch", () => {
         await vi.advanceTimersByTimeAsync(1_000);
       });
       expect(result.current.data).toBe("report");
+      expect(result.current.retryInMs).toBeNull();
     } finally {
       vi.useRealTimers();
     }
