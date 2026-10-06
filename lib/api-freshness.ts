@@ -37,6 +37,20 @@ export function readAtOf(value: unknown): number | null {
     : null;
 }
 
+/** What a read answered `202 computing` rejects with, in its message: the
+ * backend is building the report and has nothing to serve yet. */
+export const COMPUTING_MESSAGE = "the adoption report is still being built";
+
+/**
+ * Whether a read was told the backend is still building what it asked for
+ * (`202 {"status":"computing"}` from the adoption route): a wait with a
+ * Retry-After, never a failure and never a payload.
+ */
+export function isComputingError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes(COMPUTING_MESSAGE);
+}
+
 /**
  * Whether a read failed because the backend is still waking: the console's
  * cache answering 503 (or 504) with `WAKING_MESSAGE` because the backend has
