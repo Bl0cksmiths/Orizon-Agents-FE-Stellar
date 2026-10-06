@@ -1119,6 +1119,37 @@ describe("screenDecomposeResponse — the orchestrator v2 fields", () => {
     expect(plan?.tier).toBeUndefined();
   });
 
+  it("keeps the per-tier models and the planning stages", () => {
+    const tiers = {
+      low: "claude-haiku-4-5",
+      moderate: "claude-sonnet-5-5",
+      complex: "claude-opus-5-5",
+    };
+    const stages = [
+      { stage: "guard", msg: "Request checked by jev (tier: low)" },
+      { stage: "plan", msg: "Planned by Claude Opus 5.5 (effort low)" },
+    ];
+    const plan = screen({
+      ...valid,
+      models: { planner: "claude-opus-5-5", tiers },
+      stages,
+    });
+    expect(plan?.models?.tiers).toEqual(tiers);
+    expect(plan?.stages).toEqual(stages);
+  });
+
+  it("drops a malformed tier map, and a stage that is not one", () => {
+    const plan = screen({
+      ...valid,
+      models: { planner: "claude-opus-5-5", tiers: { low: 1 } },
+      stages: [{ stage: "plan", msg: "Planned" }, { stage: 2, msg: "x" }, "y"],
+    });
+    expect(plan).not.toBeNull();
+    expect(plan?.models).toBeUndefined();
+    expect(plan?.stages).toEqual([{ stage: "plan", msg: "Planned" }]);
+    expect(screen({ ...valid, stages: "guard" })?.stages).toBeUndefined();
+  });
+
   it("drops a check whose reasons are not a list of strings", () => {
     const plan = screen({
       ...valid,
