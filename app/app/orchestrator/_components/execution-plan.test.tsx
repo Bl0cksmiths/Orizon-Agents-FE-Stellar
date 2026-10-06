@@ -102,7 +102,10 @@ function step(over: Partial<PlanStep> = {}): PlanStep {
     agent_id: "code.next",
     agent_name: "code.next",
     rationale: "implement and wire up the app",
-    est_price_usdc: 0.066,
+    // The plan's one step carries its whole price: the card totals the
+    // steps, so a fixture whose total disagrees with them would be a plan
+    // the backend could never have built.
+    est_price_usdc: 0.123,
     est_eta_seconds: 3.1,
     rep_bps: 6583,
     rep_source: "onchain",
@@ -840,7 +843,8 @@ describe("ExecutionPlan · the unit on the amounts", () => {
   // testnet — so "USDC" beside it was a false statement about their money.
   it("labels the total and the authorize cap with the network's asset", async () => {
     const { container } = render(<ExecutionPlan plan={plan()} />);
-    expect((await screen.findAllByText("0.123 XLM")).length).toBe(2);
+    // The total, the step's own price and the cap: one plan, one figure.
+    expect((await screen.findAllByText("0.123 XLM")).length).toBe(3);
     const cap = Array.from(container.querySelectorAll("b")).find((b) =>
       b.textContent?.includes("0.123"),
     );
@@ -875,7 +879,7 @@ describe("ExecutionPlan · the unit on the amounts", () => {
         b.textContent?.includes("0.123"),
       );
       expect(cap?.textContent).toBe("0.123");
-      expect(screen.getAllByText("0.123", { exact: true }).length).toBe(2);
+      expect(screen.getAllByText("0.123", { exact: true }).length).toBe(3);
       expect(container.textContent).not.toMatch(/\b(USDC|XLM)\b/);
     },
   );
@@ -1014,13 +1018,21 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
     const { container } = render(<ExecutionPlan plan={plan()} />);
     expect(await shownCap(container)).toBe("0.123 XLM");
     expect(await signedCap()).toBe(0.123);
+    expect(api.buildAuthorize.mock.calls[0][0].max_amount_stroops).toBe(
+      1_230_000,
+    );
   });
 
   // Finding S6: the backend stopped rounding the total, and a cap printed to
   // three places showed 0.1234 as 0.123 — less than leaves the wallet.
   it("shows a cap past three decimals exactly as it is signed, never rounded down", async () => {
     const { container } = render(
-      <ExecutionPlan plan={plan({ total_usdc: 0.1234567 })} />,
+      <ExecutionPlan
+        plan={plan({
+          steps: [step({ est_price_usdc: 0.1234567 })],
+          total_usdc: 0.1234567,
+        })}
+      />,
     );
     expect(await shownCap(container)).toBe("0.1234567 XLM");
     expect(await signedCap()).toBe(0.1234567);
@@ -1030,7 +1042,9 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
   // positive cap, and the sentence has to name that cap, not the zero.
   it("shows the cap it signs on a zero-priced plan, never 0.000", async () => {
     const { container } = render(
-      <ExecutionPlan plan={plan({ total_usdc: 0 })} />,
+      <ExecutionPlan
+        plan={plan({ steps: [step({ est_price_usdc: 0 })], total_usdc: 0 })}
+      />,
     );
     expect(await shownCap(container)).toBe("0.001 XLM");
     expect(await signedCap()).toBe(0.001);
@@ -1533,5 +1547,148 @@ describe("ExecutionPlan · orchestrator v2: tiers, models and the brief", () => 
     expect(
       screen.queryByRole("list", { name: /how this plan was made/i }),
     ).toBeNull();
+  });
+});
+
+describe("ExecutionPlan · exact prices", () => {
+  /** A plan from a backend on the pricing contract: integer stroops per
+   *  step, their exact sum, and the plan's own asset. */
+  const exact = (over: Partial<DecomposeResponse> = {}) =>
+    plan({
+      steps: [
+        step({
+          agent_id: "agt_09l5",
+          agent_name: "research.pro",
+          price_stroops: 240_000,
+          est_price_usdc: 0.024,
+        }),
+        step({
+          agent_id: "agt_01h8",
+          agent_name: "copywrite.v3",
+          price_stroops: "123457",
+          est_price_usdc: 0.0123457,
+        }),
+        step({
+          agent_id: "agt_11c0",
+          agent_name: "code.gen",
+          price_stroops: 540_000,
+          est_price_usdc: 0.054,
+        }),
+      ],
+      total_stroops: 903_457,
+      total_usdc: 0.0903457,
+      asset: { code: "XLM", issuer: null, decimals: 7 },
+      ...over,
+    });
+
+  const total = (container: HTMLElement) =>
+    container.querySelector("[data-plan-total]")?.textContent;
+  const stepPrices = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll("[data-step-price]")).map(
+      (e) => e.textContent,
+    );
+
+  it("prints every step and the total to the stroop, in the plan's asset", async () => {
+    const { container } = render(<ExecutionPlan plan={exact()} />);
+    await waitFor(() => expect(total(container)).toBe("0.0903457 XLM"));
+    expect(stepPrices(container)).toEqual([
+      "0.024 XLM",
+      "0.0123457 XLM",
+      "0.054 XLM",
+    ]);
+  });
+
+  it("signs exactly the plan's total_stroops", async () => {
+    const { container } = render(<ExecutionPlan plan={exact()} />);
+    await waitFor(() => expect(total(container)).toBe("0.0903457 XLM"));
+    api.buildAuthorize.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(authorizeButton());
+    await waitFor(() => expect(api.buildAuthorize).toHaveBeenCalledTimes(1));
+    const body = api.buildAuthorize.mock.calls[0][0];
+    expect(body.max_amount_stroops).toBe(903_457);
+    expect(Math.round(body.max_amount_usdc * 10_000_000)).toBe(903_457);
+  });
+
+  it("names the plan's asset before the network read lands", async () => {
+    api.getStellarNetwork.mockReturnValue(new Promise(() => {}));
+    const { container } = render(<ExecutionPlan plan={exact()} />);
+    expect(total(container)).toBe("0.0903457 XLM");
+  });
+
+  it("only says USDC when the plan's asset is USDC", async () => {
+    const { container } = render(
+      <ExecutionPlan
+        plan={exact({
+          asset: { code: "USDC", issuer: "GA5ZISSUER", decimals: 7 },
+        })}
+      />,
+    );
+    expect(total(container)).toBe("0.0903457 USDC");
+    const { container: xlm } = render(<ExecutionPlan plan={exact()} />);
+    expect(xlm.textContent).not.toMatch(/\bUSDC\b/);
+  });
+
+  // An older backend: the step floats are converted as the backend converts
+  // them, and the total is THEIR sum — the figure escrow v2 checks an
+  // authorization against — never the float `total_usdc` beside them.
+  it("totals an older backend's steps itself, never its float total", async () => {
+    const legacy = plan({
+      steps: [
+        step({ est_price_usdc: 0.1 }),
+        step({ agent_id: "agt_x", agent_name: "x", est_price_usdc: 0.2 }),
+      ],
+      total_usdc: 0.30000000000000004,
+    });
+    const { container } = render(<ExecutionPlan plan={legacy} />);
+    await waitFor(() => expect(total(container)).toBe("0.3 XLM"));
+    expect(stepPrices(container)).toEqual(["0.1 XLM", "0.2 XLM"]);
+    api.buildAuthorize.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(authorizeButton());
+    await waitFor(() => expect(api.buildAuthorize).toHaveBeenCalledTimes(1));
+    expect(api.buildAuthorize.mock.calls[0][0].max_amount_stroops).toBe(
+      3_000_000,
+    );
+  });
+
+  it("never rounds a step's price to three places", async () => {
+    const { container } = render(
+      <ExecutionPlan
+        plan={plan({ steps: [step({ est_price_usdc: 0.0123456 })] })}
+      />,
+    );
+    await waitFor(() =>
+      expect(stepPrices(container)).toEqual(["0.0123456 XLM"]),
+    );
+  });
+
+  // The backend's total is not the sum of its steps: the card cannot say
+  // what the buyer would pay for, so it asks for no signature and no pesos.
+  it("refuses to take payment for a plan whose prices do not add up", async () => {
+    const { container } = render(
+      <ExecutionPlan plan={exact({ total_stroops: 903_458 })} />,
+    );
+    expect(authorizeButton().hasAttribute("disabled")).toBe(true);
+    expect(
+      screen
+        .getByRole("button", { name: /pay with fiat/i })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    expect(container.textContent).toContain("This plan's prices do not add up");
+    expect(authorizeButton().getAttribute("aria-describedby")).toContain(
+      "plan-price-notice",
+    );
+    fireEvent.click(authorizeButton());
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
+  });
+
+  it("checks the wallet against the exact cap", async () => {
+    onEscrowV2();
+    // 0.0903457 + 0.1 fee headroom + 1 reserve = 1.1903457 exactly.
+    wallet.xlmBalance = "1.1903456";
+    render(<ExecutionPlan plan={exact()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/Not enough XLM to fund this authorization/);
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
   });
 });

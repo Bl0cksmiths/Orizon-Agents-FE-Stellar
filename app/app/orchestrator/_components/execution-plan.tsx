@@ -24,7 +24,8 @@ import {
   classifyAuthorizeError,
   insufficientEscrowFunds,
 } from "@/lib/escrow";
-import { STROOPS_PER_UNIT, formatSettled, stroopsToDecimal } from "@/lib/money";
+import { formatStroops, stroopsToDecimal } from "@/lib/money";
+import { authorizeCap, planPricing } from "@/lib/plan-pricing";
 import { useFetch } from "@/lib/use-fetch";
 import {
   DegradedBanner,
@@ -92,13 +93,12 @@ function stepLabel(
     : STEP_LABEL[step];
 }
 
-/** The smallest cap an authorization is signed for. A plan priced at zero
- *  still needs a positive cap to authorize against. */
-const MIN_CAP = 0.001;
-
 /** The notice shown when the backend's escrow is not the one this build
  *  pins; Authorize is described by it while it shows. */
 const ESCROW_MISMATCH_ID = "escrow-mismatch-notice";
+
+/** The notice shown when the plan's prices cannot be stated exactly. */
+const PRICE_NOTICE_ID = "plan-price-notice";
 
 /** What paying on-chain does, told to a buyer before they connect. */
 function connectSentence(generation: EscrowGeneration): string {
@@ -209,21 +209,28 @@ export function ExecutionPlan({
   );
   const escrowMismatch = escrow.kind === "mismatch";
   const generation = escrowGeneration(network);
-  /**
-   * An amount exactly as it is signed, with its real unit — or bare while the
-   * unit is unknown. Rounded to the stroop, as the backend converts it
-   * (`usdc_to_i128` rounds to 7 decimals), never to a display precision:
-   * `toFixed(3)` printed 0.1234 as "0.123", a cap on the page smaller than
-   * the one that leaves the wallet (finding S6).
-   */
-  const priced = (value: number) =>
-    formatSettled(Math.round(value * STROOPS_PER_UNIT), network?.asset);
+  // Every amount on the card, read ONCE from the plan in integer stroops:
+  // each step's price, their sum, and the cap the wallet signs. The card's
+  // figures, the authorize request, the funds check and the fiat quote all
+  // come from this one reading, so none of them can disagree by a stroop.
+  // A backend on the pricing contract names the plan's asset; an older one
+  // does not, and the network read names it instead.
+  const pricing = planPricing(plan);
+  const unit =
+    pricing.kind !== "unpriced" && pricing.asset
+      ? pricing.asset
+      : network?.asset;
+  /** An amount exactly as it is signed, with its real unit — or bare while
+   *  the unit is unknown. Never rounded to a display precision: a cap that
+   *  read 0.123 while 0.1234 left the wallet was finding S6. */
+  const priced = (stroops: bigint) => formatStroops(stroops, unit);
+  // The cap the buyer signs — the plan's total, or the minimum positive cap
+  // for a plan priced at zero — or null when the plan's prices cannot be
+  // stated, and then nothing is signed and no pesos are quoted.
+  const cap = pricing.kind === "priced" ? pricing.cap : null;
+  const unpayable = cap === null;
+  const capText = cap === null ? "—" : priced(cap);
 
-  // The cap the buyer signs, computed ONCE and used for both the sentence
-  // they read and the authorization they sign. They used to be computed
-  // apart, so a zero-priced plan read "authorizing up to 0.000" while 0.001
-  // was signed — a cap on the page that was not the cap in the wallet.
-  const cap = plan.total_usdc > 0 ? plan.total_usdc : MIN_CAP;
   // A plan with no steps has nothing to pay for. The guard accepts one, so
   // the card has to refuse to take money for it.
   const empty = plan.steps.length === 0;
@@ -265,7 +272,7 @@ export function ExecutionPlan({
       generation === "v2"
         ? checkEscrowFunds({
             balance: wallet.xlmBalance,
-            cap: BigInt(Math.round(cap * STROOPS_PER_UNIT)),
+            cap: cap ?? 0n,
             asset: network?.asset,
           })
         : null;
@@ -286,7 +293,8 @@ export function ExecutionPlan({
         // The backend refuses to execute a plan against an authorization
         // whose label, payer, cap or state does not match (finding S2).
         agent_id: plan.plan_id,
-        max_amount_usdc: cap,
+        // Exactly the plan's total, as stroops and as the legacy decimal.
+        ...authorizeCap(cap ?? 0n),
         ttl_seconds: AUTHORIZE_TTL_SECONDS,
       });
 
@@ -384,6 +392,7 @@ export function ExecutionPlan({
       // read out as a button's description bury the decision under them.
       hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
       escrowMismatch && ESCROW_MISMATCH_ID,
+      unpayable && PRICE_NOTICE_ID,
     ]
       .filter(Boolean)
       .join(" ") || undefined;
@@ -392,6 +401,9 @@ export function ExecutionPlan({
   // The controls that run the plan. An expired plan cannot run again, and a
   // second signature against it would only draw the same refusal.
   const cannotRun = executing || expired !== null || held !== null || empty;
+  // A plan whose prices cannot be stated can still be simulated — that moves
+  // nothing — but it takes no signature and no pesos.
+  const cannotPay = cannotRun || unpayable;
   // Authorize failures render in the TxStatus FailedCard (via friendlyError);
   // only the simulate path reports through the alert below.
   const error = simulate.error;
@@ -403,7 +415,7 @@ export function ExecutionPlan({
   };
 
   const onAuthorize = () => {
-    if (cannotRun || escrowMismatch || !wallet.connected || !wallet.address)
+    if (cannotPay || escrowMismatch || !wallet.connected || !wallet.address)
       return;
     simulate.reset();
     void authorize.run(wallet.address);
@@ -417,7 +429,7 @@ export function ExecutionPlan({
     <Button
       variant="primary"
       onClick={() => setShowFiat((v) => !v)}
-      disabled={executing || empty}
+      disabled={executing || empty || unpayable}
       size="md"
       aria-describedby={authorizeDescribedBy}
     >
@@ -450,7 +462,16 @@ export function ExecutionPlan({
               <div className="text-muted uppercase tracking-widest text-[10px]">
                 total est.
               </div>
-              <div className="text-cyan text-lg">{priced(plan.total_usdc)}</div>
+              <div className="text-cyan text-lg" data-plan-total>
+                {pricing.kind === "priced" ? (
+                  priced(pricing.total)
+                ) : (
+                  <>
+                    <span aria-hidden="true">—</span>
+                    <span className="sr-only">not stated</span>
+                  </>
+                )}
+              </div>
             </div>
             <div>
               <div className="text-muted uppercase tracking-widest text-[10px]">
@@ -585,7 +606,10 @@ export function ExecutionPlan({
                 <StepModel step={s} models={plan.models} />
               </div>
               <div className="font-mono text-xs text-cyan">
-                {s.est_price_usdc.toFixed(3)} · {s.est_eta_seconds.toFixed(1)}s
+                <span data-step-price>
+                  {pricing.kind === "unpriced" ? "—" : priced(pricing.steps[i])}
+                </span>{" "}
+                · {s.est_eta_seconds.toFixed(1)}s
               </div>
             </m.li>
           ))}
@@ -618,6 +642,19 @@ export function ExecutionPlan({
             plan — a buyer who meets that after committing funds has been told
             nothing useful. */}
         <DegradedBanner plan={plan} />
+
+        {pricing.kind !== "priced" && (
+          <p
+            id={PRICE_NOTICE_ID}
+            className="mt-6 clip-cyber-sm border border-magenta/40 bg-magenta/5 px-4 py-3 text-sm leading-relaxed text-magenta"
+          >
+            {pricing.kind === "mismatch"
+              ? `This plan's prices do not add up: its steps total ${priced(pricing.stepsTotal)}, but it states ${priced(pricing.statedTotal)}.`
+              : `This plan's prices do not add up: step ${pricing.stepIndex + 1} has no price that can be read.`}{" "}
+            Nothing is asked of your wallet for it. Build a fresh plan to pay
+            on-chain; a simulated pass is unaffected.
+          </p>
+        )}
 
         {escrow.kind === "mismatch" && (
           <p
@@ -656,9 +693,9 @@ export function ExecutionPlan({
                   <div className="max-w-xl text-sm leading-relaxed">
                     Freighter will prompt for{" "}
                     <b className="text-text">one signature</b> that moves up to{" "}
-                    <b className="text-text">{priced(cap)}</b> from your wallet
-                    into escrow now. Delivered steps are paid from it, and the
-                    rest comes back to you when the run settles.
+                    <b className="text-text">{capText}</b> from your wallet into
+                    escrow now. Delivered steps are paid from it, and the rest
+                    comes back to you when the run settles.
                   </div>
                 ) : (
                   // v1 moves nothing at signing, and says so; until the
@@ -666,7 +703,7 @@ export function ExecutionPlan({
                   <div className="max-w-xl text-sm leading-relaxed">
                     Freighter will prompt for{" "}
                     <b className="text-text">one signature</b> authorizing up to{" "}
-                    <b className="text-text">{priced(cap)}</b>.
+                    <b className="text-text">{capText}</b>.
                     {generation === "v1" &&
                       ` It records a spending allowance on the escrow contract; no funds move when you sign. ${V1_CANNOT_SETTLE}`}
                   </div>
@@ -689,7 +726,7 @@ export function ExecutionPlan({
                 <Button
                   variant="cyan"
                   onClick={onAuthorize}
-                  disabled={cannotRun || escrowMismatch}
+                  disabled={cannotPay || escrowMismatch}
                   size="md"
                   // Tab goes from the exclusions panel straight here, past the
                   // polite notices above, so the button carries them as its
@@ -776,11 +813,11 @@ export function ExecutionPlan({
           generation === "v2" &&
           (expired === "authorize" || runError) &&
           (release?.kind === "returned" ? (
-            <FundsReturnedNotice amount={priced(cap)} txHash={release.txHash} />
+            <FundsReturnedNotice amount={capText} txHash={release.txHash} />
           ) : (
             <EscrowHeldNotice
               held={held}
-              amount={priced(cap)}
+              amount={capText}
               escrowId={network?.contracts.payment_escrow || null}
               // The backend answered: no task was minted. Without an answer
               // a run may have started and will settle as usual.
@@ -798,14 +835,12 @@ export function ExecutionPlan({
           </div>
         )}
 
-        {showFiat && (
+        {showFiat && cap !== null && (
           <div className="mt-4">
             <FiatFund
-              amount={stroopsToDecimal(
-                BigInt(Math.round(cap * STROOPS_PER_UNIT)),
-              )}
+              amount={stroopsToDecimal(cap)}
               stellarAddress={wallet.address ?? undefined}
-              asset={network?.asset}
+              asset={unit}
             />
           </div>
         )}
@@ -818,9 +853,7 @@ export function ExecutionPlan({
         <TxStatus
           state={txState}
           hash={authorizeHash ?? undefined}
-          amount={
-            authorizeHash && generation === "v2" ? priced(cap) : undefined
-          }
+          amount={authorizeHash && generation === "v2" ? capText : undefined}
           destination={
             generation === "v2"
               ? network?.contracts.payment_escrow || undefined

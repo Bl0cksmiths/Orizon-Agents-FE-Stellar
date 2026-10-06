@@ -50,6 +50,8 @@ export type PlanPricing =
    *  cannot say what the buyer would be paying for, so nothing is signed. */
   | {
       kind: "mismatch";
+      /** Each step's price, read as for a priced plan. */
+      steps: bigint[];
       stepsTotal: bigint;
       statedTotal: bigint;
       asset: PlanAsset | null;
@@ -78,7 +80,13 @@ export function planPricing(plan: DecomposeResponse): PlanPricing {
   const asset = plan.asset ?? null;
   const stated = parseStroops(plan.total_stroops);
   if (stated !== null && stated !== total) {
-    return { kind: "mismatch", stepsTotal: total, statedTotal: stated, asset };
+    return {
+      kind: "mismatch",
+      steps,
+      stepsTotal: total,
+      statedTotal: stated,
+      asset,
+    };
   }
   return {
     kind: "priced",

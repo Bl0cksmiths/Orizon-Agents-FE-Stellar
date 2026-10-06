@@ -89,6 +89,7 @@ describe("planPricing — a backend that prices in stroops", () => {
     const r = planPricing({ ...exact, total_stroops: 870_001 });
     expect(r).toEqual({
       kind: "mismatch",
+      steps: [240_000n, 90_000n, 540_000n],
       stepsTotal: 870_000n,
       statedTotal: 870_001n,
       asset: exact.asset,
