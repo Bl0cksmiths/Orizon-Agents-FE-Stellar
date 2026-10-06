@@ -1430,18 +1430,20 @@ describe("ExecutionPlan · orchestrator v2: tiers, models and the brief", () => 
         guard: "jev-1.13.0",
         improver: "claude-sonnet-5-5",
         planner: "claude-opus-5-5",
+        tiers: {
+          low: "claude-haiku-4-5",
+          moderate: "claude-sonnet-5-5",
+          complex: "claude-opus-5-5",
+        },
       },
       understood_as: spec,
       steps: [
+        // Named by the backend itself.
         step({ agent_id: "seo.brief", tier: "low", model: "claude-haiku-4-5" }),
-        step({ tier: "complex", model: "claude-opus-5-5" }),
-        // An external agent: a tier, but no model — it runs on its own stack.
-        step({
-          agent_id: "ext.render",
-          agent_name: "ext.render",
-          tier: "moderate",
-          model: null,
-        }),
+        // Labelled from its tier, as its tier's built-in model.
+        step({ tier: "complex" }),
+        // No tier: nothing to label it by.
+        step({ agent_id: "ext.render", agent_name: "ext.render", tier: null }),
       ],
     });
   const rows = () =>
@@ -1456,9 +1458,9 @@ describe("ExecutionPlan · orchestrator v2: tiers, models and the brief", () => 
     expect(first.textContent).toMatch(/low tier/i);
     expect(first.textContent).toContain("runs on Claude Haiku 4.5");
     expect(second.textContent).toMatch(/complex tier/i);
-    expect(second.textContent).toContain("runs on Claude Opus 5.5");
-    expect(third.textContent).toMatch(/moderate tier/i);
-    expect(third.textContent).not.toMatch(/runs on/);
+    expect(second.textContent).toContain("built-in model: Claude Opus 5.5");
+    expect(third.textContent).not.toMatch(/ tier\b/i);
+    expect(third.textContent).not.toMatch(/runs on|built-in model/);
   });
 
   it("shows the brief above the steps, and how the plan was made", () => {
