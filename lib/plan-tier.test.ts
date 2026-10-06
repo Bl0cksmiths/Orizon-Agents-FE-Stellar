@@ -43,8 +43,9 @@ describe("modelLabel", () => {
     expect(modelLabel("claude-sonnet-6")).toBe("Claude Sonnet 6");
   });
 
-  it("names the jev guard model with its version", () => {
-    expect(modelLabel("jev-1.13.0")).toBe("jev 1.13.0");
+  // The backend pins the version; buyers read the name.
+  it("names the jev guard model plainly", () => {
+    expect(modelLabel("jev-1.13.0")).toBe("jev");
     expect(modelLabel("jev")).toBe("jev");
   });
 
@@ -61,17 +62,31 @@ describe("modelLabel", () => {
 });
 
 describe("stepModel", () => {
-  // The backend names the model per step; nothing here maps a tier to a
-  // model, because a step routed to an external agent runs on its operator's
-  // own stack and a tier-derived "Claude" there would be a false claim.
-  it("is the step's own model, labelled", () => {
-    expect(stepModel({ model: "claude-haiku-4-5", tier: "low" })).toBe(
-      "Claude Haiku 4.5",
-    );
+  const models = {
+    tiers: {
+      low: "claude-haiku-4-5",
+      moderate: "claude-sonnet-5-5",
+      complex: "claude-opus-5-5",
+    },
+  };
+
+  it("is the step's own model when the backend names one", () => {
+    expect(
+      stepModel({ model: "claude-haiku-4-5", tier: "complex" }, models),
+    ).toEqual({ name: "Claude Haiku 4.5", fromTier: false });
   });
 
-  it("is null when the step names none, whatever its tier", () => {
-    expect(stepModel({ tier: "complex" })).toBeNull();
-    expect(stepModel({ model: null, tier: "low" })).toBeNull();
+  it("is its tier's built-in model otherwise, said as such", () => {
+    expect(stepModel({ tier: "moderate" }, models)).toEqual({
+      name: "Claude Sonnet 5.5",
+      fromTier: true,
+    });
+  });
+
+  it("is null with no tier, no tier map, or a tier it cannot name", () => {
+    expect(stepModel({ tier: null }, models)).toBeNull();
+    expect(stepModel({ tier: "low" }, null)).toBeNull();
+    expect(stepModel({ tier: "low" }, {})).toBeNull();
+    expect(stepModel({ tier: "extreme" }, models)).toBeNull();
   });
 });
