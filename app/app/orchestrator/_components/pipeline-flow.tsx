@@ -51,13 +51,15 @@ export function PipelineOverview({ steps }: { steps: PlanStep[] }) {
   );
 }
 
-/** Under a step: the step its output goes to. `index` is the receiving
+/** Under a step: the step its output goes to, by number — the step itself
+ *  sits right below, under its own name, and a second mention of that name
+ *  here would make every agent appear in two rows. `index` is the receiving
  *  step's 0-based position, numbered as the step list numbers it. */
-export function HandoffNote({ to, index }: { to: PlanStep; index: number }) {
+export function HandoffNote({ index }: { index: number }) {
   return (
     <p className="basis-full pl-12 font-mono text-[10px] tracking-wide text-muted [overflow-wrap:anywhere]">
       <span aria-hidden="true">↓</span> hands its output to step{" "}
-      {String(index + 1).padStart(2, "0")} · {nameOf(to)}
+      {String(index + 1).padStart(2, "0")}
     </p>
   );
 }

@@ -616,9 +616,7 @@ export function ExecutionPlan({
                 </span>{" "}
                 · {s.est_eta_seconds.toFixed(1)}s
               </div>
-              {i < plan.steps.length - 1 && (
-                <HandoffNote to={plan.steps[i + 1]} index={i + 1} />
-              )}
+              {i < plan.steps.length - 1 && <HandoffNote index={i + 1} />}
             </m.li>
           ))}
         </ol>

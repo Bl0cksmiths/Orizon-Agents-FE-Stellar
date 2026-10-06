@@ -68,10 +68,10 @@ describe("PipelineOverview", () => {
 
 describe("HandoffNote", () => {
   it("says which step receives this one's output", () => {
-    const { container } = render(<HandoffNote to={STEPS[2]} index={2} />);
-    expect(container.textContent).toBe(
-      "↓ hands its output to step 03 · copywrite.v3",
-    );
+    const { container } = render(<HandoffNote index={2} />);
+    expect(container.textContent).toBe("↓ hands its output to step 03");
+    // Never the next agent's name: it is on its own row, just below.
+    expect(container.textContent).not.toContain("copywrite.v3");
     expect(container.querySelector("[aria-hidden]")?.textContent).toBe("↓");
   });
 });

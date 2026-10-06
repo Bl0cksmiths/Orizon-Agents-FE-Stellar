@@ -1713,9 +1713,9 @@ describe("ExecutionPlan · a multi-agent pipeline", () => {
       (li) => li.querySelector("p.basis-full")?.textContent ?? null,
     );
     expect(notes).toEqual([
-      "↓ hands its output to step 02 · seo.brief",
-      "↓ hands its output to step 03 · copywrite.v3",
-      "↓ hands its output to step 04 · code.gen",
+      "↓ hands its output to step 02",
+      "↓ hands its output to step 03",
+      "↓ hands its output to step 04",
       null,
     ]);
   });
