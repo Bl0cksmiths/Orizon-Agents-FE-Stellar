@@ -116,9 +116,13 @@ export type PlanStep = {
    *  on the wire; read through `readTier`, which shows no tier rather than a
    *  wrong one. Absent from backends predating it. */
   tier?: string | null;
-  /** The model that runs this step, when the backend names it. Null for an
-   *  external agent, which runs on its operator's own stack. Absent from
-   *  backends predating it, and then no model is shown — never a guess. */
+  /** Who runs this step: one of the backend's built-in workers, or an
+   *  external agent on its operator's own stack. Any string on the wire;
+   *  read through `stepRunner`. Absent from backends predating it, and then
+   *  no model is claimed for the step — only its tier is shown. */
+  executor?: string | null;
+  /** The model a built-in step runs on, by exact id. Null for an external
+   *  agent, and when the backend does not name one. */
   model?: string | null;
 };
 
