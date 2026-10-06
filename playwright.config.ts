@@ -38,6 +38,12 @@ const GUIDE_CONTENT_DIR =
  */
 const LITEPAPER_DIR = process.env.LITEPAPER_DIR ?? "test/fixtures/litepaper";
 
+/**
+ * Lets a spec make a named component throw (lib/fault-injection.ts), to prove
+ * a failure stays local. Inlined at build time, so only these servers have it.
+ */
+const FAULT_INJECTION = "1";
+
 export default defineConfig({
   testDir: "e2e",
   // First on-demand compile of a route under `next dev` can be slow.
@@ -69,6 +75,7 @@ export default defineConfig({
         // e2e/evidence.spec.ts does not change when the real index is filled.
         EVIDENCE_CONTENT_DIR: "test/fixtures/evidence",
         LITEPAPER_DIR,
+        NEXT_PUBLIC_FAULT_INJECTION: FAULT_INJECTION,
       },
     },
     {
@@ -87,6 +94,7 @@ export default defineConfig({
         // /evidence here is the REAL index, so e2e/evidence.spec.ts can run
         // axe, print and 360px checks on what reviewers will actually read.
         EVIDENCE_CONTENT_DIR: "content/evidence",
+        NEXT_PUBLIC_FAULT_INJECTION: FAULT_INJECTION,
       },
     },
   ],
