@@ -39,7 +39,7 @@ type Ask = { intent: string; spec?: PlanSpec };
  *  check's refusal — a notice of its own, not an error string. */
 type Answer =
   | { kind: "plan"; plan: DecomposeResponse }
-  | { kind: "refused"; refusal: DecomposeRefusal };
+  | { kind: "refused"; refusal: DecomposeRefusal; fromBrief: boolean };
 
 /** Decompose, with the request check's refusals kept as data and every other
  *  known failure turned into buyer copy before it reaches the alert. */
@@ -48,7 +48,8 @@ async function decomposeForBuyer({ intent, spec }: Ask): Promise<Answer> {
     return { kind: "plan", plan: await decompose(intent, spec) };
   } catch (e) {
     const refusal = decomposeRefusal(e);
-    if (refusal) return { kind: "refused", refusal };
+    if (refusal)
+      return { kind: "refused", refusal, fromBrief: spec !== undefined };
     throw new Error(decomposeErrorCopy(e));
   }
 }
@@ -76,6 +77,7 @@ export default function OrchestratorPage() {
   const answer = plan.data;
   const shown = answer?.kind === "plan" ? answer.plan : null;
   const refused = answer?.kind === "refused" ? answer.refusal : null;
+  const refusedBrief = answer?.kind === "refused" && answer.fromBrief;
   // A question waiting on the intent box: it describes the box until the
   // buyer asks again.
   const needsDetail = refused?.kind === "needs_detail";
@@ -169,6 +171,7 @@ export default function OrchestratorPage() {
             <GuardNotice
               className="mt-4"
               refusal={refused}
+              fromBrief={refusedBrief}
               onRetry={() => request(asked.current)}
               busy={plan.pending}
             />
