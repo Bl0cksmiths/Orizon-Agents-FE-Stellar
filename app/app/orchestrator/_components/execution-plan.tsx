@@ -61,7 +61,8 @@ import type { PlanSpec } from "@/lib/types";
 import { ModelTag, TierBadge } from "@/components/console/tier-badge";
 import { stepRunner } from "@/lib/plan-tier";
 import { FiatFund } from "./fiat-fund";
-import { HandoffNote, PipelineOverview } from "./pipeline-flow";
+import { HandoffNote, InputsNote, PipelineOverview } from "./pipeline-flow";
+import { planInputs } from "@/lib/plan-inputs";
 import { PlanProvenance } from "./plan-provenance";
 import { UnderstoodAsPanel } from "./understood-as-panel";
 import { isPlanExpired } from "./plan-errors";
@@ -222,6 +223,8 @@ export function ExecutionPlan({
   // A backend on the pricing contract names the plan's asset; an older one
   // does not, and the network read names it instead.
   const pricing = planPricing(plan);
+  // Which earlier steps each step builds on, when the planner says.
+  const inputs = planInputs(plan.steps);
   const unit =
     pricing.kind !== "unpriced" && pricing.asset
       ? pricing.asset
@@ -518,7 +521,7 @@ export function ExecutionPlan({
 
         {/* The order the agents run in, at a glance: a multi-agent plan is
             one pipeline, each step building on the ones before it. */}
-        <PipelineOverview steps={plan.steps} />
+        <PipelineOverview steps={plan.steps} namedSources={inputs !== null} />
 
         <ol className="space-y-3">
           {plan.steps.map((s, i) => (
@@ -625,7 +628,13 @@ export function ExecutionPlan({
                 </span>{" "}
                 · {s.est_eta_seconds.toFixed(1)}s
               </div>
-              {i < plan.steps.length - 1 && <HandoffNote index={i + 1} />}
+              {/* The planner's own word on what each step builds on, when it
+                  gives one; otherwise the run's order is the handoff. */}
+              {inputs !== null ? (
+                <InputsNote sources={inputs[i]} />
+              ) : (
+                i < plan.steps.length - 1 && <HandoffNote index={i + 1} />
+              )}
             </m.li>
           ))}
         </ol>

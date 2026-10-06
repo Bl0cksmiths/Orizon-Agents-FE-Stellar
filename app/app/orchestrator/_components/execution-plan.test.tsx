@@ -1767,3 +1767,35 @@ describe("ExecutionPlan · a multi-agent pipeline", () => {
     expect(container.textContent).not.toContain("hands its output");
   });
 });
+
+describe("ExecutionPlan · a pipeline that names its sources", () => {
+  const named = plan({
+    steps: [
+      ["research.pro", null],
+      ["seo.brief", [1]],
+      ["copywrite.v3", [1, 2]],
+      ["code.gen", [3]],
+    ].map(([name, inputs]) =>
+      step({
+        agent_id: `agt_${name}`,
+        agent_name: name as string,
+        est_price_usdc: 0.01,
+        inputs_from: inputs as number[] | null,
+      }),
+    ),
+  });
+
+  it("names each step's real sources instead of the sequential note", () => {
+    const { container } = render(<ExecutionPlan plan={named} />);
+    const notes = Array.from(container.querySelectorAll("ol > li")).map(
+      (li) => li.querySelector("p.basis-full")?.textContent ?? null,
+    );
+    expect(notes).toEqual([
+      null,
+      "↑ uses output from step 01",
+      "↑ uses output from steps 01 and 02",
+      "↑ uses output from step 03",
+    ]);
+    expect(container.textContent).not.toContain("hands its output");
+  });
+});
