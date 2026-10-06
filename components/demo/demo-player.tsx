@@ -27,6 +27,7 @@ import {
   youtubeEmbedUrl,
   youtubeWatchUrl,
 } from "@/lib/demo/display";
+import { faultPoint } from "@/lib/fault-injection";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import {
@@ -51,6 +52,7 @@ export function DemoPlayer({
   /** Which part this is, from 0: it names the links and the headings' ids. */
   index: number;
 }) {
+  faultPoint("demo-player");
   const [hydrated, setHydrated] = useState(false);
   const [playing, setPlaying] = useState<Playing | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
