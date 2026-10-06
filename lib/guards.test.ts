@@ -1049,6 +1049,25 @@ describe("screenDecomposeResponse — the orchestrator v2 fields", () => {
     }
   });
 
+  it("keeps a step's executor, and its null and absent forms", () => {
+    for (const executor of ["built_in", "external", "a_new_kind", null]) {
+      expect(
+        screen({ ...valid, steps: [{ ...step, executor }] }),
+        String(executor),
+      ).not.toBeNull();
+    }
+  });
+
+  it("rejects a step whose executor is not a string", () => {
+    // It decides whether a Claude model is claimed for the step.
+    for (const executor of [true, 1, { kind: "external" }]) {
+      expect(
+        screen({ ...valid, steps: [{ ...step, executor }] }),
+        JSON.stringify(executor),
+      ).toBeNull();
+    }
+  });
+
   it("rejects a step whose tier or model is not a string", () => {
     // Both render as text on the card; an object there throws during render.
     for (const extra of [
