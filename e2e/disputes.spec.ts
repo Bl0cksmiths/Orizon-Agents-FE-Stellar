@@ -30,6 +30,7 @@ import {
   mockDisputeTaskId,
   mockDisputesRouteMissing,
   mockOtherOwnerAddress,
+  mockProofTx,
   mockReasonTooLongMessage,
   mockSettlementSteps,
   mockSettlementView,
@@ -1497,6 +1498,16 @@ test.describe("the countdown's re-renders stay inside the receipt", () => {
       { routes },
     );
     await expect(disputeButtons(page)).toHaveCount(2);
+    // The run's end-of-run read — its artifact and the seal's transaction —
+    // is content arriving, which the page rightly renders; it races the
+    // receipt's own read. The counter starts once it has landed, so what it
+    // measures is the countdown's ticks (and, in the slow variant, the task
+    // read still in flight) and nothing else.
+    await expect(
+      page
+        .locator("[data-attestation]")
+        .locator(`a[href$="/tx/${mockProofTx}"]`),
+    ).toBeVisible();
     const countdown = receipt(page).getByText(/^\d+m( \d+s)? left$/);
     const before = await countdown.textContent();
 
