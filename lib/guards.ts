@@ -376,7 +376,10 @@ function isPlanStep(s: unknown): s is PlanStep {
     // against the three this build knows: a tier added later must not blank
     // a plan the buyer can pay for — `readTier` shows no badge for it.
     isOptionalStr(s.tier) &&
-    isOptionalStr(s.model)
+    isOptionalStr(s.model) &&
+    // Decides whether a Claude model is claimed for the step: a string or
+    // nothing, read against the values this build knows by `stepRunner`.
+    isOptionalStr(s.executor)
   );
 }
 
