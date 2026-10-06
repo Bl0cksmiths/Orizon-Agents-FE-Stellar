@@ -146,6 +146,26 @@ describe("the cached routes", () => {
     expect(sent.get("x-frontend-proxy-token")).toBeNull();
   });
 
+  it("relays the adoption route's 202 while nothing is cached", async () => {
+    const body = {
+      status: "computing",
+      message: "The adoption report is being computed.",
+      retry_after_seconds: 30,
+    };
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify(body), {
+        status: 202,
+        headers: { "content-type": "application/json", "retry-after": "30" },
+      }),
+    );
+    const { GET } = await route("ecosystem/adoption");
+    const res = await GET(req("ecosystem/adoption"));
+    expect(res.status).toBe(202);
+    expect(res.headers.get("retry-after")).toBe("30");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.json()).toEqual(body);
+  });
+
   it("refuses to cache a body the console would reject", async () => {
     fetchMock.mockResolvedValueOnce(json({ unexpected: true }));
     const { GET } = await route("stellar/network");
