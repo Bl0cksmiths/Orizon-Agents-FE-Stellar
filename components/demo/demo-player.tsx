@@ -20,49 +20,26 @@
  * plain "Watch part N on YouTube" link under the player is always there.
  */
 
-import Image from "next/image";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import type { DemoChapter, DemoVideo } from "@/lib/demo/load";
 import {
-  deliverableLabel,
   formatDuration,
-  formatTimestamp,
-  isoDuration,
   youtubeEmbedUrl,
-  youtubePosterUrl,
   youtubeWatchUrl,
 } from "@/lib/demo/display";
-import { focusRing, inlineLink } from "@/lib/ui";
+import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
+import {
+  CHAPTER_LINK,
+  ChapterLabel,
+  ChapterList,
+  PlayGlyph,
+  Poster,
+  PosterLink,
+  WatchLink,
+} from "./demo-player-parts";
 
 type Playing = { start: number; load: number };
-
-function PlayGlyph() {
-  return (
-    <span
-      aria-hidden="true"
-      className="grid h-16 w-16 place-items-center rounded-full border border-cyan/70 bg-bg/80 text-cyan shadow-lg backdrop-blur transition-transform group-hover:scale-105 sm:h-20 sm:w-20"
-    >
-      <svg viewBox="0 0 24 24" className="ml-1 h-7 w-7 sm:h-8 sm:w-8">
-        <path d="M7 4.5v15l12-7.5-12-7.5Z" fill="currentColor" />
-      </svg>
-    </span>
-  );
-}
-
-function Poster({ video, first }: { video: DemoVideo; first: boolean }) {
-  return (
-    <Image
-      src={youtubePosterUrl(video.id)}
-      alt=""
-      fill
-      // Only the first part's poster is above the fold.
-      priority={first}
-      sizes="(min-width: 896px) 832px, 100vw"
-      className="object-cover opacity-80 transition-opacity group-hover:opacity-100"
-    />
-  );
-}
 
 export function DemoPlayer({
   video,
@@ -146,88 +123,34 @@ export function DemoPlayer({
             </button>
           ) : (
             // Before hydration (or with no JavaScript): the poster goes to
-            // YouTube. The text link below is the named fallback, so this
-            // copy is hidden from the accessibility tree and the tab order.
-            <a
-              href={youtubeWatchUrl(video.id)}
-              aria-hidden="true"
-              tabIndex={-1}
-              className="group absolute inset-0 grid h-full w-full place-items-center bg-bg"
-            >
-              <Poster video={video} first={index === 0} />
-              <span className="relative">
-                <PlayGlyph />
-              </span>
-            </a>
+            // YouTube.
+            <PosterLink video={video} first={index === 0} />
           )}
         </div>
-        <p className="mt-3 text-right text-sm">
-          <a
-            href={youtubeWatchUrl(video.id)}
-            rel="noreferrer"
-            className={inlineLink}
-          >
-            Watch part {index + 1} on YouTube
-          </a>
-        </p>
+        <WatchLink video={video} index={index} />
       </div>
 
-      <section aria-labelledby={`demo-part-${index + 1}-chapters`}>
-        <h3
-          id={`demo-part-${index + 1}-chapters`}
-          className="text-lg font-semibold tracking-tight text-text"
-        >
-          Chapters
-        </h3>
-        <p className="mt-2 text-sm text-muted">
-          A chapter is tagged with the funded deliverable it shows, and left
-          untagged when it shows none. Choosing one plays the video from that
-          point.
-        </p>
-        <ol className="mt-5 divide-y divide-border border-y border-border">
-          {chapters.map((chapter) => {
-            const current = playing?.start === chapter.t;
-            return (
-              <li key={chapter.t}>
-                <a
-                  href={youtubeWatchUrl(video.id, chapter.t)}
-                  onClick={(e) => onChapter(e, chapter.t)}
-                  aria-current={current ? "true" : undefined}
-                  className={cn(
-                    "flex items-baseline gap-4 px-2 py-3 transition-colors hover:bg-surface/70",
-                    current && "bg-surface/70",
-                    focusRing,
-                  )}
-                >
-                  <time
-                    dateTime={isoDuration(chapter.t)}
-                    className="w-12 shrink-0 font-mono text-sm text-cyan"
-                  >
-                    {formatTimestamp(chapter.t)}
-                  </time>{" "}
-                  <span className="min-w-0 flex-1 text-text">
-                    {chapter.title}
-                  </span>
-                  {chapter.deliverable && (
-                    <>
-                      {" "}
-                      <span
-                        title={deliverableLabel(chapter.deliverable)}
-                        className="shrink-0 border border-violet/60 px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-widest text-violet-readable"
-                      >
-                        <span className="sr-only">
-                          {deliverableLabel(chapter.deliverable)}
-                        </span>
-                        <span aria-hidden="true">{chapter.deliverable}</span>
-                      </span>
-                    </>
-                  )}
-                </a>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
+      <ChapterList index={index}>
+        {chapters.map((chapter) => {
+          const current = playing?.start === chapter.t;
+          return (
+            <li key={chapter.t}>
+              <a
+                href={youtubeWatchUrl(video.id, chapter.t)}
+                onClick={(e) => onChapter(e, chapter.t)}
+                aria-current={current ? "true" : undefined}
+                className={cn(
+                  CHAPTER_LINK,
+                  current && "bg-surface/70",
+                  focusRing,
+                )}
+              >
+                <ChapterLabel chapter={chapter} />
+              </a>
+            </li>
+          );
+        })}
+      </ChapterList>
     </div>
   );
 }
