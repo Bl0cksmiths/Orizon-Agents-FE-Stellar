@@ -82,18 +82,29 @@ test.describe("orchestrator v2 — the plan card", () => {
     const provenance = page.getByRole("list", {
       name: /how this plan was made/i,
     });
-    await expect(provenance).toContainText(/checked by jev 1\.13\.0/i);
+    await expect(provenance).toContainText(/checked by jev/i);
+    await expect(provenance).not.toContainText("1.13");
+    // A machine reason, said in words.
+    await expect(provenance).toContainText(/tier rounded up/i);
+    await expect(provenance).not.toContainText("tier_rounded_up");
     await expect(provenance).toContainText("Claude Sonnet 5.5");
     await expect(provenance).toContainText("Claude Opus 5.5");
-    await expect(provenance).toContainText(/moderate tier/i);
+    await expect(provenance).toContainText(/complex tier/i);
 
     await expect(steps(page)).toHaveCount(3);
+    // Labelled from `models.tiers`, as the tier's built-in model.
     await expect(steps(page).nth(0)).toContainText(/low tier/i);
-    await expect(steps(page).nth(0)).toContainText("runs on Claude Haiku 4.5");
+    await expect(steps(page).nth(0)).toContainText(
+      "built-in model: Claude Haiku 4.5",
+    );
     await expect(steps(page).nth(1)).toContainText(/moderate tier/i);
-    await expect(steps(page).nth(1)).toContainText("runs on Claude Sonnet 5.5");
+    await expect(steps(page).nth(1)).toContainText(
+      "built-in model: Claude Sonnet 5.5",
+    );
     await expect(steps(page).nth(2)).toContainText(/complex tier/i);
-    await expect(steps(page).nth(2)).not.toContainText("runs on");
+    await expect(steps(page).nth(2)).toContainText(
+      "built-in model: Claude Opus 5.5",
+    );
 
     // The brief is read before the steps it frames.
     const briefBox = await brief(page).boundingBox();
@@ -158,6 +169,31 @@ test.describe("orchestrator v2 — the plan card", () => {
     expect(asked).toHaveLength(1);
   });
 
+  test("an edit that changes the request is refused with a new-request note", async ({
+    page,
+  }) => {
+    const asked = await ask(page, [
+      ok(mockPlanV2),
+      refusal(
+        422,
+        "intent_needs_detail",
+        "Your edit asks for something different. Submit it as a new request.",
+      ),
+    ]);
+    await brief(page)
+      .getByRole("button", { name: /edit the brief/i })
+      .click();
+    await brief(page).getByLabel(/^goal/i).fill("A spreadsheet app instead");
+    await brief(page)
+      .getByRole("button", { name: /re-plan/i })
+      .click();
+    await expect(notice(page)).toContainText(/submit it as a new request/i);
+    await expect(notice(page)).toContainText(/new request/i);
+    await expect(notice(page)).not.toContainText(/add more detail/i);
+    expect(asked[1].spec?.goal).toBe("A spreadsheet app instead");
+    await axe(page);
+  });
+
   test("a plan from an older backend is today's card", async ({ page }) => {
     await ask(page, [ok(mockPlan)]);
     await expect(planCard(page)).toBeVisible();
@@ -209,9 +245,11 @@ test.describe("orchestrator v2 — the request check's notices", () => {
     page,
   }) => {
     await ask(page, [
-      refusal(422, "intent_blocked", {
-        reason: "It asks for help getting into someone else's account.",
-      }),
+      refusal(
+        422,
+        "intent_blocked",
+        "It asks for help getting into someone else's account.",
+      ),
     ]);
     const alert = notice(page);
     await expect(alert).toContainText(/can.t plan this request/i);
@@ -230,9 +268,11 @@ test.describe("orchestrator v2 — the request check's notices", () => {
     const asked = await ask(
       page,
       [
-        refusal(422, "intent_needs_detail", {
-          question: "What should the calculator be able to do?",
-        }),
+        refusal(
+          422,
+          "intent_needs_detail",
+          "What should the calculator be able to do?",
+        ),
         ok(mockPlanV2),
       ],
       "calc",
@@ -264,7 +304,12 @@ test.describe("orchestrator v2 — the request check's notices", () => {
     page,
   }) => {
     const asked = await ask(page, [
-      refusal(503, "intent_unavailable", {}, { "Retry-After": "2" }),
+      refusal(
+        503,
+        "intent_unavailable",
+        "We couldn't check your request just now. Please try again shortly.",
+        { "Retry-After": "2" },
+      ),
       ok(mockPlanV2),
     ]);
     await expect(notice(page)).toContainText(/nothing was charged/i);
@@ -286,7 +331,12 @@ test.describe("orchestrator v2 — the request check's notices", () => {
     page,
   }) => {
     const asked = await ask(page, [
-      refusal(503, "planning_paused", {}, { "Retry-After": "7200" }),
+      refusal(
+        503,
+        "planning_paused",
+        "AI planning is paused until the daily budget resets.",
+        { "Retry-After": "7200" },
+      ),
       ok(mockPlanV2),
     ]);
     const alert = notice(page);
@@ -309,7 +359,12 @@ test.describe("orchestrator v2 — the request check's notices", () => {
   test("at 360px every notice stays inside the frame", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 800 });
     await ask(page, [
-      refusal(503, "intent_unavailable", {}, { "Retry-After": "30" }),
+      refusal(
+        503,
+        "intent_unavailable",
+        "We couldn't check your request just now.",
+        { "Retry-After": "30" },
+      ),
     ]);
     await expect(notice(page)).toBeVisible();
     const scroll = await page.evaluate(
