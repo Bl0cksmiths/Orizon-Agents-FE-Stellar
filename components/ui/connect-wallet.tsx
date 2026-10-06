@@ -3,6 +3,7 @@ import { useWallet } from "@/lib/wallet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { focusRing } from "@/lib/ui";
+import { faultPoint } from "@/lib/fault-injection";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,6 +44,7 @@ export function ConnectWallet({
    *  the first step of a payment those notices are about. */
   describedBy?: string;
 }) {
+  faultPoint("connect-wallet");
   const {
     available,
     connected,
