@@ -172,7 +172,15 @@ export type ExclusionReason =
   | "simulated_worker"
   /** An operator's own agent, left out while plans use only the platform's
    *  built-in agents (`PLANNER_ROUTE_EXTERNAL`). Routing policy too. */
-  | "external_not_routed";
+  | "external_not_routed"
+  /** A vision step the planner proposed for a request with no image to
+   *  read, dropped before the buyer authorized its price. */
+  | "no_image_input"
+  /** Any other proposed step that would have had nothing to work on (a
+   *  review with no build, a translation with no target language). */
+  | "no_step_input"
+  /** An agent whose model provider is down. */
+  | "provider_unavailable";
 
 /** One reputation-floor action taken while building the plan
  * (`PlanFloorNotice` in the backend's app/schemas.py). `replacement_*` are
