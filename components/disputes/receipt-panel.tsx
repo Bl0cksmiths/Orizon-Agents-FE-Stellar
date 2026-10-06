@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useId, useState, type RefObject } from "react";
+import dynamic from "next/dynamic";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,13 @@ import { ReasonUnlock } from "./reason-unlock";
 import { WindowState, formatLocalTime } from "./window-state";
 
 type SettledView = Extract<DisputePanelView, { kind: "settled" }>;
+
+// Its own chunk: only a settled receipt that reports per-step payouts draws
+// it, and the trace route sits at its first-load budget.
+const ReconciliationTable = dynamic(
+  () => import("./reconciliation").then((m) => m.ReconciliationTable),
+  { ssr: false },
+);
 
 /** The payer's offer to sign for their withheld words, as the page runs it. */
 export type ReasonUnlockControl = {
@@ -502,6 +510,12 @@ function SettledReceipt({
             <TxRow label="charge" hash={view.chargeTx} />
             <TxRow label="seal" hash={view.proofTx} />
           </dl>
+
+          {/* Planned against charged against returned, per step and in all —
+              the money above, reconciled to the stroop. */}
+          {view.reconciliation && (
+            <ReconciliationTable recon={view.reconciliation} />
+          )}
 
           {/* What became of the run's attestation, in words, when the
               backend reports it; the link to its transaction is the "seal"

@@ -1271,3 +1271,43 @@ describe("ReceiptPanel — a delivery-only seal", () => {
     expect(text()).toContain("Seal failed — your payment stands");
   });
 });
+
+describe("ReceiptPanel · the reconciliation", () => {
+  const recon = {
+    rows: [
+      {
+        stepIndex: 0,
+        agent: "code.gen",
+        delivered: true,
+        planned: 540_000n,
+        charged: 540_000n,
+        returned: 0n,
+        balanced: true,
+      },
+    ],
+    planned: 540_000n,
+    charged: 540_000n,
+    returned: 0n,
+    authorized: null,
+    headroom: null,
+    balanced: true,
+    issues: [],
+    held: false,
+    exact: true,
+    asset: null,
+    settleTx: CHARGE_TX,
+  };
+
+  it("draws planned, charged and returned once the view reconciles them", async () => {
+    renderPanel(settled([], { reconciliation: recon }));
+    const table = await screen.findByRole("table");
+    expect(table.textContent).toContain("code.gen");
+    // Planned and charged, on the step and in the total.
+    expect(within(table).getAllByText("0.054").length).toBe(4);
+  });
+
+  it("draws no table for a settlement it cannot reconcile", () => {
+    renderPanel(settled([]));
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+});
