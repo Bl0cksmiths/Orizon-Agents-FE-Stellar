@@ -5,6 +5,7 @@ import {
   AUTHORIZE_TTL_SECONDS,
   BASE_RESERVE_STROOPS,
   checkEscrowFunds,
+  authorizeAmountMismatch,
   classifyAuthorizeError,
   insufficientEscrowFunds,
 } from "./escrow";
@@ -172,5 +173,29 @@ describe("checkEscrowFunds — the network's unread asset", () => {
     expect(
       checkEscrowFunds({ balance: "100", cap: 1n, asset: "unknown" }),
     ).toEqual({ kind: "unknown" });
+  });
+});
+
+describe("authorizeAmountMismatch", () => {
+  const refusal = Object.assign(
+    new Error("plan pln_1 totals 1513457 stroops; authorize exactly that"),
+    { code: "authorization_amount_mismatch", status: 409 },
+  );
+
+  it("reads the backend's refusal of an amount that is not the plan's total", () => {
+    const e = authorizeAmountMismatch(refusal);
+    expect(e?.title).toBe("This plan's price changed");
+    expect(e?.detail).toBe(
+      "The platform holds a different total for this plan than the one on this card, so nothing was signed or moved. Build a fresh plan to see its current price.",
+    );
+  });
+
+  it("reads nothing into any other failure", () => {
+    expect(authorizeAmountMismatch(new Error("build_failed"))).toBeNull();
+    expect(
+      authorizeAmountMismatch(
+        Object.assign(new Error("x"), { code: "build_failed" }),
+      ),
+    ).toBeNull();
   });
 });

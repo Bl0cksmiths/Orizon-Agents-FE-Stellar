@@ -216,3 +216,27 @@ export function classifyAuthorizeError(e: unknown): FriendlyError {
   }
   return classifyError(e);
 }
+
+/**
+ * The backend's refusal of an authorization whose amount is not its plan's
+ * total (409 `authorization_amount_mismatch`, ADR 0015) — raised before
+ * anything is built, so the wallet was never asked. It means the card is
+ * showing a price the platform no longer holds for the plan; the way on is a
+ * fresh plan, never a retry of the same amount. Null for any other failure.
+ */
+export function authorizeAmountMismatch(e: unknown): FriendlyError | null {
+  const code =
+    typeof e === "object" && e !== null && "code" in e
+      ? (e as { code?: unknown }).code
+      : undefined;
+  if (code !== "authorization_amount_mismatch") return null;
+  return {
+    kind: "unknown",
+    title: "This plan's price changed",
+    detail:
+      "The platform holds a different total for this plan than the one on " +
+      "this card, so nothing was signed or moved. Build a fresh plan to see " +
+      "its current price.",
+    raw: messageOf(e),
+  };
+}
