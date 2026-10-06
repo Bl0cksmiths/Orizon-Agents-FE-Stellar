@@ -162,6 +162,7 @@ const FIELDS: ReadonlyArray<{
     name: "summary",
     label: "Summary",
     hint: "One sentence. Left blank, the goal is used.",
+    rows: 2,
   },
 ];
 
