@@ -25,7 +25,7 @@ import {
   getTask,
   openTraceStream,
 } from "@/lib/api";
-import { readSealState } from "@/lib/seal-state";
+import { readSealKind, readSealState } from "@/lib/seal-state";
 import { escrowGeneration } from "@/lib/escrow-generation";
 import { traceSettlementState } from "@/lib/settlement-state";
 import { formatSpent, relabelAmounts, traceSpend } from "@/lib/trace-amounts";
@@ -129,6 +129,8 @@ function TracePageInner() {
     { enabled: Boolean(taskId), keepPreviousData: true },
   );
   const seal = readSealState(task?.seal);
+  // What it attests: a delivery-only seal is worded with no payment.
+  const sealKind = readSealKind(task?.seal_kind);
   useEffect(() => {
     if (seal !== "pending") return;
     const timer = setTimeout(reloadTask, SEAL_RECHECK_MS);
@@ -642,7 +644,7 @@ function TracePageInner() {
               {/* The backend's own word on the seal, when it sends one; a
                   backend from before the field keeps the trace's reading. */}
               {seal !== undefined ? (
-                <SealStatus seal={seal} />
+                <SealStatus seal={seal} kind={sealKind} />
               ) : (
                 <div
                   className={cn(
