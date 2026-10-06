@@ -57,6 +57,7 @@ import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
 import type { PlanSpec } from "@/lib/types";
 import { ModelTag, TierBadge } from "@/components/console/tier-badge";
+import { stepModel } from "@/lib/plan-tier";
 import { FiatFund } from "./fiat-fund";
 import { PlanProvenance } from "./plan-provenance";
 import { UnderstoodAsPanel } from "./understood-as-panel";
@@ -581,11 +582,7 @@ export function ExecutionPlan({
                   min-content width never widens the row. */}
               <div className="flex-1 text-sm">
                 {s.rationale}
-                <ModelTag
-                  model={s.model}
-                  prefix="runs on"
-                  className="mt-1 block"
-                />
+                <StepModel step={s} models={plan.models} />
               </div>
               <div className="font-mono text-xs text-cyan">
                 {s.est_price_usdc.toFixed(3)} · {s.est_eta_seconds.toFixed(1)}s
@@ -831,5 +828,29 @@ export function ExecutionPlan({
         />
       </Card>
     </m.div>
+  );
+}
+
+/**
+ * The model a step runs on, under its rationale. The backend's own name for
+ * it reads "runs on"; one read off the step's tier reads "built-in model",
+ * because only a built-in worker runs on it — a step routed to an external
+ * agent runs on its operator's own stack.
+ */
+function StepModel({
+  step,
+  models,
+}: {
+  step: DecomposeResponse["steps"][number];
+  models: DecomposeResponse["models"];
+}) {
+  const m = stepModel(step, models);
+  if (!m) return null;
+  return (
+    <ModelTag
+      model={m.name}
+      prefix={m.fromTier ? "built-in model:" : "runs on"}
+      className="mt-1 block"
+    />
   );
 }
