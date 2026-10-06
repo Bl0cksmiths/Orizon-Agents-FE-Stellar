@@ -1,10 +1,11 @@
 /**
- * Every `.reveal` element shown at rest (app/globals.css): what the page
- * looks like when its scroll entrances cannot play. Shown without JavaScript
- * (components/ui/reveal-on-scroll.tsx), and in place of the entrances'
- * observer if it fails, so no section stays hidden at opacity 0.
+ * Every `.reveal` element shown at rest (app/globals.css), whether or not the
+ * page was armed for its entrances: what stands in for the entrances'
+ * observer (components/ui/reveal-on-scroll.tsx) if it fails, so no section
+ * stays hidden at opacity 0.
  */
-export const REVEAL_AT_REST_CSS = ".reveal{opacity:1;transform:none}";
+export const REVEAL_AT_REST_CSS =
+  ".reveal,[data-reveal] .reveal{opacity:1;transform:none}";
 
 export function RevealAtRest() {
   return <style>{REVEAL_AT_REST_CSS}</style>;
