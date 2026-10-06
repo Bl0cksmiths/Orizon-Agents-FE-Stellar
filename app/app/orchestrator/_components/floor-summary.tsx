@@ -55,7 +55,10 @@ import {
   isUnbound,
   isUnreachable,
   isExternalNotRouted,
+  isMissingInput,
+  isProviderUnavailable,
   isSimulatedWorker,
+  namesNoAgent,
   knownKind,
 } from "./floor-notices";
 
@@ -111,8 +114,16 @@ export function FloorSummary({
   // Left out by routing policy: operator agents while plans are in-platform
   // only, and built-in agents whose workers would only simulate. Neither is
   // the floor acting, nor a word about the agent.
-  const external = new Set(
-    notices.filter(isExternalNotRouted).map((n) => n.agent_id),
+  const externalNotices = notices.filter(isExternalNotRouted);
+  const external = new Set(externalNotices.map((n) => n.agent_id)).size;
+  // An aggregate notice stands for every operator agent and names none, so
+  // there is no head count to give — only the fact.
+  const externalUncounted = externalNotices.some(namesNoAgent);
+  // Proposed steps dropped for want of their input, and agents whose model
+  // provider is down: neither the floor nor a word about the agent.
+  const noInput = notices.filter(isMissingInput).length;
+  const noProvider = new Set(
+    notices.filter(isProviderUnavailable).map((n) => n.agent_id),
   ).size;
   const simulated = new Set(
     notices.filter(isSimulatedWorker).map((n) => n.agent_id),
@@ -221,13 +232,23 @@ export function FloorSummary({
             ? " · 1 agent whose endpoint failed its latest health check was left out"
             : ` · ${unreachable} agents whose endpoints failed their latest health check were left out`)}
         {external > 0 &&
-          (external === 1
-            ? " · 1 operator agent was left out: plans use only the platform's own agents for now"
-            : ` · ${external} operator agents were left out: plans use only the platform's own agents for now`)}
+          (externalUncounted
+            ? " · operator agents were left out: plans use only the platform's own agents for now"
+            : external === 1
+              ? " · 1 operator agent was left out: plans use only the platform's own agents for now"
+              : ` · ${external} operator agents were left out: plans use only the platform's own agents for now`)}
         {simulated > 0 &&
           (simulated === 1
             ? " · 1 agent whose worker is not live yet was left out, so nothing simulated is charged"
             : ` · ${simulated} agents whose workers are not live yet were left out, so nothing simulated is charged`)}
+        {noInput > 0 &&
+          (noInput === 1
+            ? " · 1 proposed step was left out because it would have had nothing to work on"
+            : ` · ${noInput} proposed steps were left out because they would have had nothing to work on`)}
+        {noProvider > 0 &&
+          (noProvider === 1
+            ? " · 1 agent was left out because its model provider is unavailable"
+            : ` · ${noProvider} agents were left out because their model provider is unavailable`)}
         {undescribed > 0 &&
           ` · ${undescribed === 1 ? "1 agent" : `${undescribed} agents`} reported under a kind this card has no wording for, listed below`}
         {hidden > 0 && ` · ${hiddenNoticesText(hidden)}`}
