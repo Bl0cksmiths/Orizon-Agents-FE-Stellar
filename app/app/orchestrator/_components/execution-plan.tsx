@@ -575,9 +575,11 @@ export function ExecutionPlan({
                 <TierBadge tier={s.tier} />
               </div>
               <span className="text-sm text-muted">→</span>
-              {/* min-w-0 so a long model id wraps inside the row instead of
-                  widening it past the card at 360px. */}
-              <div className="min-w-0 flex-1 text-sm">
+              {/* No min-w-0: in this wrapping row it would let the rationale
+                  shrink to a sliver beside the badges instead of taking its
+                  own line on a phone. The model tag wraps anywhere, so its
+                  min-content width never widens the row. */}
+              <div className="flex-1 text-sm">
                 {s.rationale}
                 <ModelTag
                   model={s.model}
