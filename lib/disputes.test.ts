@@ -33,6 +33,7 @@ import {
   receiptAwaitsChain,
   receiptBadgeStatus,
   serverClockOffsetMs,
+  stepPayout,
 } from "./disputes";
 import { formatSettled } from "./money";
 import { rememberTaskToken } from "./task-tokens";
@@ -2802,7 +2803,14 @@ describe("disputeView — escrow v2 settlement", () => {
       res: taskDisputes({ settlement_state: "settled", settlement: v2() }),
     });
     expect(payouts(v)).toEqual({
-      0: { kind: "paid", usdc: 0.01, tx: "tx_charge", receiptIdHex: RECEIPT },
+      0: {
+        kind: "paid",
+        usdc: 0.01,
+        tx: "tx_charge",
+        receiptIdHex: RECEIPT,
+        payee: null,
+        payeeRole: null,
+      },
       1: { kind: "platform" },
       2: { kind: "not_paid" },
     });
@@ -3035,5 +3043,45 @@ describe("disputeView — the receipt's reconciliation", () => {
 
   it("draws none for a settlement that reports no payouts", () => {
     expect(settled().reconciliation).toBeUndefined();
+  });
+});
+
+describe("stepPayout — who was paid", () => {
+  const TREASURY = "GDOGIRT73NAQ7VRCIOK7G76EK7MAOC55EDT5GG4EKRE4VPVWSWG7KSP3";
+
+  it("carries the payee and its role onto a paid step", () => {
+    expect(
+      stepPayout(
+        step(0, {
+          paid_usdc: 0.01,
+          payee: TREASURY,
+          payee_role: "platform_treasury",
+        }),
+        "settled",
+        "tx",
+      ),
+    ).toEqual({
+      kind: "paid",
+      usdc: 0.01,
+      tx: "tx",
+      receiptIdHex: null,
+      payee: TREASURY,
+      payeeRole: "platform_treasury",
+    });
+  });
+
+  it("leaves them null on a record that kept no payee", () => {
+    const p = stepPayout(step(0, { paid_usdc: 0.01 }), "settled", "tx");
+    expect(p).toMatchObject({ payee: null, payeeRole: null });
+  });
+
+  it("refuses a payee that is not a string", async () => {
+    const body = taskDisputes({
+      settlement: settlement({
+        steps: [{ ...step(0), payee: 7 } as unknown as SettlementStepView],
+      }),
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
   });
 });

@@ -249,6 +249,8 @@ function isSettlementStep(v: unknown): v is SettlementStepView {
     isAbsentOr(v.unpaid_reason, isNullableStr) &&
     // The exact figures, when sent, are whole stroops or nothing: a price
     // of 1.5 stroops is unprintable, and the step is refused with it.
+    isAbsentOr(v.payee, isNullableStr) &&
+    isAbsentOr(v.payee_role, isNullableStr) &&
     isAbsentOr(v.planned, isNullableWireAmount) &&
     isAbsentOr(v.charged, isNullableWireAmount) &&
     isAbsentOr(v.returned, isNullableWireAmount)
@@ -1014,6 +1016,8 @@ export function stepPayout(
           usdc: paid,
           tx: settleTx,
           receiptIdHex: step.receipt_id_hex ?? null,
+          payee: step.payee ?? null,
+          payeeRole: step.payee_role ?? null,
         };
       }
       // The backend's own reason first; the reserved `agt_` prefix only
