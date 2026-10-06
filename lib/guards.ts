@@ -290,6 +290,7 @@ export function isTask(t: unknown): t is Task {
     isRecord(t) &&
     isStr(t.id) &&
     isNum(t.spent) &&
+    isOptionalStroops(t.spent_stroops) &&
     isStr(t.status) &&
     TASK_STATUSES.has(t.status) &&
     // The settlement outcome and the seal state: each any string, null, or

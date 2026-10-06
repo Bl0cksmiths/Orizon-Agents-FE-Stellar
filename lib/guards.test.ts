@@ -44,6 +44,8 @@ import {
   isReputationSource,
 } from "./types";
 
+import { taskSpent } from "./trace-amounts";
+
 describe("screenAgentList", () => {
   const agent = {
     id: "agt_01",
@@ -1956,5 +1958,35 @@ describe("screenDecomposeResponse — exact pricing fields", () => {
       expect(plan).not.toBeNull();
       expect(plan?.asset).toBeUndefined();
     }
+  });
+});
+
+describe("isTask — the run's exact bill", () => {
+  const task = {
+    id: "task_1",
+    intent: "x",
+    agents: 1,
+    spent: 0.054,
+    status: "complete",
+    started: "now",
+  };
+
+  it("accepts spent_stroops as whole stroops, null, or absent", () => {
+    expect(isTask({ ...task, spent_stroops: 540_000 })).toBe(true);
+    expect(isTask({ ...task, spent_stroops: null })).toBe(true);
+    expect(isTask(task)).toBe(true);
+  });
+
+  it("refuses a bill that is not whole stroops", () => {
+    expect(isTask({ ...task, spent_stroops: 1.5 })).toBe(false);
+    expect(isTask({ ...task, spent_stroops: -1 })).toBe(false);
+  });
+});
+
+describe("taskSpent", () => {
+  it("prefers the exact bill, and falls back to the legacy float", () => {
+    expect(taskSpent({ spent: 0.054, spent_stroops: 540_001 })).toBe(540_001n);
+    expect(taskSpent({ spent: 0.054 })).toBe(540_000n);
+    expect(taskSpent({ spent: 0.054, spent_stroops: null })).toBe(540_000n);
   });
 });
