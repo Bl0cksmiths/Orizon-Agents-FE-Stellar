@@ -50,6 +50,12 @@ type NetworkDetails = {
 };
 
 type WalletState = {
+  /**
+   * False when the wallet provider itself failed and the root layout's
+   * boundary put <WalletUnavailable> in its place: nothing can connect or
+   * sign until the page is reloaded, and wallet controls say so.
+   */
+  available: boolean;
   installed: boolean;
   connected: boolean;
   address: string | null;
@@ -540,6 +546,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<WalletState>(
     () => ({
+      available: true,
       installed,
       connected: Boolean(address),
       address,
@@ -581,6 +588,56 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   );
 
   return <WalletCtx.Provider value={value}>{children}</WalletCtx.Provider>;
+}
+
+/** What a wallet action meets when the provider failed (see WalletUnavailable). */
+export const WALLET_UNAVAILABLE: FriendlyError = {
+  kind: "unknown",
+  title: "Wallet unavailable",
+  detail:
+    "The wallet couldn't start on this page. Reload the page to try again.",
+  raw: "the wallet provider failed and was replaced by WalletUnavailable",
+};
+
+const rejectUnavailable = () => Promise.reject(WALLET_UNAVAILABLE);
+const nothingToDo = () => Promise.resolve();
+
+/** The whole state while the wallet is unavailable: fixed, so it can never
+ * fail the way the provider did. */
+const UNAVAILABLE_STATE: WalletState = {
+  available: false,
+  installed: false,
+  connected: false,
+  address: null,
+  walletId: null,
+  walletName: null,
+  network: { network: NETWORK_NAME, networkPassphrase: NETWORK_PASSPHRASE },
+  walletNetwork: null,
+  walletNetworkMismatch: false,
+  error: WALLET_UNAVAILABLE,
+  loading: false,
+  xlmBalance: null,
+  balanceLoading: false,
+  balanceError: null,
+  connect: nothingToDo,
+  disconnect: nothingToDo,
+  signXdr: rejectUnavailable,
+  signMessage: rejectUnavailable,
+  refreshBalance: nothingToDo,
+};
+
+/**
+ * The root layout's stand-in for a WalletProvider that threw: the page under
+ * it renders as usual, wallet controls show "Wallet unavailable", and a
+ * signing call rejects with WALLET_UNAVAILABLE, which the pages' error copy
+ * already knows how to show (it is a FriendlyError).
+ */
+export function WalletUnavailable({ children }: { children: React.ReactNode }) {
+  return (
+    <WalletCtx.Provider value={UNAVAILABLE_STATE}>
+      {children}
+    </WalletCtx.Provider>
+  );
 }
 
 export function useWallet() {
