@@ -1,4 +1,5 @@
 "use client";
+import { formatUnits } from "@/lib/money";
 import {
   Fragment,
   useCallback,
@@ -575,7 +576,7 @@ export default function AgentsPage() {
                         </div>
                       </td>
                       <td className="py-3 text-right font-mono text-cyan">
-                        {a.price.toFixed(3)}
+                        {formatUnits(a.price, null)}
                       </td>
                       <td className="whitespace-nowrap py-3 pl-4 text-right">
                         <ReputationCell

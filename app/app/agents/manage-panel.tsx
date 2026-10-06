@@ -14,6 +14,7 @@ import { isListed } from "@/lib/routability";
 import { useWallet } from "@/lib/wallet";
 import { type FriendlyError } from "@/lib/wallet-errors";
 import { focusRing } from "@/lib/ui";
+import { formatUnits } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { ErrorNote } from "@/components/ui/error-note";
 import { TxStatus, type TxState } from "@/components/ui/tx-status";
@@ -40,7 +41,7 @@ export function ManagePanel({
   onChanged: () => void;
 }) {
   const wallet = useWallet();
-  const [priceStr, setPriceStr] = useState(agent.price.toFixed(3));
+  const [priceStr, setPriceStr] = useState(formatUnits(agent.price, null));
   const [confirmingDelist, setConfirmingDelist] = useState(false);
   const [txState, setTxState] = useState<TxState>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -149,7 +150,7 @@ export function ManagePanel({
         buildUpdatePrice({ owner, agent_id: agent.id, price_usdc: priceNum }),
       // No unit, like the price column this panel opens under: the one in
       // the wire field's name ("usdc") is not what testnet settles in (F-022).
-      `Price updated to ${priceNum.toFixed(3)}.`,
+      `Price updated to ${formatUnits(priceNum, null)}.`,
     );
   }
 
@@ -167,7 +168,7 @@ export function ManagePanel({
         {/* Change price */}
         <div>
           <label htmlFor={`price-${agent.id}`} className={labelCls}>
-            New price · current {agent.price.toFixed(3)}
+            New price · current {formatUnits(agent.price, null)}
           </label>
           <input
             id={`price-${agent.id}`}

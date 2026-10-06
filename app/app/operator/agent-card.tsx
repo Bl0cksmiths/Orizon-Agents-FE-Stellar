@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { focusRing } from "@/lib/ui";
+import { formatUnits } from "@/lib/money";
 import { isAgentStatus, type Agent, type ReputationInfo } from "@/lib/types";
 import { BindingStateBadge } from "../agents/binding-notice";
 import { ManagePanel } from "../agents/manage-panel";
@@ -94,8 +95,9 @@ export function AgentCard({
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-[11px] text-muted">
         <span>
-          price <span className="text-text">{agent.price.toFixed(3)}</span> per
-          job
+          price{" "}
+          <span className="text-text">{formatUnits(agent.price, null)}</span>{" "}
+          per job
         </span>
         <span>
           runs <span className="text-text">{agent.runs}</span>
