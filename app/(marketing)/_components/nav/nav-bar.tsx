@@ -22,12 +22,14 @@ import {
 } from "@/components/ui/connect-wallet";
 import { Logo } from "@/components/ui/logo";
 import { focusRing } from "@/lib/ui";
+import { faultPoint } from "@/lib/fault-injection";
 import { cn } from "@/lib/utils";
 import { GUIDE, isCurrent, MENUS, type NavGroup } from "./links";
 import { MobileMenu } from "./mobile-menu";
 import { CurrentMark, NavMenu } from "./nav-menu";
 
 export function NavBar() {
+  faultPoint("nav");
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [openMenu, setOpenMenu] = useState<NavGroup["id"] | null>(null);
