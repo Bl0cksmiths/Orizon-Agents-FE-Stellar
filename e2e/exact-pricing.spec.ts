@@ -7,6 +7,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Page } from "@playwright/test";
 import type { DecomposeResponse, SettlementStepView } from "../lib/types";
+import { stroopsToDecimal } from "../lib/money";
 import { disputeScan } from "./dispute-axe";
 import {
   mockApi,
@@ -161,6 +162,12 @@ test.describe("exact pricing · the plan card", () => {
   }
 });
 
+/** An exact amount as the backend sends it: stroops, and its display. */
+const amt = (stroops: number) => ({
+  stroops,
+  display: stroopsToDecimal(BigInt(stroops)),
+});
+
 /** The receipt of that pipeline run: copywrite.v3 did not deliver, and
  *  seo.brief is a platform agent nobody could pay. */
 const STEPS: SettlementStepView[] = PIPELINE.steps.map((s, i) => {
@@ -176,9 +183,9 @@ const STEPS: SettlementStepView[] = PIPELINE.steps.map((s, i) => {
     output_summary: null,
     paid_usdc: paid / 1e7,
     unpaid_reason: i === 1 ? "no_onchain_owner" : null,
-    price_stroops: price,
-    paid_stroops: paid,
-    returned_stroops: price - paid,
+    planned: amt(price),
+    charged: amt(paid),
+    returned: amt(price - paid),
   };
 });
 
@@ -187,10 +194,14 @@ async function openReceipt(page: Page) {
     ...mockSettlementView({ settledAtS: Math.floor(Date.now() / 1000) - 3600 }),
     steps: STEPS,
     settled_usdc: 0.13,
-    settled_stroops: 1_300_000,
     returned_usdc: 0.0213457,
-    returned_stroops: 213_457,
-    authorized_stroops: 1_513_457,
+    totals: {
+      authorized: amt(1_513_457),
+      planned: amt(1_513_457),
+      charged: amt(1_300_000),
+      returned: amt(213_457),
+      surplus: amt(0),
+    },
     asset: { code: "XLM", issuer: null, decimals: 7 },
   };
   await mockTaskReadToken(page);
