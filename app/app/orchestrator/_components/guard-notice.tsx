@@ -87,9 +87,13 @@ export function GuardNotice({
   refusal,
   onRetry,
   busy = false,
+  fromBrief = false,
   className,
 }: {
   refusal: DecomposeRefusal;
+  /** The refused request was an edited brief: a needs-detail answer then
+   *  means the edit changed what was asked. */
+  fromBrief?: boolean;
   /** Sends the same request again — offered only while the check is down. */
   onRetry?: () => void;
   /** A decompose is already out; a retry waits for it. */
@@ -118,7 +122,7 @@ export function GuardNotice({
           </p>
         </div>
         <div className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
-          <Body refusal={refusal} />
+          <Body refusal={refusal} fromBrief={fromBrief} />
         </div>
       </div>
       {refusal.kind === "unavailable" && onRetry && (
@@ -135,7 +139,13 @@ const TITLE: Record<DecomposeRefusal["kind"], string> = {
   paused: "AI planning is paused for today",
 };
 
-function Body({ refusal }: { refusal: DecomposeRefusal }) {
+function Body({
+  refusal,
+  fromBrief,
+}: {
+  refusal: DecomposeRefusal;
+  fromBrief: boolean;
+}) {
   switch (refusal.kind) {
     case "blocked":
       return (
@@ -158,7 +168,9 @@ function Body({ refusal }: { refusal: DecomposeRefusal }) {
               "The request is too short or unclear to plan. What should the agents make, and what is it for?"}
           </p>
           <p>
-            Add more detail in the box above and decompose again.{" "}
+            {fromBrief
+              ? "An edited brief can only correct how the request was read. To ask for something different, write it in the box above as a new request."
+              : "Add more detail in the box above and decompose again."}{" "}
             {NOTHING_CHARGED}
           </p>
         </>
