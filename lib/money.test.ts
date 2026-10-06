@@ -40,11 +40,11 @@ describe("assetLabel", () => {
 describe("formatSettled", () => {
   it("renders the lifetime escrow total with its real unit", () => {
     // 12,900,000 stroops is the complete settled history of the escrow.
-    expect(formatSettled(12_900_000, "native")).toBe("1.29 XLM");
+    expect(formatSettled(12_900_000, "native")).toBe("1.290 XLM");
   });
 
   it("renders zero without inventing a currency", () => {
-    expect(formatSettled(0, null)).toBe("0.0");
+    expect(formatSettled(0, null)).toBe("0.000");
   });
 });
 
@@ -137,16 +137,16 @@ describe("decimalToStroops", () => {
 });
 
 describe("stroopsToDecimal", () => {
-  it("prints every stroop and no trailing zeros", () => {
+  it("prints every stroop, and trailing zeros only up to three places", () => {
     expect(stroopsToDecimal(120_000n)).toBe("0.012");
-    expect(stroopsToDecimal(1_800_000n)).toBe("0.18");
+    expect(stroopsToDecimal(1_800_000n)).toBe("0.180");
     expect(stroopsToDecimal(1n)).toBe("0.0000001");
     expect(stroopsToDecimal(1_234_567n)).toBe("0.1234567");
-    expect(stroopsToDecimal(100_000_000_000n)).toBe("10000.0");
+    expect(stroopsToDecimal(100_000_000_000n)).toBe("10000.000");
   });
 
-  it("prints zero as 0.0", () => {
-    expect(stroopsToDecimal(0n)).toBe("0.0");
+  it("prints zero as 0.000", () => {
+    expect(stroopsToDecimal(0n)).toBe("0.000");
   });
 
   it("prints an amount far past 2^53 exactly", () => {

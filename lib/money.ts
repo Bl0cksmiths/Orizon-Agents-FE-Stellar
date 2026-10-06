@@ -20,6 +20,14 @@ export const STROOPS_PER_UNIT = 10_000_000;
 /** The decimals of every Stellar asset amount (`Plan.asset.decimals`). */
 export const STELLAR_DECIMALS = 7;
 
+/**
+ * Never fewer fractional digits than this, so an amount still reads like a
+ * price ("0.180", not "0.18") — the backend's `money.format_amount` rule, so
+ * a figure on the card and the same figure in the trace's prose match
+ * character for character.
+ */
+export const MIN_DISPLAY_DECIMALS = 3;
+
 /** The asset a plan's amounts are denominated in (`Plan.asset`). */
 export type PlanAsset = {
   code: string;
@@ -114,8 +122,11 @@ export function stroopsToDecimal(
     .toString()
     .padStart(decimals + 1, "0");
   const whole = digits.slice(0, digits.length - decimals);
-  const frac = digits.slice(digits.length - decimals).replace(/0+$/, "");
-  return `${negative ? "-" : ""}${whole}.${frac || "0"}`;
+  const frac = digits
+    .slice(digits.length - decimals)
+    .replace(/0+$/, "")
+    .padEnd(Math.min(MIN_DISPLAY_DECIMALS, decimals), "0");
+  return `${negative ? "-" : ""}${whole}${frac ? `.${frac}` : ""}`;
 }
 
 /**

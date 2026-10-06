@@ -144,8 +144,8 @@ describe("formatSpent", () => {
   // as the backend converts it, then printed exactly.
   it("prints a legacy float spend exactly as the backend counts it", () => {
     expect(formatSpent(0.0123456, "native")).toBe("0.0123456 XLM");
-    expect(formatSpent(0.1 + 0.2, "native")).toBe("0.3 XLM");
-    expect(formatSpent(0, "native")).toBe("0.0 XLM");
+    expect(formatSpent(0.1 + 0.2, "native")).toBe("0.300 XLM");
+    expect(formatSpent(0, "native")).toBe("0.000 XLM");
   });
 
   it("prints a dash for a spend that is not an amount", () => {

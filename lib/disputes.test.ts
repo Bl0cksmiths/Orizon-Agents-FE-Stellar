@@ -2292,10 +2292,10 @@ describe("formatAmount", () => {
   const xlm = (n: number) => formatAmount(n, "native");
 
   it.each([
-    [0.05, "0.05 XLM"],
+    [0.05, "0.050 XLM"],
     [0.0025, "0.0025 XLM"],
-    [1, "1.0 XLM"],
-    [0, "0.0 XLM"],
+    [1, "1.000 XLM"],
+    [0, "0.000 XLM"],
     // Floored at the stroop: a figure the chain cannot move is not one the
     // receipt may print.
     [1.23456789, "1.2345678 XLM"],
@@ -2322,15 +2322,15 @@ describe("formatAmount", () => {
   it("never prints a stroop more than the chain can move", () => {
     // Half a stroop rounded UP promised a tenth of a millionth of a unit
     // that no transfer can carry.
-    expect(xlm(0.00000005)).toBe("0.0 XLM");
+    expect(xlm(0.00000005)).toBe("0.000 XLM");
     expect(xlm(0.00000015)).toBe("0.0000001 XLM");
     expect(xlm(0.0000001)).toBe("0.0000001 XLM");
   });
 
   it.each([
-    [0.57, "0.57 XLM"],
-    [1.13, "1.13 XLM"],
-    [2.01, "2.01 XLM"],
+    [0.57, "0.570 XLM"],
+    [1.13, "1.130 XLM"],
+    [2.01, "2.010 XLM"],
   ])(
     "floors %d without letting binary noise eat a whole stroop",
     (n, label) => {
@@ -2355,7 +2355,7 @@ describe("formatAmount", () => {
   );
 
   it("prints a negative zero as nothing, not as a minus", () => {
-    expect(xlm(-0)).toBe("0.0 XLM");
+    expect(xlm(-0)).toBe("0.000 XLM");
   });
 
   it("does not round a fractional credit up to three places", () => {
@@ -2364,7 +2364,7 @@ describe("formatAmount", () => {
   });
 
   it("absorbs float noise at the stroop, the chain's own precision", () => {
-    expect(xlm(0.1 + 0.2)).toBe("0.3 XLM");
+    expect(xlm(0.1 + 0.2)).toBe("0.300 XLM");
   });
 
   it("is lib/money's settled-value formatter, not a second definition", () => {

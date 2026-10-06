@@ -106,7 +106,7 @@ describe("insufficientEscrowFunds", () => {
     });
     expect(e.kind).toBe("insufficient_balance");
     expect(e.detail).toContain("1.4000001 XLM");
-    expect(e.detail).toContain("0.25 XLM");
+    expect(e.detail).toContain("0.250 XLM");
     // The custody fact, and that nothing happened yet.
     expect(e.detail).toContain("moves the plan's maximum into escrow");
     expect(e.detail).toContain("Nothing was signed or moved.");

@@ -1065,7 +1065,7 @@ describe("ExecutionPlan · a wallet that cannot fund the escrow", () => {
     await screen.findByText(/Not enough XLM to fund this authorization/);
     const text = container.textContent ?? "";
     expect(text).toContain("insufficient_balance");
-    expect(text).toContain("It holds 0.5 XLM");
+    expect(text).toContain("It holds 0.500 XLM");
     expect(text).toContain("Nothing was signed or moved.");
     expect(api.buildAuthorize).not.toHaveBeenCalled();
     expect(wallet.signXdr).not.toHaveBeenCalled();
@@ -1640,8 +1640,8 @@ describe("ExecutionPlan · exact prices", () => {
       total_usdc: 0.30000000000000004,
     });
     const { container } = render(<ExecutionPlan plan={legacy} />);
-    await waitFor(() => expect(total(container)).toBe("0.3 XLM"));
-    expect(stepPrices(container)).toEqual(["0.1 XLM", "0.2 XLM"]);
+    await waitFor(() => expect(total(container)).toBe("0.300 XLM"));
+    expect(stepPrices(container)).toEqual(["0.100 XLM", "0.200 XLM"]);
     api.buildAuthorize.mockReturnValue(new Promise(() => {}));
     fireEvent.click(authorizeButton());
     await waitFor(() => expect(api.buildAuthorize).toHaveBeenCalledTimes(1));
