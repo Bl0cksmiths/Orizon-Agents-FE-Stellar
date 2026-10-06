@@ -1,0 +1,249 @@
+/**
+ * Exact pricing, end to end against a MOCKED backend on the pricing
+ * contract: the plan card's per-step and total prices, the amount sent to
+ * the wallet's authorization, and the receipt's reconciliation all agree to
+ * the stroop — and a multi-agent plan reads as the pipeline it is.
+ */
+import AxeBuilder from "@axe-core/playwright";
+import { test, expect, type Page } from "@playwright/test";
+import type { DecomposeResponse, SettlementStepView } from "../lib/types";
+import { disputeScan } from "./dispute-axe";
+import {
+  mockApi,
+  mockDisputeApi,
+  mockDisputeTaskId,
+  mockSettlementView,
+  mockTaskReadToken,
+  mockTraceStream,
+  mockWallet,
+} from "./mocks";
+import { motionSettled } from "./motion-settled";
+import {
+  escrowV2Pin,
+  mockDecomposeSequence,
+  mockEscrowV2Network,
+  mockNetwork,
+  overflowingDescendants,
+} from "./plan-fixtures";
+
+/** A five-agent pipeline priced in stroops, one price with all seven
+ *  places, so a card that rounded anywhere would show it. */
+const PIPELINE: DecomposeResponse = {
+  plan_id: "pln_e2e_exact",
+  intent: "a landing page for a coffee roaster",
+  steps: [
+    [
+      "agt_09l5",
+      "research.pro",
+      240_000,
+      "researches the market, hands a brief to seo.brief",
+    ],
+    [
+      "agt_05x7",
+      "seo.brief",
+      90_000,
+      "turns the brief into keywords for the copy",
+    ],
+    [
+      "agt_01h8",
+      "copywrite.v3",
+      123_457,
+      "writes the page copy from the keywords",
+    ],
+    ["agt_11c0", "code.gen", 540_000, "builds the page from the copy"],
+    ["agt_12r0", "code.critic", 520_000, "reviews the build for accessibility"],
+  ].map(([agent_id, agent_name, price, rationale]) => ({
+    agent_id: agent_id as string,
+    agent_name: agent_name as string,
+    rationale: rationale as string,
+    price_stroops: price as number,
+    est_price_usdc: (price as number) / 1e7,
+    est_eta_seconds: 2,
+  })),
+  // 0.1513457: the float total would be 0.15134570000000002.
+  total_stroops: 1_513_457,
+  total_usdc: 0.1513457,
+  asset: { code: "XLM", issuer: null, decimals: 7 },
+  total_eta: 10,
+};
+
+const STEP_FIGURES = [
+  "0.024 XLM",
+  "0.009 XLM",
+  "0.0123457 XLM",
+  "0.054 XLM",
+  "0.052 XLM",
+];
+
+async function openPlan(page: Page) {
+  await mockWallet(page);
+  await mockApi(page);
+  // The escrow this build pins, so the card asks for a signature at all: a
+  // backend reporting any other escrow pauses on-chain payment.
+  await mockNetwork(page, escrowV2Pin ? mockEscrowV2Network : undefined);
+  await mockDecomposeSequence(page, [PIPELINE]);
+  await page.goto("/app/orchestrator");
+  await page.getByRole("textbox", { name: /intent/i }).fill(PIPELINE.intent);
+  await page.getByRole("button", { name: /decompos/i }).click();
+  await expect(page.locator("[data-plan-total]")).toHaveText("0.1513457 XLM");
+}
+
+test.describe("exact pricing · the plan card", () => {
+  test("prints every step and the total to the stroop, in XLM", async ({
+    page,
+  }) => {
+    await openPlan(page);
+    await expect(page.locator("[data-step-price]")).toHaveText(STEP_FIGURES);
+    await expect(page.getByText(/Freighter will prompt/i)).toContainText(
+      "0.1513457 XLM",
+    );
+    await expect(page.getByRole("main")).not.toContainText("USDC");
+  });
+
+  test("authorizes exactly the plan's total", async ({ page }) => {
+    const bodies: Record<string, unknown>[] = [];
+    await openPlan(page);
+    await page.route("**/api/stellar/build/authorize", (route) => {
+      bodies.push(route.request().postDataJSON());
+      return route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "build_failed" }),
+      });
+    });
+    await page.getByRole("button", { name: /authorize/i }).click();
+    await expect.poll(() => bodies.length).toBe(1);
+    expect(bodies[0].max_amount_stroops).toBe(PIPELINE.total_stroops);
+    // The legacy decimal an older backend reads rounds back to the same.
+    expect(Math.round((bodies[0].max_amount_usdc as number) * 1e7)).toBe(
+      PIPELINE.total_stroops,
+    );
+    expect(bodies[0].agent_id).toBe(PIPELINE.plan_id);
+  });
+
+  test("reads as a pipeline: the order, and where each output goes", async ({
+    page,
+  }) => {
+    await openPlan(page);
+    await expect(page.getByText("pipeline · 5 agents in order")).toBeVisible();
+    await expect(page.locator("[data-pipeline-agent]")).toHaveText([
+      "research.pro",
+      "seo.brief",
+      "copywrite.v3",
+      "code.gen",
+      "code.critic",
+    ]);
+    await expect(page.getByText(/hands its output to step/)).toHaveText([
+      "↓ hands its output to step 02",
+      "↓ hands its output to step 03",
+      "↓ hands its output to step 04",
+      "↓ hands its output to step 05",
+    ]);
+    await motionSettled(page.locator("main"));
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  });
+
+  for (const width of [360, 768, 1920]) {
+    test(`keeps the pipeline card inside a ${width}px screen`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openPlan(page);
+      await motionSettled(page.locator("main"));
+      const card = page
+        .getByRole("heading", { name: /execution plan/i })
+        .locator("xpath=ancestor::div[contains(@class,'glow-card')][1]");
+      expect(await overflowingDescendants(card)).toEqual([]);
+    });
+  }
+});
+
+/** The receipt of that pipeline run: copywrite.v3 did not deliver, and
+ *  seo.brief is a platform agent nobody could pay. */
+const STEPS: SettlementStepView[] = PIPELINE.steps.map((s, i) => {
+  const price = s.price_stroops as number;
+  const paid = i === 1 || i === 2 ? 0 : price;
+  return {
+    step_index: i,
+    agent_id: s.agent_id,
+    agent_name: s.agent_name ?? null,
+    price_usdc: price / 1e7,
+    delivered: i !== 2,
+    creditable_usdc: paid / 2 / 1e7,
+    output_summary: null,
+    paid_usdc: paid / 1e7,
+    unpaid_reason: i === 1 ? "no_onchain_owner" : null,
+    price_stroops: price,
+    paid_stroops: paid,
+    returned_stroops: price - paid,
+  };
+});
+
+async function openReceipt(page: Page) {
+  const settlement = {
+    ...mockSettlementView({ settledAtS: Math.floor(Date.now() / 1000) - 3600 }),
+    steps: STEPS,
+    settled_usdc: 0.13,
+    settled_stroops: 1_300_000,
+    returned_usdc: 0.0213457,
+    returned_stroops: 213_457,
+    authorized_stroops: 1_513_457,
+    asset: { code: "XLM", issuer: null, decimals: 7 },
+  };
+  await mockTaskReadToken(page);
+  await mockWallet(page);
+  await mockApi(page);
+  await mockNetwork(page);
+  await mockTraceStream(page, mockDisputeTaskId);
+  await mockDisputeApi(page, { settlement, settlementState: "settled" });
+  await page.goto(`/app/trace?task=${mockDisputeTaskId}`);
+  return settlement;
+}
+
+test.describe("exact pricing · the receipt's reconciliation", () => {
+  test("reconciles planned, charged and returned, and the totals add up", async ({
+    page,
+  }) => {
+    const settlement = await openReceipt(page);
+    const table = page.getByRole("table");
+    await expect(table).toBeVisible();
+    const total = table.locator("tfoot tr");
+    await expect(total.locator("td")).toHaveText([
+      "0.1513457",
+      "0.130",
+      "0.0213457",
+    ]);
+    await expect(table.locator("caption")).toContainText("in XLM");
+    await expect(
+      page.getByText("Charged plus returned equals planned, to the stroop."),
+    ).toBeVisible();
+    await expect(page.getByText("Authorized 0.1513457 XLM")).toBeVisible();
+    await expect(
+      page.getByRole("link", {
+        name: /view the settlement that paid and returned on stellar\.expert/i,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `https://stellar.expert/explorer/testnet/tx/${settlement.charge_tx}`,
+    );
+    expect(await disputeScan(page)).toEqual([]);
+  });
+
+  test("keeps the reconciliation inside a 360px screen", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await openReceipt(page);
+    await expect(page.getByRole("table")).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    expect(
+      await overflowingDescendants(
+        page.getByRole("region", { name: "Receipt" }),
+      ),
+    ).toEqual([]);
+  });
+});
