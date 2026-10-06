@@ -1251,3 +1251,23 @@ describe("ReceiptPanel — the run's seal", () => {
     );
   });
 });
+
+describe("ReceiptPanel — a delivery-only seal", () => {
+  it("says the run was attested with no payment made", () => {
+    renderPanel({
+      kind: "not_settled",
+      running: false,
+      seal: "sealed",
+      sealKind: "delivery_only",
+    });
+    expect(text()).toContain(
+      "Attested on Stellar — delivered, no payment made",
+    );
+    expect(text()).not.toMatch(/payment stands|dispute window/i);
+  });
+
+  it("keeps today's wording when the backend sends no kind", () => {
+    renderPanel(settled([], { seal: "failed" }));
+    expect(text()).toContain("Seal failed — your payment stands");
+  });
+});

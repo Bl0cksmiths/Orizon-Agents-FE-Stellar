@@ -41,4 +41,11 @@ describe("SealStatus", () => {
       "✓ ",
     );
   });
+
+  it("says a delivery-only seal without implying a payment", () => {
+    render(<SealStatus seal="sealed" kind="delivery_only" />);
+    const said = screen.getByRole("status").textContent ?? "";
+    expect(said).toContain("Attested on Stellar — delivered, no payment made");
+    expect(said).not.toMatch(/payment stands|disput/i);
+  });
 });

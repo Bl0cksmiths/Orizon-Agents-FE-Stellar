@@ -527,6 +527,13 @@ describe("isTaskList", () => {
     expect(isTask({ ...task, seal: 1 })).toBe(false);
   });
 
+  it("accepts a seal kind as a string, null or absent, and nothing else", () => {
+    for (const seal_kind of ["paid", "delivery_only", "new", null, undefined]) {
+      expect(isTask({ ...task, seal_kind })).toBe(true);
+    }
+    expect(isTask({ ...task, seal_kind: 0 })).toBe(false);
+  });
+
   it("rejects a status outside the backend literal (keys the tone map)", () => {
     expect(isTaskList([{ ...task, status: "cancelled" }])).toBe(false);
     const { status: _drop, ...missing } = task;

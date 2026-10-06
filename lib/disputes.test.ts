@@ -2690,6 +2690,48 @@ describe("getTaskDisputes — the run's seal", () => {
   });
 });
 
+describe("the receipt's seal kind", () => {
+  it("reads the seal kind, keeping absent absent and an unknown word out", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        200,
+        taskDisputes({ seal: "sealed", seal_kind: "delivery_only" }),
+      ),
+    );
+    expect((await getTaskDisputes(TASK)).seal_kind).toBe("delivery_only");
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, taskDisputes()));
+    expect("seal_kind" in (await getTaskDisputes(TASK))).toBe(false);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...taskDisputes(), seal_kind: "partial" }),
+    );
+    expect("seal_kind" in (await getTaskDisputes(TASK))).toBe(false);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { ...taskDisputes(), seal_kind: 3 }),
+    );
+    await expect(getTaskDisputes(TASK)).rejects.toThrow(/malformed/);
+  });
+
+  it("carries the kind onto the receipt, settled or not", () => {
+    expect(
+      settled({
+        res: taskDisputes({ seal: "sealed", seal_kind: "paid" }),
+      }).sealKind,
+    ).toBe("paid");
+    const none = view({
+      res: taskDisputes({
+        settlement: null,
+        seal: "sealed",
+        seal_kind: "delivery_only",
+      }),
+    });
+    expect(none).toMatchObject({
+      kind: "not_settled",
+      seal: "sealed",
+      sealKind: "delivery_only",
+    });
+  });
+});
+
 describe("disputeView — the run's seal", () => {
   it("carries the seal state onto the receipt", () => {
     const v = settled({ res: taskDisputes({ seal: "pending" }) });
