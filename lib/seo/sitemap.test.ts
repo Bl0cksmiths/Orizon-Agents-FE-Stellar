@@ -7,7 +7,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublishedDemo } from "@/lib/demo/load";
-import { demoLastmod, newestDay, sitemapEntries } from "./sitemap";
+import { demoLastmod, demoVideos, newestDay, sitemapEntries } from "./sitemap";
 
 const root = path.resolve(__dirname, "../..");
 const fixtures = path.join(root, "test/fixtures");
@@ -203,5 +203,69 @@ describe("sitemapEntries: lastmod", () => {
     for (const entry of later) {
       expect(entry.lastmod ?? "").not.toMatch(/^2030-/);
     }
+  });
+});
+
+describe("sitemapEntries: the demo's videos", () => {
+  const demoEntry = () =>
+    sitemapEntries().find((e) => e.loc === "https://orizons.xyz/demo");
+
+  it("lists no video while the demo is unpublished", () => {
+    expect(demoEntry()?.videos).toBeUndefined();
+  });
+
+  it("lists each published part on /demo, in the order they are watched", () => {
+    vi.stubEnv("DEMO_CONTENT_DIR", path.join(fixtures, "demo/published"));
+    vi.stubEnv("DEMO_PUBLIC_DIR", path.join(fixtures, "demo/public"));
+    expect(demoEntry()?.videos).toEqual([
+      {
+        title: "Fixture: an operator registers an agent",
+        description:
+          "Part 1: The operator's side of the Orizon Agents demo on Stellar testnet. What Orizon is; An operator registers and binds an agent; External operators on the ecosystem page.",
+        thumbnailLoc: "https://i.ytimg.com/vi/fixtureOpr1/hqdefault.jpg",
+        playerLoc:
+          "https://www.youtube-nocookie.com/embed/fixtureOpr1?autoplay=1&rel=0&cc_load_policy=1",
+        durationSeconds: 150,
+        publicationDate: "2026-10-02",
+      },
+      {
+        title: "Fixture: a buyer pays for a workflow",
+        description:
+          "Part 2: The buyer's side of the Orizon Agents demo on Stellar testnet. A buyer connects a wallet; A buyer's plan excludes a sub-floor agent; A dispute is credited and the score falls.",
+        thumbnailLoc: "https://i.ytimg.com/vi/fixtureBuy2/hqdefault.jpg",
+        playerLoc:
+          "https://www.youtube-nocookie.com/embed/fixtureBuy2?autoplay=1&rel=0&cc_load_policy=1",
+        durationSeconds: 102,
+        publicationDate: "2026-07-24",
+      },
+    ]);
+  });
+
+  it("puts videos on no other page", () => {
+    vi.stubEnv("DEMO_CONTENT_DIR", path.join(fixtures, "demo/published"));
+    vi.stubEnv("DEMO_PUBLIC_DIR", path.join(fixtures, "demo/public"));
+    const withVideos = sitemapEntries().filter((e) => e.videos);
+    expect(withVideos.map((e) => e.loc)).toEqual(["https://orizons.xyz/demo"]);
+  });
+
+  it("keeps a description within the 2,048 characters a video sitemap allows", () => {
+    const long = {
+      status: "published",
+      parts: [
+        {
+          role: "operator",
+          id: "x",
+          title: "t",
+          duration_seconds: 1,
+          published_at: "2026-10-02",
+          chapters: Array.from({ length: 200 }, (_, i) => ({
+            title: `Chapter ${i} with a fairly long title to fill the space`,
+          })),
+        },
+      ],
+    } as unknown as PublishedDemo;
+    const [video] = demoVideos(long);
+    expect(video.description.length).toBe(2048);
+    expect(video.description.endsWith("…")).toBe(true);
   });
 });

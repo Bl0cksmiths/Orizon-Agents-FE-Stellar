@@ -18,6 +18,9 @@
  * Word file, the Markdown) say the same words, so listing them too would only
  * ask search engines to index duplicates.
  *
+ * /demo also lists the videos it plays (Google's video sitemap extension), so
+ * the demo can be found as a video at orizons.xyz/demo, not only on YouTube.
+ *
  * Left out on purpose: /app/** (the console, which is noindexed; listing a
  * noindexed URL contradicts it), /api/** (JSON, not pages), and the error and
  * not-found pages.
@@ -29,7 +32,12 @@
 
 import { SITE_URL, guidePath } from "@/lib/guide/display";
 import { loadAllGuides } from "@/lib/guide/load";
-import { DEMO_PATH } from "@/lib/demo/display";
+import {
+  DEMO_PATH,
+  partHeading,
+  youtubeEmbedUrl,
+  youtubePosterUrl,
+} from "@/lib/demo/display";
 import { type PublishedDemo, loadDemo } from "@/lib/demo/load";
 import { EVIDENCE_PATH } from "@/lib/evidence/display";
 import { loadEvidence } from "@/lib/evidence/load";
@@ -37,12 +45,33 @@ import { LITEPAPER_PATH } from "@/lib/litepaper/display";
 import { loadLitepaper } from "@/lib/litepaper/load";
 import { loadSite } from "./site";
 
+/**
+ * A video the page plays, as Google's video sitemap extension describes one
+ * (https://developers.google.com/search/docs/crawling-indexing/sitemaps/video-sitemaps).
+ */
+export type SitemapVideo = {
+  title: string;
+  /** At most 2,048 characters. */
+  description: string;
+  thumbnailLoc: string;
+  /** The embeddable player the page itself loads. */
+  playerLoc: string;
+  durationSeconds: number;
+  /** YYYY-MM-DD */
+  publicationDate: string;
+};
+
 export type SitemapEntry = {
   /** Absolute, and equal to the page's canonical URL. */
   loc: string;
   /** The day its content last changed, YYYY-MM-DD; absent when unknown. */
   lastmod?: string;
+  /** The videos the page plays, when it is a page for watching them. */
+  videos?: SitemapVideo[];
 };
+
+/** The longest description a video sitemap allows. */
+export const VIDEO_DESCRIPTION_MAX = 2048;
 
 /** The newest of some YYYY-MM-DD days: they sort as strings. */
 export function newestDay(days: readonly string[]): string | undefined {
@@ -58,6 +87,29 @@ export function demoLastmod(demo: PublishedDemo): string {
     .toISOString()
     .slice(0, 10);
   return newestDay([...demo.parts.map((p) => p.published_at), evidenceDay])!;
+}
+
+/** Cut to `max` characters, ending on an ellipsis when anything was cut. */
+function clip(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+/**
+ * The published demo's parts, as video sitemap entries for /demo. Each is
+ * described by what the page says of it: its part heading and its chapters.
+ */
+export function demoVideos(demo: PublishedDemo): SitemapVideo[] {
+  return demo.parts.map((part, index) => ({
+    title: part.title,
+    description: clip(
+      `${partHeading(index, part.role)} of the Orizon Agents demo on Stellar testnet. ${part.chapters.map((c) => c.title).join("; ")}.`,
+      VIDEO_DESCRIPTION_MAX,
+    ),
+    thumbnailLoc: youtubePosterUrl(part.id),
+    playerLoc: youtubeEmbedUrl(part.id),
+    durationSeconds: part.duration_seconds,
+    publicationDate: part.published_at,
+  }));
 }
 
 export function sitemapEntries(): SitemapEntry[] {
@@ -82,7 +134,9 @@ export function sitemapEntries(): SitemapEntry[] {
       : []),
     {
       loc: `${SITE_URL}${DEMO_PATH}`,
-      ...(demo.status === "published" ? { lastmod: demoLastmod(demo) } : {}),
+      ...(demo.status === "published"
+        ? { lastmod: demoLastmod(demo), videos: demoVideos(demo) }
+        : {}),
     },
     {
       loc: `${SITE_URL}${EVIDENCE_PATH}`,
