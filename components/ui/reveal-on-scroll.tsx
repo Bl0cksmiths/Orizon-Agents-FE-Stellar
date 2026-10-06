@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { faultPoint } from "@/lib/fault-injection";
 import { RevealAtRest } from "./reveal-at-rest";
 
 /**
@@ -12,6 +13,7 @@ import { RevealAtRest } from "./reveal-at-rest";
  * Without JavaScript the noscript style shows every element at rest.
  */
 export function RevealOnScroll() {
+  faultPoint("reveal");
   useEffect(() => {
     const pending = document.querySelectorAll<HTMLElement>(
       ".reveal:not([data-revealed])",
