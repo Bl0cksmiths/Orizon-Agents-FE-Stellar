@@ -259,3 +259,19 @@ describe("formatUnits", () => {
     expect(formatUnits(-0.01, null)).toBe("—");
   });
 });
+
+describe("assetLabel with the network route's SAC name", () => {
+  // GET /stellar/network names the asset as its SAC spells it: "native",
+  // "CODE:ISSUER", or "unknown" when the SAC could not be read.
+  it("labels a classic asset by its code alone", () => {
+    expect(
+      assetLabel(
+        "USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      ),
+    ).toBe("USDC");
+  });
+
+  it("gives an unread asset no label", () => {
+    expect(assetLabel("unknown")).toBe("");
+  });
+});

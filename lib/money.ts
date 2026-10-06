@@ -140,7 +140,9 @@ export function stroopsToDecimal(
  */
 export function assetLabel(asset: AssetRef): string {
   if (!asset) return "";
-  const code = typeof asset === "string" ? asset : asset.code;
+  // The network route spells a classic asset as its SAC does, "CODE:ISSUER";
+  // the label is the code.
+  const code = typeof asset === "string" ? asset.split(":", 1)[0] : asset.code;
   if (!code || code.toUpperCase() === UNKNOWN_CODE) return "";
   return code.toLowerCase() === "native" ? "XLM" : code.toUpperCase();
 }
