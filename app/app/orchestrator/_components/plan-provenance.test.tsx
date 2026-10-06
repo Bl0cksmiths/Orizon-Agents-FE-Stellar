@@ -45,11 +45,33 @@ describe("PlanProvenance", () => {
     );
     const list = screen.getByRole("list", { name: /how this plan was made/i });
     const text = list.textContent ?? "";
-    expect(text).toMatch(/checked by jev 1\.13\.0/i);
+    // The version is pinned server-side; the buyer reads the name.
+    expect(text).toMatch(/checked by jev(?!\s*\d)/i);
     expect(text).toMatch(/brief by Claude Sonnet 5\.5/);
     expect(text).toMatch(/planned by Claude Opus 5\.5/);
     expect(text).toMatch(/moderate tier/i);
     expect(text).not.toMatch(/as written/i);
+  });
+
+  it("says the check's notable reasons in plain words, never as codes", () => {
+    render(
+      <PlanProvenance
+        plan={{
+          ...base,
+          guard: {
+            verdict: "allow",
+            tier: "complex",
+            reasons: ["watch", "tier_rounded_up", "fallback", "some_new_code"],
+          },
+          models: { guard: "claude-haiku-4-5" },
+        }}
+      />,
+    );
+    const text = document.body.textContent ?? "";
+    expect(text).toMatch(/checked twice/i);
+    expect(text).toMatch(/tier rounded up/i);
+    expect(text).toMatch(/backup check/i);
+    expect(text).not.toMatch(/_|watch|fallback|some new code/i);
   });
 
   it("falls back to the check's tier when the plan carries none", () => {
