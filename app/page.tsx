@@ -6,6 +6,7 @@ import { Solution } from "./(marketing)/_components/solution";
 import { Architecture } from "./(marketing)/_components/architecture";
 import { Reputation } from "./(marketing)/_components/reputation";
 import { UseCases } from "./(marketing)/_components/use-cases";
+import { UseCasesList } from "./(marketing)/_components/use-case-flow";
 import { Roadmap } from "./(marketing)/_components/roadmap";
 import { Personas } from "./(marketing)/_components/personas";
 import { CTA } from "./(marketing)/_components/cta";
@@ -112,7 +113,9 @@ export default async function Home() {
         <Solution />
         <Architecture />
         <Reputation />
-        <UseCases />
+        <Isolate name="use-cases" fallback={<UseCasesList />}>
+          <UseCases />
+        </Isolate>
         <Roadmap />
         <Personas />
         <CTA />
