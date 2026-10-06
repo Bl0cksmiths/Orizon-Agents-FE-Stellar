@@ -46,6 +46,10 @@ const notice = (page: Page) =>
 /** axe with the card's decor flattened, so contrast is judged rather than
  *  left "incomplete" under the gradient (see e2e/dispute-axe.ts). */
 async function axe(page: Page) {
+  // Never mid-transition: the Decompose button fades from its disabled 50%
+  // back to full over 200 ms once an answer lands, and a scan in that window
+  // measures a contrast no settled page has.
+  await expect(decomposeButton(page)).toHaveCSS("opacity", "1");
   expect(await disputeScan(page)).toEqual([]);
 }
 
