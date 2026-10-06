@@ -1950,6 +1950,7 @@ export type MockDisputeApiOptions = {
   /** The run's seal as the read reports it (`seal`, `proof_tx`). Absent by
    * default — a backend that predates them. */
   seal?: TaskDisputes["seal"];
+  sealKind?: TaskDisputes["seal_kind"];
   proofTx?: TaskDisputes["proof_tx"];
 };
 
@@ -1999,6 +2000,9 @@ export async function mockDisputeApi(
           ? {}
           : { settlement_state: options.settlementState }),
         ...(options.seal === undefined ? {} : { seal: options.seal }),
+        ...(options.sealKind === undefined
+          ? {}
+          : { seal_kind: options.sealKind }),
         ...(options.proofTx === undefined ? {} : { proof_tx: options.proofTx }),
       };
       return json(route, body);
