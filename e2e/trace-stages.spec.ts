@@ -5,7 +5,7 @@
  * Run isolated:  E2E_PORT=3861 npx playwright test e2e/trace-stages.spec.ts
  */
 import { test, expect, type Page } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
+import { disputeScan } from "./dispute-axe";
 import {
   mockApi,
   mockDisputeApi,
@@ -64,14 +64,8 @@ test.describe("the trace under orchestrator v2", () => {
     await expect(step).toContainText(/low tier/i);
     // Named in the line's own words, so not again in a tag.
     await expect(step.getByText("Claude Haiku 4.5")).toHaveCount(1);
-    const { violations } = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-      .analyze();
-    expect(
-      violations.map(
-        (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
-      ),
-    ).toEqual([]);
+    // Contrast judged with the card's decor flattened (e2e/dispute-axe.ts).
+    expect(await disputeScan(page)).toEqual([]);
   });
 
   test("an older run's trace carries no marks", async ({ page }) => {

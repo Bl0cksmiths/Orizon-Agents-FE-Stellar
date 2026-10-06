@@ -10,7 +10,7 @@
  * Run isolated:  E2E_PORT=3861 npx playwright test e2e/plan-understanding.spec.ts
  */
 import { test, expect, type Page } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
+import { disputeScan } from "./dispute-axe";
 import { motionSettled } from "./motion-settled";
 import { mockApi, mockPlan, mockWallet } from "./mocks";
 import { overflowingDescendants } from "./plan-fixtures";
@@ -43,15 +43,10 @@ const steps = (page: Page) => planCard(page).locator("ol > li");
 const notice = (page: Page) =>
   page.locator('#intent-check-notice[role="alert"]');
 
+/** axe with the card's decor flattened, so contrast is judged rather than
+ *  left "incomplete" under the gradient (see e2e/dispute-axe.ts). */
 async function axe(page: Page) {
-  const { violations } = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-    .analyze();
-  expect(
-    violations.map(
-      (v) => `${v.id} [${v.impact}] ${v.nodes.length} node(s) — ${v.help}`,
-    ),
-  ).toEqual([]);
+  expect(await disputeScan(page)).toEqual([]);
 }
 
 /** Opens the page with the answers queued, and submits `intent`. */
