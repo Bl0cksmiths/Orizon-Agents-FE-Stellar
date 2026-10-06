@@ -8,6 +8,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
+// The brief editor is a lazily loaded chunk in the app; here it is the real
+// component, rendered synchronously.
+vi.mock("next/dynamic", async () => {
+  const { SpecForm } = await import("./spec-form");
+  return { default: () => SpecForm };
+});
+
 import type { PlanSpec } from "@/lib/types";
 import { UnderstoodAsPanel } from "./understood-as-panel";
 
