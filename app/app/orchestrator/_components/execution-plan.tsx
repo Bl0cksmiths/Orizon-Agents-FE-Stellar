@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import {
   AUTHORIZE_TTL_SECONDS,
+  authorizeAmountMismatch,
   checkEscrowFunds,
   classifyAuthorizeError,
   insufficientEscrowFunds,
@@ -118,6 +119,10 @@ function connectSentence(generation: EscrowGeneration): string {
 /** What the pay panel says in place of a cap when there is nothing to pay. */
 const EMPTY_PLAN =
   "This plan has no steps, so there is nothing to authorize or run.";
+
+/** What it says for a plan whose steps are all priced at zero. */
+const FREE_PLAN =
+  "This plan is priced at zero, so there is nothing to authorize. Run it without payment.";
 
 /** Normalize the 16-byte auth_id a tx returns (hex, base64, or byte list). */
 function bytesToHex(v: unknown): string | null {
@@ -225,11 +230,12 @@ export function ExecutionPlan({
    *  the unit is unknown. Never rounded to a display precision: a cap that
    *  read 0.123 while 0.1234 left the wallet was finding S6. */
   const priced = (stroops: bigint) => formatStroops(stroops, unit);
-  // The cap the buyer signs — the plan's total, or the minimum positive cap
-  // for a plan priced at zero — or null when the plan's prices cannot be
-  // stated, and then nothing is signed and no pesos are quoted.
+  // The cap the buyer signs: exactly the plan's total. Null when the plan's
+  // prices cannot be stated, or when it is priced at zero — then nothing is
+  // signed and no pesos are quoted.
   const cap = pricing.kind === "priced" ? pricing.cap : null;
   const unpayable = cap === null;
+  const free = pricing.kind === "priced" && pricing.total === 0n;
   const capText = cap === null ? "—" : priced(cap);
 
   // A plan with no steps has nothing to pay for. The guard accepts one, so
@@ -369,8 +375,11 @@ export function ExecutionPlan({
       }
       // The custody reading of a refusal ("could not move the maximum into
       // escrow") is v2's; anything else gets the shared wallet wording.
+      // A price the platform no longer holds for this plan is said as that,
+      // whichever escrow: the way on is a fresh plan.
       const friendly =
-        generation === "v2" ? classifyAuthorizeError(e) : classifyError(e);
+        authorizeAmountMismatch(e) ??
+        (generation === "v2" ? classifyAuthorizeError(e) : classifyError(e));
       setFriendlyError(friendly);
       setTxState("failed");
       setStep("");
@@ -393,7 +402,7 @@ export function ExecutionPlan({
       // read out as a button's description bury the decision under them.
       hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
       escrowMismatch && ESCROW_MISMATCH_ID,
-      unpayable && PRICE_NOTICE_ID,
+      pricing.kind !== "priced" && PRICE_NOTICE_ID,
     ]
       .filter(Boolean)
       .join(" ") || undefined;
@@ -692,6 +701,8 @@ export function ExecutionPlan({
                 </div>
                 {empty ? (
                   <div className="text-sm">{EMPTY_PLAN}</div>
+                ) : free ? (
+                  <div className="text-sm">{FREE_PLAN}</div>
                 ) : generation === "v2" ? (
                   // Escrow v2 takes custody at authorize: this signature moves
                   // the money now, not at settlement. A buyer who reads "up
@@ -754,7 +765,11 @@ export function ExecutionPlan({
                   ▸ wallet required
                 </div>
                 <div className="text-sm">
-                  {empty ? EMPTY_PLAN : connectSentence(generation)}
+                  {empty
+                    ? EMPTY_PLAN
+                    : free
+                      ? FREE_PLAN
+                      : connectSentence(generation)}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">

@@ -21,22 +21,17 @@ import {
 } from "./money";
 import type { DecomposeResponse } from "./types";
 
-/**
- * The smallest cap an authorization is signed for (0.001 of a unit). A plan
- * priced at zero still needs a positive cap: the backend refuses a
- * non-positive `max_amount`. Nothing of it is paid out — a run settles only
- * its steps' prices — and the escrow returns it all.
- */
-export const MIN_CAP_STROOPS = 10_000n;
-
 export type PricedPlan = {
   kind: "priced";
   /** Each step's price, in plan order. */
   steps: bigint[];
   /** The sum of `steps`: what the plan costs. */
   total: bigint;
-  /** What the wallet authorizes: `total`, or `MIN_CAP_STROOPS` at zero. */
-  cap: bigint;
+  /** What the wallet authorizes: exactly `total` — or null for a plan
+   *  priced at zero, which has nothing to authorize. The backend refuses any
+   *  other amount (409 `authorization_amount_mismatch`) and a non-positive
+   *  one, and a stand-in cap would lock custody no step is paid from. */
+  cap: bigint | null;
   /** The plan's own asset, or null when the backend did not name one (the
    *  network route's asset names the unit then). */
   asset: PlanAsset | null;
@@ -93,7 +88,7 @@ export function planPricing(plan: DecomposeResponse): PlanPricing {
     kind: "priced",
     steps,
     total,
-    cap: total > 0n ? total : MIN_CAP_STROOPS,
+    cap: total > 0n ? total : null,
     asset,
     source:
       exact === steps.length && (steps.length > 0 || stated !== null)

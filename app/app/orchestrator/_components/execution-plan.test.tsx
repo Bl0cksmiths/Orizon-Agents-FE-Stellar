@@ -1040,15 +1040,56 @@ describe("ExecutionPlan · the cap the buyer signs", () => {
 
   // The case the two used to disagree on: a plan priced at zero still signs a
   // positive cap, and the sentence has to name that cap, not the zero.
-  it("shows the cap it signs on a zero-priced plan, never 0.000", async () => {
+  // A plan priced at zero has nothing to authorize. The card used to sign a
+  // 0.001 stand-in, custody no step could ever be paid from; the backend
+  // now refuses any amount but the plan's total.
+  it("asks for no signature on a zero-priced plan, and offers the free run", async () => {
     const { container } = render(
       <ExecutionPlan
-        plan={plan({ steps: [step({ est_price_usdc: 0 })], total_usdc: 0 })}
+        plan={plan({
+          steps: [step({ price_stroops: 0, est_price_usdc: 0 })],
+          total_stroops: 0,
+          total_usdc: 0,
+        })}
       />,
     );
-    expect(await shownCap(container)).toBe("0.001 XLM");
-    expect(await signedCap()).toBe(0.001);
-    expect(container.textContent).not.toMatch(/up to\s*0\.000/);
+    await screen.findAllByText(/XLM/);
+    expect(container.textContent).toContain(
+      "This plan is priced at zero, so there is nothing to authorize. Run it without payment.",
+    );
+    expect(authorizeButton().hasAttribute("disabled")).toBe(true);
+    expect(
+      screen
+        .getByRole("button", { name: /pay with fiat/i })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    expect(
+      screen
+        .getByRole("button", { name: /^simulate$/i })
+        .hasAttribute("disabled"),
+    ).toBe(false);
+    expect(container.textContent).not.toMatch(/0\.001|prices do not add up/);
+    fireEvent.click(authorizeButton());
+    expect(api.buildAuthorize).not.toHaveBeenCalled();
+  });
+
+  // The backend refuses an amount that is not the plan's total it holds:
+  // the card's price is stale, and the way on is a fresh plan.
+  it("says the plan's price changed when the backend refuses the amount", async () => {
+    api.buildAuthorize.mockRejectedValue(
+      Object.assign(new Error("authorize exactly that amount"), {
+        code: "authorization_amount_mismatch",
+        status: 409,
+      }),
+    );
+    render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    await screen.findByText(/This plan's price changed/);
+    expect(
+      screen.getByText(/Build a fresh plan to see its current price/),
+    ).toBeTruthy();
+    expect(wallet.signXdr).not.toHaveBeenCalled();
   });
 });
 

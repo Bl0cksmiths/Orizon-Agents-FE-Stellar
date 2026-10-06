@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  MIN_CAP_STROOPS,
-  authorizeCap,
-  planPricing,
-  type PricedPlan,
-} from "./plan-pricing";
+import { authorizeCap, planPricing, type PricedPlan } from "./plan-pricing";
 import { unitsToStroops } from "./money";
 import type { DecomposeResponse, PlanStep } from "./types";
 
@@ -143,18 +138,20 @@ describe("planPricing — an older backend (legacy floats)", () => {
 });
 
 describe("planPricing — edges", () => {
-  it("prices an empty plan at zero, with the minimum cap", () => {
+  // Nothing to authorize: the backend refuses a non-positive amount, and the
+  // old 0.001 stand-in locked custody no step could ever be paid from.
+  it("prices an empty plan at zero, with nothing to authorize", () => {
     const p = priced(plan({ steps: [] }));
     expect(p.total).toBe(0n);
-    expect(p.cap).toBe(MIN_CAP_STROOPS);
+    expect(p.cap).toBeNull();
   });
 
-  it("gives a zero-priced plan the minimum positive cap", () => {
+  it("gives a zero-priced plan no cap at all", () => {
     const p = priced(
       plan({ steps: [step({ price_stroops: 0 })], total_stroops: 0 }),
     );
     expect(p.total).toBe(0n);
-    expect(p.cap).toBe(MIN_CAP_STROOPS);
+    expect(p.cap).toBeNull();
   });
 
   it("refuses a step whose price cannot be read", () => {
