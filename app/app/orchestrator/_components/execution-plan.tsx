@@ -265,7 +265,7 @@ export function ExecutionPlan({
       generation === "v2"
         ? checkEscrowFunds({
             balance: wallet.xlmBalance,
-            cap,
+            cap: BigInt(Math.round(cap * STROOPS_PER_UNIT)),
             asset: network?.asset,
           })
         : null;

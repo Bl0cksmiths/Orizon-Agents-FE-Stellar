@@ -1,4 +1,5 @@
 import { IS_MAINNET } from "@/lib/env";
+import { decimalToStroops, formatStroops } from "@/lib/money";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 
 /**
@@ -56,7 +57,7 @@ export const AUTHORIZE_TTL_SECONDS = 1800;
  * (`classifyAuthorizeError`); the pre-check only catches the plain shortfall
  * before the buyer is asked to sign anything.
  */
-export const BASE_RESERVE_XLM = 1;
+export const BASE_RESERVE_STROOPS = 10_000_000n;
 
 /**
  * Room left for the authorize transaction's own fee. A Soroban invoke that
@@ -64,7 +65,7 @@ export const BASE_RESERVE_XLM = 1;
  * resource fees on testnet; a tenth leaves margin without refusing a wallet
  * that can plainly pay.
  */
-export const AUTHORIZE_FEE_HEADROOM_XLM = 0.1;
+export const AUTHORIZE_FEE_HEADROOM_STROOPS = 1_000_000n;
 
 /**
  * Whether the connected wallet can fund an authorization of `cap`.
@@ -79,15 +80,15 @@ export const AUTHORIZE_FEE_HEADROOM_XLM = 0.1;
  */
 export type EscrowFunds =
   | { kind: "enough" }
-  | { kind: "short"; needed: number; available: number }
+  | { kind: "short"; needed: bigint; available: bigint }
   | { kind: "unknown" }
   | { kind: "not_native" };
 
 export function checkEscrowFunds(input: {
   /** The wallet's native balance as Horizon reports it; null when unknown. */
   balance: string | null;
-  /** The maximum the authorization moves into escrow, in whole units. */
-  cap: number;
+  /** The maximum the authorization moves into escrow, in stroops. */
+  cap: bigint;
   /** What the escrow's SAC wraps, from GET /stellar/network; null until read. */
   asset: string | null | undefined;
 }): EscrowFunds {
@@ -96,13 +97,13 @@ export function checkEscrowFunds(input: {
   // than compare a USDC cap against an XLM balance.
   if (!asset) return { kind: "unknown" };
   if (asset !== "native") return { kind: "not_native" };
-  if (balance === null || balance.trim() === "") return { kind: "unknown" };
-  const available = Number(balance);
-  if (!Number.isFinite(available)) return { kind: "unknown" };
-  // Compared in stroops, so 0.1 + 0.2 cannot refuse a wallet holding 0.3.
-  const toStroops = (x: number) => Math.round(x * 10_000_000);
-  const needed = cap + AUTHORIZE_FEE_HEADROOM_XLM + BASE_RESERVE_XLM;
-  return toStroops(available) >= toStroops(needed)
+  if (balance === null) return { kind: "unknown" };
+  // Horizon's balance is a 7-decimal string, read digit by digit: compared
+  // in stroops, so 0.1 + 0.2 cannot refuse a wallet holding 0.3.
+  const available = decimalToStroops(balance.trim());
+  if (available === null) return { kind: "unknown" };
+  const needed = cap + AUTHORIZE_FEE_HEADROOM_STROOPS + BASE_RESERVE_STROOPS;
+  return available >= needed
     ? { kind: "enough" }
     : { kind: "short", needed, available };
 }
@@ -113,8 +114,8 @@ const TOP_UP = IS_MAINNET
   ? "Fund the wallet with XLM and try again."
   : "Top it up via Friendbot and try again.";
 
-/** Up to seven decimals, trailing zeros dropped: 1.223, never 1.2230000. */
-const xlm = (n: number) => `${Number(n.toFixed(7))} XLM`;
+/** Exact, to the stroop, trailing zeros dropped: 1.223, never 1.2230000. */
+const xlm = (stroops: bigint) => formatStroops(stroops, "native");
 
 /**
  * The typed error for a wallet the pre-check found short. Raised before
@@ -132,10 +133,10 @@ export function insufficientEscrowFunds(
     detail:
       `Authorizing moves the plan's maximum into escrow as soon as you sign, ` +
       `so the wallet needs at least ${xlm(funds.needed)}: the maximum, about ` +
-      `${xlm(AUTHORIZE_FEE_HEADROOM_XLM)} for the network fee, and the ` +
-      `${xlm(BASE_RESERVE_XLM)} every account must keep. It holds ` +
+      `${xlm(AUTHORIZE_FEE_HEADROOM_STROOPS)} for the network fee, and the ` +
+      `${xlm(BASE_RESERVE_STROOPS)} every account must keep. It holds ` +
       `${xlm(funds.available)}. Nothing was signed or moved. ${TOP_UP}`,
-    raw: `escrow pre-check: needed ${funds.needed}, available ${funds.available}`,
+    raw: `escrow pre-check: needed ${funds.needed} stroops, available ${funds.available} stroops`,
   };
 }
 
