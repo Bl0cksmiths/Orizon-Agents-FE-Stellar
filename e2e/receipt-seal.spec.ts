@@ -22,7 +22,12 @@ const SEAL_TX = "5e".repeat(32);
 
 async function openReceipt(
   page: Page,
-  seal: { seal?: TaskDisputes["seal"]; proofTx?: TaskDisputes["proof_tx"] },
+  seal: {
+    seal?: TaskDisputes["seal"];
+    sealKind?: TaskDisputes["seal_kind"];
+    proofTx?: TaskDisputes["proof_tx"];
+    settlement?: null;
+  },
 ) {
   await mockTaskReadToken(page);
   await mockApi(page);
@@ -71,5 +76,27 @@ test.describe("the receipt's seal", () => {
     await expect(receipt(page)).not.toContainText(
       /Sealed on Stellar|Sealing…|Seal not confirmed|Seal failed|No attestation seal/,
     );
+  });
+
+  test("a delivery-only seal says no payment was made, and offers nothing to dispute", async ({
+    page,
+  }) => {
+    await openReceipt(page, {
+      settlement: null,
+      seal: "sealed",
+      sealKind: "delivery_only",
+      proofTx: SEAL_TX,
+    });
+    await expect(
+      receipt(page)
+        .getByRole("status")
+        .filter({
+          hasText: "Attested on Stellar — delivered, no payment made",
+        }),
+    ).toBeVisible();
+    await expect(receipt(page)).not.toContainText(/payment stands/);
+    await expect(
+      receipt(page).getByRole("button", { name: /dispute/i }),
+    ).toHaveCount(0);
   });
 });

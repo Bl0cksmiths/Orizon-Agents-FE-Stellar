@@ -98,4 +98,22 @@ test.describe("the trace's seal", () => {
       ),
     ).toHaveCount(0);
   });
+
+  test("says a delivery-only seal without a payment", async ({ page }) => {
+    await mockApi(page, {
+      task: { seal: "sealed", seal_kind: "delivery_only" },
+      artifact: mockSettledNoArtifact,
+    });
+    await mockTraceStream(page, mockDisputeTaskId);
+    await disputes(page);
+    await page.goto(`/app/trace?task=${mockDisputeTaskId}`);
+    await expect(
+      page.getByRole("status").filter({
+        hasText: "Attested on Stellar — delivered, no payment made",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Seal failed — your payment stands"),
+    ).toHaveCount(0);
+  });
 });
