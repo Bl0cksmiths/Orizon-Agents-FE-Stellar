@@ -1249,6 +1249,33 @@ describe("post (via decompose)", () => {
     );
   });
 
+  it("sends an edited brief as `spec` beside the intent it answers", async () => {
+    const plan = {
+      plan_id: "pln_2",
+      intent: "tetris",
+      steps: [],
+      total_usdc: 0,
+      total_eta: 0,
+    };
+    const spec = {
+      goal: "A playable tetris game",
+      deliverable: "One HTML file",
+      constraints: [],
+      done_criteria: ["Lines clear"],
+      summary: "Build tetris.",
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, plan));
+
+    await decompose("tetris", spec);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/orchestrator/decompose",
+      expect.objectContaining({
+        body: JSON.stringify({ intent: "tetris", spec }),
+      }),
+    );
+  });
+
   it("surfaces the backend `detail` field in the rejection message", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(422, { detail: "plan too vague" }),
