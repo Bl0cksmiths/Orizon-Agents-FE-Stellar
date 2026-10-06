@@ -27,6 +27,9 @@ import type {
   LegacyOverview,
   OverviewV2,
   PlanFloorNotice,
+  PlanGuardResult,
+  PlanModels,
+  PlanSpec,
   PlanStep,
   ReputationBatch,
   ReputationInfo,
@@ -360,7 +363,12 @@ function isPlanStep(s: unknown): s is PlanStep {
     isOptionalBool(s.rep_degraded) &&
     isOptionalStr(s.substituted_for) &&
     // Truthy non-boolean would badge a healthy step as below-floor.
-    isOptionalBool(s.degraded)
+    isOptionalBool(s.degraded) &&
+    // Both print on the step row. `tier` is checked as a string, not
+    // against the three this build knows: a tier added later must not blank
+    // a plan the buyer can pay for — `readTier` shows no badge for it.
+    isOptionalStr(s.tier) &&
+    isOptionalStr(s.model)
   );
 }
 
@@ -391,9 +399,73 @@ function isPlanFloorNotice(v: unknown): v is PlanFloorNotice {
   );
 }
 
-/** Everything about a plan except the notice items, which are screened one by
- * one below. */
-type PlanShell = Omit<DecomposeResponse, "notices"> & { notices?: unknown };
+/** The brief the plan was built from: every field renders as text, and both
+ * lists are mapped into rows. */
+function isPlanSpec(v: unknown): v is PlanSpec {
+  return (
+    isRecord(v) &&
+    isStr(v.goal) &&
+    isStr(v.deliverable) &&
+    isStrArray(v.constraints) &&
+    isStrArray(v.done_criteria) &&
+    isStr(v.summary)
+  );
+}
+
+function isPlanGuardResult(v: unknown): v is PlanGuardResult {
+  return (
+    isRecord(v) &&
+    isStr(v.verdict) &&
+    isOptionalStr(v.tier) &&
+    (v.reasons === undefined || v.reasons === null || isStrArray(v.reasons))
+  );
+}
+
+function isPlanModels(v: unknown): v is PlanModels {
+  return (
+    isRecord(v) &&
+    isOptionalStr(v.planner) &&
+    isOptionalStr(v.improver) &&
+    isOptionalStr(v.guard)
+  );
+}
+
+/** Everything about a plan except the parts screened one by one below: the
+ * notice items, and orchestrator v2's account of how the plan was made. */
+type PlanShell = Omit<
+  DecomposeResponse,
+  "notices" | "tier" | "understood_as" | "guard" | "models"
+> & {
+  notices?: unknown;
+  tier?: unknown;
+  understood_as?: unknown;
+  guard?: unknown;
+  models?: unknown;
+};
+
+/**
+ * Orchestrator v2's account of how the plan was made — its tier, the brief it
+ * was built from, the request check and the models — each kept when usable
+ * and dropped when not. None of it is what the buyer pays for, so, as with a
+ * malformed floor notice, a malformed one costs its panel and never the plan.
+ * `understood_as: null` is kept as null: it means the backend planned from
+ * the request as written, which is not the same as not saying.
+ */
+function screenProvenance(v: PlanShell): {
+  [K in "tier" | "understood_as" | "guard" | "models"]: DecomposeResponse[K];
+} {
+  return {
+    tier: isOptionalStr(v.tier) ? v.tier : undefined,
+    understood_as:
+      v.understood_as === null
+        ? null
+        : isPlanSpec(v.understood_as)
+          ? v.understood_as
+          : undefined,
+    guard: isPlanGuardResult(v.guard) ? v.guard : undefined,
+    models: isPlanModels(v.models) ? v.models : undefined,
+  };
+}
 
 /** `intent` is echoed back and not computed with, so it stays unchecked in
  * keeping with this file's shallow contract. */
@@ -433,9 +505,11 @@ function isPlanShell(v: unknown): v is PlanShell {
  * envelope itself is unusable. */
 export function screenDecomposeResponse(v: unknown): DecomposeResponse | null {
   if (!isPlanShell(v)) return null;
-  if (!Array.isArray(v.notices)) return { ...v, notices: undefined };
+  const provenance = screenProvenance(v);
+  if (!Array.isArray(v.notices))
+    return { ...v, ...provenance, notices: undefined };
   const notices = v.notices.filter(isPlanFloorNotice);
-  const plan: DecomposeResponse = { ...v, notices };
+  const plan: DecomposeResponse = { ...v, ...provenance, notices };
   DROPPED.set(plan, v.notices.length - notices.length);
   return plan;
 }
