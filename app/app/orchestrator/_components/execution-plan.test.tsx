@@ -1692,3 +1692,37 @@ describe("ExecutionPlan · exact prices", () => {
     expect(api.buildAuthorize).not.toHaveBeenCalled();
   });
 });
+
+describe("ExecutionPlan · a multi-agent pipeline", () => {
+  const pipeline = plan({
+    steps: ["research.pro", "seo.brief", "copywrite.v3", "code.gen"].map(
+      (name) =>
+        step({
+          agent_id: `agt_${name}`,
+          agent_name: name,
+          rationale: `${name} contributes its part`,
+          est_price_usdc: 0.01,
+        }),
+    ),
+  });
+
+  it("reads as one pipeline: the order, then where each step's output goes", () => {
+    const { container } = render(<ExecutionPlan plan={pipeline} />);
+    expect(container.textContent).toContain("pipeline · 4 agents in order");
+    const notes = Array.from(container.querySelectorAll("ol > li")).map(
+      (li) => li.querySelector("p.basis-full")?.textContent ?? null,
+    );
+    expect(notes).toEqual([
+      "↓ hands its output to step 02 · seo.brief",
+      "↓ hands its output to step 03 · copywrite.v3",
+      "↓ hands its output to step 04 · code.gen",
+      null,
+    ]);
+  });
+
+  it("keeps a one-step plan plain", () => {
+    const { container } = render(<ExecutionPlan plan={plan()} />);
+    expect(container.textContent).not.toContain("pipeline ·");
+    expect(container.textContent).not.toContain("hands its output");
+  });
+});

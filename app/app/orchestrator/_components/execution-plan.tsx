@@ -60,6 +60,7 @@ import type { PlanSpec } from "@/lib/types";
 import { ModelTag, TierBadge } from "@/components/console/tier-badge";
 import { stepRunner } from "@/lib/plan-tier";
 import { FiatFund } from "./fiat-fund";
+import { HandoffNote, PipelineOverview } from "./pipeline-flow";
 import { PlanProvenance } from "./plan-provenance";
 import { UnderstoodAsPanel } from "./understood-as-panel";
 import { isPlanExpired } from "./plan-errors";
@@ -506,6 +507,10 @@ export function ExecutionPlan({
             shaped it. */}
         <FloorSummary plan={plan} />
 
+        {/* The order the agents run in, at a glance: a multi-agent plan is
+            one pipeline, each step building on the ones before it. */}
+        <PipelineOverview steps={plan.steps} />
+
         <ol className="space-y-3">
           {plan.steps.map((s, i) => (
             <m.li
@@ -611,6 +616,9 @@ export function ExecutionPlan({
                 </span>{" "}
                 · {s.est_eta_seconds.toFixed(1)}s
               </div>
+              {i < plan.steps.length - 1 && (
+                <HandoffNote to={plan.steps[i + 1]} index={i + 1} />
+              )}
             </m.li>
           ))}
         </ol>
