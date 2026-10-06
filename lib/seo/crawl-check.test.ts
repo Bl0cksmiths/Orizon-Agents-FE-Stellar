@@ -1,5 +1,5 @@
 /**
- * scripts/sitemap-check.mjs: what it reads out of a sitemap, a robots.txt
+ * lib/seo/crawl-check.mjs: what it reads out of a sitemap, a robots.txt
  * and a page, and what it calls a problem, against a fake site.
  */
 
@@ -9,7 +9,7 @@ import {
   pageProblems,
   parseRobots,
   parseSitemapLocs,
-} from "./sitemap-check.mjs";
+} from "./crawl-check.mjs";
 
 const SITE = "https://orizons.xyz";
 
