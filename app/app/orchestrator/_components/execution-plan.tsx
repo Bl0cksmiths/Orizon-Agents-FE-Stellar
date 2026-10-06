@@ -24,7 +24,7 @@ import {
   classifyAuthorizeError,
   insufficientEscrowFunds,
 } from "@/lib/escrow";
-import { STROOPS_PER_UNIT, formatSettled } from "@/lib/money";
+import { STROOPS_PER_UNIT, formatSettled, stroopsToDecimal } from "@/lib/money";
 import { useFetch } from "@/lib/use-fetch";
 import {
   DegradedBanner,
@@ -801,7 +801,9 @@ export function ExecutionPlan({
         {showFiat && (
           <div className="mt-4">
             <FiatFund
-              usdcAmount={cap}
+              amount={stroopsToDecimal(
+                BigInt(Math.round(cap * STROOPS_PER_UNIT)),
+              )}
               stellarAddress={wallet.address ?? undefined}
               asset={network?.asset}
             />

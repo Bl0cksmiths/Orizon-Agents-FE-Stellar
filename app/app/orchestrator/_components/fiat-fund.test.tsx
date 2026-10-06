@@ -32,7 +32,7 @@ afterEach(cleanup);
 
 /** Everything the panel says, as one string. */
 function text(asset: string | null | undefined): string {
-  const { container } = render(<FiatFund usdcAmount={0.123} asset={asset} />);
+  const { container } = render(<FiatFund amount="0.123" asset={asset} />);
   return container.textContent ?? "";
 }
 
@@ -73,5 +73,19 @@ describe("FiatFund · what the ramp is said to pay for", () => {
   it("drops the no-crypto promise wherever the escrow does not take USDC", () => {
     expect(text("native")).not.toContain("no crypto needed");
     expect(text(null)).not.toContain("no crypto needed");
+  });
+});
+
+describe("FiatFund · the amount it prices", () => {
+  // The quote is asked for the cap exactly as signed, as a plain decimal:
+  // `String(1e-7)` is "1e-7", which no decimal parser on the other side reads.
+  it.each([
+    ["0.123", "0.123"],
+    ["0.0000001", "0.0000001"],
+    ["9999.9999999", "9999.9999999"],
+  ])("asks for a quote of %s exactly", (amount, asked) => {
+    pdax.pdaxFundingQuote.mockClear();
+    render(<FiatFund amount={amount} asset="native" />);
+    expect(pdax.pdaxFundingQuote).toHaveBeenCalledWith(asked);
   });
 });
