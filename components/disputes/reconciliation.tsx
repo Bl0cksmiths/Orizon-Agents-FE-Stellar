@@ -13,7 +13,7 @@
  */
 import { useId } from "react";
 
-import { StellarExpertLink } from "@/components/ui/stellar-link";
+import { NETWORK_LABEL, StellarExpertLink } from "@/components/ui/stellar-link";
 import { assetLabel, formatStroops, stroopsToDecimal } from "@/lib/money";
 import type { Reconciliation } from "@/lib/reconcile";
 import { cn } from "@/lib/utils";
@@ -105,6 +105,12 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
                   {!r.delivered && (
                     <span className="text-muted"> · not delivered</span>
                   )}
+                  {r.builtInUnpaid && (
+                    <span className="text-muted">
+                      {" "}
+                      · built-in, not paid yet
+                    </span>
+                  )}
                 </th>
                 <td className={num}>{cell(r.planned, "planned")}</td>
                 <td className={num}>{cell(r.charged, "charged")}</td>
@@ -139,6 +145,9 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
         </div>
       ) : (
         <p className="text-xs leading-relaxed text-muted">
+          {recon.allReturnedBuiltIn
+            ? `Returned to you: built-in agents aren't paid on ${NETWORK_LABEL} yet, so the whole authorization came back. `
+            : null}
           {recon.balanced === true
             ? "Charged plus returned equals planned, to the stroop."
             : recon.held

@@ -201,3 +201,41 @@ describe("ReconciliationTable", () => {
     );
   });
 });
+
+describe("ReconciliationTable · built-in agents nobody pays yet", () => {
+  // Platform agents have no on-chain owner, so a paid run of them charges
+  // nothing and the escrow hands the whole authorization back. That is the
+  // system working as built, and it reads that way — never as a failure.
+  const builtIn = settlement({
+    steps: [
+      step(0, {
+        agent_id: "agt_09l5",
+        agent_name: "research.pro",
+        unpaid_reason: "no_onchain_owner",
+        paid_usdc: 0,
+        ...money(240_000, 0, 240_000),
+      }),
+      step(1, {
+        agent_id: "agt_11c0",
+        agent_name: "code.gen",
+        unpaid_reason: "no_onchain_owner",
+        paid_usdc: 0,
+        ...money(540_000, 0, 540_000),
+      }),
+    ],
+    totals: totals(780_000, 780_000, 0, 780_000, 0),
+  });
+
+  it("says the whole authorization came back, and why, in plain words", () => {
+    const { container } = show(builtIn);
+    expect(container.textContent).toContain(
+      "Returned to you: built-in agents aren't paid on testnet yet, so the whole authorization came back.",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("marks each built-in step as not paid", () => {
+    show(builtIn);
+    expect(cells()[1][0]).toBe("1 · research.pro · built-in, not paid yet");
+  });
+});
