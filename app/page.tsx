@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Nav } from "./(marketing)/_components/nav";
 import { Hero } from "./(marketing)/_components/hero";
 import { Problem } from "./(marketing)/_components/problem";
@@ -13,6 +14,13 @@ import { Marquee } from "@/components/ui/marquee";
 import { BackendWarmup } from "@/components/backend-warmup";
 import { RevealOnScroll } from "@/components/ui/reveal-on-scroll";
 import { getHeroStats } from "@/lib/public-network-stats";
+
+// The home page's own canonical, https://orizons.xyz (Next writes the root
+// without a trailing slash), the same URL the sitemap lists. It is set here,
+// not in the root layout, so no other page inherits it.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 // The hero's network figures are read on the server and the page is
 // regenerated at most every five minutes (PUBLIC_STATS_REVALIDATE_S — Next
