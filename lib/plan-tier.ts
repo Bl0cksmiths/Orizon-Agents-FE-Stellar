@@ -10,7 +10,7 @@
  * claim nobody made.
  */
 
-import { isTier, type PlanStep, type Tier } from "./types";
+import { isTier, type PlanModels, type PlanStep, type Tier } from "./types";
 
 /** A tier this build can name, or null — never a guessed one. */
 export function readTier(v: unknown): Tier | null {
@@ -33,7 +33,7 @@ export const TIER_COPY: Record<
 };
 
 const CLAUDE_ID = /^claude-([a-z]+)-(\d+)(?:-(\d+))?$/;
-const JEV_ID = /^jev(?:-(.+))?$/;
+const JEV_ID = /^jev(?:-.+)?$/;
 
 /**
  * A model as a buyer reads it: "claude-opus-5-5" → "Claude Opus 5.5",
@@ -50,14 +50,25 @@ export function modelLabel(v: string | null | undefined): string | null {
     const name = family.charAt(0).toUpperCase() + family.slice(1);
     return `Claude ${name} ${minor ? `${major}.${minor}` : major}`;
   }
-  const jev = JEV_ID.exec(raw);
-  if (jev) return jev[1] ? `jev ${jev[1]}` : "jev";
+  // The backend pins jev's version; a buyer reads the name.
+  if (JEV_ID.test(raw)) return "jev";
   return raw;
 }
 
-/** The model a step runs on, when the backend names it; null otherwise. */
+/**
+ * The model a step runs on: the step's own, when the backend names one, or
+ * else its tier's built-in model from the plan's `models.tiers` — said as
+ * such (`fromTier`), because only a built-in worker runs on it; a step routed
+ * to an external agent runs on its operator's own stack. Null when neither is
+ * known.
+ */
 export function stepModel(
   step: Pick<PlanStep, "model" | "tier">,
-): string | null {
-  return modelLabel(step.model);
+  models: Pick<PlanModels, "tiers"> | null | undefined,
+): { name: string; fromTier: boolean } | null {
+  const own = modelLabel(step.model);
+  if (own) return { name: own, fromTier: false };
+  const tier = readTier(step.tier);
+  const name = tier ? modelLabel(models?.tiers?.[tier]) : null;
+  return name ? { name, fromTier: true } : null;
 }
