@@ -17,6 +17,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import { mockApi } from "./mocks";
+import { FAULTS_GLOBAL, type FaultPoint } from "../lib/fault-injection";
 
 const GOOGLEBOT_SMARTPHONE =
   "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.70 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
@@ -106,4 +107,31 @@ test.describe("Googlebot renders each public page as itself", () => {
       expect(errors).toEqual([]);
     });
   }
+});
+
+/** Makes the named parts throw in this page's renders (lib/fault-injection.ts). */
+async function breakParts(page: Page, parts: FaultPoint[]) {
+  await page.addInitScript(
+    ({ key, parts }) => {
+      (window as unknown as Record<string, unknown>)[key] = parts;
+    },
+    { key: FAULTS_GLOBAL, parts },
+  );
+}
+
+const HOME = PUBLIC_PAGES[0];
+
+test.describe("a part that fails stays local, and the page stays itself", () => {
+  test("the wallet provider throwing leaves the page whole", async ({
+    page,
+  }) => {
+    await breakParts(page, ["wallet"]);
+    await render(page, HOME.path);
+    await expectRealPage(page, HOME);
+    // Where the page offers a wallet, it says the wallet is unavailable.
+    await expect(page.getByText("Wallet unavailable").first()).toBeAttached();
+    await expect(
+      page.getByRole("button", { name: "Connect Wallet" }),
+    ).toHaveCount(0);
+  });
 });
