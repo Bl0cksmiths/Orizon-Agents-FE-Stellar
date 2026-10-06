@@ -34,7 +34,7 @@ async function open(page: Page, lines = mockTraceV2) {
 }
 
 test.describe("the trace under orchestrator v2", () => {
-  test("marks the three planning stages, tagged or by their wording", async ({
+  test("marks the planning stages by the backend's wording", async ({
     page,
   }) => {
     await open(page);
@@ -43,26 +43,23 @@ test.describe("the trace under orchestrator v2", () => {
     const mark = (word: string) =>
       new RegExp(`planning stage:\\W*${word}`, "i");
     await expect(stage("Request checked by jev")).toContainText(mark("check"));
-    await expect(stage("Request checked by jev")).toContainText(
-      /moderate tier/i,
-    );
     await expect(stage("Prompt improved by")).toContainText(mark("brief"));
-    // Untagged on the wire: its wording alone makes it a stage.
+    await expect(stage("re-checked by jev")).toContainText(mark("recheck"));
     await expect(stage("Planned by Claude Opus 5.5")).toContainText(
       mark("plan"),
     );
-    await expect(
-      page.getByText(/planning stage/i, { exact: false }),
-    ).toHaveCount(3);
+    await expect(page.getByText(/planning stage/i)).toHaveCount(4);
   });
 
-  test("puts each step's tier beside it, naming the model once", async ({
+  test("leaves a step line, which names its own model, unmarked", async ({
     page,
   }) => {
     await open(page);
-    const step = rows(page).filter({ hasText: "seo.brief → outline drafted" });
-    await expect(step).toContainText(/low tier/i);
-    // Named in the line's own words, so not again in a tag.
+    const step = rows(page).filter({
+      hasText: "seo.brief on Claude Haiku 4.5",
+    });
+    await expect(step).toContainText("(tier: low)");
+    await expect(step).not.toContainText(/planning stage/i);
     await expect(step.getByText("Claude Haiku 4.5")).toHaveCount(1);
     // Contrast judged with the card's decor flattened (e2e/dispute-axe.ts).
     expect(await disputeScan(page)).toEqual([]);
