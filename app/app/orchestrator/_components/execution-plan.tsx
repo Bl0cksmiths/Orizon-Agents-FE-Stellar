@@ -55,6 +55,7 @@ import { useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
+import { ModelTag, TierBadge } from "@/components/console/tier-badge";
 import { FiatFund } from "./fiat-fund";
 import { isPlanExpired } from "./plan-errors";
 import { PlanExpiredNotice, type ExpiredRun } from "./plan-expired-notice";
@@ -548,9 +549,19 @@ export function ExecutionPlan({
                     <Badge tone="magenta">▾ below floor</Badge>
                   </span>
                 )}
+                <TierBadge tier={s.tier} />
               </div>
               <span className="text-sm text-muted">→</span>
-              <div className="flex-1 text-sm">{s.rationale}</div>
+              {/* min-w-0 so a long model id wraps inside the row instead of
+                  widening it past the card at 360px. */}
+              <div className="min-w-0 flex-1 text-sm">
+                {s.rationale}
+                <ModelTag
+                  model={s.model}
+                  prefix="runs on"
+                  className="mt-1 block"
+                />
+              </div>
               <div className="font-mono text-xs text-cyan">
                 {s.est_price_usdc.toFixed(3)} · {s.est_eta_seconds.toFixed(1)}s
               </div>
