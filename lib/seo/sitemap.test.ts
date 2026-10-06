@@ -3,7 +3,7 @@
  * canonical names, each dated by its own content and never by the build.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublishedDemo } from "@/lib/demo/load";
@@ -26,6 +26,26 @@ afterEach(() => {
 });
 
 const locs = () => sitemapEntries().map((e) => e.loc);
+
+/**
+ * Every page route in app/, as its path: route groups dropped, the console
+ * (app/app/**) left out. Dynamic segments stay as written, e.g. /guide/[slug].
+ */
+function pageRoutes(dir = path.join(root, "app"), segments: string[] = []) {
+  const routes: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isFile() && /^page\.(tsx|ts|jsx|js|mdx)$/.test(entry.name)) {
+      routes.push(`/${segments.join("/")}`);
+    }
+    if (!entry.isDirectory() || entry.name.startsWith("_")) continue;
+    const next = /^\(.*\)$/.test(entry.name)
+      ? segments
+      : [...segments, entry.name];
+    if (next[0] === "app" || next[0] === "api") continue;
+    routes.push(...pageRoutes(path.join(dir, entry.name), next));
+  }
+  return routes;
+}
 const lastmod = (loc: string) =>
   sitemapEntries().find((e) => e.loc === loc)?.lastmod;
 
@@ -51,6 +71,19 @@ describe("sitemapEntries: the URL set", () => {
       "https://orizons.xyz/litepaper",
       "https://orizons.xyz/litepaper/orizon-agents-litepaper.pdf",
     ]);
+  });
+
+  it("lists every page in app/ outside the console, and only those", () => {
+    const pages = pageRoutes().flatMap((route) =>
+      route === "/guide/[slug]"
+        ? ["/guide/list-your-agent"]
+        : [route === "/" ? "" : route],
+    );
+    expect(pages.some((p) => p.includes("["))).toBe(false);
+    const html = locs().filter((loc) => !loc.endsWith(".pdf"));
+    expect([...html].sort()).toEqual(
+      pages.map((p) => `https://orizons.xyz${p}`).sort(),
+    );
   });
 
   it("lists nothing under the console or the API", () => {
