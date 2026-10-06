@@ -375,6 +375,149 @@ describe("CachedRead", () => {
   });
 });
 
+describe("CachedRead — the backend's snapshot contract", () => {
+  const COMPUTING = {
+    status: "computing",
+    message: "The adoption report is being computed. Ask again shortly.",
+    retry_after_seconds: 30,
+  };
+
+  it("relays a 202 'computing' when it holds nothing, with its Retry-After", async () => {
+    const { be, read } = setup();
+    const out = read.read();
+    await flush();
+    be.answer(COMPUTING, { status: 202, headers: { "retry-after": "30" } });
+    const res = await out;
+    expect(res).toMatchObject({
+      ok: false,
+      status: 202,
+      code: "backend_computing",
+      retryAfter: "30",
+    });
+    expect(!res.ok && JSON.parse(res.upstreamBody ?? "")).toEqual(COMPUTING);
+    expect(read.peek()).toBeNull();
+  });
+
+  it("never lets a 202 replace a good copy", async () => {
+    const { be, read } = setup();
+    const first = read.read();
+    await flush();
+    be.answer(["report"]);
+    await first;
+    await vi.advanceTimersByTimeAsync(20_000);
+    const next = read.read();
+    await flush();
+    be.answer(COMPUTING, { status: 202, headers: { "retry-after": "30" } });
+    expect(await next).toMatchObject({
+      ok: true,
+      state: "stale",
+      copy: { value: ["report"] },
+    });
+    expect(read.peek()?.value).toEqual(["report"]);
+  });
+
+  it("dates a snapshot by its own age, and keeps freshness on the read", async () => {
+    const { be, read } = setup();
+    const out = read.read();
+    await flush();
+    be.answer(["snap"], { headers: { "x-snapshot-age": "90" } });
+    const res = await out;
+    const now = Date.now();
+    expect(res).toMatchObject({
+      ok: true,
+      state: "fresh",
+      copy: { readAt: now, dataAt: now - 90_000 },
+    });
+    // Fresh for this proxy by when it read, not by the snapshot's age.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await read.read()).toMatchObject({ state: "fresh" });
+    expect(be.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("revalidates with the ETag it holds and keeps the body on a 304", async () => {
+    const { be, read } = setup();
+    const first = read.read();
+    await flush();
+    be.answer(["same"], { headers: { etag: '"v1"', "x-snapshot-age": "5" } });
+    await first;
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    const again = read.read();
+    await flush();
+    expect(new Headers(be.pending[0].init.headers).get("if-none-match")).toBe(
+      '"v1"',
+    );
+    be.pending.shift()?.resolve(
+      new Response(null, {
+        status: 304,
+        headers: { etag: '"v1"', "x-snapshot-age": "25" },
+      }),
+    );
+    const now = Date.now();
+    expect(await again).toMatchObject({
+      ok: true,
+      state: "fresh",
+      copy: {
+        value: ["same"],
+        text: '["same"]',
+        readAt: now,
+        dataAt: now - 25_000,
+      },
+    });
+  });
+
+  it("asks unconditionally while it holds no copy", async () => {
+    const { be, read } = setup();
+    const out = read.read();
+    await flush();
+    expect(
+      new Headers(be.pending[0].init.headers).get("if-none-match"),
+    ).toBeNull();
+    be.answer([1]);
+    await out;
+  });
+
+  it("dates the answer it sends by the data, not the read", () => {
+    const res = toResponse(
+      {
+        ok: true,
+        state: "fresh",
+        copy: {
+          text: "[]",
+          value: [],
+          readAt: 1_000_000,
+          dataAt: 900_000,
+          partial: false,
+          headers: {},
+        },
+      },
+      { freshMs: 15_000 },
+      1_000_000,
+    );
+    expect(res.headers.get(READ_AT_HEADER)).toBe("900000");
+  });
+
+  it("sends a relayed 202 uncached, as the backend worded it", async () => {
+    const body = JSON.stringify(COMPUTING);
+    const res = toResponse(
+      {
+        ok: false,
+        status: 202,
+        code: "backend_computing",
+        message: "computing",
+        retryAfter: "30",
+        upstreamBody: body,
+      },
+      { freshMs: 1 },
+      0,
+    );
+    expect(res.status).toBe(202);
+    expect(res.headers.get("retry-after")).toBe("30");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.text()).toBe(body);
+  });
+});
+
 describe("parsePageQuery", () => {
   const q = (s: string) => parsePageQuery(new URLSearchParams(s));
 
