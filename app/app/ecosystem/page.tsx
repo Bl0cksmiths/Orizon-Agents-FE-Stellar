@@ -16,7 +16,7 @@ import { ErrorNote } from "@/components/ui/error-note";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StaleBadge } from "@/components/ui/stale-badge";
 import { WakeStatus } from "@/components/console/wake-status";
-import { getStellarNetwork } from "@/lib/api";
+import { getStellarNetwork, isComputingError } from "@/lib/api";
 import { getEcosystemAdoption } from "@/lib/ecosystem";
 import { formatLocalTime } from "@/lib/local-time";
 import { useAdoptionSnapshot } from "@/lib/use-adoption-snapshot";
@@ -24,11 +24,11 @@ import { useFetch } from "@/lib/use-fetch";
 import { AdoptionView } from "./adoption-view";
 
 export default function EcosystemPage() {
-  const { data, error, loading, retrying, dataAt, waiting, reload } = useFetch(
-    getEcosystemAdoption,
-    [],
-    { revalidateOnFocus: true },
-  );
+  const { data, error, loading, retrying, dataAt, waiting, retryInMs, reload } =
+    useFetch(getEcosystemAdoption, [], { revalidateOnFocus: true });
+  // The backend answered "computing": it has no report yet and is building
+  // one, which takes minutes. A wait with its own words, not the waking line.
+  const building = waiting && isComputingError(error);
   // The backend takes minutes over this read. A returning visitor opens on
   // the last figures this browser saw, labelled as such, while it runs.
   const snapshot = useAdoptionSnapshot(data);
@@ -65,7 +65,11 @@ export default function EcosystemPage() {
           </ErrorNote>
         ) : (
           <Card className="space-y-4">
-            <WakeStatus active what="ecosystem adoption" />
+            {building ? (
+              <BuildingStatus retryInMs={retryInMs} />
+            ) : (
+              <WakeStatus active what="ecosystem adoption" />
+            )}
             <Skeleton className="h-6 w-48" />
             <Skeleton className="h-28 w-full" />
             <Skeleton className="h-28 w-full" />
@@ -86,7 +90,11 @@ export default function EcosystemPage() {
                 </time>
                 . The live figures replace it as soon as they arrive.
               </p>
-              {waiting && <WakeStatus active what="ecosystem adoption" />}
+              {building ? (
+                <BuildingStatus retryInMs={retryInMs} />
+              ) : (
+                waiting && <WakeStatus active what="ecosystem adoption" />
+              )}
             </Card>
           )}
           {failure && (
@@ -110,5 +118,25 @@ export default function EcosystemPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * The backend has no adoption report yet and is building one (`202
+ * computing`): every external agent's settlements are scanned, which takes
+ * minutes. Said as the wait it is, with when the page asks again — the
+ * backend's own Retry-After — and never as a failure or a zero.
+ */
+function BuildingStatus({ retryInMs }: { retryInMs: number | null }) {
+  const seconds = retryInMs === null ? null : Math.round(retryInMs / 1_000);
+  return (
+    <p
+      role="status"
+      className="font-mono text-[11px] leading-relaxed text-muted"
+    >
+      Building the adoption report… The backend reads every external
+      agent&apos;s settlements from the chain, which takes a few minutes.
+      {seconds !== null && ` This page checks again in ${seconds} s.`}
+    </p>
   );
 }
