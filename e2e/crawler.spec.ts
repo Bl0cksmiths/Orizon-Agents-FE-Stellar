@@ -151,6 +151,13 @@ async function breakParts(page: Page, parts: FaultPoint[]) {
 
 const HOME = PUBLIC_PAGES[0];
 
+/** The guide itself, whose code blocks carry copy buttons. */
+const GUIDE_PAGE: PublicPage = {
+  path: "/guide/list-your-agent",
+  title: "List your agent on Orizon — Orizon Agents",
+  h1: /^List your agent on Orizon$/,
+};
+
 /** /demo with its video published, from the second server's fixture. */
 const PUBLISHED_DEMO: PublicPage = {
   ...PUBLIC_PAGES[2],
@@ -301,5 +308,16 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
     await expect(
       page.locator('ol a[href*="youtube.com/watch"][href*="&t="]').first(),
     ).toBeVisible();
+  });
+
+  test("the copy buttons throwing leave the guide and its code", async ({
+    page,
+  }) => {
+    await breakParts(page, ["copy-button"]);
+    await render(page, GUIDE_PAGE.path);
+    await expectRealPage(page, GUIDE_PAGE);
+    expect(await page.locator("main pre code").count()).toBeGreaterThan(0);
+    await expect(page.locator("main pre code").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Copy / })).toHaveCount(0);
   });
 });
