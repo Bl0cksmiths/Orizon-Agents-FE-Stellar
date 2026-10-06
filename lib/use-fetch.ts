@@ -37,7 +37,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isWakingError, readAtOf } from "./api-freshness";
+import { isComputingError, isWakingError, readAtOf } from "./api-freshness";
 
 /** Extra attempts after the initial one. 4 requests total per mount. */
 const DEFAULT_MAX_RETRIES = 3;
@@ -72,6 +72,8 @@ const FOCUS_RETRY_MIN_MS = 5_000;
  */
 export function isTransientFetchError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
+  // A report the backend is still building answers again after Retry-After.
+  if (isComputingError(error)) return true;
   if (/timeout after/i.test(message)) return true;
   // lib/api.ts formats HTTP failures as "GET /path → 503[ — detail]".
   const status = Number(/→\s*(\d{3})\b/.exec(message)?.[1]);
@@ -284,7 +286,7 @@ export function useFetch<T>(
           setError(errorRef.current);
           const asked = optsRef.current?.maxRetries ?? DEFAULT_MAX_RETRIES;
           const budget =
-            asked > 0 && isWakingError(e)
+            asked > 0 && (isWakingError(e) || isComputingError(e))
               ? Math.max(asked, WAKE_MAX_RETRIES)
               : asked;
           if (attempt >= budget || !isTransientFetchError(e)) {
@@ -357,7 +359,9 @@ export function useFetch<T>(
 
   const dataAt = data === null ? null : (readAtOf(data) ?? lastSuccessAt);
   const waiting =
-    data === null && (loading || (retrying && isWakingError(error)));
+    data === null &&
+    (loading ||
+      (retrying && (isWakingError(error) || isComputingError(error))));
   return {
     data,
     error,
