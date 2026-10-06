@@ -1,20 +1,44 @@
 "use client";
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { decompose } from "@/lib/api";
+import type { DecomposeResponse, PlanSpec } from "@/lib/types";
 import { focusRing } from "@/lib/ui";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { ExecutionPlan } from "./_components/execution-plan";
-import { decomposeErrorCopy } from "./_components/plan-errors";
+import { GUARD_NOTICE_ID, GuardNotice } from "./_components/guard-notice";
+import {
+  decomposeErrorCopy,
+  decomposeRefusal,
+  type DecomposeRefusal,
+} from "./_components/plan-errors";
 
-/** Decompose, with its known failures turned into buyer copy before they
- *  reach the alert. */
-async function decomposeForBuyer(intent: string) {
+/** What one decompose asked: the intent, and the edited brief when the buyer
+ *  re-planned from one. */
+type Ask = { intent: string; spec?: PlanSpec };
+
+/** A decompose's answer as the page renders it: a plan, or the request
+ *  check's refusal — a notice of its own, not an error string. */
+type Answer =
+  | { kind: "plan"; plan: DecomposeResponse }
+  | { kind: "refused"; refusal: DecomposeRefusal };
+
+/** Decompose, with the request check's refusals kept as data and every other
+ *  known failure turned into buyer copy before it reaches the alert. */
+async function decomposeForBuyer({ intent, spec }: Ask): Promise<Answer> {
   try {
-    return await decompose(intent);
+    return { kind: "plan", plan: await decompose(intent, spec) };
   } catch (e) {
+    const refusal = decomposeRefusal(e);
+    if (refusal) return { kind: "refused", refusal };
     throw new Error(decomposeErrorCopy(e));
   }
 }
@@ -31,26 +55,40 @@ export default function OrchestratorPage() {
   // Decompose is the page's only async flow; the execute flows (simulate /
   // authorize / fiat) live in ExecutionPlan, which is fed `plan.data`.
   const plan = useAsyncAction(decomposeForBuyer);
-  // The intent behind the plan on screen, for the planner-fallback retry.
-  // Kept from the submit rather than read back off `plan.data.intent`: the
-  // backend does echo it, but no guard checks that it does, and a retry has
-  // to ask exactly what the buyer asked — not whatever the box says now. A
-  // ref, because it never changes what renders.
-  const asked = useRef("");
+  // What was asked for the answer on screen, for the planner-fallback and
+  // check-unavailable retries. Kept from the submit rather than read back off
+  // `plan.data.intent`: the backend does echo it, but no guard checks that it
+  // does, and a retry has to ask exactly what the buyer asked — not whatever
+  // the box says now. A ref, because it never changes what renders.
+  const asked = useRef<Ask>({ intent: "" });
+  const intentRef = useRef<HTMLTextAreaElement>(null);
 
-  const decomposeIntent = (text: string) => {
-    if (!text || plan.pending) return;
-    asked.current = text;
-    // reset() first so the previous plan drops while the new one is in
+  const answer = plan.data;
+  const shown = answer?.kind === "plan" ? answer.plan : null;
+  const refused = answer?.kind === "refused" ? answer.refusal : null;
+  // A question waiting on the intent box: it describes the box until the
+  // buyer asks again.
+  const needsDetail = refused?.kind === "needs_detail";
+
+  const request = (ask: Ask) => {
+    if (!ask.intent || plan.pending) return;
+    asked.current = ask;
+    // reset() first so the previous answer drops while the new one is in
     // flight instead of lingering under the spinner.
     plan.reset();
-    void plan.run(text);
+    void plan.run(ask);
   };
 
   const submitIntent = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    decomposeIntent(intent.trim());
+    request({ intent: intent.trim() });
   };
+
+  // The answer to "tell us more" goes in the intent box, so that is where
+  // focus goes when the question arrives.
+  useEffect(() => {
+    if (needsDetail) intentRef.current?.focus();
+  }, [needsDetail]);
 
   // The intent box is a textarea, so Enter inserts a newline by default —
   // submit instead (Shift+Enter keeps the newline).
@@ -79,7 +117,9 @@ export default function OrchestratorPage() {
             ▸ intent
           </label>
           <textarea
+            ref={intentRef}
             id="intent"
+            aria-describedby={needsDetail ? GUARD_NOTICE_ID : undefined}
             value={intent}
             onChange={(e) => setIntent(e.target.value)}
             onKeyDown={submitOnEnter}
@@ -114,17 +154,27 @@ export default function OrchestratorPage() {
               {plan.error}
             </div>
           )}
+          {refused && (
+            <GuardNotice
+              className="mt-4"
+              refusal={refused}
+              onRetry={() => request(asked.current)}
+              busy={plan.pending}
+            />
+          )}
         </form>
       </Card>
 
       <AnimatePresence>
-        {plan.data && (
+        {shown && (
           <ExecutionPlan
-            plan={plan.data}
+            plan={shown}
             // The form's own path, so a retry behaves exactly as a fresh
-            // submit of the same intent: the fallback card drops while the
+            // submit of the same request: the fallback card drops while the
             // planner is asked again, and nothing runs twice at once.
-            onReplan={() => decomposeIntent(asked.current)}
+            onReplan={() => request(asked.current)}
+            // The same intent, planned from the buyer's edit of its brief.
+            onRespec={(spec) => request({ intent: asked.current.intent, spec })}
           />
         )}
       </AnimatePresence>
