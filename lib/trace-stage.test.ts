@@ -5,10 +5,11 @@ import {
   traceLineTier,
   traceStage,
 } from "./trace-stage";
+import type { TraceLine } from "./types";
 
-const line = (msg: string, extra: Record<string, unknown> = {}) => ({
+const line = (msg: string, extra: Partial<TraceLine> = {}): TraceLine => ({
   t: "00.100",
-  level: "exec" as const,
+  level: "exec",
   msg,
   ...extra,
 });
