@@ -174,4 +174,34 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
     await expectRealPage(page, HOME);
     expect(served).toBeGreaterThan(0);
   });
+
+  test("the nav throwing leaves a plain nav, and the page whole", async ({
+    page,
+  }) => {
+    await breakParts(page, ["nav"]);
+    await render(page, HOME.path);
+    await expectRealPage(page, HOME);
+    const banner = page.getByRole("banner");
+    await expect(banner).toHaveAttribute("data-nav", "static");
+    await expect(
+      banner.getByRole("link", { name: "Orizon Agents — home" }),
+    ).toHaveAttribute("href", "/");
+    await expect(
+      banner.getByRole("link", { name: /launch app/i }),
+    ).toHaveAttribute("href", "/app");
+  });
+
+  test("the nav's wallet control throwing leaves the nav, and the page whole", async ({
+    page,
+  }) => {
+    await breakParts(page, ["connect-wallet"]);
+    await render(page, HOME.path);
+    await expectRealPage(page, HOME);
+    const banner = page.getByRole("banner");
+    await expect(banner).toHaveAttribute("data-nav", "interactive");
+    await expect(banner.getByText("Wallet unavailable").first()).toBeAttached();
+    await expect(
+      banner.getByRole("button", { name: "Open menu" }),
+    ).toBeVisible();
+  });
 });
