@@ -25,6 +25,7 @@ import {
   assetLabel,
   decimalToStroops,
   formatStroops,
+  parseStroops,
   unitsToStroops,
   type AssetRef,
 } from "./money";
@@ -83,4 +84,14 @@ export function relabelAmounts(msg: string, asset: AssetRef): string {
 export function formatSpent(spent: bigint | number, asset: AssetRef): string {
   const stroops = typeof spent === "bigint" ? spent : unitsToStroops(spent);
   return stroops === null || stroops < 0n ? "—" : formatStroops(stroops, asset);
+}
+
+/** A task row's bill in stroops: the exact `spent_stroops` when the backend
+ *  sends it, otherwise the legacy float converted as the backend converts
+ *  it. Null when neither is an amount. */
+export function taskSpent(t: {
+  spent: number;
+  spent_stroops?: number | string | null;
+}): bigint | null {
+  return parseStroops(t.spent_stroops) ?? unitsToStroops(t.spent);
 }
