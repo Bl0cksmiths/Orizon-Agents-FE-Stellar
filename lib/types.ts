@@ -854,6 +854,9 @@ export type StepPayout =
       /** The settle transaction the payout happened in, when recorded. */
       tx: string | null;
       receiptIdHex: string | null;
+      /** Who was paid, and as what; null on a record that kept no payee. */
+      payee?: string | null;
+      payeeRole?: string | null;
     }
   /** Delivered by a seeded platform agent: never billed, share returned. */
   | { kind: "platform" }
@@ -946,6 +949,13 @@ export type SettlementStepView = {
   charged?: WireAmount | null;
   /** `planned − charged`: what went back to the buyer in the settle. */
   returned?: WireAmount | null;
+  /** The account the settle paid for this step (ADR 0016). Null for a step
+   *  nobody was paid for, and on a record written before it was kept. */
+  payee?: string | null;
+  /** Whether `payee` is the Orizon platform treasury — every built-in
+   *  agent's payee — or an operator's wallet. Any string on the wire: one
+   *  this build does not know claims neither. */
+  payee_role?: string | null;
 };
 
 /** One exact amount on the wire (`money.Amount`): integer stroops, and the
