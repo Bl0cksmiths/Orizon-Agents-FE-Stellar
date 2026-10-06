@@ -1092,6 +1092,9 @@ export function openTraceStream(
     }, MAX_OUTAGE_MS);
   };
 
+  // The run's end was already said (the stream's `done`), and what is left is
+  // follow-up: its end is not a second end of the run.
+  let doneSaid = false;
   const settle = (ok: boolean) => {
     if (settled) return;
     settled = true;
@@ -1100,6 +1103,7 @@ export function openTraceStream(
     if (pollTimer !== null) clearTimeout(pollTimer);
     pollTimer = null;
     es?.close();
+    if (doneSaid) return;
     if (ok) onDone?.();
     else (onError ?? onDone)?.();
   };
@@ -1205,13 +1209,17 @@ export function openTraceStream(
   };
 
   /**
-   * The stream said `done`. That is the end unless the run's seal is still
-   * being confirmed: a stream opened after the task went final can end on
-   * the replay alone while the run's follow-up work is still writing to the
-   * trace. Then the history endpoint follows it the rest of the way —
-   * quietly, since nothing is degraded.
+   * The stream said `done`: the run is final, and that is said at once —
+   * never held back on a read. What may remain is follow-up: a stream opened
+   * after the task went final can end on the replay alone while the run's
+   * seal is still being confirmed and its ratings still written. Then the
+   * history endpoint follows it the rest of the way, quietly — nothing is
+   * degraded — forwarding the lines it adds, and ending without a second
+   * `onDone`.
    */
   const endOrFollow = async () => {
+    doneSaid = true;
+    onDone?.();
     let sealing = false;
     try {
       const task = await get<{ seal?: unknown }>(
