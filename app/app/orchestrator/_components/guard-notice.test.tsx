@@ -61,6 +61,22 @@ describe("GuardNotice — needs detail", () => {
     expect(text).toMatch(/nothing was charged/i);
   });
 
+  it("asks for a new request when an edited brief changed what was asked", () => {
+    render(
+      <GuardNotice
+        refusal={{
+          kind: "needs_detail",
+          question:
+            "Your edit changes what was asked. Submit it as a new request.",
+        }}
+        fromBrief
+      />,
+    );
+    const text = alertText();
+    expect(text).toMatch(/new request/i);
+    expect(text).not.toMatch(/add more detail/i);
+  });
+
   it("asks for detail in its own words with no question sent", () => {
     render(<GuardNotice refusal={{ kind: "needs_detail", question: null }} />);
     expect(alertText()).toMatch(/too short or unclear/i);
