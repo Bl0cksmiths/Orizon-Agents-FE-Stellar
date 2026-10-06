@@ -12,7 +12,7 @@
 import { modelLabel, readTier } from "./plan-tier";
 import type { Tier, TraceLine } from "./types";
 
-export const TRACE_STAGES = ["guard", "improve", "plan"] as const;
+export const TRACE_STAGES = ["guard", "improve", "recheck", "plan"] as const;
 export type TraceStage = (typeof TRACE_STAGES)[number];
 
 const isTraceStage = (v: unknown): v is TraceStage =>
@@ -21,8 +21,9 @@ const isTraceStage = (v: unknown): v is TraceStage =>
 /** Each stage's documented opening words. Anchored at the start: a step
  *  line that only mentions planning mid-sentence is not a stage. */
 const STAGE_WORDING: Record<TraceStage, RegExp> = {
-  guard: /^request checked by\b/i,
-  improve: /^prompt improved by\b/i,
+  guard: /^request check(?:ed by\b|\b)/i,
+  improve: /^(?:prompt improve|using your edited reading\b)/i,
+  recheck: /\bre-checked by\b|planning from your own words$/i,
   plan: /^planned by\b/i,
 };
 
@@ -32,6 +33,7 @@ export const STAGE_COPY: Record<TraceStage, { label: string; spoken: string }> =
   {
     guard: { label: "check", spoken: "Request check" },
     improve: { label: "brief", spoken: "Brief written" },
+    recheck: { label: "recheck", spoken: "Brief re-checked" },
     plan: { label: "plan", spoken: "Plan made" },
   };
 
