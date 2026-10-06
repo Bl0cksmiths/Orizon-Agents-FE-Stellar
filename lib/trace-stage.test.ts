@@ -33,6 +33,27 @@ describe("traceStage", () => {
     );
   });
 
+  it("recognises the backend's other stage wordings", () => {
+    expect(
+      traceStage(
+        line(
+          "Request check paused: today's AI budget is spent; curated demo served",
+        ),
+      ),
+    ).toBe("guard");
+    expect(traceStage(line("Prompt improvement unavailable"))).toBe("improve");
+    expect(traceStage(line("Using your edited reading of the request"))).toBe(
+      "improve",
+    );
+    expect(traceStage(line("Edited request re-checked by jev"))).toBe(
+      "recheck",
+    );
+    expect(
+      traceStage(line("Improved prompt drifted; planning from your own words")),
+    ).toBe("recheck");
+    expect(traceStage(line("x", { stage: "recheck" }))).toBe("recheck");
+  });
+
   it("is null for a step line and for a tag it does not know", () => {
     expect(traceStage(line("code.gen → calculator app generated"))).toBeNull();
     expect(
@@ -46,6 +67,7 @@ describe("traceStage", () => {
     expect(STAGE_COPY.guard.label).toBe("check");
     expect(STAGE_COPY.improve.label).toBe("brief");
     expect(STAGE_COPY.plan.label).toBe("plan");
+    expect(STAGE_COPY.recheck.label).toBe("recheck");
   });
 });
 
