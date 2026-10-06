@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { MIN_CAP_STROOPS, planPricing, type PricedPlan } from "./plan-pricing";
+import {
+  MIN_CAP_STROOPS,
+  authorizeCap,
+  planPricing,
+  type PricedPlan,
+} from "./plan-pricing";
+import { unitsToStroops } from "./money";
 import type { DecomposeResponse, PlanStep } from "./types";
 
 const step = (over: Partial<PlanStep>): PlanStep => ({
@@ -170,5 +176,28 @@ describe("planPricing — edges", () => {
     );
     expect(p.steps).toEqual([7n, 3n]);
     expect(p.source).toBe("mixed");
+  });
+});
+
+describe("authorizeCap", () => {
+  it("sends the cap as exact stroops and as a decimal that rounds back to them", () => {
+    for (const cap of [
+      1n,
+      9n,
+      10_000n,
+      870_000n,
+      1_234_567n,
+      100_000_000_000n,
+    ]) {
+      const body = authorizeCap(cap);
+      expect(body.max_amount_stroops).toBe(Number(cap));
+      // The backend's usdc_to_i128: round(max_amount_usdc * 10_000_000).
+      expect(unitsToStroops(body.max_amount_usdc)).toBe(cap);
+    }
+  });
+
+  it("is the exact decimal of the stroops", () => {
+    expect(authorizeCap(1n).max_amount_usdc).toBe(0.0000001);
+    expect(authorizeCap(870_000n).max_amount_usdc).toBe(0.087);
   });
 });

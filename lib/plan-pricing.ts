@@ -12,7 +12,12 @@
  * (`plan_total > auth.max_amount` refuses the run) — never the legacy
  * `total_usdc`, a float sum that can round a stroop under it.
  */
-import { parseStroops, unitsToStroops, type PlanAsset } from "./money";
+import {
+  parseStroops,
+  stroopsToDecimal,
+  unitsToStroops,
+  type PlanAsset,
+} from "./money";
 import type { DecomposeResponse } from "./types";
 
 /**
@@ -87,5 +92,22 @@ export function planPricing(plan: DecomposeResponse): PlanPricing {
         : exact === 0
           ? "legacy"
           : "mixed",
+  };
+}
+
+/**
+ * The cap as `POST /stellar/build/authorize` takes it: the exact stroops, and
+ * the legacy decimal an older backend reads instead. The decimal is parsed
+ * from `stroopsToDecimal`, so it is the double nearest the exact figure, and
+ * `round(x * 10_000_000)` on the backend gives back the same stroops for
+ * every cap it accepts (up to 10,000 units, far inside 2^53).
+ */
+export function authorizeCap(cap: bigint): {
+  max_amount_usdc: number;
+  max_amount_stroops: number;
+} {
+  return {
+    max_amount_usdc: Number(stroopsToDecimal(cap)),
+    max_amount_stroops: Number(cap),
   };
 }
