@@ -102,6 +102,32 @@ export type EcosystemAdoption = {
    * way the page says nothing about a window rather than guessing one.
    */
   window_days?: number | null;
+  /**
+   * False when the build behind this report ran out of time or could not
+   * read everything: every figure is then a floor — the truth may be higher,
+   * never lower — and the backend resumes on its next build. Absent on a
+   * backend that predates it, which means complete.
+   */
+  complete?: boolean | null;
+  /** How much the build read; null when it could not say. See `partialReport`. */
+  coverage?: AdoptionCoverage | null;
+};
+
+/** How much of what the report rests on its build actually read. */
+export type AdoptionCoverage = {
+  /** On-chain agent ids outside the seeded namespace; null when the registry
+   *  listing could not be read. */
+  agents_listed: number | null;
+  /** Agents with an owner verdict: counted as external, or excluded as ours. */
+  agents_accounted: number;
+  /** The settlement scan's reach: ledgers read, of those the RPC node holds
+   *  (0 when the node could not be asked). */
+  settlement_ledgers_scanned: number;
+  settlement_ledgers_in_window: number;
+  /** Charges to external agents found, and how many have no payer read yet —
+   *  those are never counted. */
+  external_charges: number;
+  external_charges_unattributed: number;
 };
 
 export const ADOPTION_PATH = "/ecosystem/adoption";
@@ -179,6 +205,21 @@ function isExcludedWallet(v: unknown): v is ExcludedWallet {
   );
 }
 
+/** Every coverage figure a finite number — `agents_listed` may be null — or
+ *  the whole block null or absent. A string would print as a count. */
+function isCoverage(v: unknown): v is AdoptionCoverage | null | undefined {
+  if (v === undefined || v === null) return true;
+  return (
+    isRecord(v) &&
+    (v.agents_listed === null || isNum(v.agents_listed)) &&
+    isNum(v.agents_accounted) &&
+    isNum(v.settlement_ledgers_scanned) &&
+    isNum(v.settlement_ledgers_in_window) &&
+    isNum(v.external_charges) &&
+    isNum(v.external_charges_unattributed)
+  );
+}
+
 /**
  * The whole payload, checked as a whole. Not screened item by item as the
  * agent list is: every figure on this page is a claim to a reviewer, and a
@@ -206,7 +247,11 @@ export function isEcosystemAdoption(v: unknown): v is EcosystemAdoption {
     // and is shown as no window at all, not rejected as malformed.
     (v.window_days === undefined ||
       v.window_days === null ||
-      isNum(v.window_days))
+      isNum(v.window_days)) &&
+    // Strictly boolean, like `met`: it decides whether every figure is called
+    // a lower bound, and the string "false" is truthy.
+    isOptionalBool(v.complete) &&
+    isCoverage(v.coverage)
   );
 }
 
