@@ -12,6 +12,7 @@ import { CTA } from "./(marketing)/_components/cta";
 import { Footer } from "./(marketing)/_components/footer";
 import { Marquee } from "@/components/ui/marquee";
 import { BackendWarmup } from "@/components/backend-warmup";
+import { Isolate } from "@/components/isolate";
 import { RevealOnScroll } from "@/components/ui/reveal-on-scroll";
 import { getHeroStats } from "@/lib/public-network-stats";
 
@@ -86,7 +87,12 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      <BackendWarmup />
+      {/* Each client-side part of the page sits in a local boundary
+          (components/isolate.tsx), so a part that fails never replaces the
+          page: the warm-up is simply skipped. */}
+      <Isolate name="backend-warmup">
+        <BackendWarmup />
+      </Isolate>
       {/* The sections are server components; their scroll entrances are the
           `.reveal` class, played by this one observer. */}
       <RevealOnScroll />
