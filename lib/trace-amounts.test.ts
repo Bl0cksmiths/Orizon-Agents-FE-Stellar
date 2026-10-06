@@ -38,21 +38,27 @@ const OVER_CAP =
 
 describe("amountIn", () => {
   it.each([
-    [CHARGE, 0.162],
-    [SETTLE, 0.162],
-    [SIMULATED, 0.024],
-    [SEALED, 0.162],
-  ])("reads the amount in %s", (msg, n) => {
+    [CHARGE, 1_620_000n],
+    [SETTLE, 1_620_000n],
+    [SIMULATED, 240_000n],
+    [SEALED, 1_620_000n],
+  ])("reads the amount in %s, in stroops", (msg, n) => {
     expect(amountIn(msg)).toBe(n);
   });
 
   // A date, a clock time and a tx hash are not amounts.
   it.each([NOTHING_PAID, RELEASED, WINDOW])("reads no amount in %s", (msg) => {
-    expect(amountIn(msg)).toBe(0);
+    expect(amountIn(msg)).toBe(0n);
   });
 
   it("accepts the asset code the backend would write for XLM", () => {
-    expect(amountIn("x402 charge → 0.162 XLM settled · tx 1a2b…")).toBe(0.162);
+    expect(amountIn("x402 charge → 0.162 XLM settled · tx 1a2b…")).toBe(
+      1_620_000n,
+    );
+  });
+
+  it("reads every stroop of a seven-place amount", () => {
+    expect(amountIn("x402 charge → 0.1234567 XLM settled")).toBe(1_234_567n);
   });
 });
 
@@ -64,18 +70,29 @@ describe("traceSpend", () => {
         line("cost", WINDOW),
         line("proof", SEALED),
       ]),
-    ).toEqual({ spent: 0.162, simulatedOnly: false });
+    ).toEqual({ spent: 1_620_000n, simulatedOnly: false });
+  });
+
+  // 0.1 + 0.2 in floats is 0.30000000000000004, which printed to the stroop
+  // is not what moved.
+  it("totals in exact stroops, never in floats", () => {
+    expect(
+      traceSpend([
+        line("cost", "x402 charge → 0.1 XLM settled"),
+        line("cost", "x402 charge → 0.2 XLM settled"),
+      ]).spent,
+    ).toBe(3_000_000n);
   });
 
   it("never counts a simulated payment as spent", () => {
     expect(
       traceSpend([line("cost", SIMULATED), line("cost", SIMULATED)]),
-    ).toEqual({ spent: 0, simulatedOnly: true });
+    ).toEqual({ spent: 0n, simulatedOnly: true });
   });
 
   it("counts a released run as nothing spent, not as simulated", () => {
     expect(traceSpend([line("cost", NOTHING_PAID)])).toEqual({
-      spent: 0,
+      spent: 0n,
       simulatedOnly: false,
     });
   });
@@ -114,8 +131,25 @@ describe("relabelAmounts", () => {
 
 describe("formatSpent", () => {
   it("prints XLM on testnet, and no unit while the asset is unknown", () => {
-    expect(formatSpent(0.162, "native")).toBe("0.162 XLM");
-    expect(formatSpent(0.162, null)).toBe("0.162");
-    expect(formatSpent(0.162, undefined)).not.toMatch(/USDC/);
+    expect(formatSpent(1_620_000n, "native")).toBe("0.162 XLM");
+    expect(formatSpent(1_620_000n, null)).toBe("0.162");
+    expect(formatSpent(1_620_000n, undefined)).not.toMatch(/USDC/);
+  });
+
+  it("prints a summed spend to the stroop, never rounded to three places", () => {
+    expect(formatSpent(1_234_567n, "native")).toBe("0.1234567 XLM");
+  });
+
+  // The dashboard's task rows carry the backend's float `spent`: converted
+  // as the backend converts it, then printed exactly.
+  it("prints a legacy float spend exactly as the backend counts it", () => {
+    expect(formatSpent(0.0123456, "native")).toBe("0.0123456 XLM");
+    expect(formatSpent(0.1 + 0.2, "native")).toBe("0.3 XLM");
+    expect(formatSpent(0, "native")).toBe("0.0 XLM");
+  });
+
+  it("prints a dash for a spend that is not an amount", () => {
+    expect(formatSpent(Number.NaN, "native")).toBe("—");
+    expect(formatSpent(-1, "native")).toBe("—");
   });
 });

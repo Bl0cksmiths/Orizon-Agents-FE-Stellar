@@ -21,7 +21,13 @@
  * network's own label — or drops it while the asset is unknown. The backend's
  * text is otherwise shown as sent.
  */
-import { assetLabel } from "./money";
+import {
+  assetLabel,
+  decimalToStroops,
+  formatStroops,
+  unitsToStroops,
+  type AssetRef,
+} from "./money";
 import type { TraceLine } from "./types";
 
 /** An amount and the asset code the backend wrote after it. */
@@ -31,10 +37,12 @@ const AMOUNTS = new RegExp(AMOUNT.source, "g");
 /** A cost line that reports a payment nobody made. */
 export const isSimulatedLine = (l: TraceLine) => /\(simulated\)/.test(l.msg);
 
-/** The amount one trace line reports, or 0 when it reports none. */
-export function amountIn(msg: string): number {
+/** The amount one trace line reports, in stroops read digit by digit, or 0
+ *  when it reports none (or one finer than a stroop, which no transfer
+ *  could have carried). */
+export function amountIn(msg: string): bigint {
   const m = msg.match(AMOUNT);
-  return m ? parseFloat(m[1]) : 0;
+  return (m && decimalToStroops(m[1])) ?? 0n;
 }
 
 /**
@@ -44,13 +52,14 @@ export function amountIn(msg: string): number {
  * them was simulated.
  */
 export function traceSpend(lines: TraceLine[]): {
-  spent: number;
+  /** In stroops, summed exactly. */
+  spent: bigint;
   simulatedOnly: boolean;
 } {
   const cost = lines.filter((l) => l.level === "cost");
   const real = cost.filter((l) => !isSimulatedLine(l));
   return {
-    spent: real.reduce((acc, l) => acc + amountIn(l.msg), 0),
+    spent: real.reduce((acc, l) => acc + amountIn(l.msg), 0n),
     simulatedOnly: cost.length > 0 && real.length === 0,
   };
 }
@@ -60,19 +69,18 @@ export function traceSpend(lines: TraceLine[]): {
  * network's label: "0.162 XLM" on testnet, "0.162" while the asset is
  * unknown. Everything else in the line is left exactly as the backend sent it.
  */
-export function relabelAmounts(
-  msg: string,
-  asset: string | null | undefined,
-): string {
+export function relabelAmounts(msg: string, asset: AssetRef): string {
   const unit = assetLabel(asset);
   return msg.replace(AMOUNTS, (_, n: string) => (unit ? `${n} ${unit}` : n));
 }
 
-/** "Spent" as the trace summary prints it, in the network's asset. */
-export function formatSpent(
-  spent: number,
-  asset: string | null | undefined,
-): string {
-  const unit = assetLabel(asset);
-  return `${spent.toFixed(3)}${unit ? ` ${unit}` : ""}`;
+/**
+ * "Spent" as the trace summary and the task list print it, in the network's
+ * asset and to the stroop. Takes the trace's exact sum, or a task row's
+ * legacy float `spent`, converted as the backend converts it. A figure that
+ * is not an amount prints as a dash, never as "NaN" or a negative charge.
+ */
+export function formatSpent(spent: bigint | number, asset: AssetRef): string {
+  const stroops = typeof spent === "bigint" ? spent : unitsToStroops(spent);
+  return stroops === null || stroops < 0n ? "—" : formatStroops(stroops, asset);
 }
