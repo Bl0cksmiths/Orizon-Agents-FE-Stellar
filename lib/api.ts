@@ -30,6 +30,7 @@ import {
   TOTAL_COUNT_HEADER,
 } from "./api-contract";
 import {
+  isComputingError,
   isWakingError,
   noteReadAt as noteReadAtHeader,
   readAtOf,
@@ -350,7 +351,14 @@ function headerOf(res: Response, name: string): string | null {
 }
 
 function noteReadAt(value: unknown, res: Response): void {
-  noteReadAtHeader(value, headerOf(res, READ_AT_HEADER));
+  const cached = headerOf(res, READ_AT_HEADER);
+  if (cached !== null) return noteReadAtHeader(value, cached);
+  // Served by the backend directly (no console cache in between): a snapshot
+  // says how old it is in whole seconds.
+  const age = headerOf(res, "x-snapshot-age")?.trim();
+  if (age && /^\d+$/.test(age)) {
+    noteReadAtHeader(value, String(Date.now() - Number(age) * 1_000));
+  }
 }
 
 /**
@@ -530,7 +538,7 @@ function taskAuthHeaders(taskId: string): Record<string, string> | undefined {
  */
 export { ensure, httpError, post, taskAuthHeaders };
 // The cache's two facts, re-exported where every read already imports from.
-export { isWakingError, readAtOf };
+export { isComputingError, isWakingError, readAtOf };
 
 export const listAgents = (signal?: AbortSignal) =>
   get<Agent[]>(
