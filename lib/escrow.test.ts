@@ -166,3 +166,11 @@ describe("classifyAuthorizeError", () => {
     );
   });
 });
+
+describe("checkEscrowFunds — the network's unread asset", () => {
+  it("says nothing while the backend could not read the SAC", () => {
+    expect(
+      checkEscrowFunds({ balance: "100", cap: 1n, asset: "unknown" }),
+    ).toEqual({ kind: "unknown" });
+  });
+});

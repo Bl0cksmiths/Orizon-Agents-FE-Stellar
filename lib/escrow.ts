@@ -1,5 +1,5 @@
 import { IS_MAINNET } from "@/lib/env";
-import { decimalToStroops, formatStroops } from "@/lib/money";
+import { assetLabel, decimalToStroops, formatStroops } from "@/lib/money";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 
 /**
@@ -95,7 +95,7 @@ export function checkEscrowFunds(input: {
   const { balance, cap, asset } = input;
   // The unit is not known until the network read lands: say nothing rather
   // than compare a USDC cap against an XLM balance.
-  if (!asset) return { kind: "unknown" };
+  if (!asset || !assetLabel(asset)) return { kind: "unknown" };
   if (asset !== "native") return { kind: "not_native" };
   if (balance === null) return { kind: "unknown" };
   // Horizon's balance is a 7-decimal string, read digit by digit: compared
