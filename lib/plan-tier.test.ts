@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TIER_COPY, modelLabel, readTier, stepModel } from "./plan-tier";
+import { TIER_COPY, modelLabel, readTier, stepRunner } from "./plan-tier";
 
 describe("readTier", () => {
   it("reads the three tiers", () => {
@@ -61,7 +61,7 @@ describe("modelLabel", () => {
   });
 });
 
-describe("stepModel", () => {
+describe("stepRunner", () => {
   const models = {
     tiers: {
       low: "claude-haiku-4-5",
@@ -70,23 +70,65 @@ describe("stepModel", () => {
     },
   };
 
-  it("is the step's own model when the backend names one", () => {
+  it("names the model a built-in step runs on, as the backend sends it", () => {
     expect(
-      stepModel({ model: "claude-haiku-4-5", tier: "complex" }, models),
-    ).toEqual({ name: "Claude Haiku 4.5", fromTier: false });
+      stepRunner(
+        { executor: "built_in", model: "claude-haiku-4-5", tier: "complex" },
+        models,
+      ),
+    ).toEqual({ kind: "built_in", model: "Claude Haiku 4.5" });
   });
 
-  it("is its tier's built-in model otherwise, said as such", () => {
-    expect(stepModel({ tier: "moderate" }, models)).toEqual({
-      name: "Claude Sonnet 5.5",
-      fromTier: true,
-    });
+  it("reads a built-in step's model off its tier when the step names none", () => {
+    expect(
+      stepRunner(
+        { executor: "built_in", model: null, tier: "moderate" },
+        models,
+      ),
+    ).toEqual({ kind: "built_in", model: "Claude Sonnet 5.5" });
   });
 
-  it("is null with no tier, no tier map, or a tier it cannot name", () => {
-    expect(stepModel({ tier: null }, models)).toBeNull();
-    expect(stepModel({ tier: "low" }, null)).toBeNull();
-    expect(stepModel({ tier: "low" }, {})).toBeNull();
-    expect(stepModel({ tier: "extreme" }, models)).toBeNull();
+  it("is null for a built-in step whose model cannot be named", () => {
+    expect(
+      stepRunner({ executor: "built_in", model: null, tier: "low" }, null),
+    ).toBeNull();
+    expect(
+      stepRunner(
+        { executor: "built_in", model: null, tier: "extreme" },
+        models,
+      ),
+    ).toBeNull();
+  });
+
+  // An external agent runs on its operator's own stack: no Claude label,
+  // whatever its tier and whatever the plan's tier map says.
+  it("says an external step runs on the operator's own agent", () => {
+    expect(
+      stepRunner(
+        { executor: "external", model: null, tier: "complex" },
+        models,
+      ),
+    ).toEqual({ kind: "external" });
+    expect(
+      stepRunner(
+        { executor: "external", model: "claude-opus-5-5", tier: "complex" },
+        models,
+      ),
+    ).toEqual({ kind: "external" });
+  });
+
+  // A backend predating `executor` cannot say whether a step's agent is a
+  // built-in one, so no model is claimed for it — only its tier is shown.
+  it("claims no model when the executor is not known", () => {
+    for (const executor of [undefined, null, "something_new"]) {
+      expect(
+        stepRunner(
+          { executor, model: "claude-opus-5-5", tier: "complex" },
+          models,
+        ),
+        String(executor),
+      ).toBeNull();
+      expect(stepRunner({ executor, tier: "low" }, models)).toBeNull();
+    }
   });
 });
