@@ -47,7 +47,9 @@ export default function EcosystemPage() {
     if (!partial) return;
     const timer = setTimeout(reload, PARTIAL_REFRESH_MS);
     return () => clearTimeout(timer);
-  }, [partial, data, reload]);
+    // `error` too: a refresh that fails leaves `data` as it was, and must
+    // not end the cadence it belongs to.
+  }, [partial, data, error, reload]);
 
   // What the settled amounts are in. Best-effort and shared with the top bar
   // through the GET dedupe: while it is unknown the amounts carry no unit,
