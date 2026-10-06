@@ -146,3 +146,9 @@ function retryAfterOf(e: unknown): number | null {
   const ms = e.retryAfterMs;
   return typeof ms === "number" && Number.isFinite(ms) && ms >= 0 ? ms : null;
 }
+
+/** The request check's notice's id, for the intent box's `aria-describedby`
+ *  while a needs-detail question is waiting on it. One form, one notice. Here
+ *  rather than beside the notice, so the page can name it without loading the
+ *  notice's chunk. */
+export const GUARD_NOTICE_ID = "intent-check-notice";

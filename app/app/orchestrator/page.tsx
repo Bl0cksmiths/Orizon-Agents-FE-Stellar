@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import dynamic from "next/dynamic";
 import { AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,12 +15,21 @@ import type { DecomposeResponse, PlanSpec } from "@/lib/types";
 import { focusRing } from "@/lib/ui";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { ExecutionPlan } from "./_components/execution-plan";
-import { GUARD_NOTICE_ID, GuardNotice } from "./_components/guard-notice";
 import {
+  GUARD_NOTICE_ID,
   decomposeErrorCopy,
   decomposeRefusal,
   type DecomposeRefusal,
 } from "./_components/plan-errors";
+
+// The request check's notices are their own chunk: most requests pass, and
+// the plan page sits at its first-load budget. Fetched as each request goes
+// out, so it is in hand by the time a refusal could come back.
+const loadGuardNotice = () => import("./_components/guard-notice");
+const GuardNotice = dynamic(
+  () => loadGuardNotice().then((m) => m.GuardNotice),
+  { ssr: false },
+);
 
 /** What one decompose asked: the intent, and the edited brief when the buyer
  *  re-planned from one. */
@@ -73,6 +83,7 @@ export default function OrchestratorPage() {
   const request = (ask: Ask) => {
     if (!ask.intent || plan.pending) return;
     asked.current = ask;
+    void loadGuardNotice();
     // reset() first so the previous answer drops while the new one is in
     // flight instead of lingering under the spinner.
     plan.reset();
