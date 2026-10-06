@@ -5,6 +5,7 @@ import {
   decimalToStroops,
   formatSettled,
   formatStroops,
+  formatUnits,
   knownAsset,
   parseStroops,
   stroopsToDecimal,
@@ -243,5 +244,18 @@ describe("an asset the backend could not read", () => {
     expect(knownAsset(null)).toBe(null);
     const xlm = { code: "XLM", issuer: null, decimals: 7 };
     expect(knownAsset(xlm)).toBe(xlm);
+  });
+});
+
+describe("formatUnits", () => {
+  it("prints a legacy float price exactly as the backend counts it", () => {
+    expect(formatUnits(0.0125, "native")).toBe("0.0125 XLM");
+    expect(formatUnits(0.054, null)).toBe("0.054");
+    expect(formatUnits(0.1 + 0.2, null)).toBe("0.300");
+  });
+
+  it("prints a dash for a figure that is not an amount", () => {
+    expect(formatUnits(Number.NaN, null)).toBe("—");
+    expect(formatUnits(-0.01, null)).toBe("—");
   });
 });

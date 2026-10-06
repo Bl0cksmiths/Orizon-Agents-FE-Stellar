@@ -192,3 +192,14 @@ export function formatSettled(
     typeof stroops === "bigint" ? stroops : BigInt(Math.trunc(stroops));
   return formatStroops(exact, asset);
 }
+
+/**
+ * A legacy whole-unit figure (an agent's registry `price`, a task's `spent`)
+ * printed exactly: converted to stroops as the backend converts it, then
+ * through the one formatter — never `toFixed(3)`, which showed a 0.0125
+ * price as 0.013. A figure that is not an amount prints as a dash.
+ */
+export function formatUnits(units: number, asset: AssetRef): string {
+  const stroops = unitsToStroops(units);
+  return stroops === null ? "—" : formatStroops(stroops, asset);
+}
