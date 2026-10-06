@@ -1955,7 +1955,9 @@ describe("openTraceStream polling fallback", () => {
     dispose();
   });
 
-  it("follows a pending seal past the stream's done, as follow-up and not as a fallback", async () => {
+  // The stream's `done` is the run going final, and is said at once — never
+  // held back on the task read that decides whether to keep following.
+  it("says done at once, then follows a pending seal past it, as follow-up and not as a fallback", async () => {
     const lines: TraceLine[] = [];
     const onDone = vi.fn();
     const onFallback = vi.fn();
@@ -1978,9 +1980,9 @@ describe("openTraceStream polling fallback", () => {
     es.emit("open");
     es.emit("trace", traceLine("0.1", "settled"));
     es.emit("done");
+    expect(onDone).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(0);
     expect(es.closed).toBe(true);
-    expect(onDone).not.toHaveBeenCalled();
     expect(onFallback).not.toHaveBeenCalled();
     // No second stream: the history endpoint carries the follow-up.
     const streams = StubEventSource.instances.length;
@@ -1990,8 +1992,13 @@ describe("openTraceStream polling fallback", () => {
     await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 2);
     expect(lines.map((l) => l.msg)).toEqual(["settled", "attestation sealed"]);
     await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
+    // Said once: the follow-up ending is not a second end of the run.
     expect(onDone).toHaveBeenCalledTimes(1);
     expect(StubEventSource.instances.length).toBe(streams);
+    // And it has stopped asking.
+    const calls = fetchMock.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 5);
+    expect(fetchMock.mock.calls.length).toBe(calls);
     dispose();
   });
 
