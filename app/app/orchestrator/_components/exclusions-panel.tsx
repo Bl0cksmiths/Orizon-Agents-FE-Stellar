@@ -50,7 +50,10 @@ import {
   isUnbound,
   isUnreachable,
   isExternalNotRouted,
-  isRoutingPolicy,
+  isMissingInput,
+  isPlanShaping,
+  isProviderUnavailable,
+  namesNoAgent,
   isSimulatedWorker,
   knownKind,
 } from "./floor-notices";
@@ -112,6 +115,24 @@ const SIMULATED_MARK = {
   tone: "muted",
   glyph: "◌",
   label: "not live yet",
+} as const;
+
+const NO_IMAGE_MARK = {
+  tone: "muted",
+  glyph: "▫",
+  label: "no image",
+} as const;
+
+const NO_INPUT_MARK = {
+  tone: "muted",
+  glyph: "∅",
+  label: "no input",
+} as const;
+
+const PROVIDER_MARK = {
+  tone: "muted",
+  glyph: "⊘",
+  label: "unavailable",
 } as const;
 
 const UNREACHABLE_MARK = {
@@ -177,6 +198,12 @@ const REASON_COPY: Record<ExclusionReason, string> = {
     "The floor was relaxed so this step would still have a candidate: the agent sits below it and was kept anyway, which is a compromise on this plan's quality rather than a clean pick.",
   simulated_worker:
     "Its worker is not live yet and would only simulate the step, so it was left out: you are never charged for simulated output.",
+  no_image_input:
+    "The plan asked it to read an image, but the request has no image or image link, so the step was left out rather than charged for nothing.",
+  no_step_input:
+    "The plan asked it for a step it would have had nothing to work on, so the step was left out rather than charged for nothing.",
+  provider_unavailable:
+    "Its model provider is unavailable right now, so it was left out of this plan.",
   external_not_routed:
     "Plans currently use only the platform's own agents, so this operator's agent was not considered. That says nothing about its reputation or its endpoint.",
   unreachable_endpoint:
@@ -218,7 +245,12 @@ function reasonCopy(notice: PlanFloorNotice): string | undefined {
 
 /** What to call the agent. The id is the fallback, not the decoration: a
  *  notice with no `agent_name` still has to name somebody. */
-const nameOf = (n: PlanFloorNotice) => n.agent_name ?? n.agent_id;
+const nameOf = (n: PlanFloorNotice) =>
+  namesNoAgent(n)
+    ? isExternalNotRouted(n)
+      ? "Operator agents"
+      : "Some agents"
+    : n.agent_name?.trim() || n.agent_id;
 
 /** The agent that took the work instead, or null. Null is rendered as no
  *  clause at all rather than as "another agent" — a substitution whose
@@ -255,7 +287,7 @@ function NoticeRow({
   // consulted either, and its null says nothing about its ratings.
   const unreachable = isUnreachable(notice);
   // Left out by how plans are built: no bound was read, no floor compared.
-  const policy = isRoutingPolicy(notice);
+  const policy = isPlanShaping(notice);
   const kind = knownKind(notice);
   const mark = unbound
     ? UNBOUND_MARK
@@ -263,15 +295,21 @@ function NoticeRow({
       ? EXTERNAL_MARK
       : isSimulatedWorker(notice)
         ? SIMULATED_MARK
-        : unreachable
-          ? UNREACHABLE_MARK
-          : kind === null
-            ? unknownMark(notice.kind)
-            : {
-                tone: KIND_TONE[kind],
-                glyph: KIND_GLYPH[kind],
-                label: KIND_LABEL[kind],
-              };
+        : notice.reason_code === "no_image_input"
+          ? NO_IMAGE_MARK
+          : notice.reason_code === "no_step_input"
+            ? NO_INPUT_MARK
+            : isProviderUnavailable(notice)
+              ? PROVIDER_MARK
+              : unreachable
+                ? UNREACHABLE_MARK
+                : kind === null
+                  ? unknownMark(notice.kind)
+                  : {
+                      tone: KIND_TONE[kind],
+                      glyph: KIND_GLYPH[kind],
+                      label: KIND_LABEL[kind],
+                    };
 
   const bound = notice.lower_bound_bps;
   // null and undefined are different facts and must not collapse into one
@@ -385,8 +423,13 @@ export function ExclusionsPanel({
   const changes = notices.filter(isFloorAction);
   const unbound = notices.filter(isUnbound).length;
   const unreachable = notices.filter(isUnreachable).length;
-  const external = notices.filter(isExternalNotRouted).length;
+  const externalNotices = notices.filter(isExternalNotRouted);
+  const external = externalNotices.length;
+  const externalUncounted = externalNotices.some(namesNoAgent);
   const simulated = notices.filter(isSimulatedWorker).length;
+  const noInput = notices.filter(isMissingInput).length;
+  const noProvider = notices.filter(isProviderUnavailable).length;
+  const shaped = notices.filter(isPlanShaping).length;
 
   // Only a kind this build knows indexes the per-kind counts. The guard lets
   // any string through, so that one new kind cannot blank the plan; a kind
@@ -412,9 +455,15 @@ export function ExclusionsPanel({
     ...(unbound > 0 ? [`${unbound} with no endpoint bound`] : []),
     ...(unreachable > 0 ? [`${unreachable} with an unreachable endpoint`] : []),
     ...(external > 0
-      ? [`${external} operator agent${external === 1 ? "" : "s"}`]
+      ? [
+          externalUncounted
+            ? "operator agents"
+            : `${external} operator agent${external === 1 ? "" : "s"}`,
+        ]
       : []),
     ...(simulated > 0 ? [`${simulated} not live yet`] : []),
+    ...(noInput > 0 ? [`${noInput} without input`] : []),
+    ...(noProvider > 0 ? [`${noProvider} unavailable`] : []),
     ...(hidden > 0 ? [hiddenNoticesText(hidden)] : []),
   ].join(" · ");
 
@@ -451,7 +500,7 @@ export function ExclusionsPanel({
         {changes.length > 0 && (
           <p className="text-sm leading-relaxed text-muted">
             The reputation floor acted on{" "}
-            {unbound + unreachable + external + simulated > 0 ? "some of " : ""}
+            {unbound + unreachable + shaped > 0 ? "some of " : ""}
             these agents while this plan was built. It decides who is eligible
             to be picked, before any step is dispatched, by comparing a
             statistical lower bound on each agent&apos;s reputation against the

@@ -17,7 +17,12 @@ import { screenDecomposeResponse } from "@/lib/guards";
 import type { DecomposeResponse, PlanFloorNotice } from "@/lib/types";
 import { ExclusionsPanel } from "./exclusions-panel";
 import { FloorSummary } from "./floor-summary";
-import { isFloorAction, isRoutingPolicy, isUnreachable } from "./floor-notices";
+import {
+  isFloorAction,
+  isMissingInput,
+  isRoutingPolicy,
+  isUnreachable,
+} from "./floor-notices";
 
 afterEach(cleanup);
 
@@ -278,5 +283,106 @@ describe("routing policy — agents left out by how plans are built", () => {
     expect(text).not.toContain("lower bound");
     expect(text).not.toContain("No reputation entry exists");
     expect(text).not.toContain("The reputation floor acted on");
+  });
+});
+
+describe("steps left out for want of their input, and other plan-shaping notices", () => {
+  const NO_IMAGE = {
+    reason_code: "no_image_input",
+    lower_bound_bps: null,
+    reason:
+      "the plan asked it to read an image, but the request has no image or https image link (nothing to read, so the step was left out)",
+  };
+  const NO_INPUT = {
+    reason_code: "no_step_input",
+    lower_bound_bps: null,
+    reason:
+      "the plan asked it for a step, but there is no code.gen build to review (nothing to work on, so the step was left out)",
+  };
+  const PROVIDER = {
+    reason_code: "provider_unavailable",
+    lower_bound_bps: null,
+    reason: "model provider unavailable",
+  };
+
+  it.each([
+    ["no_image_input", true],
+    ["no_step_input", true],
+    ["below_floor", false],
+  ] as const)("isMissingInput: %s → %s", (code, expected) => {
+    const [n] = screened([wire("a", { reason_code: code })]).notices ?? [];
+    expect(isMissingInput(n)).toBe(expected);
+    if (expected) expect(isFloorAction(n)).toBe(false);
+  });
+
+  it("is not counted as the floor acting", () => {
+    const [n] = screened([wire("a", PROVIDER)]).notices ?? [];
+    expect(isFloorAction(n)).toBe(false);
+  });
+
+  it("says in the summary that proposed steps were dropped rather than charged", () => {
+    const plan = screened([
+      wire("ocr", NO_IMAGE),
+      wire("critic", NO_INPUT),
+      wire("gen", PROVIDER),
+    ]);
+    const { container } = render(<FloorSummary plan={plan} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("the floor acted on no agents");
+    expect(text).toContain(
+      "2 proposed steps were left out because they would have had nothing to work on",
+    );
+    expect(text).toContain(
+      "1 agent was left out because its model provider is unavailable",
+    );
+  });
+
+  it("explains each in the panel in plain words, keeping the backend's detail", () => {
+    const plan = screened([
+      wire("ocr", NO_IMAGE),
+      wire("critic", NO_INPUT),
+      wire("gen", PROVIDER),
+    ]);
+    const { container } = render(<ExclusionsPanel plan={plan} />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("no image");
+    expect(text).toContain(
+      "The plan asked it to read an image, but the request has no image or image link, so the step was left out rather than charged for nothing.",
+    );
+    expect(text).toContain("no input");
+    expect(text).toContain(
+      "The plan asked it for a step it would have had nothing to work on, so the step was left out rather than charged for nothing.",
+    );
+    // What was missing is in the backend's own clause, kept beneath.
+    expect(text).toContain("there is no code.gen build to review");
+    expect(text).toContain("unavailable");
+    expect(text).toContain(
+      "Its model provider is unavailable right now, so it was left out of this plan.",
+    );
+    expect(text).toContain("2 without input · 1 unavailable");
+    expect(text).not.toContain("lower bound");
+  });
+
+  it("reads an aggregate in-platform notice that names no agent", () => {
+    const plan = screened([
+      {
+        kind: "excluded",
+        agent_id: "",
+        agent_name: null,
+        reason: "external operator agents are not routed",
+        reason_code: "external_not_routed",
+        lower_bound_bps: null,
+        floor_bps: 5500,
+      },
+    ]);
+    const summary = render(<FloorSummary plan={plan} />).container.textContent;
+    expect(summary).toContain(
+      "operator agents were left out: plans use only the platform's own agents for now",
+    );
+    expect(summary).not.toMatch(/\b1 operator agent\b/);
+    cleanup();
+    const panel = render(<ExclusionsPanel plan={plan} />).container.textContent;
+    expect(panel).toContain("Operator agents");
+    expect(panel).toContain("operator agents");
   });
 });
