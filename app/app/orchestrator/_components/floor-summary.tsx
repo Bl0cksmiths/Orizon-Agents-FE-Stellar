@@ -54,6 +54,8 @@ import {
   isFloorAction,
   isUnbound,
   isUnreachable,
+  isExternalNotRouted,
+  isSimulatedWorker,
   knownKind,
 } from "./floor-notices";
 
@@ -105,6 +107,15 @@ export function FloorSummary({
   // reputation verdict, and not the floor acting.
   const unreachable = new Set(
     notices.filter(isUnreachable).map((n) => n.agent_id),
+  ).size;
+  // Left out by routing policy: operator agents while plans are in-platform
+  // only, and built-in agents whose workers would only simulate. Neither is
+  // the floor acting, nor a word about the agent.
+  const external = new Set(
+    notices.filter(isExternalNotRouted).map((n) => n.agent_id),
+  ).size;
+  const simulated = new Set(
+    notices.filter(isSimulatedWorker).map((n) => n.agent_id),
   ).size;
   // Agents the backend reported under a kind this build has no wording for.
   // Counted and pointed at rather than left out: the exclusions panel lists
@@ -209,6 +220,14 @@ export function FloorSummary({
           (unreachable === 1
             ? " · 1 agent whose endpoint failed its latest health check was left out"
             : ` · ${unreachable} agents whose endpoints failed their latest health check were left out`)}
+        {external > 0 &&
+          (external === 1
+            ? " · 1 operator agent was left out: plans use only the platform's own agents for now"
+            : ` · ${external} operator agents were left out: plans use only the platform's own agents for now`)}
+        {simulated > 0 &&
+          (simulated === 1
+            ? " · 1 agent whose worker is not live yet was left out, so nothing simulated is charged"
+            : ` · ${simulated} agents whose workers are not live yet were left out, so nothing simulated is charged`)}
         {undescribed > 0 &&
           ` · ${undescribed === 1 ? "1 agent" : `${undescribed} agents`} reported under a kind this card has no wording for, listed below`}
         {hidden > 0 && ` · ${hiddenNoticesText(hidden)}`}
