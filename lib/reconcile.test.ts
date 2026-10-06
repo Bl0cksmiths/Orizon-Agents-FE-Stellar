@@ -325,3 +325,36 @@ describe("reconcileSettlement — by settlement state", () => {
     expect(r?.balanced).toBeNull();
   });
 });
+
+describe("reconcileSettlement — steps nobody could pay", () => {
+  const paidNothing = (reason: string | null, agent = "agt_09l5") =>
+    step(0, {
+      agent_id: agent,
+      paid_usdc: 0,
+      unpaid_reason: reason,
+      planned: amt(10),
+      charged: amt(0),
+      returned: amt(10),
+    });
+
+  it("reads the backend's no_onchain_owner reason", () => {
+    const r = reconcileSettlement(
+      settlement({ steps: [paidNothing("no_onchain_owner")] }),
+      "settled",
+    );
+    expect(r?.rows[0].builtInUnpaid).toBe(true);
+    expect(r?.allReturnedBuiltIn).toBe(true);
+  });
+
+  it.each([null, "free", "owner_unreadable"])(
+    "never infers it from a built-in agent id (reason %s)",
+    (reason) => {
+      const r = reconcileSettlement(
+        settlement({ steps: [paidNothing(reason)] }),
+        "settled",
+      );
+      expect(r?.rows[0].builtInUnpaid).toBe(false);
+      expect(r?.allReturnedBuiltIn).toBe(false);
+    },
+  );
+});
