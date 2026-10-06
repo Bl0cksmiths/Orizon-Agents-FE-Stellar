@@ -417,7 +417,9 @@ export function exclusionReason(raw: string): string {
  */
 export function unverifiedSentence(a: EcosystemAdoption): string | null {
   const n = a.unreadable_agents?.length ?? 0;
-  if (n === 0 && a.degraded !== true) return null;
+  // A partial report is degraded by definition, and its own marker already
+  // says every figure is a floor; this sentence adds only the agents it names.
+  if (n === 0 && (a.degraded !== true || a.complete === false)) return null;
   const who =
     n === 0
       ? "Couldn't verify every agent right now"
