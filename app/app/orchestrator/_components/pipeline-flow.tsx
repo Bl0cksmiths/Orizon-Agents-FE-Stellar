@@ -12,7 +12,15 @@ import type { PlanStep } from "@/lib/types";
 const nameOf = (s: PlanStep) => s.agent_name ?? s.agent_id;
 
 /** The run order at a glance, above the steps. Nothing for one step. */
-export function PipelineOverview({ steps }: { steps: PlanStep[] }) {
+export function PipelineOverview({
+  steps,
+  namedSources = false,
+}: {
+  steps: PlanStep[];
+  /** The planner named each step's sources (`inputs_from`), so the steps
+   *  say them and the chain is only the run order. */
+  namedSources?: boolean;
+}) {
   if (steps.length < 2) return null;
   const names = steps.map(nameOf);
   return (
@@ -21,7 +29,11 @@ export function PipelineOverview({ steps }: { steps: PlanStep[] }) {
         pipeline · {steps.length} agents in order
       </p>
       <p className="sr-only">
-        {`${steps.length} agents run in order: ${names.join(", then ")}. Each hands its output to the next.`}
+        {`${steps.length} agents run in order: ${names.join(", then ")}. ${
+          namedSources
+            ? "Each step says which earlier steps it builds on."
+            : "Each hands its output to the next."
+        }`}
       </p>
       {/* The sentence above says it; the chain is for the eye. It wraps at
           the arrows on a phone, and a long name wraps inside its chip. */}
@@ -60,6 +72,29 @@ export function HandoffNote({ index }: { index: number }) {
     <p className="basis-full pl-12 font-mono text-[10px] tracking-wide text-muted [overflow-wrap:anywhere]">
       <span aria-hidden="true">↓</span> hands its output to step{" "}
       {String(index + 1).padStart(2, "0")}
+    </p>
+  );
+}
+
+/** Two-digit step numbers, as the step list numbers them. */
+const num = (n: number) => String(n).padStart(2, "0");
+
+/** "01", "01 and 03", "01, 02 and 04". */
+function listOf(sources: number[]): string {
+  const nums = sources.map(num);
+  return nums.length < 2
+    ? nums.join("")
+    : `${nums.slice(0, -1).join(", ")} and ${nums[nums.length - 1]}`;
+}
+
+/** Under a step: the earlier steps whose output it uses, as the planner
+ *  named them (`inputs_from`). Nothing for a step that builds on nothing. */
+export function InputsNote({ sources }: { sources: number[] }) {
+  if (sources.length === 0) return null;
+  return (
+    <p className="basis-full pl-12 font-mono text-[10px] tracking-wide text-muted [overflow-wrap:anywhere]">
+      <span aria-hidden="true">↑</span> uses output from step
+      {sources.length === 1 ? "" : "s"} {listOf(sources)}
     </p>
   );
 }

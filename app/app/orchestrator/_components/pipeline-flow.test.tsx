@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
 import type { PlanStep } from "@/lib/types";
-import { HandoffNote, PipelineOverview } from "./pipeline-flow";
+import { HandoffNote, InputsNote, PipelineOverview } from "./pipeline-flow";
 
 afterEach(cleanup);
 
@@ -73,5 +73,38 @@ describe("HandoffNote", () => {
     // Never the next agent's name: it is on its own row, just below.
     expect(container.textContent).not.toContain("copywrite.v3");
     expect(container.querySelector("[aria-hidden]")?.textContent).toBe("↓");
+  });
+});
+
+describe("InputsNote", () => {
+  it("names the earlier steps a step builds on, by number", () => {
+    const { container } = render(<InputsNote sources={[1, 3]} />);
+    expect(container.textContent).toBe("↑ uses output from steps 01 and 03");
+    expect(container.querySelector("[aria-hidden]")?.textContent).toBe("↑");
+  });
+
+  it("says one source in the singular, and a list with commas", () => {
+    expect(render(<InputsNote sources={[2]} />).container.textContent).toBe(
+      "↑ uses output from step 02",
+    );
+    cleanup();
+    expect(
+      render(<InputsNote sources={[1, 2, 4]} />).container.textContent,
+    ).toBe("↑ uses output from steps 01, 02 and 04");
+  });
+
+  it("draws nothing for a step that builds on nothing", () => {
+    expect(render(<InputsNote sources={[]} />).container.innerHTML).toBe("");
+  });
+});
+
+describe("PipelineOverview with named sources", () => {
+  it("does not claim each step hands to the next", () => {
+    const { container } = render(
+      <PipelineOverview steps={STEPS} namedSources />,
+    );
+    expect(container.querySelector(".sr-only")?.textContent).toBe(
+      "4 agents run in order: research.pro, then seo.brief, then copywrite.v3, then code.gen. Each step says which earlier steps it builds on.",
+    );
   });
 });
