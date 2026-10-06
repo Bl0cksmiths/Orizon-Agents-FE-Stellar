@@ -239,3 +239,60 @@ describe("ReconciliationTable · built-in agents nobody pays yet", () => {
     expect(cells()[1][0]).toBe("1 · research.pro · built-in, not paid yet");
   });
 });
+
+describe("ReconciliationTable · built-in agents with an on-chain owner", () => {
+  // The built-in agents are being registered on-chain under a platform
+  // treasury: a built-in step paid nothing for any OTHER reason, or with no
+  // reason given, must not be explained as "not paid on testnet yet".
+  const noReason = settlement({
+    steps: [
+      step(0, {
+        agent_id: "agt_09l5",
+        agent_name: "research.pro",
+        paid_usdc: 0,
+        ...money(240_000, 0, 240_000),
+      }),
+      step(1, {
+        agent_id: "agt_11c0",
+        agent_name: "code.gen",
+        unpaid_reason: "free",
+        paid_usdc: 0,
+        ...money(540_000, 0, 540_000),
+      }),
+    ],
+    totals: totals(780_000, 780_000, 0, 780_000, 0),
+  });
+
+  it("never infers the reason from the agent being built-in", () => {
+    const { container } = show(noReason);
+    expect(container.textContent).not.toContain("aren't paid on");
+    expect(container.textContent).not.toContain("built-in, not paid yet");
+  });
+
+  it("marks only the steps whose backend reason says so", () => {
+    show(
+      settlement({
+        steps: [
+          step(0, {
+            agent_id: "agt_09l5",
+            agent_name: "research.pro",
+            unpaid_reason: "no_onchain_owner",
+            paid_usdc: 0,
+            ...money(240_000, 0, 240_000),
+          }),
+          step(1, {
+            agent_id: "agt_11c0",
+            agent_name: "code.gen",
+            paid_usdc: 0.054,
+            ...money(540_000, 540_000, 0),
+          }),
+        ],
+        totals: totals(780_000, 780_000, 540_000, 240_000, 0),
+      }),
+    );
+    expect(cells()[1][0]).toBe("1 · research.pro · built-in, not paid yet");
+    expect(cells()[2][0]).toBe("2 · code.gen");
+    // Not every returned step: no whole-authorization sentence.
+    expect(document.body.textContent).not.toContain("whole authorization");
+  });
+});
