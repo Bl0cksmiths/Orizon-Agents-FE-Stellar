@@ -17,7 +17,7 @@
  * nothing yet and returned nothing yet, and a failed one still holds the
  * custody.
  */
-import { agentLabel } from "./disputes";
+import { agentLabel, isPlatformAgent } from "./disputes";
 import {
   knownAsset,
   parseStroops,
@@ -44,6 +44,9 @@ export type ReconRow = {
   returned: bigint | null;
   /** `charged + returned === planned`; null while any is unknown. */
   balanced: boolean | null;
+  /** A delivered step run by a built-in platform agent, which has no
+   *  on-chain owner to pay: its price went back to the buyer. */
+  builtInUnpaid: boolean;
 };
 
 export type Reconciliation = {
@@ -63,6 +66,10 @@ export type Reconciliation = {
   issues: string[];
   /** A failed settlement: the custody is still held in escrow. */
   held: boolean;
+  /** A confirmed settlement that charged nothing because every delivered
+   *  step was a built-in agent nobody can pay yet: the whole authorization
+   *  went back to the buyer, as built — not a failure. */
+  allReturnedBuiltIn: boolean;
   /** Every figure came from the backend's exact amounts. */
   exact: boolean;
   /** The settlement's own asset, when it names one. */
@@ -172,6 +179,12 @@ export function reconcileSettlement(
           planned === null || charged === null || returned === null
             ? null
             : charged >= 0n && returned >= 0n && charged + returned === planned,
+        builtInUnpaid:
+          phase === "settled" &&
+          step.delivered &&
+          charged === 0n &&
+          (step.unpaid_reason === "no_onchain_owner" ||
+            (step.unpaid_reason == null && isPlatformAgent(step.agent_id))),
       };
     });
 
@@ -242,6 +255,11 @@ export function reconcileSettlement(
     balanced: issues.length > 0 ? false : known ? true : null,
     issues,
     held: phase === "failed",
+    allReturnedBuiltIn:
+      phase === "settled" &&
+      charged === 0n &&
+      rows.some((r) => r.builtInUnpaid) &&
+      rows.every((r) => r.builtInUnpaid || !r.delivered),
     exact,
     asset: knownAsset(settlement.asset),
     settleTx: settlement.charge_tx,
