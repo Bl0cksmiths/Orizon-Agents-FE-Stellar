@@ -5,10 +5,10 @@ import {
   Michroma,
   Share_Tech_Mono,
 } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
-import { WalletProvider } from "@/lib/wallet";
+import { Isolate } from "@/components/isolate";
+import { Analytics, SpeedInsights } from "@/components/telemetry";
+import { WalletBoundary } from "@/components/wallet-boundary";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -89,10 +89,17 @@ export default function RootLayout({
           Skip to content
         </a>
         {/* At the root because the public nav's Connect Wallet reads it too;
-            the wallet kit itself loads only on connect (lib/wallet.tsx). */}
-        <WalletProvider>{children}</WalletProvider>
-        <Analytics />
-        <SpeedInsights />
+            the wallet kit itself loads only on connect (lib/wallet.tsx).
+            Isolated (components/wallet-boundary.tsx): if the provider fails,
+            the page renders with the wallet unavailable instead of the whole
+            document becoming app/global-error.tsx. */}
+        <WalletBoundary>{children}</WalletBoundary>
+        <Isolate name="analytics">
+          <Analytics />
+        </Isolate>
+        <Isolate name="speed-insights">
+          <SpeedInsights />
+        </Isolate>
       </body>
     </html>
   );

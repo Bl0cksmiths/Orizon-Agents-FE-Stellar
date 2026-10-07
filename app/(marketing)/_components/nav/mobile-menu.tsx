@@ -30,7 +30,11 @@ import {
   type SyntheticEvent,
 } from "react";
 import { ButtonLink } from "@/components/ui/button";
-import { ConnectWallet } from "@/components/ui/connect-wallet";
+import { Isolate } from "@/components/isolate";
+import {
+  ConnectWallet,
+  WalletUnavailableNote,
+} from "@/components/ui/connect-wallet";
 import { Logo } from "@/components/ui/logo";
 import { lockPageScroll } from "@/lib/scroll-lock";
 import { focusRing } from "@/lib/ui";
@@ -265,11 +269,16 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
             {/* The wallet picker opens over the page, which this modal sheet
                 makes inert: the sheet steps aside first. */}
             <div onClickCapture={() => onOpenChange(false)}>
-              <ConnectWallet
-                size="md"
-                variant="outline"
-                className="w-full justify-center [&>button]:flex-1 [@media(pointer:coarse)]:[&>button]:min-h-11"
-              />
+              <Isolate
+                name="sheet-wallet"
+                fallback={<WalletUnavailableNote className="justify-center" />}
+              >
+                <ConnectWallet
+                  size="md"
+                  variant="outline"
+                  className="w-full justify-center [&>button]:flex-1 [@media(pointer:coarse)]:[&>button]:min-h-11"
+                />
+              </Isolate>
             </div>
             <ButtonLink
               href="/app"

@@ -13,6 +13,12 @@ import { useErrorRecovery } from "@/lib/use-error-recovery";
  * lib/use-error-recovery.ts. Anything else gets a calm screen with a Reload
  * button and a way home. The home link is a plain anchor: after a failure a
  * full page load is the dependable way out.
+ *
+ * The page keeps its own <title> (its metadata is outside this boundary), but
+ * the screen carries a robots noindex, which React hoists into <head> while
+ * it shows: a crawler whose render failed drops the URL until its next
+ * successful crawl rather than indexing this screen as the page. The
+ * trade-off is the one app/global-error.tsx describes.
  */
 export default function Error({
   error,
@@ -29,6 +35,7 @@ export default function Error({
       data-error-boundary="root"
       className="flex min-h-screen flex-col items-center justify-center px-4 py-16 text-center sm:px-6"
     >
+      <meta name="robots" content="noindex" />
       {phase === "reloading" ? (
         <p role="status" className="font-mono text-xs text-muted">
           {ERROR_COPY.reloading}

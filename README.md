@@ -409,7 +409,10 @@ lib/
 ```bash
 npm run build      # production build (all routes static-rendered)
 npm run start      # serve the build locally
+npm run e2e:crawl  # the public pages as Googlebot renders them, on a production build
 ```
+
+`e2e:crawl` runs `e2e/crawler.spec.ts` against its own production build: each public page must keep its title and heading under Googlebot's emulation, a part that crashes must leave the rest of the page standing, and the error screens must carry `noindex`. Run it after changing the root layout or the public pages' shared chrome.
 
 ## Deploy — Vercel (recommended)
 

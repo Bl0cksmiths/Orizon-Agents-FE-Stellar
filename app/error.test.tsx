@@ -129,4 +129,18 @@ describe("the site's error screen", () => {
       recovery: "shown",
     });
   });
+
+  it("keeps the error out of search results, on the screen and while reloading", () => {
+    // The page keeps its own title (its metadata sits outside this
+    // boundary); noindex stops a crawler that met the failure from indexing
+    // this screen as the page. React hoists the tag into <head>.
+    for (const error of [new Error("boom"), chunkError()]) {
+      const { unmount } = show(error);
+      const robots = document.querySelectorAll('meta[name="robots"]');
+      expect(robots).toHaveLength(1);
+      expect(robots[0].getAttribute("content")).toBe("noindex");
+      unmount();
+    }
+    expect(document.querySelectorAll('meta[name="robots"]')).toHaveLength(0);
+  });
 });

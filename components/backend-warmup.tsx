@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { faultPoint } from "@/lib/fault-injection";
 
 /**
  * Wakes the backend while the visitor reads the landing page.
@@ -17,6 +18,7 @@ import { useEffect } from "react";
 const WARMED_KEY = "orizon:backend-warmed";
 
 export function BackendWarmup() {
+  faultPoint("backend-warmup");
   useEffect(() => {
     // One wake per tab session — re-firing on every marketing navigation would
     // add load without shortening any wait.

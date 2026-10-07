@@ -88,7 +88,12 @@ vi.mock("@creit.tech/stellar-wallets-kit/modules/freighter", () => ({
   FREIGHTER_ID: "freighter",
 }));
 
-import { WalletProvider, useWallet } from "./wallet";
+import {
+  WALLET_UNAVAILABLE,
+  WalletProvider,
+  WalletUnavailable,
+  useWallet,
+} from "./wallet";
 import { classifyError } from "./wallet-errors";
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -667,6 +672,43 @@ describe("wallet network probe", () => {
   });
 });
 
+describe("a browser that refuses storage", () => {
+  // Private windows and full or blocked storage throw on write. Remembering
+  // the session is a convenience: it must never cost the visitor the
+  // connection itself, or leave a disconnect half done.
+  afterEach(() => vi.restoreAllMocks());
+
+  const refuseWrites = () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota exceeded", "QuotaExceededError");
+    });
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("denied", "SecurityError");
+    });
+  };
+
+  it("still connects", async () => {
+    window.localStorage.clear();
+    kitMock.authModal.mockResolvedValue({ address: ADDRESS });
+    const { result } = renderHook(() => useWallet(), { wrapper });
+    refuseWrites();
+    await act(async () => {
+      await result.current.connect();
+    });
+    expect(result.current.connected).toBe(true);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("still disconnects", async () => {
+    const { result } = await mountConnected();
+    refuseWrites();
+    await act(async () => {
+      await result.current.disconnect();
+    });
+    expect(result.current.connected).toBe(false);
+  });
+});
+
 describe("disconnect", () => {
   it("tears down without downloading the kit chunk when it was never loaded", async () => {
     const { mount } = await freshWallet();
@@ -1045,5 +1087,52 @@ describe("useWallet", () => {
     } finally {
       quiet.mockRestore();
     }
+  });
+});
+
+describe("WalletUnavailable", () => {
+  const mountUnavailable = () =>
+    renderHook(() => useWallet(), {
+      wrapper: ({ children }) => (
+        <WalletUnavailable>{children}</WalletUnavailable>
+      ),
+    });
+
+  it("says the wallet is unavailable, and never connected", () => {
+    const { result } = mountUnavailable();
+    expect(result.current.available).toBe(false);
+    expect(result.current.connected).toBe(false);
+    expect(result.current.address).toBeNull();
+    expect(result.current.error).toBe(WALLET_UNAVAILABLE);
+  });
+
+  it("rejects a signature with the friendly unavailable error", async () => {
+    const { result } = mountUnavailable();
+    await expect(result.current.signXdr("AAAA")).rejects.toBe(
+      WALLET_UNAVAILABLE,
+    );
+    await expect(result.current.signMessage("msg")).rejects.toBe(
+      WALLET_UNAVAILABLE,
+    );
+    expect(classifyError(WALLET_UNAVAILABLE).title).toBe("Wallet unavailable");
+  });
+
+  it("never loads the wallet kit, whatever is asked of it", async () => {
+    const { result } = mountUnavailable();
+    const loadsBefore = loader.loads;
+    await act(async () => {
+      await result.current.connect();
+      await result.current.disconnect();
+      await result.current.refreshBalance();
+    });
+    expect(result.current.connected).toBe(false);
+    expect(loader.loads).toBe(loadsBefore);
+  });
+});
+
+describe("WalletProvider", () => {
+  it("reports the wallet available", () => {
+    const { result } = mountFresh();
+    expect(result.current.available).toBe(true);
   });
 });

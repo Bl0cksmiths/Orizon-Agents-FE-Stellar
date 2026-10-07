@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { focusRing } from "@/lib/ui";
+import { faultPoint } from "@/lib/fault-injection";
 
 const RESET_MS = 2_000;
 
@@ -28,6 +29,7 @@ export function CopyButton({
   /** The block's caption, which names the button. */
   title: string;
 }) {
+  faultPoint("copy-button");
   const [ready, setReady] = useState(false);
   const [status, setStatus] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout>>();

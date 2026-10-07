@@ -106,4 +106,33 @@ describe("RevealOnScroll", () => {
     expect(a.hasAttribute("data-revealed")).toBe(true);
     expect(b.hasAttribute("data-revealed")).toBe(true);
   });
+
+  it("hides nothing until it is watching: it arms the entrances itself", () => {
+    // Before this runs (no script, a script that failed to load, a renderer
+    // that never ran it) every section is shown at rest (app/globals.css).
+    page();
+    const root = document.documentElement;
+    expect(root.hasAttribute("data-reveal")).toBe(false);
+    const { unmount } = render(<RevealOnScroll />);
+    expect(root.getAttribute("data-reveal")).toBe("armed");
+    unmount();
+    expect(root.hasAttribute("data-reveal")).toBe(false);
+  });
+
+  it("keeps an element already on screen shown, rather than hiding it to play its entrance", () => {
+    const { a, b } = page();
+    a.getBoundingClientRect = () => ({ top: 100, bottom: 300 }) as DOMRect;
+    render(<RevealOnScroll />);
+    expect(a.hasAttribute("data-revealed")).toBe(true);
+    expect(observers[0].observed.has(a)).toBe(false);
+    expect(b.hasAttribute("data-revealed")).toBe(false);
+    expect(observers[0].observed.has(b)).toBe(true);
+  });
+
+  it("arms nothing without IntersectionObserver", () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    page();
+    render(<RevealOnScroll />);
+    expect(document.documentElement.hasAttribute("data-reveal")).toBe(false);
+  });
 });

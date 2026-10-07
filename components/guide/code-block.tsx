@@ -12,6 +12,7 @@ import type { CodeBlock } from "@/lib/guide/parse";
 import { VERIFY_TEXT } from "@/lib/guide/display";
 import { focusRing, inlineLink } from "@/lib/ui";
 import { cn } from "@/lib/utils";
+import { Isolate } from "@/components/isolate";
 import { CopyButton } from "./copy-button";
 
 const LANG_LABEL: Record<FenceLang, string> = {
@@ -25,6 +26,16 @@ const LANG_LABEL: Record<FenceLang, string> = {
 
 const caption =
   "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border bg-surface/70 px-4 py-2";
+
+/** The copy button, isolated: one that fails is simply not there, and the
+ * code stays to be selected by hand. */
+function Copy(props: { targetId: string; title: string }) {
+  return (
+    <Isolate name="copy-button">
+      <CopyButton {...props} />
+    </Isolate>
+  );
+}
 
 function Code({ block }: { block: CodeBlock }) {
   return (
@@ -86,10 +97,7 @@ function Response({ block }: { block: CodeBlock }) {
           <span className="text-muted">{title}</span>
           <AnchorLink id={id} title={`the expected response: ${title}`} />
         </p>
-        <CopyButton
-          targetId={`${id}-code`}
-          title={`expected response: ${title}`}
-        />
+        <Copy targetId={`${id}-code`} title={`expected response: ${title}`} />
       </div>
       <Code block={block} />
     </div>
@@ -123,7 +131,7 @@ export function GuideCodeBlock({ block }: { block: CodeBlock }) {
           <AnchorLink id={id} title={title} />
           {!response && <VerifyBadge block={block} />}
         </span>
-        <CopyButton targetId={`${id}-code`} title={title} />
+        <Copy targetId={`${id}-code`} title={title} />
       </figcaption>
       {block.responseTo && (
         <p className="border-b border-border px-4 py-2 font-mono text-[11px] text-muted">

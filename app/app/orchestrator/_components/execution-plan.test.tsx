@@ -48,6 +48,7 @@ const { api, wallet, pdax } = vi.hoisted(() => ({
     submitSigned: vi.fn(),
   },
   wallet: {
+    available: true,
     connected: true,
     address: null as string | null,
     xlmBalance: null as string | null,

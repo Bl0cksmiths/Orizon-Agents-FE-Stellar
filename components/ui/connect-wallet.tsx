@@ -3,7 +3,23 @@ import { useWallet } from "@/lib/wallet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { focusRing } from "@/lib/ui";
+import { faultPoint } from "@/lib/fault-injection";
 import { cn } from "@/lib/utils";
+
+/**
+ * What stands where the connect button would be when the wallet cannot start
+ * on this page (lib/wallet.tsx, WalletUnavailable): a plain statement, not a
+ * disabled button, since there is nothing to press until the page reloads.
+ */
+export function WalletUnavailableNote({ className }: { className?: string }) {
+  return (
+    <div className={cn("flex items-center", className)}>
+      <p className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
+        Wallet unavailable
+      </p>
+    </div>
+  );
+}
 
 function short(addr: string) {
   return `${addr.slice(0, 4)}…${addr.slice(-4)}`;
@@ -28,7 +44,9 @@ export function ConnectWallet({
    *  the first step of a payment those notices are about. */
   describedBy?: string;
 }) {
+  faultPoint("connect-wallet");
   const {
+    available,
     connected,
     address,
     walletName,
@@ -40,6 +58,8 @@ export function ConnectWallet({
     loading,
     error,
   } = useWallet();
+
+  if (!available) return <WalletUnavailableNote className={className} />;
 
   if (connected && address) {
     // Compare what the wallet itself reported against this build's network.

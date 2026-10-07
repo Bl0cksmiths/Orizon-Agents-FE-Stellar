@@ -1,56 +1,17 @@
 "use client";
 import { useRef, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { SectionHeading } from "@/components/ui/section-heading";
-import { Badge } from "@/components/ui/badge";
 import { entrance } from "@/components/ui/entrance";
+import { faultPoint } from "@/lib/fault-injection";
 import { focusRing } from "@/lib/ui";
 import { cn } from "@/lib/utils";
-
-const cases = [
-  {
-    id: "startup",
-    title: "Startup Builder",
-    input: "Build a landing page",
-    chain: [
-      "seo.brief",
-      "copywrite.v3",
-      "design.figma",
-      "code.next",
-      "deploy.v0",
-    ],
-    output: "Live URL + analytics",
-  },
-  {
-    id: "marketing",
-    title: "Autonomous Marketing",
-    input: "Grow my product",
-    chain: [
-      "research.pro",
-      "seo.brief",
-      "copywrite.v3",
-      "ads.meta",
-      "analytics.v2",
-    ],
-    output: "Full funnel live",
-  },
-  {
-    id: "research",
-    title: "Research Automation",
-    input: "Analyze AI phishing in PH",
-    chain: ["crawl.v2", "dedupe", "synth.gpt", "citations", "report.md"],
-    output: "Sourced brief (PDF)",
-  },
-  {
-    id: "contract",
-    title: "Smart Contract Analysis",
-    input: "Audit vault.sol",
-    chain: ["parse.evm", "sol-audit", "opcode.vm", "writer.sec"],
-    output: "Audit report + CVSS",
-  },
-];
+import {
+  UseCaseFlow,
+  UseCasesHeading,
+  USE_CASES as cases,
+} from "./use-case-flow";
 
 export function UseCases() {
+  faultPoint("use-cases");
   const [active, setActive] = useState(cases[0].id);
   const current = cases.find((c) => c.id === active) ?? cases[0];
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -72,13 +33,13 @@ export function UseCases() {
   }
 
   return (
-    <section id="use-cases" className="relative py-20 md:py-28">
+    <section
+      id="use-cases"
+      data-use-cases="interactive"
+      className="relative py-20 md:py-28"
+    >
       <div className="mx-auto max-w-7xl px-6">
-        <SectionHeading
-          eyebrow="IN MOTION"
-          title="Real intents. Real agent chains. Real outcomes."
-          subtitle="Every workflow is composed on the fly. No hand-wired pipelines."
-        />
+        <UseCasesHeading />
 
         <div
           role="tablist"
@@ -127,47 +88,7 @@ export function UseCases() {
           style={entrance({ duration: 0.4, from: "translateY(12px)" })}
           className={cn("enter mt-8", focusRing)}
         >
-          <Card>
-            <div className="grid gap-6 md:grid-cols-[1fr_2fr_1fr] items-center">
-              <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-cyan mb-2">
-                  ▸ Intent
-                </div>
-                <div className="text-lg font-medium">"{current.input}"</div>
-              </div>
-
-              <div className="relative">
-                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted mb-3 text-center">
-                  agent chain
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {current.chain.map((agent, i) => (
-                    <div
-                      key={agent}
-                      style={entrance({
-                        delay: i * 0.08,
-                        duration: 0.35,
-                        from: "translateX(-12px)",
-                      })}
-                      className="enter flex items-center gap-2"
-                    >
-                      <Badge tone="violet">{agent}</Badge>
-                      {i < current.chain.length - 1 && (
-                        <span className="text-cyan text-xs">→</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="md:text-right">
-                <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-magenta mb-2">
-                  Outcome ▸
-                </div>
-                <div className="text-lg font-medium">{current.output}</div>
-              </div>
-            </div>
-          </Card>
+          <UseCaseFlow useCase={current} />
         </div>
       </div>
     </section>
