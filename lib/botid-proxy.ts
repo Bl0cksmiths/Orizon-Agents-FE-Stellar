@@ -120,6 +120,18 @@ export function backendUrl(request: Request, base: string): string {
   return `${base}${pathname}${search}`;
 }
 
+/**
+ * The request body as the browser sent it, byte for byte (never parsed and
+ * re-serialized), or undefined for a method that carries none. Read whole:
+ * the guarded routes take small JSON bodies, and a buffered body goes out
+ * with an exact Content-Length instead of a chunked stream.
+ */
+async function bodyOf(request: Request): Promise<ArrayBuffer | undefined> {
+  if (request.method === "GET" || request.method === "HEAD") return undefined;
+  const bytes = await request.arrayBuffer();
+  return bytes.byteLength > 0 ? bytes : undefined;
+}
+
 /** Forwards the request to the backend and answers with its response. */
 export async function forwardToBackend(
   request: Request,
@@ -130,10 +142,12 @@ export async function forwardToBackend(
   const upstream = await doFetch(backendUrl(request, base), {
     method: request.method,
     headers: forwardedHeaders(request.headers),
+    body: await bodyOf(request),
     // Every answer here is one visitor's, and a mutation besides.
     cache: "no-store",
     redirect: "manual",
   });
+  // The body is streamed back as it arrives, not buffered.
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
