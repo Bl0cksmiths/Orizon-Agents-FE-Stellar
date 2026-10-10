@@ -2,8 +2,9 @@
  * The backend reads the console caches (lib/api-proxy.ts), one per route
  * handler under app/api/. Each is the read every visitor shares and nobody
  * owns: what the network looks like, not anything about the person asking.
- * Per-user and per-task reads, and every POST, stay on the plain rewrite in
- * next.config.mjs.
+ * Per-user and per-task reads, and every POST, stay uncached: on the plain
+ * rewrite in next.config.mjs, or on a BotID-guarded handler that forwards
+ * them unchanged (lib/botid-proxy.ts).
  *
  * Every shape check is the guard the browser already applies (lib/guards.ts,
  * lib/ecosystem.ts), so a body the console would reject never becomes the
