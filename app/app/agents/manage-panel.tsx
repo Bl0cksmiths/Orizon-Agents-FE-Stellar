@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { signAndSubmit } from "@/lib/sign-submit";
 import { usdcToStroops, validatePriceUsdc } from "@/lib/register-validation";
+import { botCheckMessage } from "@/lib/bot-check-message";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
 import { isListed } from "@/lib/routability";
 import { useWallet } from "@/lib/wallet";
@@ -84,6 +85,7 @@ export function ManagePanel({
       const code = err instanceof ApiError ? err.code : undefined;
       setFormError(
         rateLimitMessage(err) ??
+          botCheckMessage(err) ??
           (code && BUILD_ERRORS[code]) ??
           "Could not prepare the change. Please try again.",
       );
