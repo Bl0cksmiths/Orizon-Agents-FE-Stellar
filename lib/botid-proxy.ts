@@ -12,6 +12,7 @@
 
 import { resolveApiBase } from "./api-base.mjs";
 import { apiErrorResponse } from "./api-error-response";
+import { refuseBots, type BotGuardDeps } from "./botid-guard";
 import { PROXY_TOKEN_HEADER } from "./proxy-identity";
 
 /** Hop-by-hop headers (RFC 9110 §7.6.1): they describe one connection, so a
@@ -211,4 +212,25 @@ export async function forwardToBackend(
     statusText: upstream.statusText,
     headers: returnedHeaders(upstream.headers),
   });
+}
+
+/** A route handler that forwards whatever reaches it, unchecked: for the
+ * methods a guarded route's path also serves that BotID does not guard. */
+export async function passThrough(request: Request): Promise<Response> {
+  return forwardToBackend(request);
+}
+
+/**
+ * A route handler that asks BotID first and forwards only what it lets
+ * through: the backend never hears of a refused request. The route's path
+ * must be in lib/botid-routes.ts, or the browser sends no challenge answer
+ * and every visitor is refused.
+ */
+export function botGuardedProxy(
+  deps: { guard?: Partial<BotGuardDeps>; forward?: Partial<ForwardDeps> } = {},
+): (request: Request) => Promise<Response> {
+  return async function guarded(request: Request): Promise<Response> {
+    const refusal = await refuseBots(request, deps.guard);
+    return refusal ?? forwardToBackend(request, deps.forward);
+  };
 }
