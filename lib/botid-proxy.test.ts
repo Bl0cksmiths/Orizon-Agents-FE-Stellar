@@ -254,3 +254,79 @@ describe("the proxy token", () => {
     expect(JSON.stringify(log.mock.calls)).not.toContain(TOKEN);
   });
 });
+
+describe("a backend that does not answer", () => {
+  it("is a 502 upstream_unreachable in the backend's envelope", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { fetch } = backend(() => {
+      throw new TypeError("fetch failed");
+    });
+    const res = await forwardToBackend(
+      visit(undefined, { headers: { "x-vercel-id": "iad1::abc" } }),
+      { fetch, base: BASE },
+    );
+    expect(res.status).toBe(502);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.json()).toEqual({
+      detail: "The backend could not be reached.",
+      error: {
+        code: "upstream_unreachable",
+        message: "The backend could not be reached.",
+        request_id: "iad1::abc",
+      },
+    });
+  });
+
+  it("is a 504 upstream_timeout once the deadline passes", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetch = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const pending = forwardToBackend(visit(), {
+      fetch,
+      base: BASE,
+      timeoutMs: 1_000,
+    });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetch.mock.calls[0][1].signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const res = await pending;
+    expect(res.status).toBe(504);
+    expect((await res.json()).error.code).toBe("upstream_timeout");
+  });
+
+  it("waits longer than the console's own POST deadline", async () => {
+    const { POST_TIMEOUT_MS } = await import("./api");
+    expect(UPSTREAM_TIMEOUT_MS).toBeGreaterThan(POST_TIMEOUT_MS);
+    expect(UPSTREAM_TIMEOUT_MS).toBeLessThan(120_000);
+  });
+
+  it("is let go of when the browser hangs up", async () => {
+    const hangUp = new AbortController();
+    const fetch = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const pending = forwardToBackend(
+      visit(undefined, { signal: hangUp.signal }),
+      { fetch, base: BASE },
+    );
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    hangUp.abort();
+    const res = await pending;
+    expect(fetch.mock.calls[0][1].signal?.aborted).toBe(true);
+    // Not reported as a timeout: nobody waited out the deadline.
+    expect(res.status).toBe(502);
+  });
+});
