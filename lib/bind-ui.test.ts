@@ -13,6 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { ApiError } from "./api";
+import { BOT_DETECTED_MESSAGE } from "./bot-check-message";
 import {
   CHALLENGE_EXPIRY_GUARD_MS,
   CLOCK_SKEW_TOLERANCE_MS,
@@ -325,6 +326,15 @@ describe("bindErrorView", () => {
       undefined,
       code,
     );
+
+  it("shows a BotID refusal as a retryable banner in plain words", () => {
+    const view = bindErrorView(bindError("bot_detected", 403));
+    expect(view).toEqual({
+      placement: "banner",
+      message: BOT_DETECTED_MESSAGE,
+      retryable: true,
+    });
+  });
 
   it("puts a refused endpoint under the URL field, in the registry's own words", () => {
     // The whole reason the endpoint-check endpoint and this code exist: a
