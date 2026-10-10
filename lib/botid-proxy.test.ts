@@ -230,3 +230,27 @@ describe("the backend's answer", () => {
     ]);
   });
 });
+
+describe("the proxy token", () => {
+  it("never reaches the browser, even if the backend echoes it", async () => {
+    const { fetch } = backend(
+      () =>
+        new Response("{}", {
+          headers: { [PROXY_TOKEN_HEADER]: TOKEN },
+        }),
+    );
+    const res = await forwardToBackend(visit(), { fetch, base: BASE });
+    expect(res.headers.get(PROXY_TOKEN_HEADER)).toBeNull();
+    for (const [, value] of res.headers) expect(value).not.toContain(TOKEN);
+  });
+
+  it("is never logged when the backend fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { fetch } = backend(() => {
+      throw new TypeError(`fetch failed ${TOKEN}`);
+    });
+    await forwardToBackend(visit(), { fetch, base: BASE });
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(TOKEN);
+  });
+});
