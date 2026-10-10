@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+import { withBotId } from "botid/next/config";
 import { resolveApiBase } from "./lib/api-base.mjs";
 import { ARTIFACTS, publishedHref } from "./lib/litepaper/source.mjs";
 
@@ -141,4 +142,8 @@ const nextConfig = {
   },
 };
 
-export default withBundleAnalyzer(nextConfig);
+// withBotId serves BotID's challenge script and its proxy from this origin
+// (beforeFiles rewrites to Vercel's bot-protection API, plus the frame
+// headers those paths need), so an ad blocker cannot strip the challenge that
+// the guarded /api routes check (lib/botid-guard.ts).
+export default withBundleAnalyzer(withBotId(nextConfig));
