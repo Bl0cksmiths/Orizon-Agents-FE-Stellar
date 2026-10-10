@@ -459,18 +459,21 @@ key-authenticated server routes are not checked.
 - Each guarded path has a route handler under `app/api/` that asks BotID
   (`lib/botid-guard.ts`) and then forwards to the backend exactly as the
   rewrite would (`lib/botid-proxy.ts`). A script gets `403 bot_detected`; if
-  the check cannot run, the handler fails closed with
-  `503 bot_check_unavailable`. Every other `/api` path still goes through the
-  fallback rewrite in `next.config.mjs`.
+  the check itself cannot run, the handler forwards the request unchecked and
+  logs the failure, so an outage on Vercel's side does not stop every paid
+  action (set `BOTID_ON_CHECK_ERROR=closed` to answer
+  `503 bot_check_unavailable` instead). Every other `/api` path still goes
+  through the fallback rewrite in `next.config.mjs`.
 - BotID runs on Vercel deployments only (`VERCEL=1`, previews included). In
   `next dev`, the Playwright servers and a local `next start` the browser loads
   no challenge and the handlers forward unchecked.
 - Vercel project settings it relies on: BotID authenticates its verdict
   request with the deployment's OIDC token, which Vercel attaches to every
   function request (Settings → Security → Secure backend access with OIDC
-  federation); without it every guarded call answers 503. **BotID Deep
-  Analysis** (Firewall → Rules) is recommended on Pro; the check level is the
-  project's, set nowhere in code.
+  federation); without it the check fails on every guarded call (forwarded
+  unchecked and logged, or 503 when `BOTID_ON_CHECK_ERROR=closed`). **BotID
+  Deep Analysis** (Firewall → Rules) is recommended on Pro; the check level is
+  the project's, set nowhere in code.
 - Testing a guarded route with `curl` against a deployment returns 403 by
   design; call it from a page of the app instead.
 

@@ -70,3 +70,19 @@ export function botIdActive(
 ): boolean {
   return env.VERCEL === "1";
 }
+
+/**
+ * What a guarded handler does when BotID's check itself fails (its verdict
+ * service unreachable, the deployment's OIDC token missing): forward the
+ * request and log, the default, or refuse it with 503. Open by default: a
+ * detected bot is refused either way, and the layers behind the guard still
+ * hold (the backend's rate limits, the daily AI budget, the buyer's own
+ * wallet signature on every payment), whereas closed would turn an outage on
+ * Vercel's side into an outage of every paid action here.
+ * `BOTID_ON_CHECK_ERROR=closed` flips it.
+ */
+export function botIdFailsClosed(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.BOTID_ON_CHECK_ERROR === "closed";
+}
