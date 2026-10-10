@@ -17,10 +17,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { botCheckMessage } from "./bot-check-message";
 
-/** Normalize a thrown value into a user-facing message. */
+/** Normalize a thrown value into a user-facing message. A refusal by the
+ * BotID guard (lib/bot-check-message.ts) reads as its plain sentence, not as
+ * "POST /orchestrator/decompose → 403 — …". */
 export function toMessage(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
+  return botCheckMessage(e) ?? (e instanceof Error ? e.message : String(e));
 }
 
 export type UseAsyncActionResult<Args extends unknown[], T> = {
