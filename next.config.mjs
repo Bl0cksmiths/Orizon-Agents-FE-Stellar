@@ -60,12 +60,22 @@ const nextConfig = {
     ],
   },
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${API_BASE}/api/:path*`,
-      },
-    ];
+    // A fallback rewrite: checked only after every route handler under
+    // app/api/, dynamic ones included. An afterFiles rewrite (the plain-array
+    // form) is checked BEFORE dynamic routes, so it would proxy
+    // /api/agents/{id}/bind straight past the BotID-guarded handler there.
+    // `beforeFiles` stays present (empty) because withBotId appends its own
+    // rewrites to it.
+    return {
+      beforeFiles: [],
+      afterFiles: [],
+      fallback: [
+        {
+          source: "/api/:path*",
+          destination: `${API_BASE}/api/:path*`,
+        },
+      ],
+    };
   },
   async headers() {
     return [
