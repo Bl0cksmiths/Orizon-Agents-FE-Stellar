@@ -9,8 +9,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { middleware } from "@/middleware";
 import { BOTID_PROTECTED_ROUTES, isBotIdProtected } from "@/lib/botid-routes";
 import { UPSTREAM_TIMEOUT_MS } from "@/lib/botid-proxy";
+import { CLIENT_IP_HEADER, PROXY_TOKEN_HEADER } from "@/lib/proxy-identity";
 
 const checkBotId = vi.hoisted(() => vi.fn<() => Promise<{ isBot: boolean }>>());
 vi.mock("botid/server", () => ({ checkBotId }));
@@ -137,5 +140,57 @@ describe("POST /api/agents/{id}/bind's other method", () => {
     expect(res.status).toBe(200);
     expect(checkBotId).not.toHaveBeenCalled();
     expect(fetchMock.mock.calls[0][0]).toBe(`${BACKEND}/api/agents/agt_1/bind`);
+  });
+});
+
+describe("what middleware.ts sets on the request", () => {
+  /**
+   * The request a route handler receives after the middleware: Next applies
+   * the `x-middleware-override-headers` list the middleware's response
+   * carries, replacing the request's headers with the
+   * `x-middleware-request-*` values (next/dist/server/web/utils.ts).
+   */
+  function afterMiddleware(request: NextRequest): Request {
+    const res = middleware(request);
+    const names = (res.headers.get("x-middleware-override-headers") ?? "")
+      .split(",")
+      .filter(Boolean);
+    const headers = new Headers();
+    for (const name of names) {
+      const value = res.headers.get(`x-middleware-request-${name}`);
+      if (value !== null) headers.set(name, value);
+    }
+    return new Request(request.url, {
+      method: request.method,
+      headers,
+      body: request.body,
+      duplex: "half",
+    } as RequestInit);
+  }
+
+  it("reaches the backend: our token and the visitor's address, not theirs", async () => {
+    vi.stubEnv("FRONTEND_PROXY_TOKEN", "the-real-token");
+    checkBotId.mockResolvedValue({ isBot: false });
+    const visit = new NextRequest(
+      "https://orizons.test/api/orchestrator/decompose",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-forwarded-for": "203.0.113.7, 10.0.0.1",
+          [PROXY_TOKEN_HEADER]: "forged",
+          [CLIENT_IP_HEADER]: "6.6.6.6",
+        },
+        body: '{"intent":"x"}',
+      },
+    );
+    const mod = await load("orchestrator/decompose");
+    const res = await mod.POST(afterMiddleware(visit));
+    expect(res.status).toBe(200);
+    const sent = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(sent.get(PROXY_TOKEN_HEADER)).toBe("the-real-token");
+    expect(sent.get(CLIENT_IP_HEADER)).toBe("203.0.113.7");
+    // And the token went to the backend only: not back to the browser.
+    expect(res.headers.get(PROXY_TOKEN_HEADER)).toBeNull();
   });
 });
