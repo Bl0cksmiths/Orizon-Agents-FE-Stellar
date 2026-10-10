@@ -11,6 +11,7 @@
  */
 
 import { resolveApiBase } from "./api-base.mjs";
+import { apiErrorResponse } from "./api-error-response";
 import { PROXY_TOKEN_HEADER } from "./proxy-identity";
 
 /** Hop-by-hop headers (RFC 9110 §7.6.1): they describe one connection, so a
@@ -108,10 +109,21 @@ export function returnedHeaders(upstream: Headers): Headers {
   return out;
 }
 
+/**
+ * How long the backend has to start answering. Above the browser's own leash
+ * on a POST (lib/api.ts POST_TIMEOUT_MS, 105 s — itself above the backend's
+ * 90 s decompose budget), so the console gives up first, exactly as it did
+ * through the rewrite; and below the guarded routes' `maxDuration` (120 s),
+ * so the function answers 504 instead of being killed mid-request.
+ */
+export const UPSTREAM_TIMEOUT_MS = 110_000;
+
 export type ForwardDeps = {
   fetch: (input: string, init: RequestInit) => Promise<Response>;
   /** The backend origin, normalized: no trailing slash, no `/api`. */
   base: string;
+  /** How long the backend has to send its status and headers. */
+  timeoutMs: number;
 };
 
 /** The backend URL for a request: its path and query on the backend origin. */
@@ -132,21 +144,67 @@ async function bodyOf(request: Request): Promise<ArrayBuffer | undefined> {
   return bytes.byteLength > 0 ? bytes : undefined;
 }
 
-/** Forwards the request to the backend and answers with its response. */
+/**
+ * Forwards the request to the backend and answers with its response. A
+ * backend that cannot be reached answers 502 `upstream_unreachable`; one
+ * silent past `timeoutMs` answers 504 `upstream_timeout`. Both in the
+ * backend's envelope, so the console reads them like any other refusal.
+ */
 export async function forwardToBackend(
   request: Request,
   deps: Partial<ForwardDeps> = {},
 ): Promise<Response> {
   const doFetch = deps.fetch ?? ((input, init) => fetch(input, init));
   const base = deps.base ?? resolveApiBase(process.env);
-  const upstream = await doFetch(backendUrl(request, base), {
-    method: request.method,
-    headers: forwardedHeaders(request.headers),
-    body: await bodyOf(request),
-    // Every answer here is one visitor's, and a mutation besides.
-    cache: "no-store",
-    redirect: "manual",
-  });
+  const timeoutMs = deps.timeoutMs ?? UPSTREAM_TIMEOUT_MS;
+  const body = await bodyOf(request);
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  // A browser that hangs up stops the backend call too, as it would have
+  // through the rewrite.
+  const hangUp = () => controller.abort();
+  request.signal.addEventListener("abort", hangUp, { once: true });
+  let upstream: Response;
+  try {
+    upstream = await doFetch(backendUrl(request, base), {
+      method: request.method,
+      headers: forwardedHeaders(request.headers),
+      body,
+      // Every answer here is one visitor's, and a mutation besides.
+      cache: "no-store",
+      redirect: "manual",
+      signal: controller.signal,
+    });
+  } catch (err) {
+    // The method, the path and the failure's name: never a header, a body
+    // or the backend URL's credentials.
+    const where = `${request.method} ${new URL(request.url).pathname}`;
+    console.error(
+      `[botid-proxy] ${where} failed: ${timedOut ? "timeout" : err instanceof Error ? err.name : "error"}`,
+    );
+    return timedOut
+      ? apiErrorResponse(
+          504,
+          "upstream_timeout",
+          "The backend did not answer in time.",
+          { request },
+        )
+      : apiErrorResponse(
+          502,
+          "upstream_unreachable",
+          "The backend could not be reached.",
+          { request },
+        );
+  } finally {
+    // The deadline covers the wait for the status and headers; a body
+    // already streaming is bounded by the route's maxDuration instead.
+    clearTimeout(timer);
+    request.signal.removeEventListener("abort", hangUp);
+  }
   // The body is streamed back as it arrives, not buffered.
   return new Response(upstream.body, {
     status: upstream.status,
