@@ -330,3 +330,29 @@ describe("a backend that does not answer", () => {
     expect(res.status).toBe(502);
   });
 });
+
+describe("botGuardedProxy", () => {
+  it("refuses a bot with 403 bot_detected and never calls the backend", async () => {
+    const { fetch } = backend(() => new Response("{}"));
+    const handler = botGuardedProxy({
+      guard: { active: true, check: async () => ({ isBot: true }) },
+      forward: { fetch, base: BASE },
+    });
+    const res = await handler(visit());
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe("bot_detected");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("forwards a person's request", async () => {
+    const { fetch } = backend(() => new Response('{"ok":1}'));
+    const handler = botGuardedProxy({
+      guard: { active: true, check: async () => ({ isBot: false }) },
+      forward: { fetch, base: BASE },
+    });
+    const res = await handler(visit());
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('{"ok":1}');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
