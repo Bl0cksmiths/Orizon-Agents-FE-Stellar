@@ -53,7 +53,7 @@ import {
   type EscrowGeneration,
 } from "@/lib/escrow-generation";
 import { rememberHeldAuthorization } from "@/lib/held-authorizations";
-import { useAsyncAction } from "@/lib/use-async-action";
+import { toMessage, useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import type { DecomposeResponse } from "@/lib/types";
@@ -370,7 +370,7 @@ export function ExecutionPlan({
         setRunError(
           refusal !== null
             ? refusalSentence(refusal)
-            : `The request to start it failed: ${e instanceof Error ? e.message : String(e)}`,
+            : `The request to start it failed: ${toMessage(e)}`,
         );
         setRelease(refusal?.release ?? null);
         setStep("");
