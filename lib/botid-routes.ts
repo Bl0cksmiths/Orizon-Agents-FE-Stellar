@@ -57,3 +57,16 @@ export function isBotIdProtected(pathname: string, method: string): boolean {
       patternOf(route.path).test(pathname),
   );
 }
+
+/**
+ * Whether BotID runs at all: on a Vercel deployment only (`VERCEL` is "1"
+ * there, at build and at run time). Anywhere else — `next dev`, the
+ * Playwright and Lighthouse servers, a local `next start` — there is no
+ * challenge to fetch and no verdict to ask for, so neither half runs: the
+ * browser loads no script and the handlers forward without a check.
+ */
+export function botIdActive(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.VERCEL === "1";
+}
