@@ -151,3 +151,82 @@ describe("the body", () => {
     });
   });
 });
+
+describe("the backend's answer", () => {
+  it("passes the status, Retry-After and the envelope through", async () => {
+    const envelope = JSON.stringify({
+      error: { code: "planning_paused", message: "later" },
+    });
+    const { fetch } = backend(
+      () =>
+        new Response(envelope, {
+          status: 503,
+          headers: {
+            "retry-after": "30",
+            "content-type": "application/json",
+            "x-request-id": "rid",
+          },
+        }),
+    );
+    const res = await forwardToBackend(visit(), { fetch, base: BASE });
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("30");
+    expect(res.headers.get("x-request-id")).toBe("rid");
+    expect(await res.text()).toBe(envelope);
+  });
+
+  it("passes a 429 and a 201 through unchanged", async () => {
+    for (const status of [201, 409, 429]) {
+      const { fetch } = backend(() => new Response("{}", { status }));
+      const res = await forwardToBackend(visit(), { fetch, base: BASE });
+      expect(res.status).toBe(status);
+    }
+  });
+
+  it("streams the body as it arrives", async () => {
+    const encoder = new TextEncoder();
+    let push: (chunk: string) => void = () => {};
+    let end: () => void = () => {};
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        push = (chunk) => controller.enqueue(encoder.encode(chunk));
+        end = () => controller.close();
+      },
+    });
+    const { fetch } = backend(() => new Response(stream));
+    const res = await forwardToBackend(visit(), { fetch, base: BASE });
+    // The response is in hand before the backend has finished its body.
+    const reader = res.body!.getReader();
+    push("first");
+    const first = await reader.read();
+    expect(new TextDecoder().decode(first.value)).toBe("first");
+    push("second");
+    end();
+    const second = await reader.read();
+    expect(new TextDecoder().decode(second.value)).toBe("second");
+    expect((await reader.read()).done).toBe(true);
+  });
+
+  it("drops hop-by-hop headers and the decoded body's old encoding", () => {
+    const out = returnedHeaders(
+      new Headers({
+        connection: "close",
+        "transfer-encoding": "chunked",
+        "content-encoding": "gzip",
+        "content-length": "10",
+        "content-type": "application/json",
+      }),
+    );
+    expect([...out.keys()]).toEqual(["content-type"]);
+  });
+
+  it("keeps each Set-Cookie apart", () => {
+    const upstream = new Headers();
+    upstream.append("set-cookie", "a=1; Path=/");
+    upstream.append("set-cookie", "b=2; Path=/");
+    expect(returnedHeaders(upstream).getSetCookie()).toEqual([
+      "a=1; Path=/",
+      "b=2; Path=/",
+    ]);
+  });
+});
