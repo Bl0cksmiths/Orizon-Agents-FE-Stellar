@@ -20,6 +20,8 @@ import {
   isFriendlyError,
   wrongNetworkError,
 } from "./wallet-errors";
+import { ApiError } from "./api";
+import { BOT_DETECTED_MESSAGE } from "./bot-check-message";
 
 const PUBLIC_PASSPHRASE = "Public Global Stellar Network ; September 2015";
 
@@ -279,6 +281,19 @@ describe("classifyError · message fallbacks", () => {
     expect(f.kind).toBe("unknown");
     expect(f.raw).toBe("418");
     expect(f.detail).toBe("418");
+  });
+});
+
+describe("classifyError · BotID refusals", () => {
+  it("says a refused build or submit in plain words, keeping the raw line", () => {
+    const raw = "POST /stellar/submit → 403 — refused";
+    const f = classifyError(new ApiError(raw, 403, undefined, "bot_detected"));
+    expect(f).toEqual({
+      kind: "unknown",
+      title: "Browser not verified",
+      detail: BOT_DETECTED_MESSAGE,
+      raw,
+    });
   });
 });
 

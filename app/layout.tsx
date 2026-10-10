@@ -5,10 +5,12 @@ import {
   Michroma,
   Share_Tech_Mono,
 } from "next/font/google";
+import { BotIdClient } from "botid/client";
 import "./globals.css";
 import { Isolate } from "@/components/isolate";
 import { Analytics, SpeedInsights } from "@/components/telemetry";
 import { WalletBoundary } from "@/components/wallet-boundary";
+import { BOTID_PROTECTED_ROUTES, botIdActive } from "@/lib/botid-routes";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -81,6 +83,18 @@ export default function RootLayout({
       lang="en"
       className={`${sans.variable} ${mono.variable} ${displayFont.variable} ${techMono.variable}`}
     >
+      {/* BotID's browser half: an inline script that answers the challenge on
+          the guarded /api calls (lib/botid-routes.ts). In the root layout's
+          head, as BotID documents for Next before 15.3, because only the
+          first document runs an inline script — one rendered by a layout
+          reached through client-side navigation never would. Vercel only. */}
+      {botIdActive() ? (
+        <head>
+          <Isolate name="botid">
+            <BotIdClient protect={[...BOTID_PROTECTED_ROUTES]} />
+          </Isolate>
+        </head>
+      ) : null}
       <body className="noise bg-bg text-text font-sans antialiased">
         <a
           href="#main"

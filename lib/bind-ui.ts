@@ -9,6 +9,7 @@
  */
 
 import { ApiError, bindErrorCode } from "./api";
+import { botCheckMessage } from "./bot-check-message";
 import { rateLimitMessage } from "./rate-limit-message";
 import type { BindChallenge, BindTimestamp } from "./types";
 
@@ -266,6 +267,13 @@ export function bindErrorView(err: unknown): BindErrorView {
       view.retryAfterMs = err.retryAfterMs;
     }
     return view;
+  }
+
+  // Refused by the BotID guard before the backend saw it: a reload answers
+  // the browser check again, then the same button binds.
+  const unverified = botCheckMessage(err);
+  if (unverified) {
+    return { placement: "banner", message: unverified, retryable: true };
   }
 
   switch (bindErrorCode(err)) {

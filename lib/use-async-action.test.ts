@@ -10,6 +10,8 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { toMessage, useAsyncAction } from "./use-async-action";
+import { ApiError } from "./api";
+import { BOT_DETECTED_MESSAGE } from "./bot-check-message";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -41,6 +43,16 @@ describe("toMessage", () => {
   it("stringifies non-Error throwables", () => {
     expect(toMessage("plain string")).toBe("plain string");
     expect(toMessage(42)).toBe("42");
+  });
+
+  it("says a BotID refusal in plain words, not as the raw API line", () => {
+    const err = new ApiError(
+      "POST /orchestrator/decompose → 403 — whatever the server said",
+      403,
+      undefined,
+      "bot_detected",
+    );
+    expect(toMessage(err)).toBe(BOT_DETECTED_MESSAGE);
   });
 });
 

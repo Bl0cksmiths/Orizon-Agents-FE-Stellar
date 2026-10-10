@@ -20,6 +20,7 @@ import {
 import { isAgentAlreadyExists } from "@/lib/register-submit";
 import { signAndSubmit } from "@/lib/sign-submit";
 import { buildRegistrationEvidence } from "@/lib/registration-evidence";
+import { botCheckMessage } from "@/lib/bot-check-message";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
 import { TWO_SIGNATURES, bindHref } from "@/lib/binding-status";
 import { getStellarNetwork } from "@/lib/api";
@@ -151,6 +152,7 @@ export default function RegisterPage() {
       if (code === "id_taken" || code === "id_reserved") idCheck.reset();
       setFormError(
         rateLimitMessage(err) ??
+          botCheckMessage(err) ??
           (code && FORM_LEVEL_ERRORS[code]) ??
           "Could not prepare the registration. Please try again.",
       );

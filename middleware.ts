@@ -11,9 +11,10 @@
  *     see each visitor rather than Vercel's shared egress.
  *
  * The headers are set on the REQUEST (`NextResponse.next({ request })`), which
- * the rewrite then proxies on; nothing is added to the response, so the token
- * never reaches a browser. The cached handlers ignore incoming headers and
- * present the token alone (lib/api-proxy-routes.ts).
+ * the rewrite then proxies on, and the BotID-guarded handlers forward as they
+ * receive it (lib/botid-proxy.ts); nothing is added to the response, so the
+ * token never reaches a browser. The cached handlers ignore incoming headers
+ * and present the token alone (lib/api-proxy-routes.ts).
  */
 import { NextResponse, type NextRequest } from "next/server";
 import {

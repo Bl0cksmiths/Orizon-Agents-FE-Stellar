@@ -14,6 +14,7 @@
 // Network-aware remediation copy — friendbot only exists on testnet, so the
 // advice must change on mainnet. Network resolution lives in lib/env.ts
 // (validated at build time), shared with wallet.tsx and the explorer links.
+import { botCheckMessage } from "@/lib/bot-check-message";
 import { IS_MAINNET } from "@/lib/env";
 
 const NETWORK_LABEL = IS_MAINNET
@@ -123,6 +124,17 @@ export function classifyError(e: unknown): FriendlyError {
   // pass it through untouched so call-sites can classify unconditionally.
   if (isFriendlyError(e)) return e;
   const raw = extractMessage(e);
+  // The BotID guard refused a build or a submit before the backend saw it:
+  // nothing reached the ledger, and the browser check is what to redo.
+  const unverified = botCheckMessage(e);
+  if (unverified) {
+    return {
+      kind: "unknown",
+      title: "Browser not verified",
+      detail: unverified,
+      raw,
+    };
+  }
   const horizonExtras = extractHorizonResultCodes(e);
   // Build a richer "raw" string when Horizon gives us structured codes.
   const enrichedRaw = horizonExtras

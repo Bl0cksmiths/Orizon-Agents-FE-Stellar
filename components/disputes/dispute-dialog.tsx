@@ -35,6 +35,7 @@ import {
   formatCreditShare,
   raiseDispute,
 } from "@/lib/disputes";
+import { botCheckMessage } from "@/lib/bot-check-message";
 import { rateLimitMessage } from "@/lib/rate-limit-message";
 import type {
   CreditPolicy,
@@ -347,8 +348,12 @@ function refusalFailure(err: unknown, payer: string): Failure {
       return err instanceof DisputeRefusal
         ? retryable(err.message)
         : GENERIC_FAILURE;
-    default:
-      return GENERIC_FAILURE;
+    default: {
+      // Refused by the BotID guard before the backend saw it: the reason
+      // stays, and the same button tries again once the browser is verified.
+      const unverified = botCheckMessage(err);
+      return unverified ? retryable(unverified) : GENERIC_FAILURE;
+    }
   }
 }
 
