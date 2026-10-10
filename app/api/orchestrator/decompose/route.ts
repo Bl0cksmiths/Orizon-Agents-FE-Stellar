@@ -1,5 +1,6 @@
 /**
- * POST /api/orchestrator/decompose — the AI planner: every call spends model time.
+ * POST /api/orchestrator/decompose — the AI planner: every call spends model
+ * time.
  * Asked of BotID first, and forwarded to the backend unchanged only when it
  * lets the request through (lib/botid-proxy.ts); listed for the browser's
  * half in lib/botid-routes.ts.
