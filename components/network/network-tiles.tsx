@@ -94,10 +94,10 @@ const CAPTION = "mt-2 text-[11px] leading-4 text-muted";
 export function NetworkTiles({
   stats,
   failed,
-}: {
+}: Readonly<{
   stats: NetworkStats | null;
   failed: boolean;
-}) {
+}>) {
   if (!stats) {
     return (
       <>
