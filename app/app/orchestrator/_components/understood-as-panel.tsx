@@ -102,7 +102,7 @@ export function UnderstoodAsPanel({
   );
 }
 
-function SpecView({ spec }: { spec: PlanSpec }) {
+function SpecView({ spec }: Readonly<{ spec: PlanSpec }>) {
   return (
     <>
       <p className="mt-2 text-sm leading-relaxed text-text [overflow-wrap:anywhere]">
