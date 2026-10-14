@@ -28,6 +28,22 @@ describe("parseSitemapLocs", () => {
       ),
     ).toEqual(["https://a.test/x?b=1&c=2", "https://a.test"]);
   });
+
+  it("trims the blanks around a loc, and skips one never closed", () => {
+    expect(
+      parseSitemapLocs(
+        "<loc>\n\t https://a.test/y \r\n</loc><loc> </loc><loc>https://a.test/z",
+      ),
+    ).toEqual(["https://a.test/y", ""]);
+  });
+
+  it("reads a loc of thousands of blanks in linear time", () => {
+    const started = performance.now();
+    const blanks = " ".repeat(100_000);
+    expect(parseSitemapLocs(`<loc>${blanks}x${blanks}`)).toEqual([]);
+    expect(parseSitemapLocs(`<loc>${blanks}x${blanks}</loc>`)).toEqual(["x"]);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe("parseRobots", () => {
