@@ -69,6 +69,13 @@ const HEADING_ID = "floor-summary-heading";
 
 const body = "text-sm leading-relaxed text-muted";
 
+/** The badge's glyph: a warning for an unverified read, a drop for a
+ *  relaxed floor, a check for a floor applied as configured. */
+function floorGlyph(unverified: boolean, relaxed: boolean): string {
+  if (unverified) return "⚠";
+  return relaxed ? "▾" : "✓";
+}
+
 /** A clause of the counts line for `count` of something: `one` for one,
  *  `many(count)` for more, and false — nothing rendered — for none. */
 function countClause(
@@ -186,9 +193,7 @@ export function FloorSummary({
         {/* Glyph AND words, here and in the prose below. The tint is
             decoration and carries none of this on its own. */}
         <Badge tone={warn ? "magenta" : "cyan"}>
-          <span aria-hidden="true">
-            {unverified ? "⚠" : relaxed ? "▾" : "✓"}
-          </span>
+          <span aria-hidden="true">{floorGlyph(unverified, relaxed)}</span>
           {`floor ${floor} · ${state || "applied"}`}
         </Badge>
       </div>
