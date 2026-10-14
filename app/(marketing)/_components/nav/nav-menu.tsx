@@ -205,12 +205,12 @@ function MenuLink({
   index,
   current,
   onNavigate,
-}: {
+}: Readonly<{
   link: NavGroup["links"][number];
   index: number;
   current: boolean;
   onNavigate: () => void;
-}) {
+}>) {
   // Named by its label alone, described by its one line: "Litepaper", not
   // "Litepaper The protocol in full…", is what a screen reader reads first
   // and what a voice user says.
