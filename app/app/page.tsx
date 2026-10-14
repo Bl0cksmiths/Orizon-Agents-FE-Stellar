@@ -80,6 +80,12 @@ function CompositionBody({
   );
 }
 
+/** What the recent-tasks heading says of the list: its size once read. */
+function tasksCountLabel(tasks: Task[] | null, failed: boolean): string {
+  if (tasks) return `${tasks.length} tracked`;
+  return failed ? "unavailable" : "loading…";
+}
+
 export default function OverviewPage() {
   // Two panels, two reads, two failure states: the figures stay up when the
   // task list fails and the reverse. They used to share one Promise.all, so
@@ -197,11 +203,7 @@ export default function OverviewPage() {
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">Recent tasks</h2>
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-            {tasks
-              ? `${tasks.length} tracked`
-              : tasksError
-                ? "unavailable"
-                : "loading…"}
+            {tasksCountLabel(tasks, Boolean(tasksError))}
           </span>
         </div>
         {/* This panel's own failure, with its own retry: the figures above
