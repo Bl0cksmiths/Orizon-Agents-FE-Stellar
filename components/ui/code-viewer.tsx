@@ -79,13 +79,13 @@ export function CodeViewer({
   code,
   label,
   maxHeight = 560,
-}: {
+}: Readonly<{
   language?: string | null;
   code: string;
   /** Names the scrollable region for assistive tech — the file it shows. */
   label: string;
   maxHeight?: number;
-}) {
+}>) {
   const lang = grammarFor(language);
   return (
     <div
