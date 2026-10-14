@@ -497,3 +497,28 @@ test(
     );
   },
 );
+
+test(
+  "the browser pass fails a page that does not answer 200, one that drops, and a slow home page",
+  { skip: chromium ? false : "Playwright is not installed here" },
+  async () => {
+    const { code, out } = await smoke(
+      await origin({ ...HEALTHY, "/evidence": 500, "/demo": DROP }),
+      {
+        SMOKE_BROWSER: "1",
+        SMOKE_SETTLE_MS: "100",
+        SMOKE_HOME_LOAD_BUDGET_MS: "1",
+      },
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /✗ browser \/evidence → HTTP 500 \(\d+ms\)\n/);
+    assert.match(out, /✗ browser \/demo → page\.goto: net::ERR_[A-Z_]+/);
+    assert.match(out, /✓ browser \/guide → 200/);
+    assert.match(out, /✗ home page load budget → \d+ms, over the 1ms budget/);
+    // The plain pass fails both pages too, beside the browser's three.
+    assert.match(
+      out,
+      new RegExp(`5/${TOTAL + PAGES.length + 1} checks failed`),
+    );
+  },
+);
