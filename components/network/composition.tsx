@@ -44,7 +44,7 @@ export function onlineLine(s: NetworkStats): string | null {
  * offers; the folded "other" row is left out of them because it is not a
  * skill.
  */
-export function Composition({ stats }: { stats: NetworkStats }) {
+export function Composition({ stats }: Readonly<{ stats: NetworkStats }>) {
   const slices = sourceBreakdown(stats);
   const bound = boundLine(stats);
   const online = onlineLine(stats);
