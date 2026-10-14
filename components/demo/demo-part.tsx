@@ -58,7 +58,7 @@ export function DemoPart({
           <dt className={term}>Captions</dt>
           <dd className={value}>
             <a href={part.captionsHref} className={inlineLink} download>
-              English (WebVTT)
+              {"English (WebVTT)"}
               <span className="sr-only">, part {index + 1}</span>
             </a>
           </dd>
