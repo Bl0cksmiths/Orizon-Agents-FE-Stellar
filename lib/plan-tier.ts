@@ -48,7 +48,8 @@ export function modelLabel(v: string | null | undefined): string | null {
   if (claude) {
     const [, family, major, minor] = claude;
     const name = family.charAt(0).toUpperCase() + family.slice(1);
-    return `Claude ${name} ${minor ? `${major}.${minor}` : major}`;
+    const version = minor ? `${major}.${minor}` : major;
+    return `Claude ${name} ${version}`;
   }
   // The backend pins jev's version; a buyer reads the name.
   if (JEV_ID.test(raw)) return "jev";
