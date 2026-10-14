@@ -534,12 +534,12 @@ export function RepLeaderboard({
 
       {hiddenRows > 0 && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
-          <p
-            role="status"
-            className="font-mono text-[11px] uppercase tracking-widest text-muted"
+          <output
+            aria-live="polite"
+            className="block font-mono text-[11px] uppercase tracking-widest text-muted"
           >
             Showing the top {visible.length.toLocaleString()}
-          </p>
+          </output>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
