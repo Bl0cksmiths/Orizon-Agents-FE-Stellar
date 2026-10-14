@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
  * on this page (lib/wallet.tsx, WalletUnavailable): a plain statement, not a
  * disabled button, since there is nothing to press until the page reloads.
  */
-export function WalletUnavailableNote({ className }: { className?: string }) {
+export function WalletUnavailableNote({
+  className,
+}: Readonly<{ className?: string }>) {
   return (
     <div className={cn("flex items-center", className)}>
       <p className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
