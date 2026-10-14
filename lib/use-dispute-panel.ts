@@ -342,6 +342,15 @@ type Snapshot = {
   grant: string | null;
 };
 
+/** Whether the snapshot is inside a bounded wait: for a settlement the seal
+ *  says should exist, or for a receipt that is still moving. */
+function boundedWaitRunning(snapshot: Snapshot | null): boolean {
+  return (
+    (snapshot?.awaitingSinceMs ?? null) !== null ||
+    (snapshot?.pendingSinceMs ?? null) !== null
+  );
+}
+
 type FetchState = {
   /** The task everything below describes; a mismatch means "nothing yet". */
   taskId: string | null;
@@ -485,11 +494,7 @@ export function useDisputePanel(
           // this clock, and a backend failing every read must not hold either
           // open for ever. The clock is left alone otherwise, so a failed poll
           // of a settled receipt leaves the view it dates untouched.
-          const waiting = stateRef.current.snapshot;
-          if (
-            (waiting?.awaitingSinceMs ?? null) !== null ||
-            (waiting?.pendingSinceMs ?? null) !== null
-          ) {
+          if (boundedWaitRunning(stateRef.current.snapshot)) {
             setClockMs((prev) => Math.max(prev, Date.now()));
           }
           // The run sealed while this read was out, and the seal was recorded
