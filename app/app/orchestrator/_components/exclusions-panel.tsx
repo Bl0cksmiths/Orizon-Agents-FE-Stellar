@@ -502,6 +502,8 @@ export function ExclusionsPanel({
 
   const { counts, other } = countKinds(changes);
 
+  const changesWord = changes.length === 1 ? "change" : "changes";
+
   const breakdown = breakdownText({
     counts,
     other,
@@ -531,7 +533,7 @@ export function ExclusionsPanel({
           Reputation floor ·{" "}
           {changes.length === 0
             ? "no changes"
-            : `${changes.length} change${changes.length === 1 ? "" : "s"}`}
+            : `${changes.length} ${changesWord}`}
         </h3>
         {/* w-full puts the breakdown on its own flex line. It is inside the
             summary on purpose: the count is the part a buyer who never opens
