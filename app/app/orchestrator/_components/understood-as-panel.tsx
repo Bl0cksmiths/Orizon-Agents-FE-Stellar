@@ -122,7 +122,10 @@ function SpecView({ spec }: Readonly<{ spec: PlanSpec }>) {
   );
 }
 
-function Row({ term, children }: { term: string; children: React.ReactNode }) {
+function Row({
+  term,
+  children,
+}: Readonly<{ term: string; children: React.ReactNode }>) {
   return (
     <>
       <dt className={cn(label, "pt-1")}>{term}</dt>
