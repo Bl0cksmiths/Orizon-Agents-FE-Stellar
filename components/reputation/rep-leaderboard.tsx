@@ -197,7 +197,7 @@ export function RepLeaderboard({
   onRetryAgents,
   onRetryBatch,
   asset = null,
-}: {
+}: Readonly<{
   agents: Agent[] | null;
   batch: ReputationBatch | null;
   loading: boolean;
@@ -217,7 +217,7 @@ export function RepLeaderboard({
   /** The network route's `asset`: what evidence weight is denominated in
    *  ("native" → XLM on testnet). Unknown → no unit, never "USDC". */
   asset?: string | null;
-}) {
+}>) {
   const unit = assetLabel(asset);
   const [sort, setSort] = useState<{ col: SortCol; dir: SortDir }>({
     col: "score",
