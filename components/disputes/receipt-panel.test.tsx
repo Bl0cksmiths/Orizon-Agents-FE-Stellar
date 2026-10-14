@@ -1305,7 +1305,7 @@ describe("ReceiptPanel · the reconciliation", () => {
     const table = await screen.findByRole("table");
     expect(table.textContent).toContain("code.gen");
     // Planned and charged, on the step and in the total.
-    expect(within(table).getAllByText("0.054").length).toBe(4);
+    expect(within(table).getAllByText("0.054")).toHaveLength(4);
   });
 
   it("draws no table for a settlement it cannot reconcile", () => {
