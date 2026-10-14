@@ -988,12 +988,12 @@ function SignatureSentence({
   free,
   generation,
   capText,
-}: {
+}: Readonly<{
   empty: boolean;
   free: boolean;
   generation: EscrowGeneration;
   capText: string;
-}) {
+}>) {
   if (empty) return <div className="text-sm">{EMPTY_PLAN}</div>;
   if (free) return <div className="text-sm">{FREE_PLAN}</div>;
   if (generation === "v2")
