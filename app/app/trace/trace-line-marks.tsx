@@ -19,7 +19,7 @@ import {
 } from "@/lib/trace-stage";
 import type { TraceLine } from "@/lib/types";
 
-export function StageMark({ line }: { line: TraceLine }) {
+export function StageMark({ line }: Readonly<{ line: TraceLine }>) {
   const stage = traceStage(line);
   if (!stage) return null;
   return (
