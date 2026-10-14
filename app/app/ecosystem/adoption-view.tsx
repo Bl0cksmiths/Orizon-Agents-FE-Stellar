@@ -412,13 +412,13 @@ function AgentBlock({
   network,
   asset,
   windowDays,
-}: {
+}: Readonly<{
   agent: ExternalAgent;
   ours: Map<string, ExcludedWallet>;
   network: string;
   asset: string | null;
   windowDays: EcosystemAdoption["window_days"];
-}) {
+}>) {
   const settled = agent.settled_workflows;
   const windowNote = settledWindowSentence({ window_days: windowDays });
   return (
