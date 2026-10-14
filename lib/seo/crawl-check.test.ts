@@ -41,6 +41,33 @@ describe("parseRobots", () => {
       sitemaps: ["https://a.test/sitemap.xml"],
     });
   });
+
+  it("groups consecutive agents, and ignores comments, rules outside a group and empty rules", () => {
+    expect(
+      parseRobots(
+        [
+          "Disallow: /early",
+          "# a comment line",
+          "User-agent: a",
+          "User-agent: b # trailing comment",
+          "Disallow:",
+          "Disallow: /x",
+          "Crawl-delay: 5",
+          "User-agent: c",
+          "Allow: /y",
+          "not a field",
+          "User-agent: d",
+        ].join("\r\n"),
+      ),
+    ).toEqual({
+      groups: [
+        { agents: ["a", "b"], allow: [], disallow: ["/x"] },
+        { agents: ["c"], allow: ["/y"], disallow: [] },
+        { agents: ["d"], allow: [], disallow: [] },
+      ],
+      sitemaps: [],
+    });
+  });
 });
 
 describe("pageProblems", () => {
