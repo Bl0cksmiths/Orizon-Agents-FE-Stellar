@@ -303,11 +303,11 @@ function SheetLink({
   link,
   current,
   linkRef,
-}: {
+}: Readonly<{
   link: NavLink;
   current: boolean;
   linkRef?: Ref<HTMLAnchorElement>;
-}) {
+}>) {
   const id = useId();
   return (
     <Link
