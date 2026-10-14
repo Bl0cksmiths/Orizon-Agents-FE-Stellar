@@ -190,7 +190,7 @@ export function NavMenu({
 }
 
 /** The short cyan bar under a top-level item whose page is open. */
-export function CurrentMark({ show }: { show: boolean }) {
+export function CurrentMark({ show }: Readonly<{ show: boolean }>) {
   if (!show) return null;
   return (
     <span
