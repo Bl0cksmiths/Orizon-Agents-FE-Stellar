@@ -428,6 +428,47 @@ function countKinds(changes: PlanFloorNotice[]): {
   return { counts, other };
 }
 
+/** What the panel counted, for the closed summary's breakdown. */
+type NoticeTally = {
+  counts: Record<PlanFloorNoticeKind, number>;
+  other: number;
+  unbound: number;
+  unreachable: number;
+  external: number;
+  /** An external notice names no agent, so there is no count to print. */
+  externalUncounted: boolean;
+  simulated: number;
+  noInput: number;
+  noProvider: number;
+  hidden: number;
+};
+
+/** The closed summary's per-kind breakdown: every non-zero count, in
+ *  `KIND_ORDER` first and then the counts kept apart from the floor's. */
+function breakdownText(t: NoticeTally): string {
+  return [
+    ...KIND_ORDER.filter((k) => t.counts[k] > 0).map(
+      (k) => `${t.counts[k]} ${KIND_COUNT_LABEL[k]}`,
+    ),
+    ...(t.other > 0 ? [`${t.other} ${OTHER_COUNT_LABEL}`] : []),
+    ...(t.unbound > 0 ? [`${t.unbound} with no endpoint bound`] : []),
+    ...(t.unreachable > 0
+      ? [`${t.unreachable} with an unreachable endpoint`]
+      : []),
+    ...(t.external > 0
+      ? [
+          t.externalUncounted
+            ? "operator agents"
+            : `${t.external} operator agent${t.external === 1 ? "" : "s"}`,
+        ]
+      : []),
+    ...(t.simulated > 0 ? [`${t.simulated} not live yet`] : []),
+    ...(t.noInput > 0 ? [`${t.noInput} without input`] : []),
+    ...(t.noProvider > 0 ? [`${t.noProvider} unavailable`] : []),
+    ...(t.hidden > 0 ? [hiddenNoticesText(t.hidden)] : []),
+  ].join(" · ");
+}
+
 export function ExclusionsPanel({
   plan,
 }: {
@@ -460,25 +501,18 @@ export function ExclusionsPanel({
 
   const { counts, other } = countKinds(changes);
 
-  const breakdown = [
-    ...KIND_ORDER.filter((k) => counts[k] > 0).map(
-      (k) => `${counts[k]} ${KIND_COUNT_LABEL[k]}`,
-    ),
-    ...(other > 0 ? [`${other} ${OTHER_COUNT_LABEL}`] : []),
-    ...(unbound > 0 ? [`${unbound} with no endpoint bound`] : []),
-    ...(unreachable > 0 ? [`${unreachable} with an unreachable endpoint`] : []),
-    ...(external > 0
-      ? [
-          externalUncounted
-            ? "operator agents"
-            : `${external} operator agent${external === 1 ? "" : "s"}`,
-        ]
-      : []),
-    ...(simulated > 0 ? [`${simulated} not live yet`] : []),
-    ...(noInput > 0 ? [`${noInput} without input`] : []),
-    ...(noProvider > 0 ? [`${noProvider} unavailable`] : []),
-    ...(hidden > 0 ? [hiddenNoticesText(hidden)] : []),
-  ].join(" · ");
+  const breakdown = breakdownText({
+    counts,
+    other,
+    unbound,
+    unreachable,
+    external,
+    externalUncounted,
+    simulated,
+    noInput,
+    noProvider,
+    hidden,
+  });
 
   return (
     <details className="clip-cyber-sm group border border-violet/40 bg-violet/5">
