@@ -31,7 +31,7 @@ export function ConnectWallet({
   showWalletName = true,
   className,
   describedBy,
-}: {
+}: Readonly<{
   size?: "sm" | "md";
   /** The connect button's weight. Beside a primary call to action (the
    *  marketing nav's Launch App) it steps back to `outline`. */
@@ -43,7 +43,7 @@ export function ConnectWallet({
   /** Ids of notices the connect button is described by, when connecting is
    *  the first step of a payment those notices are about. */
   describedBy?: string;
-}) {
+}>) {
   faultPoint("connect-wallet");
   const {
     available,
