@@ -314,4 +314,27 @@ describe("checkSite", () => {
       "sitemap.xml lists https://orizons.xyz twice",
     ]);
   });
+
+  it("drops the origin's trailing slashes, in linear time", async () => {
+    const asked: string[] = [];
+    const fetchImpl = async (url: string): Promise<Response> => {
+      asked.push(url);
+      throw new Error("offline");
+    };
+    const slashes = "/".repeat(100_000);
+    const started = performance.now();
+    for (const origin of [
+      "http://localhost:1///",
+      "http://localhost:1",
+      `http://localhost:1${slashes}x`,
+    ]) {
+      await expect(checkSite(origin, { fetchImpl })).rejects.toThrow("offline");
+    }
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(asked).toEqual([
+      "http://localhost:1/robots.txt",
+      "http://localhost:1/robots.txt",
+      `http://localhost:1${slashes}x/robots.txt`,
+    ]);
+  });
 });
