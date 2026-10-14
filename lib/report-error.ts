@@ -23,7 +23,9 @@ const REDACTIONS: ReadonlyArray<[RegExp, string]> = [
   // tokens. React's decoder link loses only its `?invariant=`, and the error
   // number stays in the message itself.
   [/\b(https?:\/\/[^\s?#'")]+)[?#][^\s'")]*/g, "$1"],
-  [/(\/[^\s?#'")]*)\?[^\s'")]*/g, "$1"],
+  // A path without a query matches as itself and is left as it is: matched
+  // whole, its later slashes are never retried as the start of one.
+  [/(\/[^\s?#'")]*)(\?[^\s'")]*)?/g, "$1"],
   // Stellar accounts and secret seeds (StrKey: a version letter, 55 base32
   // characters), and muxed accounts.
   [/\b[GS][A-Z2-7]{55}\b|\bM[A-Z2-7]{68}\b/g, "[key]"],
