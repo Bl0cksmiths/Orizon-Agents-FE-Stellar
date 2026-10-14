@@ -258,6 +258,30 @@ const nameOf = (n: PlanFloorNotice) =>
 const replacementOf = (n: PlanFloorNotice) =>
   n.replacement_name ?? n.replacement_id ?? null;
 
+/** The badge a row wears: the mark of why it was left out where that is not
+ *  the floor's verdict, otherwise its kind's — or, for a kind this build does
+ *  not know, the backend's own word for it. */
+function markOf(notice: PlanFloorNotice): {
+  tone: "magenta" | "cyan" | "violet" | "muted";
+  glyph: string;
+  label: string;
+} {
+  if (isUnbound(notice)) return UNBOUND_MARK;
+  if (isExternalNotRouted(notice)) return EXTERNAL_MARK;
+  if (isSimulatedWorker(notice)) return SIMULATED_MARK;
+  if (notice.reason_code === "no_image_input") return NO_IMAGE_MARK;
+  if (notice.reason_code === "no_step_input") return NO_INPUT_MARK;
+  if (isProviderUnavailable(notice)) return PROVIDER_MARK;
+  if (isUnreachable(notice)) return UNREACHABLE_MARK;
+  const kind = knownKind(notice);
+  if (kind === null) return unknownMark(notice.kind);
+  return {
+    tone: KIND_TONE[kind],
+    glyph: KIND_GLYPH[kind],
+    label: KIND_LABEL[kind],
+  };
+}
+
 const numbersRow =
   "flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] text-muted";
 const footnote = "break-words font-mono text-[11px] leading-relaxed text-muted";
@@ -288,28 +312,7 @@ function NoticeRow({
   const unreachable = isUnreachable(notice);
   // Left out by how plans are built: no bound was read, no floor compared.
   const policy = isPlanShaping(notice);
-  const kind = knownKind(notice);
-  const mark = unbound
-    ? UNBOUND_MARK
-    : isExternalNotRouted(notice)
-      ? EXTERNAL_MARK
-      : isSimulatedWorker(notice)
-        ? SIMULATED_MARK
-        : notice.reason_code === "no_image_input"
-          ? NO_IMAGE_MARK
-          : notice.reason_code === "no_step_input"
-            ? NO_INPUT_MARK
-            : isProviderUnavailable(notice)
-              ? PROVIDER_MARK
-              : unreachable
-                ? UNREACHABLE_MARK
-                : kind === null
-                  ? unknownMark(notice.kind)
-                  : {
-                      tone: KIND_TONE[kind],
-                      glyph: KIND_GLYPH[kind],
-                      label: KIND_LABEL[kind],
-                    };
+  const mark = markOf(notice);
 
   const bound = notice.lower_bound_bps;
   // null and undefined are different facts and must not collapse into one
