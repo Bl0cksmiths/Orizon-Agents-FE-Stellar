@@ -84,6 +84,36 @@ describe("parseRobots", () => {
       sitemaps: [],
     });
   });
+
+  it("reads a value after any blanks, and skips one broken across lines", () => {
+    const lineSeparator = String.fromCharCode(0x2028);
+    expect(
+      parseRobots(
+        [
+          "User-agent:\t \t*",
+          `Disallow:${lineSeparator} /a`,
+          `Disallow: /b${lineSeparator}c`,
+          "Allow  :",
+        ].join("\n"),
+      ),
+    ).toEqual({
+      groups: [{ agents: ["*"], allow: [], disallow: ["/a"] }],
+      sitemaps: [],
+    });
+  });
+
+  it("reads a line of thousands of blanks in linear time", () => {
+    const lineSeparator = String.fromCharCode(0x2028);
+    const started = performance.now();
+    const blanks = " ".repeat(100_000);
+    expect(
+      parseRobots(`User-agent: *\nDisallow:${blanks}x${lineSeparator}y`),
+    ).toEqual({
+      groups: [{ agents: ["*"], allow: [], disallow: [] }],
+      sitemaps: [],
+    });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe("pageProblems", () => {
