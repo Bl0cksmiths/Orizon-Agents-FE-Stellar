@@ -5,7 +5,12 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { TESTNET_ENDPOINTS, checkReachable } from "./checks.mjs";
+import {
+  TESTNET_ENDPOINTS,
+  checkReachable,
+  checkTx,
+  loadStellarSdk,
+} from "./checks.mjs";
 import { NetworkError } from "./http.mjs";
 
 /**
@@ -13,17 +18,26 @@ import { NetworkError } from "./http.mjs";
  */
 
 /**
- * A client whose `request` answers each URL from `pages` (a value, or a
- * function of the URL), and throws a NetworkError for any URL it lacks.
- * Records every URL asked.
+ * A client whose `request` answers each URL from `pages`, and whose `rpc`
+ * answers each method from `rpcs`; either throws a NetworkError for what it
+ * lacks, or throws the Error it is given. Records every URL and method asked.
  *
  * @param {Record<string, StubAnswer | Error>} pages
+ * @param {Record<string, { status: number, json: unknown } | Error>} [rpcs]
  */
-function stubClient(pages) {
+function stubClient(pages, rpcs = {}) {
   /** @type {string[]} */
   const asked = [];
   return {
     asked,
+    /** @param {string} endpoint @param {string} method */
+    async rpc(endpoint, method) {
+      asked.push(`${endpoint} ${method}`);
+      const reply = rpcs[method];
+      if (reply === undefined) throw new NetworkError(`no answer to ${method}`);
+      if (reply instanceof Error) throw reply;
+      return { answer: { status: reply.status }, json: reply.json };
+    },
     /** @param {string} url */
     async request(url) {
       asked.push(url);
@@ -191,5 +205,123 @@ describe("checkReachable: any other link", () => {
       finalUrl: FINAL,
       redirected: true,
     });
+  });
+});
+
+describe("checkTx: finding the transaction on testnet", () => {
+  const HASH = "a".repeat(64);
+  const link = { url: `https://stellar.expert/explorer/testnet/tx/${HASH}` };
+  const H_TX = `${TESTNET_ENDPOINTS.horizon}/transactions/${HASH}`;
+  const RPC = `${TESTNET_ENDPOINTS.rpc} getTransaction`;
+  const both = { horizon: true, rpc: true };
+  /** @param {ReturnType<typeof stubClient>} client @param {{ horizon: boolean, rpc: boolean }} reachable */
+  const run = async (client, reachable = both) =>
+    checkTx(client, link, TESTNET_ENDPOINTS, reachable, await loadStellarSdk());
+
+  it("reads Horizon first, keeping only well-typed fields", async () => {
+    const client = stubClient({
+      [H_TX]: {
+        status: 200,
+        text: JSON.stringify({ ledger: "7", successful: "yes" }),
+      },
+    });
+    assert.deepEqual(await run(client), {
+      checks: [
+        {
+          name: "testnet-tx",
+          result: "fail",
+          detail:
+            "the transaction FAILED on testnet: ledger ?, no time, source ?, via horizon",
+        },
+      ],
+      chain: {
+        hash: HASH,
+        ledger: null,
+        created_at: null,
+        source_account: null,
+        successful: false,
+        via: "horizon",
+      },
+    });
+    assert.deepEqual(client.asked, [H_TX]);
+  });
+
+  it("marks a Horizon error other than 404 unverified", async () => {
+    const client = stubClient({ [H_TX]: { status: 500 } });
+    assert.deepEqual(await run(client), {
+      checks: [
+        {
+          name: "testnet-tx",
+          result: "unverified",
+          detail: `Horizon answered HTTP 500 for ${HASH}`,
+        },
+      ],
+      chain: null,
+    });
+    assert.deepEqual(client.asked, [H_TX]);
+  });
+
+  it("marks it unverified when RPC is unreachable, saying which endpoints were", async () => {
+    const afterHorizon = stubClient({ [H_TX]: { status: 404 } });
+    assert.equal(
+      (await run(afterHorizon, { horizon: true, rpc: false })).checks[0].detail,
+      "not on Horizon testnet, and Soroban RPC was unreachable",
+    );
+    const neither = stubClient({});
+    assert.equal(
+      (await run(neither, { horizon: false, rpc: false })).checks[0].detail,
+      "neither Horizon nor Soroban RPC testnet was reachable",
+    );
+    assert.deepEqual(neither.asked, []);
+  });
+
+  it("marks an RPC error unverified, quoting its message", async () => {
+    const failing = stubClient(
+      {},
+      { getTransaction: { status: 500, json: { error: { message: "boom" } } } },
+    );
+    assert.deepEqual(
+      (await run(failing, { horizon: false, rpc: true })).checks[0],
+      {
+        name: "testnet-tx",
+        result: "unverified",
+        detail: "RPC getTransaction answered HTTP 500: boom",
+      },
+    );
+    assert.deepEqual(failing.asked, [RPC]);
+    const empty = stubClient({}, { getTransaction: { status: 200, json: {} } });
+    assert.equal(
+      (await run(empty, { horizon: false, rpc: true })).checks[0].detail,
+      "RPC getTransaction answered HTTP 200",
+    );
+  });
+
+  it("reads RPC when Horizon lacks it, keeping only what parses", async () => {
+    const client = stubClient(
+      { [H_TX]: { status: 404 } },
+      {
+        getTransaction: {
+          status: 200,
+          json: {
+            result: {
+              status: "FAILED",
+              ledger: "9",
+              createdAt: "0",
+              envelopeXdr: "not an envelope",
+            },
+          },
+        },
+      },
+    );
+    const { chain } = await run(client);
+    assert.deepEqual(chain, {
+      hash: HASH,
+      ledger: null,
+      created_at: null,
+      source_account: null,
+      successful: false,
+      via: "rpc",
+    });
+    assert.deepEqual(client.asked, [H_TX, RPC]);
   });
 });
