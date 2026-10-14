@@ -76,6 +76,27 @@ function clientOptionsOf(args) {
 }
 
 /**
+ * The endpoint overrides the flags give, each without a trailing slash.
+ *
+ * @param {Record<string, string | boolean | undefined>} args
+ * @returns {Record<string, string>}
+ */
+function endpointsOf(args) {
+  /** @type {Record<string, string>} */
+  const endpoints = {};
+  for (const [flag, key] of [
+    ["horizon", "horizon"],
+    ["rpc", "rpc"],
+    ["mainnet-horizon", "mainnetHorizon"],
+    ["oembed", "oembed"],
+  ]) {
+    const value = /** @type {string | undefined} */ (args[flag]);
+    if (value !== undefined) endpoints[key] = value.replace(/\/+$/, "");
+  }
+  return endpoints;
+}
+
+/**
  * @param {string[]} argv
  * @param {{ log?: (s: string) => void, error?: (s: string) => void, loadValidator?: import("./run.mjs").RunOptions["loadValidator"], importSdk?: import("./run.mjs").RunOptions["importSdk"] }} [io]
  *   output sinks, a validator loader and an SDK importer for tests
@@ -119,17 +140,7 @@ export async function main(argv, io = {}) {
     return 0;
   }
 
-  /** @type {Record<string, string>} */
-  const endpoints = {};
-  for (const [flag, key] of [
-    ["horizon", "horizon"],
-    ["rpc", "rpc"],
-    ["mainnet-horizon", "mainnetHorizon"],
-    ["oembed", "oembed"],
-  ]) {
-    const value = args[/** @type {"horizon"} */ (flag)];
-    if (value !== undefined) endpoints[key] = value.replace(/\/+$/, "");
-  }
+  const endpoints = endpointsOf(args);
 
   const report = await checkEvidence({
     indexPath: resolve(args.index ?? join(repoRoot, INDEX_PATH)),
