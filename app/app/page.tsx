@@ -36,10 +36,10 @@ const POLL_MS = 5_000;
 function ThroughputBody({
   stats,
   failed,
-}: {
+}: Readonly<{
   stats: NetworkStats | null;
   failed: boolean;
-}) {
+}>) {
   if (stats) return <SettledChart series={stats.series} />;
   if (failed)
     return (
