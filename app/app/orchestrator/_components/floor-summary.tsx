@@ -76,6 +76,12 @@ function floorGlyph(unverified: boolean, relaxed: boolean): string {
   return relaxed ? "▾" : "✓";
 }
 
+/** A head count of agents, in words when there are none. */
+function agentsText(count: number): string {
+  if (count === 0) return "no agents";
+  return `${count} agent${count === 1 ? "" : "s"}`;
+}
+
 /** A clause of the counts line for `count` of something: `one` for one,
  *  `many(count)` for more, and false — nothing rendered — for none. */
 function countClause(
@@ -231,9 +237,7 @@ export function FloorSummary({
 
       <p className="mt-2 break-words font-mono text-[11px] leading-relaxed text-muted">
         {steps} step{steps === 1 ? "" : "s"} planned · the floor acted on{" "}
-        {actedOn === 0
-          ? "no agents"
-          : `${actedOn} agent${actedOn === 1 ? "" : "s"}`}
+        {agentsText(actedOn)}
         {countClause(
           awaiting,
           " · 1 of them was held off until a fresh reputation read answers, not judged under the floor",
