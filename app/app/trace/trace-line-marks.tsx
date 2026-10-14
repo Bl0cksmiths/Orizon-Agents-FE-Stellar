@@ -44,7 +44,7 @@ export function HandoffMark({ line }: Readonly<{ line: TraceLine }>) {
   );
 }
 
-export function StepMarks({ line }: { line: TraceLine }) {
+export function StepMarks({ line }: Readonly<{ line: TraceLine }>) {
   const model = traceLineModel(line);
   // Named once: when the line's own words already say it, a tag repeating
   // it is noise.
