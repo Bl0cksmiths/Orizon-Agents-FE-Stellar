@@ -11,12 +11,12 @@ export function CodeBlock({
   badge = "example",
   children,
   className,
-}: {
+}: Readonly<{
   title?: string;
   badge?: string;
   children: ReactNode;
   className?: string;
-}) {
+}>) {
   return (
     <div
       className={cn(
