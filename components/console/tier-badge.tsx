@@ -33,12 +33,12 @@ export function ModelTag({
   model,
   prefix,
   className,
-}: {
+}: Readonly<{
   model: string | null | undefined;
   /** Words before the name, e.g. "runs on". */
   prefix?: string;
   className?: string;
-}) {
+}>) {
   const name = modelLabel(model);
   if (!name) return null;
   return (
