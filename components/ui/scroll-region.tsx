@@ -63,13 +63,15 @@ export function ScrollRegion({
   // An overlay sat on top of the table's text, so axe measured that text
   // against the overlay and failed its contrast wherever the fade fell; a
   // mask fades the pixels without putting anything in front of them.
-  const mask = edges.left
-    ? edges.right
-      ? "linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2.5rem), transparent)"
-      : "linear-gradient(to right, transparent, #000 2rem)"
-    : edges.right
-      ? "linear-gradient(to right, #000 calc(100% - 2.5rem), transparent)"
-      : undefined;
+  let mask: string | undefined;
+  if (edges.left && edges.right) {
+    mask =
+      "linear-gradient(to right, transparent, #000 2rem, #000 calc(100% - 2.5rem), transparent)";
+  } else if (edges.left) {
+    mask = "linear-gradient(to right, transparent, #000 2rem)";
+  } else if (edges.right) {
+    mask = "linear-gradient(to right, #000 calc(100% - 2.5rem), transparent)";
+  }
 
   return (
     <div className={className}>
