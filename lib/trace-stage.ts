@@ -19,11 +19,13 @@ const isTraceStage = (v: unknown): v is TraceStage =>
   TRACE_STAGES.some((s) => s === v);
 
 /** Each stage's documented opening words. Anchored at the start: a step
- *  line that only mentions planning mid-sentence is not a stage. */
+ *  line that only mentions planning mid-sentence is not a stage. The
+ *  recheck's two wordings are the exception: "re-checked by" anywhere, or a
+ *  line that ends by falling back to the user's own words. */
 const STAGE_WORDING: Record<TraceStage, RegExp> = {
   guard: /^request check(?:ed by\b|\b)/i,
   improve: /^(?:prompt improve|using your edited reading\b)/i,
-  recheck: /\bre-checked by\b|planning from your own words$/i,
+  recheck: /(?:\bre-checked by\b)|(?:planning from your own words$)/i,
   plan: /^planned by\b/i,
 };
 

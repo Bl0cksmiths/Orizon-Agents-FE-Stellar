@@ -35,6 +35,10 @@ const PORT = Number(process.env.HERO_ISR_PORT ?? 3741);
 const BACKEND_PORT = Number(process.env.HERO_ISR_BACKEND_PORT ?? 3742);
 const DIST = ".next/hero-isr";
 const NEXT = "node_modules/next/dist/bin/next";
+// The node running this script, by absolute path: a bare "node" would be
+// looked up on PATH, where any writable directory ahead of the real one
+// could stand in for it.
+const NODE = process.execPath;
 const REVALIDATE_MS = 300_000;
 const COLD = process.argv.includes("--cold");
 
@@ -131,11 +135,11 @@ async function main() {
   log(`building against a ${COLD ? "dead" : "complete, signal-less"} backend…`);
   const buildLog = join(tmpdir(), "hero-isr-build.log");
   await run(
-    "node",
+    NODE,
     ["scripts/litepaper-assets.mjs"],
     join(tmpdir(), "hero-isr-assets.log"),
   );
-  await run("node", [NEXT, "build"], buildLog);
+  await run(NODE, [NEXT, "build"], buildLog);
   const builtAt = Date.now();
   const built = readFileSync(buildLog, "utf8");
   const manifest = JSON.parse(
@@ -157,7 +161,7 @@ async function main() {
   const out = createWriteStream(serverLog);
   // Next's own binary, not npx: killing an npx wrapper leaves the server it
   // started holding the port, and the next run then reads the old server.
-  const server = spawn("node", [NEXT, "start", "-p", String(PORT)], {
+  const server = spawn(NODE, [NEXT, "start", "-p", String(PORT)], {
     cwd: root,
     env: { ...env, NODE_ENV: "production" },
   });

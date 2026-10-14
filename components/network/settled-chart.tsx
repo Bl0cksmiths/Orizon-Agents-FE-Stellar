@@ -22,11 +22,15 @@ export function formatDay(date: string): string {
 
 const plural = (n: number) => `${n} settled workflow${n === 1 ? "" : "s"}`;
 
-/** The sentence a screen reader hears for the whole chart. */
+/** The sentence a screen reader hears for the whole chart. The chart never
+ * draws an empty series, but a caller that passes one gets a sentence saying
+ * so rather than a crash or invented dates. */
 export function seriesSummary(days: SettledDay[]): string {
+  if (days.length === 0) return "Settled workflows per day: no days reported.";
+  const [first] = days;
   const total = days.reduce((sum, d) => sum + d.settled, 0);
-  const peak = days.reduce((a, b) => (b.settled > a.settled ? b : a));
-  return `Settled workflows per day, ${formatDay(days[0].date)} to ${formatDay(days[days.length - 1].date)}: ${plural(total)} in total, at most ${peak.settled} on ${formatDay(peak.date)}.`;
+  const peak = days.reduce((a, b) => (b.settled > a.settled ? b : a), first);
+  return `Settled workflows per day, ${formatDay(first.date)} to ${formatDay(days[days.length - 1].date)}: ${plural(total)} in total, at most ${peak.settled} on ${formatDay(peak.date)}.`;
 }
 
 const EMPTY =
