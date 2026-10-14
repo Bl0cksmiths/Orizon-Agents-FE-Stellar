@@ -181,55 +181,66 @@ export function loginWall(answer) {
 }
 
 /**
+ * A YouTube link, checked through oEmbed, which answers 200 only for a
+ * public or unlisted video.
+ *
+ * @param {Client} client
+ * @param {string} url
+ * @param {Endpoints} endpoints
+ * @returns {Promise<{ check: Check, finalUrl: string | null, redirected: boolean }>}
+ */
+async function checkYouTube(client, url, endpoints) {
+  const oembed = `${endpoints.oembed}?url=${encodeURIComponent(url)}&format=json`;
+  try {
+    const answer = await client.request(oembed);
+    if (answer.status === 200) {
+      const title = parseJson(answer.text)?.title;
+      return {
+        check: {
+          name: "youtube-oembed",
+          result: "pass",
+          detail: `oEmbed 200: public or unlisted${title ? ` ("${title}")` : ""}`,
+        },
+        finalUrl: url,
+        redirected: false,
+      };
+    }
+    const meaning =
+      answer.status === 401 || answer.status === 403
+        ? "private, or embedding disabled"
+        : answer.status === 404
+          ? "no such video"
+          : "not viewable";
+    return {
+      check: {
+        name: "youtube-oembed",
+        result: answer.status === 429 ? "unverified" : "fail",
+        detail: `oEmbed HTTP ${answer.status}: ${answer.status === 429 ? "rate limited" : meaning}`,
+      },
+      finalUrl: null,
+      redirected: false,
+    };
+  } catch (err) {
+    return {
+      check: {
+        name: "youtube-oembed",
+        result: "unverified",
+        detail: why(err),
+      },
+      finalUrl: null,
+      redirected: false,
+    };
+  }
+}
+
+/**
  * @param {Client} client
  * @param {string} url
  * @param {Endpoints} endpoints
  * @returns {Promise<{ check: Check, finalUrl: string | null, redirected: boolean }>}
  */
 export async function checkReachable(client, url, endpoints) {
-  if (isYouTube(url)) {
-    const oembed = `${endpoints.oembed}?url=${encodeURIComponent(url)}&format=json`;
-    try {
-      const answer = await client.request(oembed);
-      if (answer.status === 200) {
-        const title = parseJson(answer.text)?.title;
-        return {
-          check: {
-            name: "youtube-oembed",
-            result: "pass",
-            detail: `oEmbed 200: public or unlisted${title ? ` ("${title}")` : ""}`,
-          },
-          finalUrl: url,
-          redirected: false,
-        };
-      }
-      const meaning =
-        answer.status === 401 || answer.status === 403
-          ? "private, or embedding disabled"
-          : answer.status === 404
-            ? "no such video"
-            : "not viewable";
-      return {
-        check: {
-          name: "youtube-oembed",
-          result: answer.status === 429 ? "unverified" : "fail",
-          detail: `oEmbed HTTP ${answer.status}: ${answer.status === 429 ? "rate limited" : meaning}`,
-        },
-        finalUrl: null,
-        redirected: false,
-      };
-    } catch (err) {
-      return {
-        check: {
-          name: "youtube-oembed",
-          result: "unverified",
-          detail: why(err),
-        },
-        finalUrl: null,
-        redirected: false,
-      };
-    }
-  }
+  if (isYouTube(url)) return checkYouTube(client, url, endpoints);
 
   let answer;
   try {
