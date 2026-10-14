@@ -244,13 +244,13 @@ export function ExecutionPlan({
   plan,
   onReplan,
   onRespec,
-}: {
+}: Readonly<{
   plan: DecomposeResponse;
   /** Decomposes this plan's intent again — offered on a fallback plan. */
   onReplan?: () => void;
   /** Decomposes this plan's intent again from an edited brief. */
   onRespec?: (spec: PlanSpec) => void;
-}) {
+}>) {
   const router = useRouter();
   const wallet = useWallet();
   const [showFiat, setShowFiat] = useState(false);
