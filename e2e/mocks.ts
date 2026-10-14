@@ -1993,6 +1993,32 @@ export async function mockDisputeApi(
   const nowS = async () =>
     Math.floor((await (options.clock ?? Date.now)()) / 1000);
 
+  /** `GET /api/tasks/{id}/disputes`: the settlement and every dispute
+   *  recorded so far, as served to whoever asked. */
+  const readDisputes = async (route: Route, taskId: string): Promise<void> => {
+    const settlement = options.settlement;
+    const legacy = {
+      task_id: taskId,
+      window_closes_at: settlement?.window_closes_at ?? null,
+      disputes: await asServedTo(route.request(), recorded),
+    };
+    if (options.legacy) return json(route, legacy);
+    const body: TaskDisputes = {
+      ...legacy,
+      now: await nowS(),
+      settlement,
+      ...(options.settlementState === undefined
+        ? {}
+        : { settlement_state: options.settlementState }),
+      ...(options.seal === undefined ? {} : { seal: options.seal }),
+      ...(options.sealKind === undefined
+        ? {}
+        : { seal_kind: options.sealKind }),
+      ...(options.proofTx === undefined ? {} : { proof_tx: options.proofTx }),
+    };
+    return json(route, body);
+  };
+
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
@@ -2000,27 +2026,7 @@ export async function mockDisputeApi(
 
     const disputesFor = DISPUTES_RE.exec(pathname);
     if (method === "GET" && disputesFor) {
-      const settlement = options.settlement;
-      const legacy = {
-        task_id: decodeURIComponent(disputesFor[1]),
-        window_closes_at: settlement?.window_closes_at ?? null,
-        disputes: await asServedTo(request, recorded),
-      };
-      if (options.legacy) return json(route, legacy);
-      const body: TaskDisputes = {
-        ...legacy,
-        now: await nowS(),
-        settlement,
-        ...(options.settlementState === undefined
-          ? {}
-          : { settlement_state: options.settlementState }),
-        ...(options.seal === undefined ? {} : { seal: options.seal }),
-        ...(options.sealKind === undefined
-          ? {}
-          : { seal_kind: options.sealKind }),
-        ...(options.proofTx === undefined ? {} : { proof_tx: options.proofTx }),
-      };
-      return json(route, body);
+      return readDisputes(route, decodeURIComponent(disputesFor[1]));
     }
 
     if (method === "POST" && pathname === "/api/disputes/challenge") {
