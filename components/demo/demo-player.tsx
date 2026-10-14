@@ -87,6 +87,26 @@ export function DemoPlayer({
 
   const duration = formatDuration(video.duration_seconds);
 
+  const facade = hydrated ? (
+    <button
+      type="button"
+      onClick={() => play(0)}
+      aria-label={`Play video: ${video.title} (${duration})`}
+      className={cn(
+        "group absolute inset-0 grid h-full w-full place-items-center bg-bg",
+        focusRing,
+      )}
+    >
+      <Poster video={video} first={index === 0} />
+      <span className="relative">
+        <PlayGlyph />
+      </span>
+    </button>
+  ) : (
+    // Before hydration (or with no JavaScript): the poster goes to YouTube.
+    <PosterLink video={video} first={index === 0} />
+  );
+
   return (
     <div className="space-y-8">
       <div>
@@ -108,25 +128,8 @@ export function DemoPlayer({
               allowFullScreen
               className={cn("absolute inset-0 h-full w-full", focusRing)}
             />
-          ) : hydrated ? (
-            <button
-              type="button"
-              onClick={() => play(0)}
-              aria-label={`Play video: ${video.title} (${duration})`}
-              className={cn(
-                "group absolute inset-0 grid h-full w-full place-items-center bg-bg",
-                focusRing,
-              )}
-            >
-              <Poster video={video} first={index === 0} />
-              <span className="relative">
-                <PlayGlyph />
-              </span>
-            </button>
           ) : (
-            // Before hydration (or with no JavaScript): the poster goes to
-            // YouTube.
-            <PosterLink video={video} first={index === 0} />
+            facade
           )}
         </div>
         <WatchLink video={video} index={index} />
