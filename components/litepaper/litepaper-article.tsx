@@ -28,7 +28,7 @@ const USE: Record<ArtifactFormat, string> = {
 
 const KIND = { new: "New", corrected: "Corrected" } as const;
 
-export function LitepaperArticle({ paper }: { paper: Litepaper }) {
+export function LitepaperArticle({ paper }: Readonly<{ paper: Litepaper }>) {
   const html = paper.downloads.find((d) => d.format === "html")!;
   return (
     <article
