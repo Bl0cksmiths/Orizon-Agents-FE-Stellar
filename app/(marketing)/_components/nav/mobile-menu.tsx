@@ -129,10 +129,10 @@ export function MobileMenu({
     );
     if (all.length === 0) return;
     const first = all[0];
-    const last = all[all.length - 1];
+    const last = all.at(-1);
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
-      last.focus();
+      last?.focus();
     } else if (!event.shiftKey && document.activeElement === last) {
       event.preventDefault();
       first.focus();
