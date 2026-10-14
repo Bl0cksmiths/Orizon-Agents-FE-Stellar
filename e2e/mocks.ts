@@ -1390,6 +1390,27 @@ export type MockApiOptions = {
   task?: Partial<import("../lib/types").Task>;
 };
 
+/** GET routes answered with one fixture whatever the request, by exact
+ *  path: the option a spec passed, or the default. */
+const FIXED_GETS = new Map<string, (options: MockApiOptions) => unknown>([
+  ["/api/metrics/overview", (o) => o.overview ?? mockLegacyOverview],
+  ["/api/tasks", () => mockTasks],
+  ["/api/agents", (o) => o.agents ?? mockAgents],
+  ["/api/stellar/reputation", (o) => o.reputation ?? mockReputationBatch],
+  ["/api/pdax/environment", () => mockPdaxEnvironment],
+  ["/api/pdax/health", () => mockPdaxHealth],
+  ["/api/pdax/balances", () => mockPdaxBalances],
+  // Both fixtures existed and nothing served them: under the old `{}`
+  // catch-all /app/flow and /app/reputation were only ever swept by axe in
+  // their "malformed response" state.
+  ["/api/flow/default", () => mockFlow],
+  ["/api/stellar/reputation/params", () => mockReputationParams],
+  ["/api/ecosystem/adoption", (o) => o.adoption ?? mockAdoptionZero],
+  // The warmup ping `BackendWarmup` fires on every page. Fire-and-forget,
+  // so any healthy answer will do.
+  ["/api/health", () => ({ status: "ok" })],
+]);
+
 /**
  * The endpoint-binding routes: the preflight, the challenge, the bind itself
  * and the agent's current binding. Undefined for any other request.
@@ -1466,20 +1487,12 @@ export async function mockApi(
     const bound = bindRoute(route, method, pathname, options);
     if (bound) return bound;
 
-    if (method === "GET" && pathname === "/api/metrics/overview") {
-      return json(route, options.overview ?? mockLegacyOverview);
-    }
-    if (method === "GET" && pathname === "/api/tasks") {
-      return json(route, mockTasks);
-    }
+    // None of these exact paths matches one of the `{id}` patterns below, so
+    // answering them first shadows nothing.
+    const fixture = method === "GET" ? FIXED_GETS.get(pathname) : undefined;
+    if (fixture) return json(route, fixture(options));
     if (method === "POST" && pathname === "/api/orchestrator/decompose") {
       return json(route, options.plan ?? mockPlan);
-    }
-    if (method === "GET" && pathname === "/api/agents") {
-      return json(route, options.agents ?? mockAgents);
-    }
-    if (method === "GET" && pathname === "/api/stellar/reputation") {
-      return json(route, options.reputation ?? mockReputationBatch);
     }
     const settlementFor = SETTLEMENT_RE.exec(pathname);
     if (method === "GET" && settlementFor) {
@@ -1514,35 +1527,9 @@ export async function mockApi(
         ...options.task,
       });
     }
-    if (method === "GET" && pathname === "/api/pdax/environment") {
-      return json(route, mockPdaxEnvironment);
-    }
-    if (method === "GET" && pathname === "/api/pdax/health") {
-      return json(route, mockPdaxHealth);
-    }
-    if (method === "GET" && pathname === "/api/pdax/balances") {
-      return json(route, mockPdaxBalances);
-    }
-    // Both fixtures existed and nothing served them: under the old `{}`
-    // catch-all /app/flow and /app/reputation were only ever swept by axe in
-    // their "malformed response" state.
-    if (method === "GET" && pathname === "/api/flow/default") {
-      return json(route, mockFlow);
-    }
-    if (method === "GET" && pathname === "/api/stellar/reputation/params") {
-      return json(route, mockReputationParams);
-    }
-    if (method === "GET" && pathname === "/api/ecosystem/adoption") {
-      return json(route, options.adoption ?? mockAdoptionZero);
-    }
     const readinessFor = READINESS_RE.exec(pathname);
     if (method === "GET" && readinessFor) {
       return json(route, mockReadiness(decodeURIComponent(readinessFor[1])));
-    }
-    // The warmup ping `BackendWarmup` fires on every page. Fire-and-forget,
-    // so any healthy answer will do.
-    if (method === "GET" && pathname === "/api/health") {
-      return json(route, { status: "ok" });
     }
     // Network meta, read by the top bar on every console page. By default it
     // is NOT known — a spec that needs the asset or contract ids serves them
