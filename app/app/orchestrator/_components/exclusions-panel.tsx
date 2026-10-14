@@ -245,12 +245,12 @@ function reasonCopy(notice: PlanFloorNotice): string | undefined {
 
 /** What to call the agent. The id is the fallback, not the decoration: a
  *  notice with no `agent_name` still has to name somebody. */
-const nameOf = (n: PlanFloorNotice) =>
-  namesNoAgent(n)
-    ? isExternalNotRouted(n)
-      ? "Operator agents"
-      : "Some agents"
-    : n.agent_name?.trim() || n.agent_id;
+const nameOf = (n: PlanFloorNotice) => {
+  if (namesNoAgent(n)) {
+    return isExternalNotRouted(n) ? "Operator agents" : "Some agents";
+  }
+  return n.agent_name?.trim() || n.agent_id;
+};
 
 /** The agent that took the work instead, or null. Null is rendered as no
  *  clause at all rather than as "another agent" — a substitution whose
