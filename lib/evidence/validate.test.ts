@@ -355,6 +355,18 @@ describe("link URLs", () => {
     }, /\.url is not a URL/);
   });
 
+  it("must be a string", () => {
+    expectOnly((i) => {
+      delete firstLink(i).url;
+    }, /\.url must be an https URL, not missing$/);
+  });
+
+  it("must be an object", () => {
+    expectOnly((i) => {
+      i.deliverables[0].items[0].links[0] = "https://orizons.xyz/app";
+    }, /^deliverables\[0\]\.items\[0\]\.links\[0\] must be an object, not "https:\/\/orizons\.xyz\/app"$/);
+  });
+
   it("must have a known kind", () => {
     expectOnly((i) => {
       firstLink(i).kind = "tweet";
