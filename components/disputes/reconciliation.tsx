@@ -61,9 +61,8 @@ export function ReconciliationTable({
       {/* Scrolls on its own if a figure is ever wider than a phone: the page
           clips horizontal overflow rather than scrolling it. Focusable so a
           keyboard can scroll it too. */}
-      <div
+      <section
         className="-mx-1 overflow-x-auto px-1"
-        role="region"
         aria-label="Reconciliation figures"
         tabIndex={0}
       >
@@ -129,7 +128,7 @@ export function ReconciliationTable({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </section>
 
       {recon.balanced === false ? (
         <div
