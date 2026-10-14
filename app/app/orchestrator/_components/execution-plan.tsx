@@ -762,11 +762,7 @@ export function ExecutionPlan({
                   // description — each one only while it exists.
                   aria-describedby={authorizeDescribedBy}
                 >
-                  {executing
-                    ? step
-                      ? stepLabel(step, generation)
-                      : "◉ Launching…"
-                    : "Authorize & Execute ▸"}
+                  {authorizeLabel(executing, step, generation)}
                 </Button>
               </div>
             </div>
@@ -897,6 +893,16 @@ export function ExecutionPlan({
       </Card>
     </m.div>
   );
+}
+
+/** The Authorize button's words: the stage a run is at while one is. */
+function authorizeLabel(
+  executing: boolean,
+  step: ExecStep,
+  generation: EscrowGeneration,
+): string {
+  if (!executing) return "Authorize & Execute ▸";
+  return step ? stepLabel(step, generation) : "◉ Launching…";
 }
 
 /** What the pay panel says the one signature does, with a wallet connected:
