@@ -843,25 +843,15 @@ export function ExecutionPlan({
           </div>
         )}
 
-        {/* Only escrow v2 holds anything to hand back or reclaim. A v1
-            authorization moved nothing, and while the escrow is unknown the
-            card claims neither. */}
-        {held &&
-          generation === "v2" &&
-          (expired === "authorize" || runError) &&
-          (release?.kind === "returned" ? (
-            <FundsReturnedNotice amount={capText} txHash={release.txHash} />
-          ) : (
-            <EscrowHeldNotice
-              held={held}
-              amount={capText}
-              escrowId={network?.contracts.payment_escrow || null}
-              // The backend answered: no task was minted. Without an answer
-              // a run may have started and will settle as usual.
-              runRefused={release !== null}
-              releaseFailed={release?.kind === "not_returned"}
-            />
-          ))}
+        <HeldFundsNotice
+          held={held}
+          generation={generation}
+          expired={expired}
+          runError={runError}
+          release={release}
+          amount={capText}
+          escrowId={network?.contracts.payment_escrow}
+        />
 
         {error && (
           <div
@@ -900,6 +890,44 @@ export function ExecutionPlan({
         />
       </Card>
     </m.div>
+  );
+}
+
+/** What became of the cap an authorization moved into escrow, once the run
+ *  it paid for expired or could not start: returned, or held to reclaim. */
+function HeldFundsNotice({
+  held,
+  generation,
+  expired,
+  runError,
+  release,
+  amount,
+  escrowId,
+}: {
+  held: HeldAuthorization | null;
+  generation: EscrowGeneration;
+  expired: ExpiredRun | null;
+  runError: string | null;
+  release: EscrowRelease | null;
+  amount: string;
+  escrowId: string | undefined;
+}) {
+  // Only escrow v2 holds anything to hand back or reclaim. A v1 authorization
+  // moved nothing, and while the escrow is unknown the card claims neither.
+  if (!held || generation !== "v2" || !(expired === "authorize" || runError))
+    return null;
+  if (release?.kind === "returned")
+    return <FundsReturnedNotice amount={amount} txHash={release.txHash} />;
+  return (
+    <EscrowHeldNotice
+      held={held}
+      amount={amount}
+      escrowId={escrowId || null}
+      // The backend answered: no task was minted. Without an answer a run may
+      // have started and will settle as usual.
+      runRefused={release !== null}
+      releaseFailed={release?.kind === "not_returned"}
+    />
   );
 }
 
