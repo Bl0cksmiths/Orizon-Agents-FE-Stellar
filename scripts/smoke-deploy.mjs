@@ -448,18 +448,31 @@ function checkContractParity(live) {
   return { compared: true, summary, rows, problems };
 }
 
+/**
+ * One health request with a long timeout, to wake a sleeping backend.
+ * Returns false, having said why, when the origin does not answer at all.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function warmup() {
+  try {
+    const { res, ms } = await fetchJson("/api/health", WARMUP_TIMEOUT_MS);
+    console.log(`  warmup /api/health → ${res.status} in ${ms}ms`);
+    return true;
+  } catch (err) {
+    console.error(
+      `  warmup failed: ${err instanceof Error ? err.message : err}`,
+    );
+    return false;
+  }
+}
+
 async function main() {
   console.log(`smoke: ${ORIGIN}`);
 
   // Absorb a cold start before timing anything, and fail fast if the origin
   // itself is unreachable.
-  try {
-    const { res, ms } = await fetchJson("/api/health", WARMUP_TIMEOUT_MS);
-    console.log(`  warmup /api/health → ${res.status} in ${ms}ms`);
-  } catch (err) {
-    console.error(
-      `  warmup failed: ${err instanceof Error ? err.message : err}`,
-    );
+  if (!(await warmup())) {
     process.exitCode = 1;
     return;
   }
