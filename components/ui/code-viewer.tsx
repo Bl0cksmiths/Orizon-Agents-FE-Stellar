@@ -63,9 +63,7 @@ export function grammarFor(language: string | null | undefined): string {
   if (!language) return "text";
   const key = language.trim().toLowerCase();
   // Own keys only: "constructor" must not find Object.prototype's.
-  return Object.prototype.hasOwnProperty.call(LANG_MAP, key)
-    ? LANG_MAP[key]
-    : "text";
+  return Object.hasOwn(LANG_MAP, key) ? LANG_MAP[key] : "text";
 }
 
 /**
