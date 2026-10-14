@@ -887,24 +887,50 @@ export function ExecutionPlan({
           </div>
         )}
 
-        {/* A confirmed authorize under escrow v2 is a transfer: the cap left
-            the wallet for the escrow contract. The card says so with the
-            figure signed and the contract it went to — only once both are
-            known, since a guessed destination would be a false receipt. Under
-            any other escrow nothing was sent, so no "sent" row is drawn. */}
-        <TxStatus
+        <AuthorizeStatus
           state={txState}
-          hash={authorizeHash ?? undefined}
-          amount={authorizeHash && generation === "v2" ? capText : undefined}
-          destination={
-            generation === "v2"
-              ? network?.contracts.payment_escrow || undefined
-              : undefined
-          }
+          hash={authorizeHash}
+          generation={generation}
+          amount={capText}
+          escrowId={network?.contracts.payment_escrow}
           error={friendlyError}
         />
       </Card>
     </m.div>
+  );
+}
+
+/**
+ * The authorize transaction's status. A confirmed authorize under escrow v2
+ * is a transfer: the cap left the wallet for the escrow contract. The card
+ * says so with the figure signed and the contract it went to — only once both
+ * are known, since a guessed destination would be a false receipt. Under any
+ * other escrow nothing was sent, so no "sent" row is drawn.
+ */
+function AuthorizeStatus({
+  state,
+  hash,
+  generation,
+  amount,
+  escrowId,
+  error,
+}: {
+  state: TxState;
+  hash: string | null;
+  generation: EscrowGeneration;
+  amount: string;
+  escrowId: string | undefined;
+  error: FriendlyError | null;
+}) {
+  const v2 = generation === "v2";
+  return (
+    <TxStatus
+      state={state}
+      hash={hash ?? undefined}
+      amount={hash && v2 ? amount : undefined}
+      destination={v2 ? escrowId || undefined : undefined}
+      error={error}
+    />
   );
 }
 
