@@ -1476,6 +1476,52 @@ function bindRoute(
   return undefined;
 }
 
+/**
+ * The GET routes that name an agent, a task or an id in their path. Undefined
+ * for any other path.
+ */
+function readByIdRoute(
+  route: Route,
+  pathname: string,
+  options: MockApiOptions,
+): Promise<void> | undefined {
+  const settlementFor = SETTLEMENT_RE.exec(pathname);
+  if (settlementFor) {
+    const agentId = decodeURIComponent(settlementFor[1]);
+    return json(
+      route,
+      agentId === mockBindAgentId
+        ? mockSettlementSelfPaid
+        : emptySettlement(agentId),
+    );
+  }
+  if (pathname.startsWith("/api/stellar/agent-id-available/")) {
+    return json(route, { available: true });
+  }
+  if (ARTIFACT_RE.test(pathname)) {
+    return json(route, options.artifact ?? mockSettledNoArtifact);
+  }
+  const taskFor = TASK_RE.exec(pathname);
+  if (taskFor) {
+    // A finished run with no seal field, as a backend from before it
+    // answers; `task` adds one (or anything else) for a spec that needs it.
+    return json(route, {
+      id: decodeURIComponent(taskFor[1]),
+      intent: "e2e task",
+      agents: 1,
+      spent: 0.01,
+      status: "complete",
+      started: "just now",
+      ...options.task,
+    });
+  }
+  const readinessFor = READINESS_RE.exec(pathname);
+  if (readinessFor) {
+    return json(route, mockReadiness(decodeURIComponent(readinessFor[1])));
+  }
+  return undefined;
+}
+
 export async function mockApi(
   page: Page,
   options: MockApiOptions = {},
@@ -1494,42 +1540,9 @@ export async function mockApi(
     if (method === "POST" && pathname === "/api/orchestrator/decompose") {
       return json(route, options.plan ?? mockPlan);
     }
-    const settlementFor = SETTLEMENT_RE.exec(pathname);
-    if (method === "GET" && settlementFor) {
-      const agentId = decodeURIComponent(settlementFor[1]);
-      return json(
-        route,
-        agentId === mockBindAgentId
-          ? mockSettlementSelfPaid
-          : emptySettlement(agentId),
-      );
-    }
-    if (
-      method === "GET" &&
-      pathname.startsWith("/api/stellar/agent-id-available/")
-    ) {
-      return json(route, { available: true });
-    }
-    if (method === "GET" && ARTIFACT_RE.test(pathname)) {
-      return json(route, options.artifact ?? mockSettledNoArtifact);
-    }
-    const taskFor = TASK_RE.exec(pathname);
-    if (method === "GET" && taskFor) {
-      // A finished run with no seal field, as a backend from before it
-      // answers; `task` adds one (or anything else) for a spec that needs it.
-      return json(route, {
-        id: decodeURIComponent(taskFor[1]),
-        intent: "e2e task",
-        agents: 1,
-        spent: 0.01,
-        status: "complete",
-        started: "just now",
-        ...options.task,
-      });
-    }
-    const readinessFor = READINESS_RE.exec(pathname);
-    if (method === "GET" && readinessFor) {
-      return json(route, mockReadiness(decodeURIComponent(readinessFor[1])));
+    if (method === "GET") {
+      const read = readByIdRoute(route, pathname, options);
+      if (read) return read;
     }
     // Network meta, read by the top bar on every console page. By default it
     // is NOT known — a spec that needs the asset or contract ids serves them
