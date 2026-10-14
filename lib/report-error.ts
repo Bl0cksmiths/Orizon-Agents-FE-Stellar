@@ -18,7 +18,11 @@ export type ErrorReport = {
 const MESSAGE_MAX = 120;
 const ROUTE_MAX = 100;
 
-const REDACTIONS: ReadonlyArray<[RegExp, string]> = [
+/** What a match becomes: a replacement pattern, or the match's rewrite. */
+type Replacement =
+  string | ((match: string, ...groups: (string | undefined)[]) => string);
+
+const REDACTIONS: ReadonlyArray<[RegExp, Replacement]> = [
   // A URL keeps its path; its query and fragment can carry task ids and read
   // tokens. React's decoder link loses only its `?invariant=`, and the error
   // number stays in the message itself.
@@ -29,14 +33,25 @@ const REDACTIONS: ReadonlyArray<[RegExp, string]> = [
   // Stellar accounts and secret seeds (StrKey: a version letter, 55 base32
   // characters), and muxed accounts.
   [/\b[GS][A-Z2-7]{55}\b|\bM[A-Z2-7]{68}\b/g, "[key]"],
-  [/[^\s@()<>'"]+@[^\s@()<>'"]+\.[a-z]{2,}/gi, "[email]"],
+  // An address is redacted; a word with no address after it matches as
+  // itself and is left, so its later characters are never retried as the
+  // start of one.
+  [
+    /[^\s@()<>'"]+(@[^\s@()<>'"]+\.[a-z]{2,})?/gi,
+    (match, address) => (address === undefined ? match : "[email]"),
+  ],
   // Transaction hashes, signatures and other long hex.
   [/\b[0-9a-f]{32,}\b/gi, "[hex]"],
 ];
 
 /** The text with anything that could identify a visitor taken out. */
 export function scrubForTelemetry(text: string): string {
-  return REDACTIONS.reduce((t, [re, by]) => t.replace(re, by), text);
+  return REDACTIONS.reduce(
+    // One call per overload of `replace`: a pattern, or a rewrite.
+    (t, [re, by]) =>
+      typeof by === "string" ? t.replace(re, by) : t.replace(re, by),
+    text,
+  );
 }
 
 /**
