@@ -46,6 +46,17 @@ export function ReconciliationTable({
       figure(v)
     );
 
+  let balanceSentence: string;
+  if (recon.balanced === true) {
+    balanceSentence = "Charged plus returned equals planned, to the stroop.";
+  } else if (recon.held) {
+    balanceSentence =
+      "Nothing was charged. The rest is still held in escrow until the platform returns it or the payer reclaims it after expiry.";
+  } else {
+    balanceSentence =
+      "Charges and returns are shown once the settlement confirms.";
+  }
+
   const num = "px-2 py-2 text-right font-mono tabular-nums";
   return (
     <section
@@ -147,11 +158,7 @@ export function ReconciliationTable({
           {recon.allReturnedBuiltIn
             ? `Returned to you: built-in agents aren't paid on ${NETWORK_LABEL} yet, so the whole authorization came back. `
             : null}
-          {recon.balanced === true
-            ? "Charged plus returned equals planned, to the stroop."
-            : recon.held
-              ? "Nothing was charged. The rest is still held in escrow until the platform returns it or the payer reclaims it after expiry."
-              : "Charges and returns are shown once the settlement confirms."}
+          {balanceSentence}
           {recon.headroom !== null && recon.headroom > 0n
             ? ` The escrow also returned ${amount(recon.headroom)} authorized above the plan's price.`
             : null}
