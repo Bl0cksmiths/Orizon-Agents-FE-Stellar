@@ -2019,6 +2019,87 @@ export async function mockDisputeApi(
     return json(route, body);
   };
 
+  /** `POST /api/disputes`: refused as the backend refuses it, or recorded
+   *  and returned. A step the settlement does not have falls through. */
+  const openDispute = async (route: Route): Promise<void> => {
+    const request = route.request();
+    const body = request.postDataJSON() as OpenDisputeReq;
+    const step = options.settlement?.steps.find(
+      (s) => s.step_index === body.step_index,
+    );
+    if (!step || !options.settlement) return route.fallback();
+    const opened = await nowS();
+    // The window is judged at open, on the server's clock, as
+    // `dispute_svc.open_dispute` judges it — so a spec that moves that
+    // clock past the close gets the refusal the real backend would give.
+    if (opened >= options.settlement.window_closes_at) {
+      return route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "dispute_window_closed",
+          error: {
+            code: "dispute_window_closed",
+            message: "the dispute window for this workflow has closed",
+            request_id: "e2e0000000000409",
+          },
+        }),
+      });
+    }
+    if (options.open === "invalid") {
+      // `validation_exception_handler`: FastAPI's own 422 body under
+      // `detail`, plus the envelope's code.
+      return route.fulfill({
+        status: 422,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: [
+            {
+              type: "string_too_long",
+              loc: ["body", "reason"],
+              msg: mockReasonTooLongMessage,
+              input: body.reason,
+              ctx: { max_length: 500 },
+            },
+          ],
+          error: {
+            code: "validation_error",
+            message: "request validation failed",
+            request_id: "e2e0000000000422",
+          },
+        }),
+      });
+    }
+    if (options.open === "duplicate") {
+      const existing = mockDispute(step, {
+        openedAtS: opened - 600,
+        reason: "raised from another tab",
+        payer: body.payer,
+      });
+      recorded.push(existing);
+      return route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "duplicate_dispute",
+          error: {
+            code: "duplicate_dispute",
+            message: "this step is already disputed",
+            request_id: "e2e0000000000405",
+          },
+          dispute: existing,
+        }),
+      });
+    }
+    const created = mockDispute(step, {
+      openedAtS: opened,
+      reason: body.reason,
+      payer: body.payer,
+    });
+    recorded.push(created);
+    return json(route, created);
+  };
+
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
@@ -2044,81 +2125,7 @@ export async function mockDisputeApi(
     }
 
     if (method === "POST" && pathname === "/api/disputes") {
-      const body = request.postDataJSON() as OpenDisputeReq;
-      const step = options.settlement?.steps.find(
-        (s) => s.step_index === body.step_index,
-      );
-      if (!step || !options.settlement) return route.fallback();
-      const opened = await nowS();
-      // The window is judged at open, on the server's clock, as
-      // `dispute_svc.open_dispute` judges it — so a spec that moves that
-      // clock past the close gets the refusal the real backend would give.
-      if (opened >= options.settlement.window_closes_at) {
-        return route.fulfill({
-          status: 409,
-          contentType: "application/json",
-          body: JSON.stringify({
-            detail: "dispute_window_closed",
-            error: {
-              code: "dispute_window_closed",
-              message: "the dispute window for this workflow has closed",
-              request_id: "e2e0000000000409",
-            },
-          }),
-        });
-      }
-      if (options.open === "invalid") {
-        // `validation_exception_handler`: FastAPI's own 422 body under
-        // `detail`, plus the envelope's code.
-        return route.fulfill({
-          status: 422,
-          contentType: "application/json",
-          body: JSON.stringify({
-            detail: [
-              {
-                type: "string_too_long",
-                loc: ["body", "reason"],
-                msg: mockReasonTooLongMessage,
-                input: body.reason,
-                ctx: { max_length: 500 },
-              },
-            ],
-            error: {
-              code: "validation_error",
-              message: "request validation failed",
-              request_id: "e2e0000000000422",
-            },
-          }),
-        });
-      }
-      if (options.open === "duplicate") {
-        const existing = mockDispute(step, {
-          openedAtS: opened - 600,
-          reason: "raised from another tab",
-          payer: body.payer,
-        });
-        recorded.push(existing);
-        return route.fulfill({
-          status: 409,
-          contentType: "application/json",
-          body: JSON.stringify({
-            detail: "duplicate_dispute",
-            error: {
-              code: "duplicate_dispute",
-              message: "this step is already disputed",
-              request_id: "e2e0000000000405",
-            },
-            dispute: existing,
-          }),
-        });
-      }
-      const created = mockDispute(step, {
-        openedAtS: opened,
-        reason: body.reason,
-        payer: body.payer,
-      });
-      recorded.push(created);
-      return json(route, created);
+      return openDispute(route);
     }
 
     return route.fallback();
