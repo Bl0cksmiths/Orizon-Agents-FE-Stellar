@@ -32,12 +32,10 @@ export function ReconciliationTable({
   // What a cell says when the record does not establish a figure: a price
   // too old to have been kept, a return a failed settlement still holds, or
   // anything else not confirmed yet.
-  const unknown = (column: "planned" | "charged" | "returned") =>
-    column === "planned"
-      ? "not recorded"
-      : recon.held && column === "returned"
-        ? "held"
-        : "pending";
+  const unknown = (column: "planned" | "charged" | "returned") => {
+    if (column === "planned") return "not recorded";
+    return recon.held && column === "returned" ? "held" : "pending";
+  };
   const cell = (
     v: bigint | null,
     column: "planned" | "charged" | "returned",
