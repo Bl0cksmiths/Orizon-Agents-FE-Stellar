@@ -43,7 +43,9 @@ const EMPTY =
  * nothing settled says so in words rather than as a flat line that reads
  * like a broken chart.
  */
-export function SettledChart({ series }: { series: Measured<SettledDay[]> }) {
+export function SettledChart({
+  series,
+}: Readonly<{ series: Measured<SettledDay[]> }>) {
   if (!series.ok) {
     return (
       <div className={EMPTY}>
