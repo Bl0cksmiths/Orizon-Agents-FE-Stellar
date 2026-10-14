@@ -106,6 +106,25 @@ describe("findChapterAnchor", () => {
     });
   });
 
+  it("drops each tag from the heading's words, but not a bare <>", () => {
+    expect(
+      findChapterAnchor(
+        '<h1 id="six">§6 &lt;&gt; <<em>Ops</em> <> a<b</h1>',
+        6,
+      ),
+    ).toEqual({ id: "six", title: "§6 <> Ops <> a<b" });
+  });
+
+  it("reads a heading full of unclosed '<' in linear time", () => {
+    const started = performance.now();
+    const lt = "<".repeat(100_000);
+    expect(findChapterAnchor(`<h1 id="six">§6 ${lt}</h1>`, 6)).toEqual({
+      id: "six",
+      title: `§6 ${lt}`,
+    });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
   it("is null when no heading starts with the chapter", () => {
     expect(findChapterAnchor(html, 7)).toBeNull();
     expect(
