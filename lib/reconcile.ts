@@ -162,6 +162,27 @@ function stepMoney(
   }
 }
 
+/**
+ * What the escrow returned beyond the steps' own returns: checked against the
+ * authorization's reported surplus, and shown as the headroom when the record
+ * reports none. A failed settlement returned nothing, so nothing is checked.
+ */
+function checkReturnBeyondSteps(
+  phase: SettlementState,
+  returned: bigint | null,
+  reportedReturned: bigint | null,
+  surplus: bigint | null,
+): { issue: string | null; headroom: bigint | null } {
+  if (returned === null || reportedReturned === null || phase === "failed")
+    return { issue: null, headroom: surplus };
+  const beyond = reportedReturned - returned;
+  let issue: string | null = null;
+  if (beyond < 0n) issue = "the escrow returned less than the steps' returns";
+  else if (surplus !== null && beyond !== surplus)
+    issue = "the return beyond the steps is not the authorization's surplus";
+  return { issue, headroom: surplus ?? (beyond >= 0n ? beyond : null) };
+}
+
 export function reconcileSettlement(
   settlement: SettlementView,
   state: SettlementState | null | undefined,
@@ -221,17 +242,14 @@ export function reconcileSettlement(
     if (charged !== reportedCharged)
       issues.push("the steps' charges do not sum to the settlement's total");
   }
-  let headroom: bigint | null = surplus;
-  if (returned !== null && reportedReturned !== null && phase !== "failed") {
-    const beyond = reportedReturned - returned;
-    if (beyond < 0n)
-      issues.push("the escrow returned less than the steps' returns");
-    else if (surplus !== null && beyond !== surplus)
-      issues.push(
-        "the return beyond the steps is not the authorization's surplus",
-      );
-    headroom = headroom ?? (beyond >= 0n ? beyond : null);
-  }
+  const beyondCheck = checkReturnBeyondSteps(
+    phase,
+    returned,
+    reportedReturned,
+    surplus,
+  );
+  if (beyondCheck.issue !== null) issues.push(beyondCheck.issue);
+  const headroom = beyondCheck.headroom;
   if (
     authorized !== null &&
     reportedCharged !== null &&
