@@ -303,7 +303,7 @@ export async function readCompleteStats(
   if (typeof registry === "string") return partial(registry);
 
   // The overview counted this same registry: its owner figures stand.
-  if (overview && overview.agents.registered === registry.count) {
+  if (overview?.agents.registered === registry.count) {
     const fromIt = fromOverview(overview, `overview, ${registry.via}`);
     if (fromIt.ok) return fromIt;
   }
