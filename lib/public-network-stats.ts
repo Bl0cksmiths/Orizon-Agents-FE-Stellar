@@ -251,8 +251,8 @@ async function registryOrWhy(
 /** Whether there is an overview, and it counted the external agents and
  *  their wallets. */
 function overviewCountsOwners(overview: OverviewV2 | null): boolean {
+  if (overview === null) return false;
   return (
-    overview !== null &&
     overview.agents.external !== null &&
     overview.operators.external_wallets !== null
   );
