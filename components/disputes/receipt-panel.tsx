@@ -144,7 +144,7 @@ function NotSettled({
   generation,
   seal,
   sealKind,
-}: {
+}: Readonly<{
   /** A seal on a run with no settlement — a delivery-only one, attesting
    *  work that was delivered with nobody to pay. */
   seal?: SealState | null;
@@ -155,7 +155,7 @@ function NotSettled({
   settlementState: SettlementState | null;
   /** The panel stopped re-reading an unconfirmed settlement. */
   stoppedChecking: boolean;
-}) {
+}>) {
   const said = running ? null : settlementState;
   const loud = said === "failed" || said === "unconfirmed";
   return (
