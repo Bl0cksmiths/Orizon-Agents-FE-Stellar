@@ -310,6 +310,39 @@ function sourceOfEnvelope(envelopeXdr, sdk) {
 }
 
 /**
+ * The transaction as Horizon testnet knows it, or null on a 404. Any other
+ * answer is a NetworkError: Horizon did not say either way.
+ *
+ * @param {Client} client
+ * @param {string} hash
+ * @param {Endpoints} endpoints
+ * @returns {Promise<ChainTx | null>}
+ */
+async function findOnHorizon(client, hash, endpoints) {
+  const answer = await client.request(
+    `${endpoints.horizon}/transactions/${hash}`,
+  );
+  if (answer.status === 200) {
+    const tx = parseJson(answer.text) ?? {};
+    return {
+      hash,
+      ledger: typeof tx.ledger === "number" ? tx.ledger : null,
+      created_at: typeof tx.created_at === "string" ? tx.created_at : null,
+      source_account:
+        typeof tx.source_account === "string" ? tx.source_account : null,
+      successful: tx.successful === true,
+      via: "horizon",
+    };
+  }
+  if (answer.status !== 404) {
+    throw new NetworkError(
+      `Horizon answered HTTP ${answer.status} for ${hash}`,
+    );
+  }
+  return null;
+}
+
+/**
  * The transaction as testnet knows it: Horizon first, then RPC. null when
  * neither has it.
  *
@@ -322,26 +355,8 @@ function sourceOfEnvelope(envelopeXdr, sdk) {
  */
 async function findOnTestnet(client, hash, endpoints, reachable, sdk) {
   if (reachable.horizon) {
-    const answer = await client.request(
-      `${endpoints.horizon}/transactions/${hash}`,
-    );
-    if (answer.status === 200) {
-      const tx = parseJson(answer.text) ?? {};
-      return {
-        hash,
-        ledger: typeof tx.ledger === "number" ? tx.ledger : null,
-        created_at: typeof tx.created_at === "string" ? tx.created_at : null,
-        source_account:
-          typeof tx.source_account === "string" ? tx.source_account : null,
-        successful: tx.successful === true,
-        via: "horizon",
-      };
-    }
-    if (answer.status !== 404) {
-      throw new NetworkError(
-        `Horizon answered HTTP ${answer.status} for ${hash}`,
-      );
-    }
+    const found = await findOnHorizon(client, hash, endpoints);
+    if (found) return found;
   }
   if (!reachable.rpc) {
     throw new NetworkError(
