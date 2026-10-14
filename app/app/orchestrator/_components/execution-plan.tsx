@@ -166,6 +166,22 @@ function confirmedAuthId(
 }
 
 /**
+ * How a failed authorization is told to the buyer. The custody reading of a
+ * refusal ("could not move the maximum into escrow") is v2's; anything else
+ * gets the shared wallet wording. A price the platform no longer holds for
+ * this plan is said as that, whichever escrow: the way on is a fresh plan.
+ */
+function authorizeFailure(
+  e: unknown,
+  generation: EscrowGeneration,
+): FriendlyError {
+  return (
+    authorizeAmountMismatch(e) ??
+    (generation === "v2" ? classifyAuthorizeError(e) : classifyError(e))
+  );
+}
+
+/**
  * The decomposed-plan card: step list, totals, and the execute flows
  * (simulate / fiat funding / on-chain authorize). Mirrors the FiatFund
  * pattern — self-contained state and actions, fed by the plan and by its own
@@ -385,14 +401,7 @@ export function ExecutionPlan({
         setStep("");
         return;
       }
-      // The custody reading of a refusal ("could not move the maximum into
-      // escrow") is v2's; anything else gets the shared wallet wording.
-      // A price the platform no longer holds for this plan is said as that,
-      // whichever escrow: the way on is a fresh plan.
-      const friendly =
-        authorizeAmountMismatch(e) ??
-        (generation === "v2" ? classifyAuthorizeError(e) : classifyError(e));
-      setFriendlyError(friendly);
+      setFriendlyError(authorizeFailure(e, generation));
       setTxState("failed");
       setStep("");
       // Swallowed, not re-thrown: the failure renders once, in the TxStatus
