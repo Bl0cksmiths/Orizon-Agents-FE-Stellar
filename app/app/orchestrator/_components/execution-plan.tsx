@@ -731,32 +731,12 @@ export function ExecutionPlan({
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan mb-1">
                   ▸ ready to authorize on-chain
                 </div>
-                {empty ? (
-                  <div className="text-sm">{EMPTY_PLAN}</div>
-                ) : free ? (
-                  <div className="text-sm">{FREE_PLAN}</div>
-                ) : generation === "v2" ? (
-                  // Escrow v2 takes custody at authorize: this signature moves
-                  // the money now, not at settlement. A buyer who reads "up
-                  // to" as a cap on a later charge has been told v1's story.
-                  <div className="max-w-xl text-sm leading-relaxed">
-                    Freighter will prompt for{" "}
-                    <b className="text-text">one signature</b> that moves up to{" "}
-                    <b className="text-text">{capText}</b> from your wallet into
-                    escrow now. Delivered steps are paid from it, and the rest
-                    comes back to you when the run settles.
-                  </div>
-                ) : (
-                  // v1 moves nothing at signing, and says so; until the
-                  // escrow is known, the sentence claims neither.
-                  <div className="max-w-xl text-sm leading-relaxed">
-                    Freighter will prompt for{" "}
-                    <b className="text-text">one signature</b> authorizing up to{" "}
-                    <b className="text-text">{capText}</b>.
-                    {generation === "v1" &&
-                      ` It records a spending allowance on the escrow contract; no funds move when you sign. ${V1_CANNOT_SETTLE}`}
-                  </div>
-                )}
+                <SignatureSentence
+                  empty={empty}
+                  free={free}
+                  generation={generation}
+                  capText={capText}
+                />
               </div>
               {/* flex-wrap: three buttons are wider than a 390px card, and the
                   card's clip-path cuts off whatever overflows it — at phone
@@ -916,6 +896,45 @@ export function ExecutionPlan({
         />
       </Card>
     </m.div>
+  );
+}
+
+/** What the pay panel says the one signature does, with a wallet connected:
+ *  nothing to sign for an empty or free plan, otherwise the escrow's story. */
+function SignatureSentence({
+  empty,
+  free,
+  generation,
+  capText,
+}: {
+  empty: boolean;
+  free: boolean;
+  generation: EscrowGeneration;
+  capText: string;
+}) {
+  if (empty) return <div className="text-sm">{EMPTY_PLAN}</div>;
+  if (free) return <div className="text-sm">{FREE_PLAN}</div>;
+  if (generation === "v2")
+    return (
+      // Escrow v2 takes custody at authorize: this signature moves the money
+      // now, not at settlement. A buyer who reads "up to" as a cap on a later
+      // charge has been told v1's story.
+      <div className="max-w-xl text-sm leading-relaxed">
+        Freighter will prompt for <b className="text-text">one signature</b>{" "}
+        that moves up to <b className="text-text">{capText}</b> from your wallet
+        into escrow now. Delivered steps are paid from it, and the rest comes
+        back to you when the run settles.
+      </div>
+    );
+  return (
+    // v1 moves nothing at signing, and says so; until the escrow is known,
+    // the sentence claims neither.
+    <div className="max-w-xl text-sm leading-relaxed">
+      Freighter will prompt for <b className="text-text">one signature</b>{" "}
+      authorizing up to <b className="text-text">{capText}</b>.
+      {generation === "v1" &&
+        ` It records a spending allowance on the escrow contract; no funds move when you sign. ${V1_CANNOT_SETTLE}`}
+    </div>
   );
 }
 
