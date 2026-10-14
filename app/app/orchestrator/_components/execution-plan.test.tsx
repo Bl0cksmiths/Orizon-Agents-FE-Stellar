@@ -845,7 +845,7 @@ describe("ExecutionPlan · the unit on the amounts", () => {
   it("labels the total and the authorize cap with the network's asset", async () => {
     const { container } = render(<ExecutionPlan plan={plan()} />);
     // The total, the step's own price and the cap: one plan, one figure.
-    expect((await screen.findAllByText("0.123 XLM")).length).toBe(3);
+    expect(await screen.findAllByText("0.123 XLM")).toHaveLength(3);
     const cap = Array.from(container.querySelectorAll("b")).find((b) =>
       b.textContent?.includes("0.123"),
     );
