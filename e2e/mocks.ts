@@ -1390,6 +1390,71 @@ export type MockApiOptions = {
   task?: Partial<import("../lib/types").Task>;
 };
 
+/**
+ * The endpoint-binding routes: the preflight, the challenge, the bind itself
+ * and the agent's current binding. Undefined for any other request.
+ */
+function bindRoute(
+  route: Route,
+  method: string,
+  pathname: string,
+  options: MockApiOptions,
+): Promise<void> | undefined {
+  // Endpoint preflight — checked before the `/agents/{id}/…` patterns below,
+  // which it deliberately does not match.
+  if (method === "GET" && pathname === "/api/agents/bind/endpoint-check") {
+    return json(route, { allowed: true, rule: null, message: null });
+  }
+  const challengeFor = BIND_CHALLENGE_RE.exec(pathname);
+  if (method === "POST" && challengeFor) {
+    const agentId = decodeURIComponent(challengeFor[1]);
+    const body = route.request().postDataJSON() as { endpoint_url: string };
+    return json(route, {
+      agent_id: agentId,
+      nonce: bindNonce,
+      // Composed exactly as the backend does, since the client re-checks
+      // that the challenge addresses this agent before it signs anything.
+      message: `orizon-bind:v1:${agentId}:${body.endpoint_url}:${bindNonce}`,
+      expires_at: new Date(Date.now() + 120_000).toISOString(),
+      ttl_seconds: 120,
+    });
+  }
+  const bindFor = BIND_RE.exec(pathname);
+  if (method === "POST" && bindFor) {
+    const body = route.request().postDataJSON() as { endpoint_url: string };
+    return json(route, {
+      agent_id: decodeURIComponent(bindFor[1]),
+      endpoint_url: body.endpoint_url,
+      owner: mockWalletAddress,
+      bound_at: new Date().toISOString(),
+      replaced: false,
+    });
+  }
+  if (method === "GET" && BINDING_RE.test(pathname)) {
+    // An agent that already has an endpoint, when a spec asked for one. This
+    // is what puts the bind page on its replace path.
+    if (options.binding) {
+      return json(route, options.binding);
+    }
+    // The ordinary starting state: registered, never bound. A 404 carrying
+    // `binding_not_found` is how the backend says so, and
+    // `getAgentBindingOrNull` turns it into a plain null.
+    return route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: "Not Found",
+        error: {
+          code: "binding_not_found",
+          message: "no endpoint bound for this agent",
+          request_id: "e2e0000000000001",
+        },
+      }),
+    });
+  }
+  return undefined;
+}
+
 export async function mockApi(
   page: Page,
   options: MockApiOptions = {},
@@ -1398,58 +1463,8 @@ export async function mockApi(
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
 
-    // Endpoint preflight — checked before the `/agents/{id}/…` patterns below,
-    // which it deliberately does not match.
-    if (method === "GET" && pathname === "/api/agents/bind/endpoint-check") {
-      return json(route, { allowed: true, rule: null, message: null });
-    }
-    const challengeFor = BIND_CHALLENGE_RE.exec(pathname);
-    if (method === "POST" && challengeFor) {
-      const agentId = decodeURIComponent(challengeFor[1]);
-      const body = route.request().postDataJSON() as { endpoint_url: string };
-      return json(route, {
-        agent_id: agentId,
-        nonce: bindNonce,
-        // Composed exactly as the backend does, since the client re-checks
-        // that the challenge addresses this agent before it signs anything.
-        message: `orizon-bind:v1:${agentId}:${body.endpoint_url}:${bindNonce}`,
-        expires_at: new Date(Date.now() + 120_000).toISOString(),
-        ttl_seconds: 120,
-      });
-    }
-    const bindFor = BIND_RE.exec(pathname);
-    if (method === "POST" && bindFor) {
-      const body = route.request().postDataJSON() as { endpoint_url: string };
-      return json(route, {
-        agent_id: decodeURIComponent(bindFor[1]),
-        endpoint_url: body.endpoint_url,
-        owner: mockWalletAddress,
-        bound_at: new Date().toISOString(),
-        replaced: false,
-      });
-    }
-    if (method === "GET" && BINDING_RE.test(pathname)) {
-      // An agent that already has an endpoint, when a spec asked for one. This
-      // is what puts the bind page on its replace path.
-      if (options.binding) {
-        return json(route, options.binding);
-      }
-      // The ordinary starting state: registered, never bound. A 404 carrying
-      // `binding_not_found` is how the backend says so, and
-      // `getAgentBindingOrNull` turns it into a plain null.
-      return route.fulfill({
-        status: 404,
-        contentType: "application/json",
-        body: JSON.stringify({
-          detail: "Not Found",
-          error: {
-            code: "binding_not_found",
-            message: "no endpoint bound for this agent",
-            request_id: "e2e0000000000001",
-          },
-        }),
-      });
-    }
+    const bound = bindRoute(route, method, pathname, options);
+    if (bound) return bound;
 
     if (method === "GET" && pathname === "/api/metrics/overview") {
       return json(route, options.overview ?? mockLegacyOverview);
