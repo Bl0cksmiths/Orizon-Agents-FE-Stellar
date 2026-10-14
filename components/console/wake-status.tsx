@@ -86,13 +86,13 @@ export function WakeStatus({
   active,
   what,
   className,
-}: {
+}: Readonly<{
   /** True while the panel's first read is out (or retrying a wake). */
   active: boolean;
   /** What is loading, for the first phase: "agents", "network metrics". */
   what: string;
   className?: string;
-}) {
+}>) {
   const elapsed = useElapsed(active);
   if (!active) return null;
   const phase = wakePhase(elapsed);
