@@ -183,6 +183,31 @@ function checkReturnBeyondSteps(
   return { issue, headroom: surplus ?? (beyond >= 0n ? beyond : null) };
 }
 
+/** The checks against what the authorization moved into escrow: a confirmed
+ *  settlement must charge and return all of it, and it must cover the plan. */
+function authorizationIssues(
+  phase: SettlementState,
+  authorized: bigint | null,
+  planned: bigint | null,
+  reportedCharged: bigint | null,
+  reportedReturned: bigint | null,
+): string[] {
+  const issues: string[] = [];
+  if (
+    authorized !== null &&
+    reportedCharged !== null &&
+    reportedReturned !== null &&
+    phase === "settled" &&
+    authorized !== reportedCharged + reportedReturned
+  ) {
+    issues.push("charged + returned ≠ authorized");
+  }
+  if (authorized !== null && planned !== null && authorized < planned) {
+    issues.push("the authorization is smaller than the plan");
+  }
+  return issues;
+}
+
 export function reconcileSettlement(
   settlement: SettlementView,
   state: SettlementState | null | undefined,
@@ -250,18 +275,15 @@ export function reconcileSettlement(
   );
   if (beyondCheck.issue !== null) issues.push(beyondCheck.issue);
   const headroom = beyondCheck.headroom;
-  if (
-    authorized !== null &&
-    reportedCharged !== null &&
-    reportedReturned !== null &&
-    phase === "settled" &&
-    authorized !== reportedCharged + reportedReturned
-  ) {
-    issues.push("charged + returned ≠ authorized");
-  }
-  if (authorized !== null && planned !== null && authorized < planned) {
-    issues.push("the authorization is smaller than the plan");
-  }
+  issues.push(
+    ...authorizationIssues(
+      phase,
+      authorized,
+      planned,
+      reportedCharged,
+      reportedReturned,
+    ),
+  );
 
   const known = planned !== null && charged !== null && returned !== null;
   const exact =
