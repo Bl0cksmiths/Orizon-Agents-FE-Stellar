@@ -55,6 +55,31 @@ function ThroughputBody({
   );
 }
 
+/** The network's composition, or why it is not drawn yet. */
+function CompositionBody({
+  stats,
+  failed,
+}: {
+  stats: NetworkStats | null;
+  failed: boolean;
+}) {
+  if (stats) return <Composition stats={stats} />;
+  if (failed)
+    return (
+      <p className="font-mono text-[11px] text-muted">
+        composition unavailable — backend unreachable
+      </p>
+    );
+  return (
+    <div className="space-y-3">
+      <LoadingStatus label="Loading network composition…" />
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-4 w-full" />
+      ))}
+    </div>
+  );
+}
+
 export default function OverviewPage() {
   // Two panels, two reads, two failure states: the figures stay up when the
   // task list fails and the reverse. They used to share one Promise.all, so
@@ -164,20 +189,7 @@ export default function OverviewPage() {
           <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted mb-5">
             registered agents by source
           </p>
-          {stats ? (
-            <Composition stats={stats} />
-          ) : statsError ? (
-            <p className="font-mono text-[11px] text-muted">
-              composition unavailable — backend unreachable
-            </p>
-          ) : (
-            <div className="space-y-3">
-              <LoadingStatus label="Loading network composition…" />
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-full" />
-              ))}
-            </div>
-          )}
+          <CompositionBody stats={stats} failed={Boolean(statsError)} />
         </Card>
       </div>
 
