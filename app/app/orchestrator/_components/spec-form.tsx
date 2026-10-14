@@ -45,13 +45,13 @@ export function SpecForm({
   onSubmit,
   onCancel,
   headingId,
-}: {
+}: Readonly<{
   spec: PlanSpec;
   busy: boolean;
   onSubmit: (spec: PlanSpec) => void;
   onCancel: () => void;
   headingId: string;
-}) {
+}>) {
   const uid = useId();
   const [draft, setDraft] = useState<SpecDraft>(() => specToDraft(spec));
   const [errors, setErrors] = useState<Partial<Record<SpecField, string>>>({});
