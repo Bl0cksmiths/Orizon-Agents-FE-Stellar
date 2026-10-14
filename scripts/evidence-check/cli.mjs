@@ -49,6 +49,54 @@ function integer(value, flag, min) {
 }
 
 /**
+ * The client options the flags set, leaving out any flag not given so the
+ * client keeps its default. Throws on a value that is not a valid integer.
+ *
+ * @param {{ retries?: string, "timeout-ms"?: string, "interval-ms"?: string }} args
+ * @returns {{ timeoutMs?: number, minIntervalMs?: number, retryDelaysMs?: number[] }}
+ */
+function clientOptionsOf(args) {
+  const retries = integer(args.retries, "--retries", 0);
+  const clientOptions = {
+    timeoutMs: integer(args["timeout-ms"], "--timeout-ms", 1),
+    minIntervalMs: integer(args["interval-ms"], "--interval-ms", 0),
+    retryDelaysMs:
+      retries === undefined
+        ? undefined
+        : Array.from({ length: retries }, (_, i) => 1_000 * 3 ** i),
+  };
+  for (const key of /** @type {const} */ ([
+    "timeoutMs",
+    "minIntervalMs",
+    "retryDelaysMs",
+  ])) {
+    if (clientOptions[key] === undefined) delete clientOptions[key];
+  }
+  return clientOptions;
+}
+
+/**
+ * The endpoint overrides the flags give, each without a trailing slash.
+ *
+ * @param {Record<string, string | boolean | undefined>} args
+ * @returns {Record<string, string>}
+ */
+function endpointsOf(args) {
+  /** @type {Record<string, string>} */
+  const endpoints = {};
+  for (const [flag, key] of [
+    ["horizon", "horizon"],
+    ["rpc", "rpc"],
+    ["mainnet-horizon", "mainnetHorizon"],
+    ["oembed", "oembed"],
+  ]) {
+    const value = /** @type {string | undefined} */ (args[flag]);
+    if (value !== undefined) endpoints[key] = value.replace(/\/+$/, "");
+  }
+  return endpoints;
+}
+
+/**
  * @param {string[]} argv
  * @param {{ log?: (s: string) => void, error?: (s: string) => void, loadValidator?: import("./run.mjs").RunOptions["loadValidator"], importSdk?: import("./run.mjs").RunOptions["importSdk"] }} [io]
  *   output sinks, a validator loader and an SDK importer for tests
@@ -80,22 +128,7 @@ export async function main(argv, io = {}) {
     }));
     if (args.static && args.live)
       throw new Error("choose one of --static and --live");
-    const retries = integer(args.retries, "--retries", 0);
-    clientOptions = {
-      timeoutMs: integer(args["timeout-ms"], "--timeout-ms", 1),
-      minIntervalMs: integer(args["interval-ms"], "--interval-ms", 0),
-      retryDelaysMs:
-        retries === undefined
-          ? undefined
-          : Array.from({ length: retries }, (_, i) => 1_000 * 3 ** i),
-    };
-    for (const key of /** @type {const} */ ([
-      "timeoutMs",
-      "minIntervalMs",
-      "retryDelaysMs",
-    ])) {
-      if (clientOptions[key] === undefined) delete clientOptions[key];
-    }
+    clientOptions = clientOptionsOf(args);
   } catch (err) {
     error(
       `${err instanceof Error ? err.message : err}\nRun with --help for usage.`,
@@ -107,17 +140,7 @@ export async function main(argv, io = {}) {
     return 0;
   }
 
-  /** @type {Record<string, string>} */
-  const endpoints = {};
-  for (const [flag, key] of [
-    ["horizon", "horizon"],
-    ["rpc", "rpc"],
-    ["mainnet-horizon", "mainnetHorizon"],
-    ["oembed", "oembed"],
-  ]) {
-    const value = args[/** @type {"horizon"} */ (flag)];
-    if (value !== undefined) endpoints[key] = value.replace(/\/+$/, "");
-  }
+  const endpoints = endpointsOf(args);
 
   const report = await checkEvidence({
     indexPath: resolve(args.index ?? join(repoRoot, INDEX_PATH)),

@@ -1390,6 +1390,138 @@ export type MockApiOptions = {
   task?: Partial<import("../lib/types").Task>;
 };
 
+/** GET routes answered with one fixture whatever the request, by exact
+ *  path: the option a spec passed, or the default. */
+const FIXED_GETS = new Map<string, (options: MockApiOptions) => unknown>([
+  ["/api/metrics/overview", (o) => o.overview ?? mockLegacyOverview],
+  ["/api/tasks", () => mockTasks],
+  ["/api/agents", (o) => o.agents ?? mockAgents],
+  ["/api/stellar/reputation", (o) => o.reputation ?? mockReputationBatch],
+  ["/api/pdax/environment", () => mockPdaxEnvironment],
+  ["/api/pdax/health", () => mockPdaxHealth],
+  ["/api/pdax/balances", () => mockPdaxBalances],
+  // Both fixtures existed and nothing served them: under the old `{}`
+  // catch-all /app/flow and /app/reputation were only ever swept by axe in
+  // their "malformed response" state.
+  ["/api/flow/default", () => mockFlow],
+  ["/api/stellar/reputation/params", () => mockReputationParams],
+  ["/api/ecosystem/adoption", (o) => o.adoption ?? mockAdoptionZero],
+  // The warmup ping `BackendWarmup` fires on every page. Fire-and-forget,
+  // so any healthy answer will do.
+  ["/api/health", () => ({ status: "ok" })],
+]);
+
+/**
+ * The endpoint-binding routes: the preflight, the challenge, the bind itself
+ * and the agent's current binding. Undefined for any other request.
+ */
+function bindRoute(
+  route: Route,
+  method: string,
+  pathname: string,
+  options: MockApiOptions,
+): Promise<void> | undefined {
+  // Endpoint preflight — checked before the `/agents/{id}/…` patterns below,
+  // which it deliberately does not match.
+  if (method === "GET" && pathname === "/api/agents/bind/endpoint-check") {
+    return json(route, { allowed: true, rule: null, message: null });
+  }
+  const challengeFor = BIND_CHALLENGE_RE.exec(pathname);
+  if (method === "POST" && challengeFor) {
+    const agentId = decodeURIComponent(challengeFor[1]);
+    const body = route.request().postDataJSON() as { endpoint_url: string };
+    return json(route, {
+      agent_id: agentId,
+      nonce: bindNonce,
+      // Composed exactly as the backend does, since the client re-checks
+      // that the challenge addresses this agent before it signs anything.
+      message: `orizon-bind:v1:${agentId}:${body.endpoint_url}:${bindNonce}`,
+      expires_at: new Date(Date.now() + 120_000).toISOString(),
+      ttl_seconds: 120,
+    });
+  }
+  const bindFor = BIND_RE.exec(pathname);
+  if (method === "POST" && bindFor) {
+    const body = route.request().postDataJSON() as { endpoint_url: string };
+    return json(route, {
+      agent_id: decodeURIComponent(bindFor[1]),
+      endpoint_url: body.endpoint_url,
+      owner: mockWalletAddress,
+      bound_at: new Date().toISOString(),
+      replaced: false,
+    });
+  }
+  if (method === "GET" && BINDING_RE.test(pathname)) {
+    // An agent that already has an endpoint, when a spec asked for one. This
+    // is what puts the bind page on its replace path.
+    if (options.binding) {
+      return json(route, options.binding);
+    }
+    // The ordinary starting state: registered, never bound. A 404 carrying
+    // `binding_not_found` is how the backend says so, and
+    // `getAgentBindingOrNull` turns it into a plain null.
+    return route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail: "Not Found",
+        error: {
+          code: "binding_not_found",
+          message: "no endpoint bound for this agent",
+          request_id: "e2e0000000000001",
+        },
+      }),
+    });
+  }
+  return undefined;
+}
+
+/**
+ * The GET routes that name an agent, a task or an id in their path. Undefined
+ * for any other path.
+ */
+function readByIdRoute(
+  route: Route,
+  pathname: string,
+  options: MockApiOptions,
+): Promise<void> | undefined {
+  const settlementFor = SETTLEMENT_RE.exec(pathname);
+  if (settlementFor) {
+    const agentId = decodeURIComponent(settlementFor[1]);
+    return json(
+      route,
+      agentId === mockBindAgentId
+        ? mockSettlementSelfPaid
+        : emptySettlement(agentId),
+    );
+  }
+  if (pathname.startsWith("/api/stellar/agent-id-available/")) {
+    return json(route, { available: true });
+  }
+  if (ARTIFACT_RE.test(pathname)) {
+    return json(route, options.artifact ?? mockSettledNoArtifact);
+  }
+  const taskFor = TASK_RE.exec(pathname);
+  if (taskFor) {
+    // A finished run with no seal field, as a backend from before it
+    // answers; `task` adds one (or anything else) for a spec that needs it.
+    return json(route, {
+      id: decodeURIComponent(taskFor[1]),
+      intent: "e2e task",
+      agents: 1,
+      spent: 0.01,
+      status: "complete",
+      started: "just now",
+      ...options.task,
+    });
+  }
+  const readinessFor = READINESS_RE.exec(pathname);
+  if (readinessFor) {
+    return json(route, mockReadiness(decodeURIComponent(readinessFor[1])));
+  }
+  return undefined;
+}
+
 export async function mockApi(
   page: Page,
   options: MockApiOptions = {},
@@ -1398,136 +1530,19 @@ export async function mockApi(
     const { pathname } = new URL(route.request().url());
     const method = route.request().method();
 
-    // Endpoint preflight — checked before the `/agents/{id}/…` patterns below,
-    // which it deliberately does not match.
-    if (method === "GET" && pathname === "/api/agents/bind/endpoint-check") {
-      return json(route, { allowed: true, rule: null, message: null });
-    }
-    const challengeFor = BIND_CHALLENGE_RE.exec(pathname);
-    if (method === "POST" && challengeFor) {
-      const agentId = decodeURIComponent(challengeFor[1]);
-      const body = route.request().postDataJSON() as { endpoint_url: string };
-      return json(route, {
-        agent_id: agentId,
-        nonce: bindNonce,
-        // Composed exactly as the backend does, since the client re-checks
-        // that the challenge addresses this agent before it signs anything.
-        message: `orizon-bind:v1:${agentId}:${body.endpoint_url}:${bindNonce}`,
-        expires_at: new Date(Date.now() + 120_000).toISOString(),
-        ttl_seconds: 120,
-      });
-    }
-    const bindFor = BIND_RE.exec(pathname);
-    if (method === "POST" && bindFor) {
-      const body = route.request().postDataJSON() as { endpoint_url: string };
-      return json(route, {
-        agent_id: decodeURIComponent(bindFor[1]),
-        endpoint_url: body.endpoint_url,
-        owner: mockWalletAddress,
-        bound_at: new Date().toISOString(),
-        replaced: false,
-      });
-    }
-    if (method === "GET" && BINDING_RE.test(pathname)) {
-      // An agent that already has an endpoint, when a spec asked for one. This
-      // is what puts the bind page on its replace path.
-      if (options.binding) {
-        return json(route, options.binding);
-      }
-      // The ordinary starting state: registered, never bound. A 404 carrying
-      // `binding_not_found` is how the backend says so, and
-      // `getAgentBindingOrNull` turns it into a plain null.
-      return route.fulfill({
-        status: 404,
-        contentType: "application/json",
-        body: JSON.stringify({
-          detail: "Not Found",
-          error: {
-            code: "binding_not_found",
-            message: "no endpoint bound for this agent",
-            request_id: "e2e0000000000001",
-          },
-        }),
-      });
-    }
+    const bound = bindRoute(route, method, pathname, options);
+    if (bound) return bound;
 
-    if (method === "GET" && pathname === "/api/metrics/overview") {
-      return json(route, options.overview ?? mockLegacyOverview);
-    }
-    if (method === "GET" && pathname === "/api/tasks") {
-      return json(route, mockTasks);
-    }
+    // None of these exact paths matches one of the `{id}` patterns below, so
+    // answering them first shadows nothing.
+    const fixture = method === "GET" ? FIXED_GETS.get(pathname) : undefined;
+    if (fixture) return json(route, fixture(options));
     if (method === "POST" && pathname === "/api/orchestrator/decompose") {
       return json(route, options.plan ?? mockPlan);
     }
-    if (method === "GET" && pathname === "/api/agents") {
-      return json(route, options.agents ?? mockAgents);
-    }
-    if (method === "GET" && pathname === "/api/stellar/reputation") {
-      return json(route, options.reputation ?? mockReputationBatch);
-    }
-    const settlementFor = SETTLEMENT_RE.exec(pathname);
-    if (method === "GET" && settlementFor) {
-      const agentId = decodeURIComponent(settlementFor[1]);
-      return json(
-        route,
-        agentId === mockBindAgentId
-          ? mockSettlementSelfPaid
-          : emptySettlement(agentId),
-      );
-    }
-    if (
-      method === "GET" &&
-      pathname.startsWith("/api/stellar/agent-id-available/")
-    ) {
-      return json(route, { available: true });
-    }
-    if (method === "GET" && ARTIFACT_RE.test(pathname)) {
-      return json(route, options.artifact ?? mockSettledNoArtifact);
-    }
-    const taskFor = TASK_RE.exec(pathname);
-    if (method === "GET" && taskFor) {
-      // A finished run with no seal field, as a backend from before it
-      // answers; `task` adds one (or anything else) for a spec that needs it.
-      return json(route, {
-        id: decodeURIComponent(taskFor[1]),
-        intent: "e2e task",
-        agents: 1,
-        spent: 0.01,
-        status: "complete",
-        started: "just now",
-        ...options.task,
-      });
-    }
-    if (method === "GET" && pathname === "/api/pdax/environment") {
-      return json(route, mockPdaxEnvironment);
-    }
-    if (method === "GET" && pathname === "/api/pdax/health") {
-      return json(route, mockPdaxHealth);
-    }
-    if (method === "GET" && pathname === "/api/pdax/balances") {
-      return json(route, mockPdaxBalances);
-    }
-    // Both fixtures existed and nothing served them: under the old `{}`
-    // catch-all /app/flow and /app/reputation were only ever swept by axe in
-    // their "malformed response" state.
-    if (method === "GET" && pathname === "/api/flow/default") {
-      return json(route, mockFlow);
-    }
-    if (method === "GET" && pathname === "/api/stellar/reputation/params") {
-      return json(route, mockReputationParams);
-    }
-    if (method === "GET" && pathname === "/api/ecosystem/adoption") {
-      return json(route, options.adoption ?? mockAdoptionZero);
-    }
-    const readinessFor = READINESS_RE.exec(pathname);
-    if (method === "GET" && readinessFor) {
-      return json(route, mockReadiness(decodeURIComponent(readinessFor[1])));
-    }
-    // The warmup ping `BackendWarmup` fires on every page. Fire-and-forget,
-    // so any healthy answer will do.
-    if (method === "GET" && pathname === "/api/health") {
-      return json(route, { status: "ok" });
+    if (method === "GET") {
+      const read = readByIdRoute(route, pathname, options);
+      if (read) return read;
     }
     // Network meta, read by the top bar on every console page. By default it
     // is NOT known — a spec that needs the asset or contract ids serves them
@@ -1978,6 +1993,113 @@ export async function mockDisputeApi(
   const nowS = async () =>
     Math.floor((await (options.clock ?? Date.now)()) / 1000);
 
+  /** `GET /api/tasks/{id}/disputes`: the settlement and every dispute
+   *  recorded so far, as served to whoever asked. */
+  const readDisputes = async (route: Route, taskId: string): Promise<void> => {
+    const settlement = options.settlement;
+    const legacy = {
+      task_id: taskId,
+      window_closes_at: settlement?.window_closes_at ?? null,
+      disputes: await asServedTo(route.request(), recorded),
+    };
+    if (options.legacy) return json(route, legacy);
+    const body: TaskDisputes = {
+      ...legacy,
+      now: await nowS(),
+      settlement,
+      ...(options.settlementState === undefined
+        ? {}
+        : { settlement_state: options.settlementState }),
+      ...(options.seal === undefined ? {} : { seal: options.seal }),
+      ...(options.sealKind === undefined
+        ? {}
+        : { seal_kind: options.sealKind }),
+      ...(options.proofTx === undefined ? {} : { proof_tx: options.proofTx }),
+    };
+    return json(route, body);
+  };
+
+  /** `POST /api/disputes`: refused as the backend refuses it, or recorded
+   *  and returned. A step the settlement does not have falls through. */
+  const openDispute = async (route: Route): Promise<void> => {
+    const request = route.request();
+    const body = request.postDataJSON() as OpenDisputeReq;
+    const step = options.settlement?.steps.find(
+      (s) => s.step_index === body.step_index,
+    );
+    if (!step || !options.settlement) return route.fallback();
+    const opened = await nowS();
+    // The window is judged at open, on the server's clock, as
+    // `dispute_svc.open_dispute` judges it — so a spec that moves that
+    // clock past the close gets the refusal the real backend would give.
+    if (opened >= options.settlement.window_closes_at) {
+      return route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "dispute_window_closed",
+          error: {
+            code: "dispute_window_closed",
+            message: "the dispute window for this workflow has closed",
+            request_id: "e2e0000000000409",
+          },
+        }),
+      });
+    }
+    if (options.open === "invalid") {
+      // `validation_exception_handler`: FastAPI's own 422 body under
+      // `detail`, plus the envelope's code.
+      return route.fulfill({
+        status: 422,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: [
+            {
+              type: "string_too_long",
+              loc: ["body", "reason"],
+              msg: mockReasonTooLongMessage,
+              input: body.reason,
+              ctx: { max_length: 500 },
+            },
+          ],
+          error: {
+            code: "validation_error",
+            message: "request validation failed",
+            request_id: "e2e0000000000422",
+          },
+        }),
+      });
+    }
+    if (options.open === "duplicate") {
+      const existing = mockDispute(step, {
+        openedAtS: opened - 600,
+        reason: "raised from another tab",
+        payer: body.payer,
+      });
+      recorded.push(existing);
+      return route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: "duplicate_dispute",
+          error: {
+            code: "duplicate_dispute",
+            message: "this step is already disputed",
+            request_id: "e2e0000000000405",
+          },
+          dispute: existing,
+        }),
+      });
+    }
+    const created = mockDispute(step, {
+      openedAtS: opened,
+      reason: body.reason,
+      payer: body.payer,
+    });
+    recorded.push(created);
+    return json(route, created);
+  };
+
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const { pathname } = new URL(request.url());
@@ -1985,27 +2107,7 @@ export async function mockDisputeApi(
 
     const disputesFor = DISPUTES_RE.exec(pathname);
     if (method === "GET" && disputesFor) {
-      const settlement = options.settlement;
-      const legacy = {
-        task_id: decodeURIComponent(disputesFor[1]),
-        window_closes_at: settlement?.window_closes_at ?? null,
-        disputes: await asServedTo(request, recorded),
-      };
-      if (options.legacy) return json(route, legacy);
-      const body: TaskDisputes = {
-        ...legacy,
-        now: await nowS(),
-        settlement,
-        ...(options.settlementState === undefined
-          ? {}
-          : { settlement_state: options.settlementState }),
-        ...(options.seal === undefined ? {} : { seal: options.seal }),
-        ...(options.sealKind === undefined
-          ? {}
-          : { seal_kind: options.sealKind }),
-        ...(options.proofTx === undefined ? {} : { proof_tx: options.proofTx }),
-      };
-      return json(route, body);
+      return readDisputes(route, decodeURIComponent(disputesFor[1]));
     }
 
     if (method === "POST" && pathname === "/api/disputes/challenge") {
@@ -2023,81 +2125,7 @@ export async function mockDisputeApi(
     }
 
     if (method === "POST" && pathname === "/api/disputes") {
-      const body = request.postDataJSON() as OpenDisputeReq;
-      const step = options.settlement?.steps.find(
-        (s) => s.step_index === body.step_index,
-      );
-      if (!step || !options.settlement) return route.fallback();
-      const opened = await nowS();
-      // The window is judged at open, on the server's clock, as
-      // `dispute_svc.open_dispute` judges it — so a spec that moves that
-      // clock past the close gets the refusal the real backend would give.
-      if (opened >= options.settlement.window_closes_at) {
-        return route.fulfill({
-          status: 409,
-          contentType: "application/json",
-          body: JSON.stringify({
-            detail: "dispute_window_closed",
-            error: {
-              code: "dispute_window_closed",
-              message: "the dispute window for this workflow has closed",
-              request_id: "e2e0000000000409",
-            },
-          }),
-        });
-      }
-      if (options.open === "invalid") {
-        // `validation_exception_handler`: FastAPI's own 422 body under
-        // `detail`, plus the envelope's code.
-        return route.fulfill({
-          status: 422,
-          contentType: "application/json",
-          body: JSON.stringify({
-            detail: [
-              {
-                type: "string_too_long",
-                loc: ["body", "reason"],
-                msg: mockReasonTooLongMessage,
-                input: body.reason,
-                ctx: { max_length: 500 },
-              },
-            ],
-            error: {
-              code: "validation_error",
-              message: "request validation failed",
-              request_id: "e2e0000000000422",
-            },
-          }),
-        });
-      }
-      if (options.open === "duplicate") {
-        const existing = mockDispute(step, {
-          openedAtS: opened - 600,
-          reason: "raised from another tab",
-          payer: body.payer,
-        });
-        recorded.push(existing);
-        return route.fulfill({
-          status: 409,
-          contentType: "application/json",
-          body: JSON.stringify({
-            detail: "duplicate_dispute",
-            error: {
-              code: "duplicate_dispute",
-              message: "this step is already disputed",
-              request_id: "e2e0000000000405",
-            },
-            dispute: existing,
-          }),
-        });
-      }
-      const created = mockDispute(step, {
-        openedAtS: opened,
-        reason: body.reason,
-        payer: body.payer,
-      });
-      recorded.push(created);
-      return json(route, created);
+      return openDispute(route);
     }
 
     return route.fallback();

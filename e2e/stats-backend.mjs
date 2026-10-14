@@ -90,6 +90,8 @@ export function startStatsBackend(port) {
   };
 
   const server = createServer((req, res) => {
+    // A placeholder base so the request's path parses as a URL: nothing is
+    // fetched from it, and this fake only ever listens on localhost.
     const path = new URL(req.url ?? "/", "http://x").pathname;
     if (path === "/__state") {
       if (req.method === "POST") {

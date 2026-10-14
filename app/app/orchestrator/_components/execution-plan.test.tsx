@@ -1800,3 +1800,112 @@ describe("ExecutionPlan · a pipeline that names its sources", () => {
     expect(container.textContent).not.toContain("hands its output");
   });
 });
+
+describe("ExecutionPlan · characterization of the authorization's id", () => {
+  const AUTH_HEX = "0123456789abcdef0123456789abcdef";
+
+  /** Confirms an authorization whose broadcast returns `returnValue`. */
+  async function confirmWith(returnValue: unknown) {
+    onEscrowV1();
+    api.buildAuthorize.mockResolvedValue({
+      xdr: "AAAA",
+      expires_at: EXPIRES_AT,
+    });
+    wallet.signXdr.mockResolvedValue("signed-xdr");
+    api.submitSigned.mockResolvedValue({
+      status: "SUCCESS",
+      hash: "a1b2c3",
+      return_value: returnValue,
+    });
+    api.execute.mockResolvedValue({ task_id: "task_id_read" });
+    const view = render(<ExecutionPlan plan={plan()} />);
+    await screen.findAllByText(/XLM/);
+    fireEvent.click(authorizeButton());
+    return view;
+  }
+
+  it("reads an upper-case hex id in lower case", async () => {
+    await confirmWith(AUTH_HEX.toUpperCase());
+    await waitFor(() => expect(api.execute).toHaveBeenCalledTimes(1));
+    expect(api.execute.mock.calls[0][1]).toEqual({
+      auth_id_hex: AUTH_HEX,
+      payer: PAYER,
+    });
+  });
+
+  it("reads a base64 id", async () => {
+    const b64 = btoa(
+      String.fromCharCode(
+        ...(AUTH_HEX.match(/../g) ?? []).map((h) => parseInt(h, 16)),
+      ),
+    );
+    await confirmWith(b64);
+    await waitFor(() => expect(api.execute).toHaveBeenCalledTimes(1));
+    expect(api.execute.mock.calls[0][1].auth_id_hex).toBe(AUTH_HEX);
+  });
+
+  it("reads an id given as sixteen bytes", async () => {
+    await confirmWith(
+      (AUTH_HEX.match(/../g) ?? []).map((h) => parseInt(h, 16)),
+    );
+    await waitFor(() => expect(api.execute).toHaveBeenCalledTimes(1));
+    expect(api.execute.mock.calls[0][1].auth_id_hex).toBe(AUTH_HEX);
+  });
+
+  it("fails the authorization, and runs nothing, when the id cannot be read", async () => {
+    const { container } = await confirmWith("not an id!");
+    await waitFor(() =>
+      expect(container.textContent).toContain(
+        "failed to read auth_id from tx result",
+      ),
+    );
+    expect(container.textContent).not.toContain("✓ transaction confirmed");
+    expect(api.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe("ExecutionPlan · characterization of the pay panel's notices", () => {
+  it("names the step whose price cannot be read", () => {
+    const unreadable = {
+      ...step(),
+      est_price_usdc: undefined,
+    } as unknown as PlanStep;
+    const { container } = render(
+      <ExecutionPlan plan={plan({ steps: [unreadable] })} />,
+    );
+    expect(container.textContent).toContain(
+      "This plan's prices do not add up: step 1 has no price that can be read. Nothing is asked of your wallet for it.",
+    );
+    expect(container.querySelector("[data-plan-total]")?.textContent).toBe(
+      "—not stated",
+    );
+    expect(authorizeButton().hasAttribute("disabled")).toBe(true);
+  });
+
+  it("says no escrow was reported when the backend names none", async () => {
+    escrowPin.value = V2_ESCROW_ID;
+    api.getStellarNetwork.mockResolvedValue({ ...TESTNET, contracts: {} });
+    render(<ExecutionPlan plan={plan()} />);
+    const notice = await screen.findByText(/On-chain payment is paused/);
+    expect(notice.textContent).toContain("(none reported)");
+    expect(notice.textContent).toContain(V2_ESCROW_ID);
+  });
+
+  it("offers the free run with no wallet connected", async () => {
+    disconnect();
+    const { container } = render(
+      <ExecutionPlan
+        plan={plan({
+          steps: [step({ price_stroops: 0, est_price_usdc: 0 })],
+          total_stroops: 0,
+          total_usdc: 0,
+        })}
+      />,
+    );
+    await screen.findAllByText(/XLM/);
+    expect(container.textContent).toContain(
+      "▸ wallet required" +
+        "This plan is priced at zero, so there is nothing to authorize. Run it without payment.",
+    );
+  });
+});

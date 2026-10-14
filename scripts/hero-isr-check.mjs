@@ -35,6 +35,10 @@ const PORT = Number(process.env.HERO_ISR_PORT ?? 3741);
 const BACKEND_PORT = Number(process.env.HERO_ISR_BACKEND_PORT ?? 3742);
 const DIST = ".next/hero-isr";
 const NEXT = "node_modules/next/dist/bin/next";
+// The node running this script, by absolute path: a bare "node" would be
+// looked up on PATH, where any writable directory ahead of the real one
+// could stand in for it.
+const NODE = process.execPath;
 const REVALIDATE_MS = 300_000;
 const COLD = process.argv.includes("--cold");
 
@@ -115,27 +119,34 @@ const taken = (port) =>
     () => false,
   );
 
-async function main() {
+/** Throws when the site's or the backend's port already answers. */
+async function assertPortsFree() {
   for (const port of [PORT, BACKEND_PORT]) {
     if (await taken(port)) {
       throw new Error(`port ${port} is in use; stop what holds it first`);
     }
   }
-  const backend = await startStatsBackend(BACKEND_PORT);
-  const set = (s) => Object.assign(backend.state, s);
-  rmSync(`${root}/${DIST}`, { recursive: true, force: true });
+}
 
-  // ── build ──
+/**
+ * Builds the site against a complete backend (a dead one with --cold) and
+ * checks / is prerendered with the page's revalidate window. Returns when
+ * the build finished, the start of the first window.
+ *
+ * @param {(state: object) => void} set sets the fake backend's state
+ * @returns {Promise<number>}
+ */
+async function build(set) {
   if (COLD) set({ down: true });
   else set({ ...A, signal: "none", synced: true, down: false });
   log(`building against a ${COLD ? "dead" : "complete, signal-less"} backend…`);
   const buildLog = join(tmpdir(), "hero-isr-build.log");
   await run(
-    "node",
+    NODE,
     ["scripts/litepaper-assets.mjs"],
     join(tmpdir(), "hero-isr-assets.log"),
   );
-  await run("node", [NEXT, "build"], buildLog);
+  await run(NODE, [NEXT, "build"], buildLog);
   const builtAt = Date.now();
   const built = readFileSync(buildLog, "utf8");
   const manifest = JSON.parse(
@@ -151,13 +162,22 @@ async function main() {
   if (COLD && !/no complete network figures after 120s/.test(built)) {
     fail("the cold build did not log its give-up");
   }
+  return builtAt;
+}
 
-  // ── serve ──
+/**
+ * Starts `next start` on the build, teeing its output to a log, and waits
+ * up to a minute for it to answer. Throws, having stopped it, if it never
+ * does.
+ *
+ * @returns {Promise<{ server: import("node:child_process").ChildProcess, serverLog: string }>}
+ */
+async function serve() {
   const serverLog = join(tmpdir(), "hero-isr-server.log");
   const out = createWriteStream(serverLog);
   // Next's own binary, not npx: killing an npx wrapper leaves the server it
   // started holding the port, and the next run then reads the old server.
-  const server = spawn("node", [NEXT, "start", "-p", String(PORT)], {
+  const server = spawn(NODE, [NEXT, "start", "-p", String(PORT)], {
     cwd: root,
     env: { ...env, NODE_ENV: "production" },
   });
@@ -174,6 +194,39 @@ async function main() {
     server.kill();
     throw new Error(`next start never answered; see ${serverLog}`);
   }
+  return { server, serverLog };
+}
+
+/**
+ * Polls the hero for up to a window and a minute, until a regeneration
+ * replaces the page with the complete figures B. Until then it must keep
+ * the page it had, and the partial count must never show.
+ */
+async function awaitCompleteFigures() {
+  const until = Date.now() + REVALIDATE_MS + 60_000;
+  let last = null;
+  while (Date.now() < until) {
+    last = await hero();
+    if (last.leaked) fail("the partial count reached a page");
+    const s = show(last);
+    if (s === asRow(B)) break;
+    if (s !== (COLD ? "no row" : asRow(A))) fail(`unexpected hero ${s}`);
+    await sleep(10_000);
+  }
+  log(`settled on ${show(last)} (x-nextjs-cache: ${last.cache})`);
+  if (show(last) !== asRow(B))
+    fail("the complete figures never replaced the page");
+}
+
+async function main() {
+  await assertPortsFree();
+  const backend = await startStatsBackend(BACKEND_PORT);
+  const set = (s) => Object.assign(backend.state, s);
+  rmSync(`${root}/${DIST}`, { recursive: true, force: true });
+
+  const builtAt = await build(set);
+
+  const { server, serverLog } = await serve();
 
   try {
     await expectRow(COLD ? null : A, "fresh from the build");
@@ -201,19 +254,7 @@ async function main() {
     // ── complete again: a regeneration may now replace the page ──
     set({ ...B, signal: "overview", synced: true, down: false });
     log("backend complete again (280/255/249, registry_synced: true)");
-    const until = Date.now() + REVALIDATE_MS + 60_000;
-    let last = null;
-    while (Date.now() < until) {
-      last = await hero();
-      if (last.leaked) fail("the partial count reached a page");
-      const s = show(last);
-      if (s === asRow(B)) break;
-      if (s !== (COLD ? "no row" : asRow(A))) fail(`unexpected hero ${s}`);
-      await sleep(10_000);
-    }
-    log(`settled on ${show(last)} (x-nextjs-cache: ${last.cache})`);
-    if (show(last) !== asRow(B))
-      fail("the complete figures never replaced the page");
+    await awaitCompleteFigures();
   } finally {
     server.kill();
     if (server.exitCode === null && server.signalCode === null) {

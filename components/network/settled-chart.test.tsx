@@ -110,4 +110,19 @@ describe("seriesSummary", () => {
       "Settled workflows per day, Oct 1 to Oct 2: 1 settled workflow in total, at most 1 on Oct 2.",
     );
   });
+
+  it("says no days were reported for an empty series", () => {
+    expect(seriesSummary([])).toBe(
+      "Settled workflows per day: no days reported.",
+    );
+  });
+
+  it("summarises a single day as its own range and peak", () => {
+    expect(seriesSummary([{ date: "2026-10-02", settled: 0 }])).toBe(
+      "Settled workflows per day, Oct 2 to Oct 2: 0 settled workflows in total, at most 0 on Oct 2.",
+    );
+    expect(seriesSummary([{ date: "2026-10-02", settled: 5 }])).toBe(
+      "Settled workflows per day, Oct 2 to Oct 2: 5 settled workflows in total, at most 5 on Oct 2.",
+    );
+  });
 });

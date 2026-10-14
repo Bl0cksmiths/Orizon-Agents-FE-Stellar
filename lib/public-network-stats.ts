@@ -236,6 +236,40 @@ async function fromOwners(
   };
 }
 
+/** The confirmed registry, or why it could not be read. */
+async function registryOrWhy(
+  deps: StatsDeps,
+  api: Read,
+): Promise<Registry | string> {
+  try {
+    return await confirmedRegistry(deps, api);
+  } catch (e) {
+    return why(e);
+  }
+}
+
+/** Whether there is an overview, and it counted the external agents and
+ *  their wallets. */
+function overviewCountsOwners(overview: OverviewV2 | null): boolean {
+  return (
+    overview !== null &&
+    overview.agents.external !== null &&
+    overview.operators.external_wallets !== null
+  );
+}
+
+/** The backend's v2 overview, or null for an unreachable or legacy one: the
+ *  registry then decides. */
+async function readOverview(api: Read): Promise<OverviewV2 | null> {
+  try {
+    const { body } = await api("/metrics/overview");
+    if (isOverviewV2(body)) return body;
+  } catch {
+    // An unreachable or legacy overview: the registry decides.
+  }
+  return null;
+}
+
 /**
  * One attempt at the three figures. Never throws: whatever went wrong is the
  * `reason` of a not-ok result.
@@ -252,34 +286,20 @@ export async function readCompleteStats(
   const api = reader(deps, `${base}/api`);
   const root = reader(deps, base);
 
-  let overview: OverviewV2 | null = null;
-  try {
-    const { body } = await api("/metrics/overview");
-    if (isOverviewV2(body)) overview = body;
-  } catch {
-    // An unreachable or legacy overview: the registry decides below.
-  }
+  const overview = await readOverview(api);
   if (overview) {
     const signal = overviewSyncSignal(overview);
     if (signal === "synced") return fromOverview(overview, "overview flag");
     if (signal === "syncing")
       return partial(syncing(overview.agents.registered));
   }
-  const ownersFromOverview =
-    overview !== null &&
-    overview.agents.external !== null &&
-    overview.operators.external_wallets !== null;
+  const ownersFromOverview = overviewCountsOwners(overview);
 
   // The adoption read is costly (a settlement scan per external agent), so it
   // is asked only of a backend whose overview cannot answer, and started now
   // so it runs during the interim rule's wait.
   const adoption = ownersFromOverview ? null : quickAdoption(api);
-  let registry: Registry | string;
-  try {
-    registry = await confirmedRegistry(deps, api);
-  } catch (e) {
-    registry = why(e);
-  }
+  const registry = await registryOrWhy(deps, api);
   if (typeof registry === "string") return partial(registry);
 
   // The overview counted this same registry: its owner figures stand.

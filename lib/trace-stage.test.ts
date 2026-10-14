@@ -55,6 +55,19 @@ describe("traceStage", () => {
     expect(traceStage(line("x", { stage: "recheck" }))).toBe("recheck");
   });
 
+  it("reads each recheck wording on its own terms", () => {
+    // "re-checked by" counts anywhere in the line, but only as whole words.
+    expect(traceStage(line("Brief re-checked by jev: safe"))).toBe("recheck");
+    expect(traceStage(line("Brief pre-checked by jev"))).toBeNull();
+    // The fallback counts only when it ends the line (trailing space aside).
+    expect(traceStage(line("Drifted; planning from your own words  "))).toBe(
+      "recheck",
+    );
+    expect(
+      traceStage(line("Drifted; planning from your own words instead")),
+    ).toBeNull();
+  });
+
   it("is null for a step line and for a tag it does not know", () => {
     expect(traceStage(line("code.gen → calculator app generated"))).toBeNull();
     expect(

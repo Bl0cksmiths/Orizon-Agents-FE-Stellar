@@ -16,6 +16,9 @@ export default defineConfig({
     exclude: ["node_modules/**", ".next/**", "e2e/**"],
     reporters: "verbose",
     coverage: {
+      // v8's defaults, plus lcov: coverage/lcov.info is what SonarQube reads
+      // (sonar-project.properties).
+      reporter: ["text", "html", "clover", "json", "lcov"],
       // Gate only what the unit suite is meant to cover: the lib layer (pure
       // logic + hooks) and the one tested UI module. Client components are
       // exercised by the Playwright smoke suite, not unit tests — pulling
