@@ -443,6 +443,13 @@ type NoticeTally = {
   hidden: number;
 };
 
+/** The operator agents' part of the breakdown: counted where the notices
+ *  name them, and said without a number where they do not. */
+function externalText(t: NoticeTally): string {
+  if (t.externalUncounted) return "operator agents";
+  return `${t.external} operator agent${t.external === 1 ? "" : "s"}`;
+}
+
 /** The closed summary's per-kind breakdown: every non-zero count, in
  *  `KIND_ORDER` first and then the counts kept apart from the floor's. */
 function breakdownText(t: NoticeTally): string {
@@ -455,13 +462,7 @@ function breakdownText(t: NoticeTally): string {
     ...(t.unreachable > 0
       ? [`${t.unreachable} with an unreachable endpoint`]
       : []),
-    ...(t.external > 0
-      ? [
-          t.externalUncounted
-            ? "operator agents"
-            : `${t.external} operator agent${t.external === 1 ? "" : "s"}`,
-        ]
-      : []),
+    ...(t.external > 0 ? [externalText(t)] : []),
     ...(t.simulated > 0 ? [`${t.simulated} not live yet`] : []),
     ...(t.noInput > 0 ? [`${t.noInput} without input`] : []),
     ...(t.noProvider > 0 ? [`${t.noProvider} unavailable`] : []),
