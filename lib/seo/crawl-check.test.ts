@@ -166,6 +166,20 @@ describe("pageProblems", () => {
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatch(problem);
   });
+
+  it("reads attributes with blanks around '=', a namespaced name and any case", () => {
+    const body = `<head><meta NAME = "robots" xml:lang="en" content=\n"noindex"/><link REL="canonical" data-x-y="1" href="${loc}"/></head>`;
+    expect(pageProblems(loc, { status: 200, headers: HTML, body })).toEqual([
+      "its robots meta says noindex",
+    ]);
+  });
+
+  it("reads a tag with a long unquoted name in linear time", () => {
+    const started = performance.now();
+    const body = `<head><meta ${"a".repeat(100_000)} ${"b:".repeat(50_000)}= x/><link rel="canonical" href="${loc}"/></head>`;
+    expect(pageProblems(loc, { status: 200, headers: HTML, body })).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe("checkSite", () => {
