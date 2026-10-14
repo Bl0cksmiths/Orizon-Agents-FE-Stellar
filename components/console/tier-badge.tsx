@@ -13,10 +13,10 @@ import { cn } from "@/lib/utils";
 export function TierBadge({
   tier,
   className,
-}: {
+}: Readonly<{
   tier: string | null | undefined;
   className?: string;
-}) {
+}>) {
   const t = readTier(tier);
   if (!t) return null;
   const copy = TIER_COPY[t];
