@@ -145,7 +145,7 @@ export default function EcosystemPage() {
  * minutes. Said as the wait it is, with when the page asks again — the
  * backend's own Retry-After — and never as a failure or a zero.
  */
-function BuildingStatus({ retryInMs }: { retryInMs: number | null }) {
+function BuildingStatus({ retryInMs }: Readonly<{ retryInMs: number | null }>) {
   const seconds = retryInMs === null ? null : Math.round(retryInMs / 1_000);
   return (
     <p
