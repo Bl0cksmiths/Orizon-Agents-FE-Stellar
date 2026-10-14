@@ -490,6 +490,37 @@ function checkContractParity(live) {
 }
 
 /**
+ * checkContractParity on the network body, printed as a row with each
+ * matching id and each problem under it. An address book that cannot be read
+ * is a failure, never a pass.
+ *
+ * @param {unknown} live  the NETWORK_PATH body; undefined if none arrived
+ * @returns {ReturnType<typeof checkContractParity>}
+ */
+function reportContractParity(live) {
+  let parity;
+  try {
+    parity = checkContractParity(live);
+  } catch (err) {
+    parity = {
+      compared: false,
+      summary: "address book unavailable",
+      rows: [],
+      problems: [err instanceof Error ? err.message : String(err)],
+    };
+  }
+  const parityOk = parity.problems.length === 0;
+  console.log(`  ${parityOk ? "✓" : "✗"} contract parity → ${parity.summary}`);
+  for (const row of parity.rows) {
+    if (row.ok) console.log(`      ok  ${row.name}  ${row.canonical}`);
+  }
+  for (const problem of parity.problems) {
+    console.log(`    FAIL  ${problem.split("\n")[0]}`);
+  }
+  return parity;
+}
+
+/**
  * One health request with a long timeout, to wake a sleeping backend.
  * Returns false, having said why, when the origin does not answer at all.
  *
@@ -528,25 +559,8 @@ async function main() {
   // its own, and still runs when the network check failed on an unexpected
   // network, so a mismatch is reported against the book for the network the
   // backend is actually on.
-  let parity;
-  try {
-    parity = checkContractParity(bodies.get(NETWORK_PATH));
-  } catch (err) {
-    parity = {
-      compared: false,
-      summary: "address book unavailable",
-      rows: [],
-      problems: [err instanceof Error ? err.message : String(err)],
-    };
-  }
+  const parity = reportContractParity(bodies.get(NETWORK_PATH));
   const parityOk = parity.problems.length === 0;
-  console.log(`  ${parityOk ? "✓" : "✗"} contract parity → ${parity.summary}`);
-  for (const row of parity.rows) {
-    if (row.ok) console.log(`      ok  ${row.name}  ${row.canonical}`);
-  }
-  for (const problem of parity.problems) {
-    console.log(`    FAIL  ${problem.split("\n")[0]}`);
-  }
   if (!parityOk) {
     failures.push(
       `contract parity → ${parity.summary}:\n` +
