@@ -880,7 +880,7 @@ describe("ExecutionPlan · the unit on the amounts", () => {
         b.textContent?.includes("0.123"),
       );
       expect(cap?.textContent).toBe("0.123");
-      expect(screen.getAllByText("0.123", { exact: true }).length).toBe(3);
+      expect(screen.getAllByText("0.123", { exact: true })).toHaveLength(3);
       expect(container.textContent).not.toMatch(/\b(USDC|XLM)\b/);
     },
   );
