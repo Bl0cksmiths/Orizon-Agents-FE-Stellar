@@ -74,8 +74,9 @@ const HANDOFF = /\b(?:uses|receives) output from[:\s]\s*(\S.*)$/i;
 export function traceHandoff(line: Pick<TraceLine, "msg">): string[] | null {
   const m = HANDOFF.exec(line.msg.trim());
   if (!m) return null;
+  // Split on the separators alone; each piece's blanks are trimmed after.
   const sources = m[1]
-    .split(/\s*(?:,|\band\b)\s*/i)
+    .split(/,|\band\b/i)
     .map((s) => s.trim())
     .filter(Boolean);
   return sources.length > 0 ? sources : null;

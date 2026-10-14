@@ -146,10 +146,19 @@ describe("traceHandoff", () => {
     expect(traceHandoff(line("USES OUTPUT FROM  a , b"))).toEqual(["a", "b"]);
   });
 
+  it("splits on commas and 'and', not on a word holding 'and'", () => {
+    expect(
+      traceHandoff(line("uses output from: a ,b and\tc,,brand.x AND d and")),
+    ).toEqual(["a", "b", "c", "brand.x", "d"]);
+  });
+
   it("reads a line of thousands of blanks in linear time", () => {
     const started = performance.now();
     const blanks = " ".repeat(100_000);
     expect(traceHandoff(line(`uses output from${blanks}a\nb`))).toBeNull();
+    expect(traceHandoff(line(`uses output from: a${blanks}b`))).toEqual([
+      `a${blanks}b`,
+    ]);
     expect(performance.now() - started).toBeLessThan(500);
   });
 });
