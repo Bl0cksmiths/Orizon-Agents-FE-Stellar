@@ -393,6 +393,7 @@ describe("link URLs", () => {
     for (const url of [
       "https://orizons.xyz/app/trace?task=tsk_7e1c369cebaf41b3",
       "https://orizons.xyz/app/trace?foo=1&task=tsk_1",
+      "https://orizons.xyz/app/trace///?task=tsk_1",
       "https://orizons.xyz/api/tasks/tsk_7e1c369cebaf41b3",
       "https://orizon-agents-be-stellar.onrender.com/api/tasks/tsk_1/stream",
     ]) {
@@ -408,12 +409,23 @@ describe("link URLs", () => {
       "https://orizons.xyz/app/trace",
       "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_1",
       "https://orizons.xyz/api/tasks",
+      "https://orizons.xyz/app/trace//x?task=tsk_1",
     ]) {
       const index = base();
       firstLink(index).url = url;
       firstLink(index).kind = "page";
       expect(problemsOf(index)).toEqual([]);
     }
+  });
+
+  it("reads a path of thousands of slashes in linear time", () => {
+    const started = performance.now();
+    const index = base();
+    firstLink(index).url =
+      `https://orizons.xyz/app${"/".repeat(100_000)}x?task=tsk_1`;
+    firstLink(index).kind = "page";
+    expect(problemsOf(index)).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
 
