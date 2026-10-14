@@ -1106,6 +1106,26 @@ function sealFields(res: TaskDisputes): {
   };
 }
 
+/** The receipt of a run with no settlement on record. */
+function notSettledView(
+  res: TaskDisputes,
+  workflowDone: boolean,
+  waitOver: boolean,
+): DisputePanelView {
+  const settlementState = res.settlement_state;
+  return {
+    kind: "not_settled",
+    running: !workflowDone,
+    ...(settlementState === undefined ? {} : { settlementState }),
+    ...(settlementState === "unconfirmed" && waitOver
+      ? { settlementStoppedChecking: true }
+      : {}),
+    // A delivery-only run seals with no settlement: its attestation is
+    // still this receipt's to state.
+    ...sealFields(res),
+  };
+}
+
 /**
  * The whole receipt panel from the backend's answer, the connected wallet,
  * whether the run has finished, and the clock — the panel renders this and
@@ -1139,18 +1159,7 @@ export function disputeView(input: {
   const settlement = res.settlement;
   const settlementState = res.settlement_state;
   if (settlement === undefined) return HIDDEN;
-  if (settlement === null)
-    return {
-      kind: "not_settled",
-      running: !workflowDone,
-      ...(settlementState === undefined ? {} : { settlementState }),
-      ...(settlementState === "unconfirmed" && waitOver
-        ? { settlementStoppedChecking: true }
-        : {}),
-      // A delivery-only run seals with no settlement: its attestation is
-      // still this receipt's to state.
-      ...sealFields(res),
-    };
+  if (settlement === null) return notSettledView(res, workflowDone, waitOver);
 
   const viewer = viewerOf(settlement.payer, viewerAddress);
   const closesAtMs = settlement.window_closes_at * 1_000;
