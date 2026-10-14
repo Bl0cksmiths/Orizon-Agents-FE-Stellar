@@ -125,7 +125,8 @@ export function stroopsToDecimal(
     Math.min(MIN_DISPLAY_DECIMALS, decimals),
     "0",
   );
-  return `${negative ? "-" : ""}${whole}${frac ? `.${frac}` : ""}`;
+  const point = frac ? "." : "";
+  return `${negative ? "-" : ""}${whole}${point}${frac}`;
 }
 
 /** The digits less their trailing zeros: a scan from the end, where `/0+$/`
