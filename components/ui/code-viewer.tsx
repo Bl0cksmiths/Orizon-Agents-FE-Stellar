@@ -88,8 +88,7 @@ export function CodeViewer({
 }>) {
   const lang = grammarFor(language);
   return (
-    <div
-      role="region"
+    <section
       aria-label={label}
       // A region that scrolls must be reachable to scroll: keyboard users
       // otherwise cannot read past the first screen of a long file.
@@ -125,6 +124,6 @@ export function CodeViewer({
       >
         {code}
       </SyntaxHighlighter>
-    </div>
+    </section>
   );
 }
