@@ -59,10 +59,10 @@ function ThroughputBody({
 function CompositionBody({
   stats,
   failed,
-}: {
+}: Readonly<{
   stats: NetworkStats | null;
   failed: boolean;
-}) {
+}>) {
   if (stats) return <Composition stats={stats} />;
   if (failed)
     return (
