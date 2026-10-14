@@ -97,10 +97,10 @@ export function WatchLink({
 export function ChapterList({
   index,
   children,
-}: {
+}: Readonly<{
   index: number;
   children: ReactNode;
-}) {
+}>) {
   return (
     <section aria-labelledby={`demo-part-${index + 1}-chapters`}>
       <h3
