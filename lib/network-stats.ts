@@ -454,9 +454,11 @@ export function walletsCaption(s: NetworkStats): string | null {
 /** The sidebar's one line: "25 agents registered · 11 external". A figure
  * that could not be read is a dash, never a number. */
 export function sidebarLine(s: NetworkStats): string {
-  const reg = s.registered.ok
-    ? `${formatCount(s.registered.value)} agent${s.registered.value === 1 ? "" : "s"} registered`
-    : "— agents registered";
+  let reg = "— agents registered";
+  if (s.registered.ok) {
+    const n = s.registered.value;
+    reg = `${formatCount(n)} agent${n === 1 ? "" : "s"} registered`;
+  }
   const ext = s.external.ok
     ? `${formatCount(s.external.value)} external`
     : "— external";
