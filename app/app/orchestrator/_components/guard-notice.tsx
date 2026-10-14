@@ -142,10 +142,10 @@ const TITLE: Record<DecomposeRefusal["kind"], string> = {
 function Body({
   refusal,
   fromBrief,
-}: {
+}: Readonly<{
   refusal: DecomposeRefusal;
   fromBrief: boolean;
-}) {
+}>) {
   switch (refusal.kind) {
     case "blocked":
       return (
