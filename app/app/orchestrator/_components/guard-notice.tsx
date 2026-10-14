@@ -89,7 +89,7 @@ export function GuardNotice({
   busy = false,
   fromBrief = false,
   className,
-}: {
+}: Readonly<{
   refusal: DecomposeRefusal;
   /** The refused request was an edited brief: a needs-detail answer then
    *  means the edit changed what was asked. */
@@ -99,7 +99,7 @@ export function GuardNotice({
   /** A decompose is already out; a retry waits for it. */
   busy?: boolean;
   className?: string;
-}) {
+}>) {
   const badge = BADGE[refusal.kind];
   return (
     <div
