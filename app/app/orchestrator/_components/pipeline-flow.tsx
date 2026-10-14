@@ -15,12 +15,12 @@ const nameOf = (s: PlanStep) => s.agent_name ?? s.agent_id;
 export function PipelineOverview({
   steps,
   namedSources = false,
-}: {
+}: Readonly<{
   steps: PlanStep[];
   /** The planner named each step's sources (`inputs_from`), so the steps
    *  say them and the chain is only the run order. */
   namedSources?: boolean;
-}) {
+}>) {
   if (steps.length < 2) return null;
   const names = steps.map(nameOf);
   return (
