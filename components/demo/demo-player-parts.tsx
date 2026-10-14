@@ -76,10 +76,10 @@ export function PosterLink({
 export function WatchLink({
   video,
   index,
-}: {
+}: Readonly<{
   video: DemoVideo;
   index: number;
-}) {
+}>) {
   return (
     <p className="mt-3 text-right text-sm">
       <a
