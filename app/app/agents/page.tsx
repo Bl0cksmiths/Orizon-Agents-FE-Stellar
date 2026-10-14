@@ -733,15 +733,15 @@ function RegistryPager({
   const agentsWord = shown === 1 ? "agent" : "agents";
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
-      <p
-        role="status"
-        className="font-mono text-[11px] uppercase tracking-widest text-muted"
+      <output
+        aria-live="polite"
+        className="block font-mono text-[11px] uppercase tracking-widest text-muted"
       >
         {total !== null
           ? `Showing ${shown.toLocaleString()} of ${total.toLocaleString()} agents`
           : `Showing ${shown.toLocaleString()} ${agentsWord}`}
         {loadingRest && " · loading the rest of the registry…"}
-      </p>
+      </output>
       {hidden > 0 && (
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onMore}>
