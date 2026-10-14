@@ -89,7 +89,7 @@ function listOf(sources: number[]): string {
 
 /** Under a step: the earlier steps whose output it uses, as the planner
  *  named them (`inputs_from`). Nothing for a step that builds on nothing. */
-export function InputsNote({ sources }: { sources: number[] }) {
+export function InputsNote({ sources }: Readonly<{ sources: number[] }>) {
   if (sources.length === 0) return null;
   return (
     <p className="basis-full pl-12 font-mono text-[10px] tracking-wide text-muted [overflow-wrap:anywhere]">
