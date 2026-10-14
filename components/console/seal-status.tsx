@@ -39,23 +39,26 @@ export function SealStatus({
 }>) {
   if (seal === null) {
     return (
-      <p
-        role="status"
-        className={cn("font-mono text-xs leading-5 text-muted", className)}
+      <output
+        aria-live="polite"
+        className={cn(
+          "block font-mono text-xs leading-5 text-muted",
+          className,
+        )}
       >
         {NO_SEAL_SENTENCE}
-      </p>
+      </output>
     );
   }
   return (
-    <div role="status" className={cn("space-y-1", className)}>
-      <p className={cn("font-mono text-xs font-semibold", TONE[seal])}>
+    <output aria-live="polite" className={cn("block space-y-1", className)}>
+      <span className={cn("block font-mono text-xs font-semibold", TONE[seal])}>
         <span aria-hidden="true">{GLYPH[seal]} </span>
         {sealWords(seal, kind).label}
-      </p>
-      <p className="text-xs leading-5 text-muted">
+      </span>
+      <span className="block text-xs leading-5 text-muted">
         {sealWords(seal, kind).sentence}
-      </p>
-    </div>
+      </span>
+    </output>
   );
 }
