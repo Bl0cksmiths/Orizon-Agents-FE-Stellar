@@ -27,7 +27,12 @@ export type NavMenuProps = {
   pathname: string | null;
 };
 
-export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
+export function NavMenu({
+  group,
+  open,
+  onOpenChange,
+  pathname,
+}: Readonly<NavMenuProps>) {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
