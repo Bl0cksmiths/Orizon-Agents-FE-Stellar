@@ -70,7 +70,7 @@ export function ReceiptPanel({
   onConnect,
   reasonUnlock = null,
   escrowGeneration,
-}: {
+}: Readonly<{
   view: DisputePanelView;
   /**
    * The escrow the deployment settles through (`escrowGeneration`), which
@@ -93,7 +93,7 @@ export function ReceiptPanel({
    * drawn only when the view also says the payer's words were withheld.
    */
   reasonUnlock?: ReasonUnlockControl | null;
-}) {
+}>) {
   // Called before any early return: hooks run in the same order every render.
   const headingId = useId();
 
