@@ -347,7 +347,7 @@ export async function readWithRetry(
   const deadline = deps.now() + budgetMs;
   const bounded = { ...deps, deadline };
   let delay = BUILD_RETRY_FIRST_DELAY_MS;
-  let last = "no attempt";
+  let last: string;
   for (;;) {
     const attempt = await readCompleteStats(bounded);
     if (attempt.ok) return attempt.stats;
