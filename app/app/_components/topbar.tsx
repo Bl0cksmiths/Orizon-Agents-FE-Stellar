@@ -99,7 +99,7 @@ export function Topbar() {
               const last = i === meta.b.length - 1;
               return (
                 <span
-                  key={i}
+                  key={crumb}
                   className={
                     last ? "flex min-w-0 items-center gap-2" : "hidden lg:flex"
                   }
