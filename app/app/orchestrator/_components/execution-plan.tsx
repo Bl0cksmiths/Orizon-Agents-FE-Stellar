@@ -1029,10 +1029,10 @@ function SignatureSentence({
 function StepModel({
   step,
   models,
-}: {
+}: Readonly<{
   step: DecomposeResponse["steps"][number];
   models: DecomposeResponse["models"];
-}) {
+}>) {
   const runner = stepRunner(step, models);
   if (!runner) return null;
   if (runner.kind === "external") {
