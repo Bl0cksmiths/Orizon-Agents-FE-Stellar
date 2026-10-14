@@ -569,7 +569,7 @@ export function RepLeaderboard({
  * agent column to its full width and pushed the score off a phone. The whole
  * text is still in the cell for assistive tech, and in the title on hover.
  */
-function AgentIdentity({ agent }: { agent: Agent }) {
+function AgentIdentity({ agent }: Readonly<{ agent: Agent }>) {
   return (
     <>
       <div title={agent.name} className="max-w-[12rem] truncate font-mono">
