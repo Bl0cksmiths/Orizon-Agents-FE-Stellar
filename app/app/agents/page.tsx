@@ -721,14 +721,14 @@ function RegistryPager({
   loadingRest,
   onMore,
   onAll,
-}: {
+}: Readonly<{
   shown: number;
   hidden: number;
   total: number | null;
   loadingRest: boolean;
   onMore: () => void;
   onAll: () => void;
-}) {
+}>) {
   if (hidden === 0 && !loadingRest) return null;
   const agentsWord = shown === 1 ? "agent" : "agents";
   return (
