@@ -34,14 +34,14 @@ export function UnderstoodAsPanel({
   spec,
   onRespec,
   busy = false,
-}: {
+}: Readonly<{
   spec: PlanSpec;
   /** Plans again from the edited brief. Absent, the brief is read-only. */
   onRespec?: (spec: PlanSpec) => void;
   /** This plan is being paid for, or a new one is on its way: editing waits,
    *  as the card's other actions do. */
   busy?: boolean;
-}) {
+}>) {
   const uid = useId();
   const headingId = `${uid}-heading`;
   const [editing, setEditing] = useState(false);
