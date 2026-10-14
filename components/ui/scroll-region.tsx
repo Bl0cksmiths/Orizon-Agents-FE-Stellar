@@ -28,7 +28,7 @@ export function ScrollRegion({
   className?: string;
   scrollerClassName?: string;
 }>) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
 
   useEffect(() => {
@@ -75,9 +75,8 @@ export function ScrollRegion({
 
   return (
     <div className={className}>
-      <div
+      <section
         ref={ref}
-        role="region"
         aria-label={label}
         tabIndex={0}
         data-scroll-region
@@ -98,7 +97,7 @@ export function ScrollRegion({
         )}
       >
         {children}
-      </div>
+      </section>
       {overflowing && (
         <p
           aria-hidden="true"
