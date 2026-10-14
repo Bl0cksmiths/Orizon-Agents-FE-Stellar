@@ -197,6 +197,27 @@ async function serve() {
   return { server, serverLog };
 }
 
+/**
+ * Polls the hero for up to a window and a minute, until a regeneration
+ * replaces the page with the complete figures B. Until then it must keep
+ * the page it had, and the partial count must never show.
+ */
+async function awaitCompleteFigures() {
+  const until = Date.now() + REVALIDATE_MS + 60_000;
+  let last = null;
+  while (Date.now() < until) {
+    last = await hero();
+    if (last.leaked) fail("the partial count reached a page");
+    const s = show(last);
+    if (s === asRow(B)) break;
+    if (s !== (COLD ? "no row" : asRow(A))) fail(`unexpected hero ${s}`);
+    await sleep(10_000);
+  }
+  log(`settled on ${show(last)} (x-nextjs-cache: ${last.cache})`);
+  if (show(last) !== asRow(B))
+    fail("the complete figures never replaced the page");
+}
+
 async function main() {
   await assertPortsFree();
   const backend = await startStatsBackend(BACKEND_PORT);
@@ -233,19 +254,7 @@ async function main() {
     // ── complete again: a regeneration may now replace the page ──
     set({ ...B, signal: "overview", synced: true, down: false });
     log("backend complete again (280/255/249, registry_synced: true)");
-    const until = Date.now() + REVALIDATE_MS + 60_000;
-    let last = null;
-    while (Date.now() < until) {
-      last = await hero();
-      if (last.leaked) fail("the partial count reached a page");
-      const s = show(last);
-      if (s === asRow(B)) break;
-      if (s !== (COLD ? "no row" : asRow(A))) fail(`unexpected hero ${s}`);
-      await sleep(10_000);
-    }
-    log(`settled on ${show(last)} (x-nextjs-cache: ${last.cache})`);
-    if (show(last) !== asRow(B))
-      fail("the complete figures never replaced the page");
+    await awaitCompleteFigures();
   } finally {
     server.kill();
     if (server.exitCode === null && server.signalCode === null) {
