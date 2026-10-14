@@ -64,6 +64,7 @@ export function SettledChart({
   }
 
   const slot = W / days.length;
+  const last = days.at(-1) ?? days[0];
   return (
     <figure>
       <div className="flex gap-2">
@@ -132,7 +133,7 @@ export function SettledChart({
         className="mt-1 flex justify-between pl-6 font-mono text-[10px] text-muted"
       >
         <span>{formatDay(days[0].date)}</span>
-        <span>{formatDay(days[days.length - 1].date)}</span>
+        <span>{formatDay(last.date)}</span>
       </div>
       <table className="sr-only">
         <caption>Settled workflows per day</caption>
