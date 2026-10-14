@@ -404,6 +404,30 @@ function NoticeRow({
   );
 }
 
+/**
+ * The floor's changes counted per kind. Only a kind this build knows indexes
+ * the per-kind counts. The guard lets any string through, so that one new kind
+ * cannot blank the plan; a kind with no arm is still counted, apart, and never
+ * silently left out of the total the buyer reads with the panel shut.
+ */
+function countKinds(changes: PlanFloorNotice[]): {
+  counts: Record<PlanFloorNoticeKind, number>;
+  other: number;
+} {
+  const counts: Record<PlanFloorNoticeKind, number> = {
+    excluded: 0,
+    substituted: 0,
+    degraded: 0,
+  };
+  let other = 0;
+  for (const n of changes) {
+    const kind = knownKind(n);
+    if (kind === null) other += 1;
+    else counts[kind] += 1;
+  }
+  return { counts, other };
+}
+
 export function ExclusionsPanel({
   plan,
 }: {
@@ -434,21 +458,7 @@ export function ExclusionsPanel({
   const noProvider = notices.filter(isProviderUnavailable).length;
   const shaped = notices.filter(isPlanShaping).length;
 
-  // Only a kind this build knows indexes the per-kind counts. The guard lets
-  // any string through, so that one new kind cannot blank the plan; a kind
-  // with no arm is still counted, apart, and never silently left out of the
-  // total the buyer reads with the panel shut.
-  const counts: Record<PlanFloorNoticeKind, number> = {
-    excluded: 0,
-    substituted: 0,
-    degraded: 0,
-  };
-  let other = 0;
-  for (const n of changes) {
-    const kind = knownKind(n);
-    if (kind === null) other += 1;
-    else counts[kind] += 1;
-  }
+  const { counts, other } = countKinds(changes);
 
   const breakdown = [
     ...KIND_ORDER.filter((k) => counts[k] > 0).map(
