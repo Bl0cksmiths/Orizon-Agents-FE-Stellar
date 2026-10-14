@@ -110,9 +110,9 @@ export function WakeStatus({
       )}
     >
       <p className="flex min-w-0 items-baseline gap-2">
-        <span role="status" className="min-w-0 truncate">
+        <output aria-live="polite" className="min-w-0 truncate">
           {SENTENCES[phase](what)}
-        </span>
+        </output>
         {phase !== "loading" && (
           <span aria-hidden="true" className="shrink-0 tabular-nums">
             · {seconds}s
