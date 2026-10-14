@@ -220,11 +220,11 @@ function RetryRow({
   waitMs,
   onRetry,
   busy,
-}: {
+}: Readonly<{
   waitMs: number | null;
   onRetry: () => void;
   busy: boolean;
-}) {
+}>) {
   const seconds = useSecondsLeft(waitMs);
   const waiting = seconds !== null && seconds > 0;
   return (
