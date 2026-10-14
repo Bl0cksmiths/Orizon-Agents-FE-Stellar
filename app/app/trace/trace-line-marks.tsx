@@ -39,7 +39,7 @@ export function HandoffMark({ line }: Readonly<{ line: TraceLine }>) {
     <Badge tone="cyan" className="mr-2 align-middle">
       <span className="sr-only">Builds on earlier steps: </span>
       <span aria-hidden="true">⤷</span>
-      handoff
+      {"handoff"}
     </Badge>
   );
 }
