@@ -136,7 +136,7 @@ function Row({
   );
 }
 
-function Items({ items }: { items: string[] }) {
+function Items({ items }: Readonly<{ items: string[] }>) {
   if (items.length === 0)
     return <span className="text-muted">None stated</span>;
   return (
