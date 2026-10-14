@@ -59,9 +59,10 @@ export function renderSitemap(entries: readonly SitemapEntry[]): string {
     );
   }
   const hasVideos = entries.some((e) => e.videos?.length);
+  const videoNs = hasVideos ? ` xmlns:video="${VIDEO_NS}"` : "";
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    `<urlset xmlns="${SITEMAP_NS}"${hasVideos ? ` xmlns:video="${VIDEO_NS}"` : ""}>`,
+    `<urlset xmlns="${SITEMAP_NS}"${videoNs}>`,
   ];
   for (const entry of entries) {
     lines.push("  <url>", tag("loc", entry.loc, "    "));
