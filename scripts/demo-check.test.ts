@@ -209,6 +209,30 @@ describe("demo-check: the video's running time", () => {
     );
   });
 
+  it("fails, naming the file, when ffprobe cannot read it", () => {
+    const bin = path.join(tmp, "bin");
+    mkdirSync(bin, { recursive: true });
+    const exe = path.join(bin, "ffprobe");
+    writeFileSync(exe, "#!/bin/sh\necho 'moov atom not found' >&2\nexit 1\n");
+    chmodSync(exe, 0o755);
+    const { status, out } = run(["--video", video], { PATH: bin });
+    expect(status).toBe(1);
+    expect(out).toContain(
+      `FAIL  video: ffprobe could not read ${video}: moov atom not found`,
+    );
+    expect(out).not.toContain("together");
+  });
+
+  it("fails when ffprobe reports no duration", () => {
+    const { status, out } = run(["--video", video], {
+      PATH: fakeFfprobe("N/A"),
+    });
+    expect(status).toBe(1);
+    expect(out).toContain(
+      `FAIL  video: ffprobe could not read ${video}: ffprobe reported no duration (N/A)`,
+    );
+  });
+
   it("fails on a file that is not there", () => {
     const { status, out } = run(["--video", path.join(tmp, "nope.mp4")], {
       PATH: fakeFfprobe("240"),
