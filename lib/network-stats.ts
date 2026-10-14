@@ -252,6 +252,17 @@ function droppedNote(list: Agent[]): string | null {
   return null;
 }
 
+/** The note for an adoption read that could not verify every agent's owner,
+ *  or null when it verified them all. */
+function unverifiedOwnersNote(adoption: EcosystemAdoption): string | null {
+  const unread = adoption.unreadable_agents?.length ?? 0;
+  if (unread > 0)
+    return `Couldn't verify the owner of ${formatCount(unread)} agent${unread === 1 ? "" : "s"} right now — the external count may be low.`;
+  if (adoption.degraded === true)
+    return "Couldn't verify every agent's owner right now — the external count may be low.";
+  return null;
+}
+
 /**
  * The figures an older backend's own reads support. Each read fails alone:
  * a dead adoption read leaves the registry counts standing, and the reverse.
@@ -277,14 +288,8 @@ export function deriveNetworkStats(reads: {
     if (dropped !== null) notes.push(dropped);
   }
   if (adoption.ok) {
-    const unread = adoption.value.unreadable_agents?.length ?? 0;
-    if (unread > 0 || adoption.value.degraded === true) {
-      notes.push(
-        unread > 0
-          ? `Couldn't verify the owner of ${formatCount(unread)} agent${unread === 1 ? "" : "s"} right now — the external count may be low.`
-          : "Couldn't verify every agent's owner right now — the external count may be low.",
-      );
-    }
+    const unverified = unverifiedOwnersNote(adoption.value);
+    if (unverified !== null) notes.push(unverified);
   }
 
   return {
