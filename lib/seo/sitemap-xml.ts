@@ -15,6 +15,9 @@ import type { SitemapEntry, SitemapVideo } from "./sitemap";
 /** The most URLs one sitemap file may list (sitemaps.org). */
 export const MAX_SITEMAP_URLS = 50_000;
 
+// XML namespace names, not addresses: nothing fetches them, and the protocols
+// define them with http, so an https spelling would be a different namespace
+// that crawlers do not recognise.
 const SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9";
 const VIDEO_NS = "http://www.google.com/schemas/sitemap-video/1.1";
 
