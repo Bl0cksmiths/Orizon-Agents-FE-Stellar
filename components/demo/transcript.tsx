@@ -99,9 +99,9 @@ const components = {
 
 export function DemoTranscript({
   parts,
-}: {
+}: Readonly<{
   parts: { role: DemoRole; title: string; transcript: Root }[];
-}) {
+}>) {
   return (
     <section aria-labelledby="demo-transcript">
       <h2
