@@ -51,18 +51,15 @@ export function Composition({ stats }: Readonly<{ stats: NetworkStats }>) {
   const skills = stats.skills.ok
     ? stats.skills.value.filter((r) => r.name !== OTHER_SKILLS)
     : [];
+  // What stands in for the bar: why it is missing, or that there is nothing
+  // to draw yet.
+  const emptyNote = slices.ok
+    ? "No agents registered yet."
+    : `Composition unavailable — ${slices.reason}.`;
 
   return (
     <div className="space-y-5">
-      {!slices.ok ? (
-        <p className="font-mono text-[11px] text-muted">
-          Composition unavailable — {slices.reason}.
-        </p>
-      ) : slices.value.length === 0 ? (
-        <p className="font-mono text-[11px] text-muted">
-          No agents registered yet.
-        </p>
-      ) : (
+      {slices.ok && slices.value.length > 0 ? (
         <div>
           {/* The bar is decoration; the legend below carries every figure
               as text, so it is hidden from assistive tech. A 2px surface
@@ -98,6 +95,8 @@ export function Composition({ stats }: Readonly<{ stats: NetworkStats }>) {
             ))}
           </ul>
         </div>
+      ) : (
+        <p className="font-mono text-[11px] text-muted">{emptyNote}</p>
       )}
 
       {(bound || online) && (
