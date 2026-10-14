@@ -16,7 +16,7 @@ export const TRACE_STAGES = ["guard", "improve", "recheck", "plan"] as const;
 export type TraceStage = (typeof TRACE_STAGES)[number];
 
 const isTraceStage = (v: unknown): v is TraceStage =>
-  TRACE_STAGES.some((s) => s === v);
+  (TRACE_STAGES as readonly unknown[]).includes(v);
 
 /** Each stage's documented opening words. Anchored at the start: a step
  *  line that only mentions planning mid-sentence is not a stage. The
