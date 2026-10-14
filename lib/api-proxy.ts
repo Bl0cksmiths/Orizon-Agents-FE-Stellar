@@ -315,11 +315,7 @@ export class CachedRead {
       );
     }
     const value = acceptedBody(text, accept, path);
-    const headers: Record<string, string> = {};
-    for (const name of passHeaders ?? []) {
-      const v = res.headers.get(name);
-      if (v !== null) headers[name] = v;
-    }
+    const headers = passedHeaders(res.headers, passHeaders);
     const etag = res.headers.get("etag");
     return {
       text,
@@ -331,6 +327,20 @@ export class CachedRead {
       headers,
     };
   }
+}
+
+/** The configured backend headers the response carries, by their
+ * configured names. */
+function passedHeaders(
+  from: Headers,
+  names: CachedReadConfig["passHeaders"],
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const name of names ?? []) {
+    const v = from.get(name);
+    if (v !== null) headers[name] = v;
+  }
+  return headers;
 }
 
 /** The body parsed and accepted as the resource's shape; a malformed one
