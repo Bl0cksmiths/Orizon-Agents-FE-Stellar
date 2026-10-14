@@ -84,7 +84,7 @@ function listOf(sources: number[]): string {
   const nums = sources.map(num);
   return nums.length < 2
     ? nums.join("")
-    : `${nums.slice(0, -1).join(", ")} and ${nums[nums.length - 1]}`;
+    : `${nums.slice(0, -1).join(", ")} and ${nums.at(-1)}`;
 }
 
 /** Under a step: the earlier steps whose output it uses, as the planner
