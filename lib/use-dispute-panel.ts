@@ -248,6 +248,16 @@ export function disputePollMs(state: DisputePollState | null): number | null {
     if (!state.doneAtRequest) return null;
     return state.awaitedMs < SETTLEMENT_WAIT_MS ? SETTLEMENT_POLL_MS : ms;
   }
+  return disputesPollMs(res, waitedMs) ?? ms;
+}
+
+/**
+ * The cadence the job's disputes ask for: the chain-wait one while a receipt
+ * awaits a transfer or a rating, the decision one while a dispute is open,
+ * and null once every wait is over or nothing is moving.
+ */
+function disputesPollMs(res: TaskDisputes, waitedMs: number): number | null {
+  let ms: number | null = null;
   for (const dispute of jobDisputes(res)) {
     if (receiptAwaitsChain(dispute) || ratingStillComing(dispute)) {
       if (waitedMs < PENDING_FAST_WAIT_MS) return CREDIT_POLL_MS;
