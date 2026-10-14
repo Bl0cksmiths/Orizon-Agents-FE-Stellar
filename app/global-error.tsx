@@ -105,10 +105,10 @@ const styles = {
 
 export default function GlobalError({
   error,
-}: {
+}: Readonly<{
   error: Error & { digest?: string };
   reset: () => void;
-}) {
+}>) {
   const { kind, phase, headingRef, reload } = useErrorRecovery(error);
 
   return (
