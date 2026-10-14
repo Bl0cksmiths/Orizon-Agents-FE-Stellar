@@ -183,6 +183,28 @@ function checkReturnBeyondSteps(
   return { issue, headroom: surplus ?? (beyond >= 0n ? beyond : null) };
 }
 
+/** The checks that the steps' own figures sum to the settlement's totals. */
+function stepSumIssues(
+  phase: SettlementState,
+  planned: bigint | null,
+  reportedPlanned: bigint | null,
+  charged: bigint | null,
+  reportedCharged: bigint | null,
+): string[] {
+  const issues: string[] = [];
+  if (
+    planned !== null &&
+    reportedPlanned !== null &&
+    planned !== reportedPlanned
+  )
+    issues.push("the steps' prices do not sum to the planned total");
+  if (phase === "settled" && charged !== null && reportedCharged !== null) {
+    if (charged !== reportedCharged)
+      issues.push("the steps' charges do not sum to the settlement's total");
+  }
+  return issues;
+}
+
 /** The checks against what the authorization moved into escrow: a confirmed
  *  settlement must charge and return all of it, and it must cover the plan. */
 function authorizationIssues(
@@ -257,16 +279,9 @@ export function reconcileSettlement(
     if (r.balanced === false)
       issues.push(`step ${r.stepIndex + 1}: charged + returned ≠ planned`);
   }
-  if (
-    planned !== null &&
-    reportedPlanned !== null &&
-    planned !== reportedPlanned
-  )
-    issues.push("the steps' prices do not sum to the planned total");
-  if (phase === "settled" && charged !== null && reportedCharged !== null) {
-    if (charged !== reportedCharged)
-      issues.push("the steps' charges do not sum to the settlement's total");
-  }
+  issues.push(
+    ...stepSumIssues(phase, planned, reportedPlanned, charged, reportedCharged),
+  );
   const beyondCheck = checkReturnBeyondSteps(
     phase,
     returned,
