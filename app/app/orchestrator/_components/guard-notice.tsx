@@ -200,7 +200,7 @@ function Body({
 
 /** When planning resumes, as a time in the buyer's own zone. The deadline is
  *  read once, on mount, so a re-render never moves it. */
-function ResumesAt({ waitMs }: { waitMs: number | null }) {
+function ResumesAt({ waitMs }: Readonly<{ waitMs: number | null }>) {
   const [at] = useState(() => (waitMs === null ? null : Date.now() + waitMs));
   if (at === null) {
     return <>AI planning resumes when the daily budget resets.</>;
