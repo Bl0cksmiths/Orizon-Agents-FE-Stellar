@@ -236,6 +236,16 @@ async function fromOwners(
   };
 }
 
+/** Whether there is an overview, and it counted the external agents and
+ *  their wallets. */
+function overviewCountsOwners(overview: OverviewV2 | null): boolean {
+  return (
+    overview !== null &&
+    overview.agents.external !== null &&
+    overview.operators.external_wallets !== null
+  );
+}
+
 /** The backend's v2 overview, or null for an unreachable or legacy one: the
  *  registry then decides. */
 async function readOverview(api: Read): Promise<OverviewV2 | null> {
@@ -271,10 +281,7 @@ export async function readCompleteStats(
     if (signal === "syncing")
       return partial(syncing(overview.agents.registered));
   }
-  const ownersFromOverview =
-    overview !== null &&
-    overview.agents.external !== null &&
-    overview.operators.external_wallets !== null;
+  const ownersFromOverview = overviewCountsOwners(overview);
 
   // The adoption read is costly (a settlement scan per external agent), so it
   // is asked only of a backend whose overview cannot answer, and started now
