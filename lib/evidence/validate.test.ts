@@ -640,6 +640,13 @@ describe("removed metrics", () => {
     }, /^metrics must be the SOW §6\.3 metrics m01 to m11 in order, less the removed m03; found 9: .*; m05 is left out with no removed_metrics entry$/);
   });
 
+  it("names every metric left out with no entry", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics = [];
+      i.metrics = i.metrics.filter((m: Json) => m.id !== "m05");
+    }, /^metrics must be exactly the eleven of SOW §6\.3, m01 to m11 in order; found 9: .*; m03, m05 are left out with no removed_metrics entry$/);
+  });
+
   it("refuses an entry for a metric still in the table", () => {
     const index = eleven();
     index.removed_metrics = [{ ...ENTRY }];
