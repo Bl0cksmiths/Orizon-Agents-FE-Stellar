@@ -73,17 +73,16 @@ export function unitsToStroops(units: number): bigint | null {
   if (!Number.isFinite(units) || units < 0) return null;
   const scaled = units * STROOPS_PER_UNIT;
   if (scaled > Number.MAX_SAFE_INTEGER) return null;
-  const floor = Math.floor(scaled);
-  const frac = scaled - floor;
-  const rounded =
-    frac > 0.5
-      ? floor + 1
-      : frac < 0.5
-        ? floor
-        : floor % 2 === 0
-          ? floor
-          : floor + 1;
-  return BigInt(rounded);
+  return BigInt(roundHalfEven(scaled));
+}
+
+/** The nearest whole number, an exact half going to the even neighbour. */
+function roundHalfEven(x: number): number {
+  const floor = Math.floor(x);
+  const frac = x - floor;
+  if (frac > 0.5) return floor + 1;
+  if (frac < 0.5) return floor;
+  return floor % 2 === 0 ? floor : floor + 1;
 }
 
 /**
