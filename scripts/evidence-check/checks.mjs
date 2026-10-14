@@ -400,6 +400,31 @@ function utcDate(value) {
 }
 
 /**
+ * Why a hash testnet lacks fails, asking mainnet Horizon only to say so
+ * when the hash is there instead.
+ *
+ * @param {Client} client
+ * @param {string} hash
+ * @param {Endpoints} endpoints
+ * @returns {Promise<string>}
+ */
+async function notOnTestnet(client, hash, endpoints) {
+  let detail = "not found on testnet (Horizon and RPC)";
+  try {
+    const main = await client.request(
+      `${endpoints.mainnetHorizon}/transactions/${hash}`,
+    );
+    if (main.status === 200) {
+      const ledger = parseJson(main.text)?.ledger;
+      detail = `not on testnet: this hash exists on MAINNET${ledger ? ` (ledger ${ledger})` : ""}; the index is testnet only`;
+    }
+  } catch {
+    detail += "; the mainnet lookup got no answer";
+  }
+  return detail;
+}
+
+/**
  * @param {Client} client
  * @param {import("./links.mjs").Link} link
  * @param {Endpoints} endpoints
@@ -431,18 +456,7 @@ export async function checkTx(client, link, endpoints, reachable, sdk) {
     };
   }
   if (!chain) {
-    let detail = "not found on testnet (Horizon and RPC)";
-    try {
-      const main = await client.request(
-        `${endpoints.mainnetHorizon}/transactions/${hash}`,
-      );
-      if (main.status === 200) {
-        const ledger = parseJson(main.text)?.ledger;
-        detail = `not on testnet: this hash exists on MAINNET${ledger ? ` (ledger ${ledger})` : ""}; the index is testnet only`;
-      }
-    } catch {
-      detail += "; the mainnet lookup got no answer";
-    }
+    const detail = await notOnTestnet(client, hash, endpoints);
     return {
       checks: [{ name: "testnet-tx", result: "fail", detail }],
       chain: null,
