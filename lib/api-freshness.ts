@@ -66,6 +66,5 @@ export function isComputingError(error: unknown): boolean {
  * its connection, which is worth saying.
  */
 export function isWakingError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.includes(WAKING_MESSAGE);
+  return messageOf(error).includes(WAKING_MESSAGE);
 }
