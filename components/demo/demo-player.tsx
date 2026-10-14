@@ -46,12 +46,12 @@ export function DemoPlayer({
   video,
   chapters,
   index,
-}: {
+}: Readonly<{
   video: DemoVideo;
   chapters: DemoChapter[];
   /** Which part this is, from 0: it names the links and the headings' ids. */
   index: number;
-}) {
+}>) {
   faultPoint("demo-player");
   const [hydrated, setHydrated] = useState(false);
   const [playing, setPlaying] = useState<Playing | null>(null);
