@@ -55,6 +55,19 @@ describe("traceStage", () => {
     expect(traceStage(line("x", { stage: "recheck" }))).toBe("recheck");
   });
 
+  it("reads each recheck wording on its own terms", () => {
+    // "re-checked by" counts anywhere in the line, but only as whole words.
+    expect(traceStage(line("Brief re-checked by jev: safe"))).toBe("recheck");
+    expect(traceStage(line("Brief pre-checked by jev"))).toBeNull();
+    // The fallback counts only when it ends the line (trailing space aside).
+    expect(traceStage(line("Drifted; planning from your own words  "))).toBe(
+      "recheck",
+    );
+    expect(
+      traceStage(line("Drifted; planning from your own words instead")),
+    ).toBeNull();
+  });
+
   it("is null for a step line and for a tag it does not know", () => {
     expect(traceStage(line("code.gen → calculator app generated"))).toBeNull();
     expect(
@@ -122,5 +135,30 @@ describe("traceHandoff", () => {
       traceHandoff(line("code.gen → calculator app generated")),
     ).toBeNull();
     expect(traceHandoff(line("uses output from:"))).toBeNull();
+    expect(traceHandoff(line("uses output fromx"))).toBeNull();
+    expect(traceHandoff(line("uses output from: a\nb"))).toBeNull();
+  });
+
+  it("reads the sources after any blanks, a line break among them", () => {
+    expect(traceHandoff(line("uses output from:\n\t code.gen"))).toEqual([
+      "code.gen",
+    ]);
+    expect(traceHandoff(line("USES OUTPUT FROM  a , b"))).toEqual(["a", "b"]);
+  });
+
+  it("splits on commas and 'and', not on a word holding 'and'", () => {
+    expect(
+      traceHandoff(line("uses output from: a ,b and\tc,,brand.x AND d and")),
+    ).toEqual(["a", "b", "c", "brand.x", "d"]);
+  });
+
+  it("reads a line of thousands of blanks in linear time", () => {
+    const started = performance.now();
+    const blanks = " ".repeat(100_000);
+    expect(traceHandoff(line(`uses output from${blanks}a\nb`))).toBeNull();
+    expect(traceHandoff(line(`uses output from: a${blanks}b`))).toEqual([
+      `a${blanks}b`,
+    ]);
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });

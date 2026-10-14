@@ -79,10 +79,10 @@ const LATER_STAGES: Stage[] = [
  */
 export function PipelineDiagram({
   generation,
-}: {
+}: Readonly<{
   /** The escrow the deployment settles through (`escrowGeneration`). */
   generation: EscrowGeneration;
-}) {
+}>) {
   const stages = [SETTLE[generation], ...LATER_STAGES];
   return (
     <section className="space-y-4" aria-labelledby="rep-pipeline-heading">

@@ -518,6 +518,70 @@ describe("CachedRead — the backend's snapshot contract", () => {
   });
 });
 
+describe("CachedRead — characterization of the backend read", () => {
+  it("maps a rejection that is not an Error to the same 503", async () => {
+    const { be, read } = setup();
+    const out = read.read();
+    await flush();
+    be.fail("boom");
+    expect(await out).toMatchObject({
+      ok: false,
+      status: 503,
+      code: "backend_unreachable",
+      message: "the backend could not answer right now — try again shortly",
+      retryAfter: "3",
+    });
+  });
+
+  it("keeps the held copy's date on a 304 that sends no snapshot age", async () => {
+    const { be, read } = setup();
+    const first = read.read();
+    await flush();
+    be.answer(["same"], { headers: { etag: '"v1"', "x-snapshot-age": "5" } });
+    const held = await first;
+    const heldDataAt = held.ok ? held.copy.dataAt : undefined;
+    expect(heldDataAt).toBe(Date.now() - 5_000);
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    const again = read.read();
+    await flush();
+    be.pending
+      .shift()
+      ?.resolve(new Response(null, { status: 304, headers: { etag: '"v1"' } }));
+    expect(await again).toMatchObject({
+      ok: true,
+      state: "fresh",
+      copy: { value: ["same"], readAt: Date.now(), dataAt: heldDataAt },
+    });
+  });
+
+  it("relays a 202 with no Retry-After without one", async () => {
+    const { be, read } = setup();
+    const out = read.read();
+    await flush();
+    be.answer({ status: "computing" }, { status: 202 });
+    const res = await out;
+    expect(res).toMatchObject({
+      ok: false,
+      status: 202,
+      code: "backend_computing",
+      message: "GET /things is still being computed",
+    });
+    expect(!res.ok && res.retryAfter).toBeUndefined();
+  });
+
+  it("carries no configured header the backend did not send", async () => {
+    const { be, read } = setup({ passHeaders: ["X-Registry-Synced"] });
+    const out = read.read();
+    await flush();
+    be.answer([1]);
+    const res = await out;
+    expect(res.ok && res.copy.headers).toEqual({});
+    expect(res.ok && "etag" in res.copy).toBe(false);
+    expect(res.ok && "dataAt" in res.copy).toBe(false);
+  });
+});
+
 describe("parsePageQuery", () => {
   const q = (s: string) => parsePageQuery(new URLSearchParams(s));
 

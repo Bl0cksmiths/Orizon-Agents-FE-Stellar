@@ -278,17 +278,11 @@ export class CachedRead {
       });
       text = await res.text();
     } catch (err) {
-      if (controller.signal.aborted) {
-        throw new UpstreamError(
-          `GET ${path} timed out after ${upstreamTimeoutMs / 1000}s`,
-          504,
-          "backend_timeout",
-        );
-      }
-      throw new UpstreamError(
-        `GET ${path} failed: ${err instanceof Error ? err.message : String(err)}`,
-        503,
-        "backend_unreachable",
+      throw transportError(
+        err,
+        controller.signal.aborted,
+        path,
+        upstreamTimeoutMs,
       );
     } finally {
       clearTimeout(timer);
@@ -320,24 +314,8 @@ export class CachedRead {
         res.headers.get("retry-after") ?? undefined,
       );
     }
-    let value: unknown;
-    try {
-      value = JSON.parse(text);
-    } catch {
-      value = undefined;
-    }
-    if (value === undefined || !accept(value)) {
-      throw new UpstreamError(
-        `malformed response from ${path}`,
-        502,
-        "backend_malformed",
-      );
-    }
-    const headers: Record<string, string> = {};
-    for (const name of passHeaders ?? []) {
-      const v = res.headers.get(name);
-      if (v !== null) headers[name] = v;
-    }
+    const value = acceptedBody(text, accept, path);
+    const headers = passedHeaders(res.headers, passHeaders);
     const etag = res.headers.get("etag");
     return {
       text,
@@ -349,6 +327,65 @@ export class CachedRead {
       headers,
     };
   }
+}
+
+/** The configured backend headers the response carries, by their
+ * configured names. */
+function passedHeaders(
+  from: Headers,
+  names: CachedReadConfig["passHeaders"],
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const name of names ?? []) {
+    const v = from.get(name);
+    if (v !== null) headers[name] = v;
+  }
+  return headers;
+}
+
+/** The body parsed and accepted as the resource's shape; a malformed one
+ * throws `backend_malformed`. */
+function acceptedBody(
+  text: string,
+  accept: CachedReadConfig["accept"],
+  path: string,
+): unknown {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    value = undefined;
+  }
+  if (value === undefined || !accept(value)) {
+    throw new UpstreamError(
+      `malformed response from ${path}`,
+      502,
+      "backend_malformed",
+    );
+  }
+  return value;
+}
+
+/** A backend read that never answered: timed out (aborted at
+ * `upstreamTimeoutMs`) or failed in transport. */
+function transportError(
+  err: unknown,
+  aborted: boolean,
+  path: string,
+  upstreamTimeoutMs: number,
+): UpstreamError {
+  if (aborted) {
+    return new UpstreamError(
+      `GET ${path} timed out after ${upstreamTimeoutMs / 1000}s`,
+      504,
+      "backend_timeout",
+    );
+  }
+  return new UpstreamError(
+    `GET ${path} failed: ${err instanceof Error ? err.message : String(err)}`,
+    503,
+    "backend_unreachable",
+  );
 }
 
 /** When a snapshot's data dates from, by the backend's `X-Snapshot-Age`

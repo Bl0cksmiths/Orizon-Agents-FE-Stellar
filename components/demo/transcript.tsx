@@ -99,9 +99,10 @@ const components = {
 
 export function DemoTranscript({
   parts,
-}: {
-  parts: { role: DemoRole; title: string; transcript: Root }[];
-}) {
+}: Readonly<{
+  /** `id` is the part's video, unique across the demo: it keys the part. */
+  parts: { id: string; role: DemoRole; title: string; transcript: Root }[];
+}>) {
   return (
     <section aria-labelledby="demo-transcript">
       <h2
@@ -112,7 +113,7 @@ export function DemoTranscript({
       </h2>
       {parts.map((part, i) => (
         <section
-          key={i}
+          key={part.id}
           aria-labelledby={`demo-transcript-${i + 1}`}
           className="mt-6 min-w-0"
         >

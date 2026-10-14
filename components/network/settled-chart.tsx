@@ -22,11 +22,16 @@ export function formatDay(date: string): string {
 
 const plural = (n: number) => `${n} settled workflow${n === 1 ? "" : "s"}`;
 
-/** The sentence a screen reader hears for the whole chart. */
+/** The sentence a screen reader hears for the whole chart. The chart never
+ * draws an empty series, but a caller that passes one gets a sentence saying
+ * so rather than a crash or invented dates. */
 export function seriesSummary(days: SettledDay[]): string {
+  if (days.length === 0) return "Settled workflows per day: no days reported.";
+  const [first] = days;
   const total = days.reduce((sum, d) => sum + d.settled, 0);
-  const peak = days.reduce((a, b) => (b.settled > a.settled ? b : a));
-  return `Settled workflows per day, ${formatDay(days[0].date)} to ${formatDay(days[days.length - 1].date)}: ${plural(total)} in total, at most ${peak.settled} on ${formatDay(peak.date)}.`;
+  const last = days.at(-1) ?? first;
+  const peak = days.reduce((a, b) => (b.settled > a.settled ? b : a), first);
+  return `Settled workflows per day, ${formatDay(first.date)} to ${formatDay(last.date)}: ${plural(total)} in total, at most ${peak.settled} on ${formatDay(peak.date)}.`;
 }
 
 const EMPTY =
@@ -38,7 +43,9 @@ const EMPTY =
  * nothing settled says so in words rather than as a flat line that reads
  * like a broken chart.
  */
-export function SettledChart({ series }: { series: Measured<SettledDay[]> }) {
+export function SettledChart({
+  series,
+}: Readonly<{ series: Measured<SettledDay[]> }>) {
   if (!series.ok) {
     return (
       <div className={EMPTY}>
@@ -57,6 +64,7 @@ export function SettledChart({ series }: { series: Measured<SettledDay[]> }) {
   }
 
   const slot = W / days.length;
+  const last = days.at(-1) ?? days[0];
   return (
     <figure>
       <div className="flex gap-2">
@@ -125,7 +133,7 @@ export function SettledChart({ series }: { series: Measured<SettledDay[]> }) {
         className="mt-1 flex justify-between pl-6 font-mono text-[10px] text-muted"
       >
         <span>{formatDay(days[0].date)}</span>
-        <span>{formatDay(days[days.length - 1].date)}</span>
+        <span>{formatDay(last.date)}</span>
       </div>
       <table className="sr-only">
         <caption>Settled workflows per day</caption>

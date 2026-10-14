@@ -86,13 +86,13 @@ export function WakeStatus({
   active,
   what,
   className,
-}: {
+}: Readonly<{
   /** True while the panel's first read is out (or retrying a wake). */
   active: boolean;
   /** What is loading, for the first phase: "agents", "network metrics". */
   what: string;
   className?: string;
-}) {
+}>) {
   const elapsed = useElapsed(active);
   if (!active) return null;
   const phase = wakePhase(elapsed);
@@ -110,15 +110,17 @@ export function WakeStatus({
       )}
     >
       <p className="flex min-w-0 items-baseline gap-2">
-        <span role="status" className="min-w-0 truncate">
+        <output aria-live="polite" className="min-w-0 truncate">
           {SENTENCES[phase](what)}
-        </span>
+        </output>
         {phase !== "loading" && (
           <span aria-hidden="true" className="shrink-0 tabular-nums">
             · {seconds}s
           </span>
         )}
       </p>
+      {/* A div, not <progress>: a native bar cannot hold the fill below,
+          and its pseudo-element fill eases its width in some browsers only. */}
       <div
         role="progressbar"
         aria-label="Waking the network"

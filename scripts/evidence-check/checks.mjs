@@ -181,55 +181,66 @@ export function loginWall(answer) {
 }
 
 /**
+ * A YouTube link, checked through oEmbed, which answers 200 only for a
+ * public or unlisted video.
+ *
+ * @param {Client} client
+ * @param {string} url
+ * @param {Endpoints} endpoints
+ * @returns {Promise<{ check: Check, finalUrl: string | null, redirected: boolean }>}
+ */
+async function checkYouTube(client, url, endpoints) {
+  const oembed = `${endpoints.oembed}?url=${encodeURIComponent(url)}&format=json`;
+  try {
+    const answer = await client.request(oembed);
+    if (answer.status === 200) {
+      const title = parseJson(answer.text)?.title;
+      return {
+        check: {
+          name: "youtube-oembed",
+          result: "pass",
+          detail: `oEmbed 200: public or unlisted${title ? ` ("${title}")` : ""}`,
+        },
+        finalUrl: url,
+        redirected: false,
+      };
+    }
+    const meaning =
+      answer.status === 401 || answer.status === 403
+        ? "private, or embedding disabled"
+        : answer.status === 404
+          ? "no such video"
+          : "not viewable";
+    return {
+      check: {
+        name: "youtube-oembed",
+        result: answer.status === 429 ? "unverified" : "fail",
+        detail: `oEmbed HTTP ${answer.status}: ${answer.status === 429 ? "rate limited" : meaning}`,
+      },
+      finalUrl: null,
+      redirected: false,
+    };
+  } catch (err) {
+    return {
+      check: {
+        name: "youtube-oembed",
+        result: "unverified",
+        detail: why(err),
+      },
+      finalUrl: null,
+      redirected: false,
+    };
+  }
+}
+
+/**
  * @param {Client} client
  * @param {string} url
  * @param {Endpoints} endpoints
  * @returns {Promise<{ check: Check, finalUrl: string | null, redirected: boolean }>}
  */
 export async function checkReachable(client, url, endpoints) {
-  if (isYouTube(url)) {
-    const oembed = `${endpoints.oembed}?url=${encodeURIComponent(url)}&format=json`;
-    try {
-      const answer = await client.request(oembed);
-      if (answer.status === 200) {
-        const title = parseJson(answer.text)?.title;
-        return {
-          check: {
-            name: "youtube-oembed",
-            result: "pass",
-            detail: `oEmbed 200: public or unlisted${title ? ` ("${title}")` : ""}`,
-          },
-          finalUrl: url,
-          redirected: false,
-        };
-      }
-      const meaning =
-        answer.status === 401 || answer.status === 403
-          ? "private, or embedding disabled"
-          : answer.status === 404
-            ? "no such video"
-            : "not viewable";
-      return {
-        check: {
-          name: "youtube-oembed",
-          result: answer.status === 429 ? "unverified" : "fail",
-          detail: `oEmbed HTTP ${answer.status}: ${answer.status === 429 ? "rate limited" : meaning}`,
-        },
-        finalUrl: null,
-        redirected: false,
-      };
-    } catch (err) {
-      return {
-        check: {
-          name: "youtube-oembed",
-          result: "unverified",
-          detail: why(err),
-        },
-        finalUrl: null,
-        redirected: false,
-      };
-    }
-  }
+  if (isYouTube(url)) return checkYouTube(client, url, endpoints);
 
   let answer;
   try {
@@ -299,6 +310,39 @@ function sourceOfEnvelope(envelopeXdr, sdk) {
 }
 
 /**
+ * The transaction as Horizon testnet knows it, or null on a 404. Any other
+ * answer is a NetworkError: Horizon did not say either way.
+ *
+ * @param {Client} client
+ * @param {string} hash
+ * @param {Endpoints} endpoints
+ * @returns {Promise<ChainTx | null>}
+ */
+async function findOnHorizon(client, hash, endpoints) {
+  const answer = await client.request(
+    `${endpoints.horizon}/transactions/${hash}`,
+  );
+  if (answer.status === 200) {
+    const tx = parseJson(answer.text) ?? {};
+    return {
+      hash,
+      ledger: typeof tx.ledger === "number" ? tx.ledger : null,
+      created_at: typeof tx.created_at === "string" ? tx.created_at : null,
+      source_account:
+        typeof tx.source_account === "string" ? tx.source_account : null,
+      successful: tx.successful === true,
+      via: "horizon",
+    };
+  }
+  if (answer.status !== 404) {
+    throw new NetworkError(
+      `Horizon answered HTTP ${answer.status} for ${hash}`,
+    );
+  }
+  return null;
+}
+
+/**
  * The transaction as testnet knows it: Horizon first, then RPC. null when
  * neither has it.
  *
@@ -311,26 +355,8 @@ function sourceOfEnvelope(envelopeXdr, sdk) {
  */
 async function findOnTestnet(client, hash, endpoints, reachable, sdk) {
   if (reachable.horizon) {
-    const answer = await client.request(
-      `${endpoints.horizon}/transactions/${hash}`,
-    );
-    if (answer.status === 200) {
-      const tx = parseJson(answer.text) ?? {};
-      return {
-        hash,
-        ledger: typeof tx.ledger === "number" ? tx.ledger : null,
-        created_at: typeof tx.created_at === "string" ? tx.created_at : null,
-        source_account:
-          typeof tx.source_account === "string" ? tx.source_account : null,
-        successful: tx.successful === true,
-        via: "horizon",
-      };
-    }
-    if (answer.status !== 404) {
-      throw new NetworkError(
-        `Horizon answered HTTP ${answer.status} for ${hash}`,
-      );
-    }
+    const found = await findOnHorizon(client, hash, endpoints);
+    if (found) return found;
   }
   if (!reachable.rpc) {
     throw new NetworkError(
@@ -374,6 +400,31 @@ function utcDate(value) {
 }
 
 /**
+ * Why a hash testnet lacks fails, asking mainnet Horizon only to say so
+ * when the hash is there instead.
+ *
+ * @param {Client} client
+ * @param {string} hash
+ * @param {Endpoints} endpoints
+ * @returns {Promise<string>}
+ */
+async function notOnTestnet(client, hash, endpoints) {
+  let detail = "not found on testnet (Horizon and RPC)";
+  try {
+    const main = await client.request(
+      `${endpoints.mainnetHorizon}/transactions/${hash}`,
+    );
+    if (main.status === 200) {
+      const ledger = parseJson(main.text)?.ledger;
+      detail = `not on testnet: this hash exists on MAINNET${ledger ? ` (ledger ${ledger})` : ""}; the index is testnet only`;
+    }
+  } catch {
+    detail += "; the mainnet lookup got no answer";
+  }
+  return detail;
+}
+
+/**
  * @param {Client} client
  * @param {import("./links.mjs").Link} link
  * @param {Endpoints} endpoints
@@ -405,18 +456,7 @@ export async function checkTx(client, link, endpoints, reachable, sdk) {
     };
   }
   if (!chain) {
-    let detail = "not found on testnet (Horizon and RPC)";
-    try {
-      const main = await client.request(
-        `${endpoints.mainnetHorizon}/transactions/${hash}`,
-      );
-      if (main.status === 200) {
-        const ledger = parseJson(main.text)?.ledger;
-        detail = `not on testnet: this hash exists on MAINNET${ledger ? ` (ledger ${ledger})` : ""}; the index is testnet only`;
-      }
-    } catch {
-      detail += "; the mainnet lookup got no answer";
-    }
+    const detail = await notOnTestnet(client, hash, endpoints);
     return {
       checks: [{ name: "testnet-tx", result: "fail", detail }],
       chain: null,

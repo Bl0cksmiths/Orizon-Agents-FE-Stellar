@@ -522,3 +522,56 @@ describe("FloorSummary — an agent awaiting a fresh reputation read", () => {
     );
   });
 });
+
+describe("FloorSummary — characterization of the counts line", () => {
+  /** One notice per agent id, under `reason_code` and `over`. */
+  const each = (
+    ids: string[],
+    over: Partial<PlanFloorNotice>,
+  ): PlanFloorNotice[] =>
+    ids.map((id) =>
+      notice({ agent_id: id, agent_name: id, lower_bound_bps: null, ...over }),
+    );
+
+  it("counts two of every kind kept apart from the floor in the plural", () => {
+    const t = text({
+      notices: [
+        ...each(["a1", "a2"], { awaiting_fresh_read: true }),
+        ...each(["u1", "u2"], { reason_code: "unreachable_endpoint" }),
+        ...each(["s1", "s2"], { reason_code: "simulated_worker" }),
+        ...each(["i1", "i2"], { reason_code: "no_step_input" }),
+        ...each(["p1", "p2"], { reason_code: "provider_unavailable" }),
+      ],
+    });
+    expect(t).toContain(
+      " · 2 of them were held off until a fresh reputation read answers, not judged under the floor",
+    );
+    expect(t).toContain(
+      " · 2 agents whose endpoints failed their latest health check were left out",
+    );
+    expect(t).toContain(
+      " · 2 agents whose workers are not live yet were left out, so nothing simulated is charged",
+    );
+    expect(t).toContain(
+      " · 2 proposed steps were left out because they would have had nothing to work on",
+    );
+    expect(t).toContain(
+      " · 2 agents were left out because their model provider is unavailable",
+    );
+  });
+
+  it("counts one named operator agent and one input-less step in the singular", () => {
+    const t = text({
+      notices: [
+        ...each(["op.one"], { reason_code: "external_not_routed" }),
+        ...each(["i1"], { reason_code: "no_image_input" }),
+      ],
+    });
+    expect(t).toContain(
+      " · 1 operator agent was left out: plans use only the platform's own agents for now",
+    );
+    expect(t).toContain(
+      " · 1 proposed step was left out because it would have had nothing to work on",
+    );
+  });
+});

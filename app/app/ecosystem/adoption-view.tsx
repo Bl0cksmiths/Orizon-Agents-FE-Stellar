@@ -179,7 +179,7 @@ function TargetItem({
   partial,
   unverified,
   windowNote,
-}: {
+}: Readonly<{
   row: TargetRow;
   /** The report is partial: this count is a floor. */
   partial: boolean;
@@ -187,7 +187,7 @@ function TargetItem({
   /** The ledger window this count covers, when the backend says; null
    * otherwise, and for the targets it does not bound. */
   windowNote: string | null;
-}) {
+}>) {
   const copy = TARGET_COPY[row.key];
   return (
     <li
@@ -238,9 +238,9 @@ function TargetItem({
  */
 function PartialMarker({
   partial,
-}: {
+}: Readonly<{
   partial: { headline: string; details: string[] };
-}) {
+}>) {
   return (
     <section
       aria-label="Partial report"
@@ -331,13 +331,13 @@ function OperatorCard({
   network,
   asset,
   windowDays,
-}: {
+}: Readonly<{
   operator: ExternalOperator;
   ours: Map<string, ExcludedWallet>;
   network: string;
   asset: string | null;
   windowDays: EcosystemAdoption["window_days"];
-}) {
+}>) {
   return (
     <Card className="space-y-4">
       <h3 className="text-base font-semibold tracking-tight">
@@ -412,13 +412,13 @@ function AgentBlock({
   network,
   asset,
   windowDays,
-}: {
+}: Readonly<{
   agent: ExternalAgent;
   ours: Map<string, ExcludedWallet>;
   network: string;
   asset: string | null;
   windowDays: EcosystemAdoption["window_days"];
-}) {
+}>) {
   const settled = agent.settled_workflows;
   const windowNote = settledWindowSentence({ window_days: windowDays });
   return (

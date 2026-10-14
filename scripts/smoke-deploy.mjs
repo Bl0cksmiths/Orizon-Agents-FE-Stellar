@@ -249,6 +249,71 @@ async function fetchPage(path, timeoutMs) {
 }
 
 /**
+ * The home page's time against a budget, printed as a row. Returns the
+ * failure line when it is over, or when there was no page to time.
+ *
+ * @param {string} name  the row's name, e.g. "home page budget"
+ * @param {number | null} homeMs  null when the home page never answered 2xx
+ * @param {number} budgetMs
+ * @returns {string[]}
+ */
+function checkHomeBudget(name, homeMs, budgetMs) {
+  let verdict = "no page to time";
+  if (homeMs !== null) {
+    const side = homeMs > budgetMs ? "over" : "within";
+    verdict = `${homeMs}ms, ${side} the ${budgetMs}ms budget`;
+  }
+  const budget = `${name} → ${verdict}`;
+  if (homeMs === null || homeMs > budgetMs) {
+    console.log(`  ✗ ${budget}`);
+    return [budget];
+  }
+  console.log(`  ✓ ${budget}`);
+  return [];
+}
+
+/**
+ * Every route in CHECKS, through the deployed proxy: why each one failed, as
+ * failure lines, and the parsed body of each that answered 2xx. Prints a row
+ * per check as it goes.
+ *
+ * @returns {Promise<{ failures: string[], bodies: Map<string, unknown> }>}
+ */
+async function checkApi() {
+  const failures = [];
+  /** Parsed bodies of the checks that answered 2xx, for the parity step. */
+  const bodies = new Map();
+  for (const check of CHECKS) {
+    try {
+      const { res, body, text, ms } = await fetchJson(
+        check.path,
+        CHECK_TIMEOUT_MS,
+      );
+      if (!res.ok) {
+        failures.push(
+          `${check.path} → HTTP ${res.status}: ${text.slice(0, 200)}`,
+        );
+        console.log(`  ✗ ${check.path} → ${res.status} (${ms}ms)`);
+        continue;
+      }
+      bodies.set(check.path, body);
+      const problem = check.expect(body);
+      if (problem) {
+        failures.push(`${check.path} → ${problem}`);
+        console.log(`  ✗ ${check.path} → ${problem} (${ms}ms)`);
+        continue;
+      }
+      console.log(`  ✓ ${check.path} → ${res.status} (${ms}ms)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      failures.push(`${check.path} → ${msg}`);
+      console.log(`  ✗ ${check.path} → ${msg}`);
+    }
+  }
+  return { failures, bodies };
+}
+
+/**
  * Every page in PAGES, then the home page's time against HOME_BUDGET_MS: why
  * each one failed, as failure lines. Prints a row per check as it goes.
  */
@@ -284,17 +349,7 @@ async function checkPages() {
 
   // A home page that never arrived has no time to judge, and that is not a
   // pass: the budget fails beside the page's own failure.
-  const budget = `home page budget → ${
-    homeMs === null
-      ? "no page to time"
-      : `${homeMs}ms, ${homeMs > HOME_BUDGET_MS ? "over" : "within"} the ${HOME_BUDGET_MS}ms budget`
-  }`;
-  if (homeMs === null || homeMs > HOME_BUDGET_MS) {
-    failures.push(budget);
-    console.log(`  ✗ ${budget}`);
-  } else {
-    console.log(`  ✓ ${budget}`);
-  }
+  failures.push(...checkHomeBudget("home page budget", homeMs, HOME_BUDGET_MS));
   return failures;
 }
 
@@ -384,17 +439,9 @@ async function checkPagesInBrowser() {
     await browser.close();
   }
 
-  const budget = `home page load budget → ${
-    homeMs === null
-      ? "no page to time"
-      : `${homeMs}ms, ${homeMs > HOME_LOAD_BUDGET_MS ? "over" : "within"} the ${HOME_LOAD_BUDGET_MS}ms budget`
-  }`;
-  if (homeMs === null || homeMs > HOME_LOAD_BUDGET_MS) {
-    failures.push(budget);
-    console.log(`  ✗ ${budget}`);
-  } else {
-    console.log(`  ✓ ${budget}`);
-  }
+  failures.push(
+    ...checkHomeBudget("home page load budget", homeMs, HOME_LOAD_BUDGET_MS),
+  );
   return failures;
 }
 
@@ -443,64 +490,18 @@ function checkContractParity(live) {
   return { compared: true, summary, rows, problems };
 }
 
-async function main() {
-  console.log(`smoke: ${ORIGIN}`);
-
-  // Absorb a cold start before timing anything, and fail fast if the origin
-  // itself is unreachable.
-  try {
-    const { res, ms } = await fetchJson("/api/health", WARMUP_TIMEOUT_MS);
-    console.log(`  warmup /api/health → ${res.status} in ${ms}ms`);
-  } catch (err) {
-    console.error(
-      `  warmup failed: ${err instanceof Error ? err.message : err}`,
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  const failures = [];
-  /** Parsed bodies of the checks that answered 2xx, for the parity step. */
-  const bodies = new Map();
-  for (const check of CHECKS) {
-    try {
-      const { res, body, text, ms } = await fetchJson(
-        check.path,
-        CHECK_TIMEOUT_MS,
-      );
-      if (!res.ok) {
-        failures.push(
-          `${check.path} → HTTP ${res.status}: ${text.slice(0, 200)}`,
-        );
-        console.log(`  ✗ ${check.path} → ${res.status} (${ms}ms)`);
-        continue;
-      }
-      bodies.set(check.path, body);
-      const problem = check.expect(body);
-      if (problem) {
-        failures.push(`${check.path} → ${problem}`);
-        console.log(`  ✗ ${check.path} → ${problem} (${ms}ms)`);
-        continue;
-      }
-      console.log(`  ✓ ${check.path} → ${res.status} (${ms}ms)`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      failures.push(`${check.path} → ${msg}`);
-      console.log(`  ✗ ${check.path} → ${msg}`);
-    }
-  }
-
-  // Counted before parity adds its own, so the proxy hint below is only
-  // printed when a proxied request actually failed.
-  const requestFailures = failures.length;
-
-  // Runs after the loop rather than as one of CHECKS: it fetches nothing of
-  // its own, and still runs when the network check failed on an unexpected
-  // network, so a mismatch is reported against the book for the network the
-  // backend is actually on.
+/**
+ * checkContractParity on the network body, printed as a row with each
+ * matching id and each problem under it. An address book that cannot be read
+ * is a failure, never a pass.
+ *
+ * @param {unknown} live  the NETWORK_PATH body; undefined if none arrived
+ * @returns {ReturnType<typeof checkContractParity>}
+ */
+function reportContractParity(live) {
   let parity;
   try {
-    parity = checkContractParity(bodies.get(NETWORK_PATH));
+    parity = checkContractParity(live);
   } catch (err) {
     parity = {
       compared: false,
@@ -517,20 +518,19 @@ async function main() {
   for (const problem of parity.problems) {
     console.log(`    FAIL  ${problem.split("\n")[0]}`);
   }
-  if (!parityOk) {
-    failures.push(
-      `contract parity → ${parity.summary}:\n` +
-        parity.problems
-          .map((problem) => problem.replace(/^(?=.)/gm, "      "))
-          .join("\n"),
-    );
-  }
+  return parity;
+}
 
-  // The frontend's escrow v2 pin against the escrow production settles
-  // through: the console's payment copy describes the pinned one.
+/**
+ * The live escrow against the frontend's escrow v2 pin, printed as a row.
+ * Returns the failure line, if any; an unset pin is pending, not a failure.
+ *
+ * @param {unknown} live  the NETWORK_PATH body; undefined if none arrived
+ * @returns {string[]}
+ */
+function checkEscrowPinOf(live) {
   let pin;
   try {
-    const live = bodies.get(NETWORK_PATH);
     pin =
       live === undefined
         ? {
@@ -552,11 +552,66 @@ async function main() {
         ? "  ✓ escrow v2 pin → not pinned for this network yet (pending)"
         : `  ✓ escrow v2 pin → live escrow is ${pin.pinned}`,
     );
-  } else {
-    console.log("  ✗ escrow v2 pin");
-    for (const problem of pin.problems) console.log(`    FAIL  ${problem}`);
-    failures.push(`escrow v2 pin → ${pin.problems.join("; ")}`);
+    return [];
   }
+  console.log("  ✗ escrow v2 pin");
+  for (const problem of pin.problems) console.log(`    FAIL  ${problem}`);
+  return [`escrow v2 pin → ${pin.problems.join("; ")}`];
+}
+
+/**
+ * One health request with a long timeout, to wake a sleeping backend.
+ * Returns false, having said why, when the origin does not answer at all.
+ *
+ * @returns {Promise<boolean>}
+ */
+async function warmup() {
+  try {
+    const { res, ms } = await fetchJson("/api/health", WARMUP_TIMEOUT_MS);
+    console.log(`  warmup /api/health → ${res.status} in ${ms}ms`);
+    return true;
+  } catch (err) {
+    console.error(
+      `  warmup failed: ${err instanceof Error ? err.message : err}`,
+    );
+    return false;
+  }
+}
+
+async function main() {
+  console.log(`smoke: ${ORIGIN}`);
+
+  // Absorb a cold start before timing anything, and fail fast if the origin
+  // itself is unreachable.
+  if (!(await warmup())) {
+    process.exitCode = 1;
+    return;
+  }
+
+  const { failures, bodies } = await checkApi();
+
+  // Counted before parity adds its own, so the proxy hint below is only
+  // printed when a proxied request actually failed.
+  const requestFailures = failures.length;
+
+  // Runs after the loop rather than as one of CHECKS: it fetches nothing of
+  // its own, and still runs when the network check failed on an unexpected
+  // network, so a mismatch is reported against the book for the network the
+  // backend is actually on.
+  const parity = reportContractParity(bodies.get(NETWORK_PATH));
+  const parityOk = parity.problems.length === 0;
+  if (!parityOk) {
+    failures.push(
+      `contract parity → ${parity.summary}:\n` +
+        parity.problems
+          .map((problem) => problem.replace(/^(?=.)/gm, "      "))
+          .join("\n"),
+    );
+  }
+
+  // The frontend's escrow v2 pin against the escrow production settles
+  // through: the console's payment copy describes the pinned one.
+  failures.push(...checkEscrowPinOf(bodies.get(NETWORK_PATH)));
 
   failures.push(...(await checkPages()));
   if (BROWSER) {

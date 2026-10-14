@@ -490,6 +490,12 @@ type PlanShell = Omit<
   stages?: unknown;
 };
 
+/** `understood_as` as sent when it is null or a usable spec; else dropped. */
+function screenUnderstoodAs(v: unknown): PlanSpec | null | undefined {
+  if (v === null) return null;
+  return isPlanSpec(v) ? v : undefined;
+}
+
 /**
  * Orchestrator v2's account of how the plan was made — its tier, the brief it
  * was built from, the request check and the models — each kept when usable
@@ -505,12 +511,7 @@ function screenProvenance(v: PlanShell): {
 } {
   return {
     tier: isOptionalStr(v.tier) ? v.tier : undefined,
-    understood_as:
-      v.understood_as === null
-        ? null
-        : isPlanSpec(v.understood_as)
-          ? v.understood_as
-          : undefined,
+    understood_as: screenUnderstoodAs(v.understood_as),
     guard: isPlanGuardResult(v.guard) ? v.guard : undefined,
     models: isPlanModels(v.models) ? v.models : undefined,
     // Item by item, as notices are: an unusable line is dropped, never the rest.

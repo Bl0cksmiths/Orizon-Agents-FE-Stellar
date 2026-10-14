@@ -29,12 +29,7 @@ import {
   READ_AT_HEADER,
   TOTAL_COUNT_HEADER,
 } from "./api-contract";
-import {
-  isComputingError,
-  isWakingError,
-  noteReadAt as noteReadAtHeader,
-  readAtOf,
-} from "./api-freshness";
+import { noteReadAt as noteReadAtHeader, readAtOf } from "./api-freshness";
 import { headerSyncSignal, type SyncSignal } from "./registry-sync";
 import { isSealPending } from "./seal-state";
 import { getTaskToken, rememberTaskToken } from "./task-tokens";
@@ -539,7 +534,7 @@ function taskAuthHeaders(taskId: string): Record<string, string> | undefined {
  */
 export { ensure, httpError, post, taskAuthHeaders };
 // The cache's two facts, re-exported where every read already imports from.
-export { isComputingError, isWakingError, readAtOf };
+export { isComputingError, isWakingError, readAtOf } from "./api-freshness";
 
 export const listAgents = (signal?: AbortSignal) =>
   get<Agent[]>(

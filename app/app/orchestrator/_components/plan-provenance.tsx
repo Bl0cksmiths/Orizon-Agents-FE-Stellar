@@ -20,7 +20,9 @@ const REASON_WORDS: Record<string, string> = {
   fallback: "checked by the backup check",
 };
 
-export function PlanProvenance({ plan }: { plan: DecomposeResponse }) {
+export function PlanProvenance({
+  plan,
+}: Readonly<{ plan: DecomposeResponse }>) {
   const tier = readTier(plan.tier) ?? readTier(plan.guard?.tier);
   const stages = [
     ["checked by", modelLabel(plan.models?.guard)],

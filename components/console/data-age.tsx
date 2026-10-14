@@ -28,14 +28,14 @@ export function DataAge({
   what,
   staleAfterMs = OLD_DATA_AFTER_MS,
   className,
-}: {
+}: Readonly<{
   /** When the figures were read from the network (epoch ms), or null. */
   at: number | null | undefined;
   /** What is dated, for the sentence: "network metrics". */
   what: string;
   staleAfterMs?: number;
   className?: string;
-}) {
+}>) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (at == null) return;

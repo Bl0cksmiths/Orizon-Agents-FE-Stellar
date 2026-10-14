@@ -105,6 +105,16 @@ describe("unitsToStroops", () => {
     expect(unitsToStroops(0.00000025)).toBe(2n);
     expect(unitsToStroops(0.00000035)).toBe(4n); // 3.5 → 4
     expect(unitsToStroops(0.00000015)).toBe(2n); // 1.5 → 2
+    expect(unitsToStroops(0.00000045)).toBe(4n); // 4.5 → 4
+    expect(unitsToStroops(0.00000055)).toBe(6n); // 5.5 → 6
+    expect(unitsToStroops(0.00000135)).toBe(14n); // 13.5 → 14
+  });
+
+  it("rounds anything off the half to the nearer stroop", () => {
+    expect(unitsToStroops(0.00000024)).toBe(2n); // 2.4
+    expect(unitsToStroops(0.00000026)).toBe(3n); // 2.6
+    // 12.500000000000002 in binary floating point: past the half, so up.
+    expect(unitsToStroops(0.00000125)).toBe(13n);
   });
 
   it("refuses a figure that is not a finite, non-negative amount", () => {
@@ -159,6 +169,22 @@ describe("stroopsToDecimal", () => {
 
   it("prints a negative difference with its sign", () => {
     expect(stroopsToDecimal(-5n)).toBe("-0.0000005");
+    expect(stroopsToDecimal(-1_800_000n)).toBe("-0.180");
+  });
+
+  it("prints an asset's own decimals", () => {
+    expect(stroopsToDecimal(1234n, 2)).toBe("12.34");
+    expect(stroopsToDecimal(1200n, 2)).toBe("12.00");
+    expect(stroopsToDecimal(5n, 0)).toBe("5");
+    expect(stroopsToDecimal(10_000_000n)).toBe("1.000");
+    expect(stroopsToDecimal(10_000_001n)).toBe("1.0000001");
+  });
+
+  it("drops a long run of trailing zeros in linear time", () => {
+    const started = performance.now();
+    expect(stroopsToDecimal(10n ** 99_999n, 100_000)).toBe("0.100");
+    expect(stroopsToDecimal(1n, 100_000)).toBe(`0.${"0".repeat(99_999)}1`);
+    expect(performance.now() - started).toBeLessThan(500);
   });
 
   it("reads back to the same stroops for the authorize request", () => {

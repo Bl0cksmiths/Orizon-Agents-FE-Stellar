@@ -69,6 +69,29 @@ const HEADING_ID = "floor-summary-heading";
 
 const body = "text-sm leading-relaxed text-muted";
 
+/** The badge's glyph: a warning for an unverified read, a drop for a
+ *  relaxed floor, a check for a floor applied as configured. */
+function floorGlyph(unverified: boolean, relaxed: boolean): string {
+  if (unverified) return "⚠";
+  return relaxed ? "▾" : "✓";
+}
+
+/** A head count of agents, in words when there are none. */
+function agentsText(count: number): string {
+  if (count === 0) return "no agents";
+  return `${count} agent${count === 1 ? "" : "s"}`;
+}
+
+/** A clause of the counts line for `count` of something: `one` for one,
+ *  `many(count)` for more, and false — nothing rendered — for none. */
+function countClause(
+  count: number,
+  one: string,
+  many: (n: number) => string,
+): string | false {
+  return count > 0 && (count === 1 ? one : many(count));
+}
+
 export function FloorSummary({
   plan,
 }: {
@@ -176,9 +199,7 @@ export function FloorSummary({
         {/* Glyph AND words, here and in the prose below. The tint is
             decoration and carries none of this on its own. */}
         <Badge tone={warn ? "magenta" : "cyan"}>
-          <span aria-hidden="true">
-            {unverified ? "⚠" : relaxed ? "▾" : "✓"}
-          </span>
+          <span aria-hidden="true">{floorGlyph(unverified, relaxed)}</span>
           {`floor ${floor} · ${state || "applied"}`}
         </Badge>
       </div>
@@ -216,39 +237,51 @@ export function FloorSummary({
 
       <p className="mt-2 break-words font-mono text-[11px] leading-relaxed text-muted">
         {steps} step{steps === 1 ? "" : "s"} planned · the floor acted on{" "}
-        {actedOn === 0
-          ? "no agents"
-          : `${actedOn} agent${actedOn === 1 ? "" : "s"}`}
-        {awaiting > 0 &&
-          (awaiting === 1
-            ? " · 1 of them was held off until a fresh reputation read answers, not judged under the floor"
-            : ` · ${awaiting} of them were held off until a fresh reputation read answers, not judged under the floor`)}
-        {unbound > 0 &&
-          (unbound === 1
-            ? " · 1 agent with no endpoint bound was never a candidate"
-            : ` · ${unbound} agents with no endpoint bound were never candidates`)}
-        {unreachable > 0 &&
-          (unreachable === 1
-            ? " · 1 agent whose endpoint failed its latest health check was left out"
-            : ` · ${unreachable} agents whose endpoints failed their latest health check were left out`)}
+        {agentsText(actedOn)}
+        {countClause(
+          awaiting,
+          " · 1 of them was held off until a fresh reputation read answers, not judged under the floor",
+          (n) =>
+            ` · ${n} of them were held off until a fresh reputation read answers, not judged under the floor`,
+        )}
+        {countClause(
+          unbound,
+          " · 1 agent with no endpoint bound was never a candidate",
+          (n) => ` · ${n} agents with no endpoint bound were never candidates`,
+        )}
+        {countClause(
+          unreachable,
+          " · 1 agent whose endpoint failed its latest health check was left out",
+          (n) =>
+            ` · ${n} agents whose endpoints failed their latest health check were left out`,
+        )}
         {external > 0 &&
           (externalUncounted
             ? " · operator agents were left out: plans use only the platform's own agents for now"
-            : external === 1
-              ? " · 1 operator agent was left out: plans use only the platform's own agents for now"
-              : ` · ${external} operator agents were left out: plans use only the platform's own agents for now`)}
-        {simulated > 0 &&
-          (simulated === 1
-            ? " · 1 agent whose worker is not live yet was left out, so nothing simulated is charged"
-            : ` · ${simulated} agents whose workers are not live yet were left out, so nothing simulated is charged`)}
-        {noInput > 0 &&
-          (noInput === 1
-            ? " · 1 proposed step was left out because it would have had nothing to work on"
-            : ` · ${noInput} proposed steps were left out because they would have had nothing to work on`)}
-        {noProvider > 0 &&
-          (noProvider === 1
-            ? " · 1 agent was left out because its model provider is unavailable"
-            : ` · ${noProvider} agents were left out because their model provider is unavailable`)}
+            : countClause(
+                external,
+                " · 1 operator agent was left out: plans use only the platform's own agents for now",
+                (n) =>
+                  ` · ${n} operator agents were left out: plans use only the platform's own agents for now`,
+              ))}
+        {countClause(
+          simulated,
+          " · 1 agent whose worker is not live yet was left out, so nothing simulated is charged",
+          (n) =>
+            ` · ${n} agents whose workers are not live yet were left out, so nothing simulated is charged`,
+        )}
+        {countClause(
+          noInput,
+          " · 1 proposed step was left out because it would have had nothing to work on",
+          (n) =>
+            ` · ${n} proposed steps were left out because they would have had nothing to work on`,
+        )}
+        {countClause(
+          noProvider,
+          " · 1 agent was left out because its model provider is unavailable",
+          (n) =>
+            ` · ${n} agents were left out because their model provider is unavailable`,
+        )}
         {undescribed > 0 &&
           ` · ${undescribed === 1 ? "1 agent" : `${undescribed} agents`} reported under a kind this card has no wording for, listed below`}
         {hidden > 0 && ` · ${hiddenNoticesText(hidden)}`}

@@ -29,7 +29,7 @@ const caption =
 
 /** The copy button, isolated: one that fails is simply not there, and the
  * code stays to be selected by hand. */
-function Copy(props: { targetId: string; title: string }) {
+function Copy(props: Readonly<{ targetId: string; title: string }>) {
   return (
     <Isolate name="copy-button">
       <CopyButton {...props} />

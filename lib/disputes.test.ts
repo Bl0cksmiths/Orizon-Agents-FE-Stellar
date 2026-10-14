@@ -2926,6 +2926,24 @@ describe("disputeView — escrow v2 settlement", () => {
     );
   });
 
+  it("says it stopped checking an unconfirmed charge with no settlement on record", () => {
+    const res = taskDisputes({
+      settlement_state: "unconfirmed",
+      settlement: null,
+    });
+    expect(view({ res })).toEqual({
+      kind: "not_settled",
+      running: false,
+      settlementState: "unconfirmed",
+    });
+    expect(view({ res, waitOver: true })).toEqual({
+      kind: "not_settled",
+      running: false,
+      settlementState: "unconfirmed",
+      settlementStoppedChecking: true,
+    });
+  });
+
   it("calls nothing paid and the funds held when the settlement failed", () => {
     const v = settled({
       res: taskDisputes({ settlement_state: "failed", settlement: v2() }),

@@ -248,6 +248,16 @@ export function disputePollMs(state: DisputePollState | null): number | null {
     if (!state.doneAtRequest) return null;
     return state.awaitedMs < SETTLEMENT_WAIT_MS ? SETTLEMENT_POLL_MS : ms;
   }
+  return disputesPollMs(res, waitedMs) ?? ms;
+}
+
+/**
+ * The cadence the job's disputes ask for: the chain-wait one while a receipt
+ * awaits a transfer or a rating, the decision one while a dispute is open,
+ * and null once every wait is over or nothing is moving.
+ */
+function disputesPollMs(res: TaskDisputes, waitedMs: number): number | null {
+  let ms: number | null = null;
   for (const dispute of jobDisputes(res)) {
     if (receiptAwaitsChain(dispute) || ratingStillComing(dispute)) {
       if (waitedMs < PENDING_FAST_WAIT_MS) return CREDIT_POLL_MS;
@@ -331,6 +341,15 @@ type Snapshot = {
    */
   grant: string | null;
 };
+
+/** Whether the snapshot is inside a bounded wait: for a settlement the seal
+ *  says should exist, or for a receipt that is still moving. */
+function boundedWaitRunning(snapshot: Snapshot | null): boolean {
+  return (
+    (snapshot?.awaitingSinceMs ?? null) !== null ||
+    (snapshot?.pendingSinceMs ?? null) !== null
+  );
+}
 
 type FetchState = {
   /** The task everything below describes; a mismatch means "nothing yet". */
@@ -458,6 +477,29 @@ export function useDisputePanel(
       // The payer's read grant, if this tab holds one for this wallet: read
       // from storage on every read, so a poll presents it and never signs.
       const grant = heldReadGrant(id, addressRef.current);
+      // A failed read, other than the missing route `noReceiptRoute` stands
+      // in for.
+      const readFailed = (err: unknown): void => {
+        // Whatever is on screen stays: it is this task's (the epoch says no
+        // other load has started since), and the error dates it.
+        const error = toMessage(err);
+        setState((s) => ({ ...s, error }));
+        // While the panel is waiting for a settlement or a rating, time
+        // passed whether or not the answer came: both waits are bounded on
+        // this clock, and a backend failing every read must not hold either
+        // open for ever. The clock is left alone otherwise, so a failed poll
+        // of a settled receipt leaves the view it dates untouched.
+        if (boundedWaitRunning(stateRef.current.snapshot)) {
+          setClockMs((prev) => Math.max(prev, Date.now()));
+        }
+        // The run sealed while this read was out, and the seal was recorded
+        // against it rather than spent on a read of its own. It failed, so
+        // the seal is spent now: nothing else would ever ask again, and the
+        // settlement the seal says is coming would never be read.
+        if (sealedInFlightRef.current && !doneAtRequest) {
+          void load(id, true);
+        }
+      };
       let res: TaskDisputes;
       try {
         res = await getTaskDisputes(id, grant);
@@ -466,29 +508,7 @@ export function useDisputePanel(
         if (err instanceof ApiError && err.status === 404 && firstRead) {
           res = noReceiptRoute(id);
         } else {
-          // Whatever is on screen stays: it is this task's (the epoch says no
-          // other load has started since), and the error dates it.
-          const error = toMessage(err);
-          setState((s) => ({ ...s, error }));
-          // While the panel is waiting for a settlement or a rating, time
-          // passed whether or not the answer came: both waits are bounded on
-          // this clock, and a backend failing every read must not hold either
-          // open for ever. The clock is left alone otherwise, so a failed poll
-          // of a settled receipt leaves the view it dates untouched.
-          const waiting = stateRef.current.snapshot;
-          if (
-            (waiting?.awaitingSinceMs ?? null) !== null ||
-            (waiting?.pendingSinceMs ?? null) !== null
-          ) {
-            setClockMs((prev) => Math.max(prev, Date.now()));
-          }
-          // The run sealed while this read was out, and the seal was recorded
-          // against it rather than spent on a read of its own. It failed, so
-          // the seal is spent now: nothing else would ever ask again, and the
-          // settlement the seal says is coming would never be read.
-          if (sealedInFlightRef.current && !doneAtRequest) {
-            void load(id, true);
-          }
+          readFailed(err);
           return;
         }
       } finally {

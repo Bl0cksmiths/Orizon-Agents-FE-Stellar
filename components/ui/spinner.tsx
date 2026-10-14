@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
  * tech. It stops turning for readers who ask for reduced motion and stays as
  * a still ring.
  */
-export function Spinner({ className }: { className?: string }) {
+export function Spinner({ className }: Readonly<{ className?: string }>) {
   return (
     <span
       aria-hidden

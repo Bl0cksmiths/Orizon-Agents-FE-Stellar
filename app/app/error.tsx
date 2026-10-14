@@ -23,13 +23,13 @@ export default function Error({
 
   if (phase === "reloading") {
     return (
-      <p
-        role="status"
+      <output
+        aria-live="polite"
         data-error-boundary="console"
-        className="py-16 text-center font-mono text-xs text-muted"
+        className="block py-16 text-center font-mono text-xs text-muted"
       >
         {ERROR_COPY.reloading}
-      </p>
+      </output>
     );
   }
 

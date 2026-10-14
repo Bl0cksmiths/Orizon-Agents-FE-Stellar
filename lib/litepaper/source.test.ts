@@ -65,6 +65,29 @@ describe("parseCover", () => {
       'sections/00-front-matter.md has no "# " title heading',
     ]);
   });
+
+  it("reads the title from the first heading with words, less its trailing blanks", () => {
+    const title = (heading: string) => {
+      const result = parseCover(COVER.replace(/^# .*$/m, heading));
+      return result.ok ? result.cover.title : null;
+    };
+    expect(title("#\t  The Title \t ")).toBe("The Title");
+    expect(title("# The  Title\r")).toBe("The  Title");
+    expect(title("# \n# The Title")).toBe("The Title");
+    expect(title("##  Not a title\n# The Title")).toBe("The Title");
+    // A heading of blanks alone is still a heading: its last blank.
+    expect(title("#  \t")).toBe("\t");
+  });
+
+  it("reads a title line of thousands of blanks in linear time", () => {
+    const started = performance.now();
+    const blanks = " \t".repeat(50_000);
+    expect(parseCover(`# a${blanks}b${blanks}\n${COVER}`)).toMatchObject({
+      ok: true,
+      cover: { title: `a${blanks}b` },
+    });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe("findChapterAnchor", () => {
@@ -81,6 +104,25 @@ describe("findChapterAnchor", () => {
       id: "operations-and-governance",
       title: "§6 · Operations and Governance & more",
     });
+  });
+
+  it("drops each tag from the heading's words, but not a bare <>", () => {
+    expect(
+      findChapterAnchor(
+        '<h1 id="six">§6 &lt;&gt; <<em>Ops</em> <> a<b</h1>',
+        6,
+      ),
+    ).toEqual({ id: "six", title: "§6 <> Ops <> a<b" });
+  });
+
+  it("reads a heading full of unclosed '<' in linear time", () => {
+    const started = performance.now();
+    const lt = "<".repeat(100_000);
+    expect(findChapterAnchor(`<h1 id="six">§6 ${lt}</h1>`, 6)).toEqual({
+      id: "six",
+      title: `§6 ${lt}`,
+    });
+    expect(performance.now() - started).toBeLessThan(500);
   });
 
   it("is null when no heading starts with the chapter", () => {

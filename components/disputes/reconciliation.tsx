@@ -19,7 +19,9 @@ import type { Reconciliation } from "@/lib/reconcile";
 import { cn } from "@/lib/utils";
 import { useAmountAsset } from "./amount-asset";
 
-export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
+export function ReconciliationTable({
+  recon,
+}: Readonly<{ recon: Reconciliation }>) {
   const headingId = useId();
   const networkAsset = useAmountAsset();
   const asset = recon.asset ?? networkAsset;
@@ -30,12 +32,10 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
   // What a cell says when the record does not establish a figure: a price
   // too old to have been kept, a return a failed settlement still holds, or
   // anything else not confirmed yet.
-  const unknown = (column: "planned" | "charged" | "returned") =>
-    column === "planned"
-      ? "not recorded"
-      : recon.held && column === "returned"
-        ? "held"
-        : "pending";
+  const unknown = (column: "planned" | "charged" | "returned") => {
+    if (column === "planned") return "not recorded";
+    return recon.held && column === "returned" ? "held" : "pending";
+  };
   const cell = (
     v: bigint | null,
     column: "planned" | "charged" | "returned",
@@ -45,6 +45,17 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
     ) : (
       figure(v)
     );
+
+  let balanceSentence: string;
+  if (recon.balanced === true) {
+    balanceSentence = "Charged plus returned equals planned, to the stroop.";
+  } else if (recon.held) {
+    balanceSentence =
+      "Nothing was charged. The rest is still held in escrow until the platform returns it or the payer reclaims it after expiry.";
+  } else {
+    balanceSentence =
+      "Charges and returns are shown once the settlement confirms.";
+  }
 
   const num = "px-2 py-2 text-right font-mono tabular-nums";
   return (
@@ -61,9 +72,8 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
       {/* Scrolls on its own if a figure is ever wider than a phone: the page
           clips horizontal overflow rather than scrolling it. Focusable so a
           keyboard can scroll it too. */}
-      <div
+      <section
         className="-mx-1 overflow-x-auto px-1"
-        role="region"
         aria-label="Reconciliation figures"
         tabIndex={0}
       >
@@ -129,7 +139,7 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
             </tr>
           </tfoot>
         </table>
-      </div>
+      </section>
 
       {recon.balanced === false ? (
         <div
@@ -148,11 +158,7 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
           {recon.allReturnedBuiltIn
             ? `Returned to you: built-in agents aren't paid on ${NETWORK_LABEL} yet, so the whole authorization came back. `
             : null}
-          {recon.balanced === true
-            ? "Charged plus returned equals planned, to the stroop."
-            : recon.held
-              ? "Nothing was charged. The rest is still held in escrow until the platform returns it or the payer reclaims it after expiry."
-              : "Charges and returns are shown once the settlement confirms."}
+          {balanceSentence}
           {recon.headroom !== null && recon.headroom > 0n
             ? ` The escrow also returned ${amount(recon.headroom)} authorized above the plan's price.`
             : null}
@@ -170,7 +176,7 @@ export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
               id={recon.settleTx}
               className="inline-flex min-h-6 items-center gap-[1ch]"
             >
-              view the settlement that paid and returned on stellar.expert
+              {"view the settlement that paid and returned on stellar.expert"}
               <span aria-hidden="true"> ▸</span>
             </StellarExpertLink>
           )}
