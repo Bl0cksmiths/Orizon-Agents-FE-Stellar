@@ -314,19 +314,7 @@ export class CachedRead {
         res.headers.get("retry-after") ?? undefined,
       );
     }
-    let value: unknown;
-    try {
-      value = JSON.parse(text);
-    } catch {
-      value = undefined;
-    }
-    if (value === undefined || !accept(value)) {
-      throw new UpstreamError(
-        `malformed response from ${path}`,
-        502,
-        "backend_malformed",
-      );
-    }
+    const value = acceptedBody(text, accept, path);
     const headers: Record<string, string> = {};
     for (const name of passHeaders ?? []) {
       const v = res.headers.get(name);
@@ -343,6 +331,29 @@ export class CachedRead {
       headers,
     };
   }
+}
+
+/** The body parsed and accepted as the resource's shape; a malformed one
+ * throws `backend_malformed`. */
+function acceptedBody(
+  text: string,
+  accept: CachedReadConfig["accept"],
+  path: string,
+): unknown {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    value = undefined;
+  }
+  if (value === undefined || !accept(value)) {
+    throw new UpstreamError(
+      `malformed response from ${path}`,
+      502,
+      "backend_malformed",
+    );
+  }
+  return value;
 }
 
 /** A backend read that never answered: timed out (aborted at
