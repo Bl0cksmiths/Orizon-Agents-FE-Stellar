@@ -765,7 +765,7 @@ function RegistryPager({
  * Sticky at the left and one scroller wide (`100cqw`), they stay put while
  * the columns above them scroll.
  */
-function PinnedToView({ children }: { children: React.ReactNode }) {
+function PinnedToView({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div className="sticky left-0 w-[calc(100cqw-0.5rem)]">{children}</div>
   );
