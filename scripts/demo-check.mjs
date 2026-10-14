@@ -107,6 +107,27 @@ function probe(file) {
   return { seconds };
 }
 
+/** Print the one-line summary of a manifest that passed. */
+function reportManifest(shown, raw) {
+  if (raw.status !== "published") {
+    console.log(
+      `  ok  ${shown}: unpublished — no part and no evidence, so the page shows neither`,
+    );
+    return;
+  }
+  const { parts, evidence } = raw;
+  const each = parts
+    .map(
+      (p, i) =>
+        `part ${i + 1} ${p.role}: youtube ${p.id}, ${p.duration_seconds} s, ${p.chapters.length} chapters`,
+    )
+    .join("; ");
+  const total = parts.reduce((sum, p) => sum + p.duration_seconds, 0);
+  console.log(
+    `  ok  ${shown}: published — ${each}; ${total} s together, ${evidence.items.length} evidence items`,
+  );
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args) {
@@ -120,23 +141,7 @@ function main() {
     for (const p of problems) console.error(`  - ${p}`);
     return 1;
   }
-  if (raw.status === "published") {
-    const { parts, evidence } = raw;
-    const each = parts
-      .map(
-        (p, i) =>
-          `part ${i + 1} ${p.role}: youtube ${p.id}, ${p.duration_seconds} s, ${p.chapters.length} chapters`,
-      )
-      .join("; ");
-    const total = parts.reduce((sum, p) => sum + p.duration_seconds, 0);
-    console.log(
-      `  ok  ${shown}: published — ${each}; ${total} s together, ${evidence.items.length} evidence items`,
-    );
-  } else {
-    console.log(
-      `  ok  ${shown}: unpublished — no part and no evidence, so the page shows neither`,
-    );
-  }
+  reportManifest(shown, raw);
 
   if (args.videos.length === 0) return 0;
 
