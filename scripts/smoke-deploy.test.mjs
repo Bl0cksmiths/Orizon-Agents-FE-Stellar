@@ -89,10 +89,14 @@ after(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
+/** A route that drops the connection without answering. */
+const DROP = Symbol("drop");
+
 /**
  * A local origin answering `routes`; a path mapped to a number answers that
- * HTTP status with a small error body instead, and one mapped to `{ html }`
- * answers that page, `delayMs` late when it has one.
+ * HTTP status with a small error body instead, one mapped to `{ html }`
+ * answers that page, `delayMs` late when it has one, and one mapped to DROP
+ * closes the connection unanswered.
  * @param {Record<string, unknown>} routes
  * @returns {Promise<string>} the origin
  */
@@ -100,6 +104,10 @@ async function origin(routes) {
   const server = createServer((req, res) => {
     const path = new URL(req.url ?? "/", "http://x").pathname;
     const body = Object.hasOwn(routes, path) ? routes[path] : 404;
+    if (body === DROP) {
+      req.socket.destroy();
+      return;
+    }
     if (typeof body === "number") {
       res.writeHead(body, { "content-type": "application/json" });
       res.end(JSON.stringify({ detail: "Not Found" }));
@@ -362,6 +370,19 @@ test("exits 1 when a page does not answer 200", async () => {
   assert.match(out, /✗ page \/evidence → HTTP 500/);
   // The API answered, so the proxy hint is not printed for a page.
   assert.doesNotMatch(out, /NEXT_PUBLIC_API_BASE/);
+});
+
+test("exits 1 when a request gets no answer, naming it", async () => {
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/api/tasks": DROP, "/demo": DROP }),
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ \/api\/tasks → fetch failed\n/);
+  assert.match(out, /✗ page \/demo → fetch failed\n/);
+  assert.match(out, new RegExp(`2/${TOTAL} checks failed`));
+  assert.match(out, / {2}- \/api\/tasks → fetch failed\n/);
+  assert.match(out, / {2}- page \/demo → fetch failed\n/);
+  assert.match(out, /check NEXT_PUBLIC_API_BASE/);
 });
 
 test("opens every public page and console route", () => {
