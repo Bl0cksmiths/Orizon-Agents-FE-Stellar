@@ -814,3 +814,38 @@ describe("ExclusionsPanel — an agent awaiting a fresh reputation read", () => 
     expect(text()).not.toContain("last read lower bound");
   });
 });
+
+describe("ExclusionsPanel — characterization of names and counts", () => {
+  it("counts several named operator agents in the plural", () => {
+    const external = (id: string) =>
+      notice({
+        agent_id: id,
+        agent_name: id,
+        reason: "external operator agents are not routed",
+        reason_code: "external_not_routed",
+        lower_bound_bps: null,
+      });
+    const { summary } = renderPanel(
+      plan({ notices: [external("op.one"), external("op.two")] }),
+    );
+    expect(summary?.textContent).toContain("2 operator agents");
+  });
+
+  it("calls an aggregate notice that is not about operator agents “Some agents”", () => {
+    const { text } = opened(
+      plan({
+        notices: [
+          notice({
+            agent_id: " ",
+            agent_name: null,
+            reason: "model provider unavailable",
+            reason_code: "provider_unavailable",
+            lower_bound_bps: null,
+          }),
+        ],
+      }),
+    );
+    expect(text()).toContain("Some agents");
+    expect(text()).toContain("1 unavailable");
+  });
+});
