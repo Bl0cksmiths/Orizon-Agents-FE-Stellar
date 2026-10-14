@@ -38,7 +38,7 @@ export function LitepaperArticle({ paper }: Readonly<{ paper: Litepaper }>) {
       <header>
         <p className="mb-4 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.3em] text-cyan">
           <span aria-hidden="true" className="h-px w-8 bg-cyan/60" />
-          Litepaper
+          {"Litepaper"}
         </p>
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl">
           {paper.title}
