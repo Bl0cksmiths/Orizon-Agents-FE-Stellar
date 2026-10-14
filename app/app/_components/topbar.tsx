@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ConnectWallet } from "@/components/ui/connect-wallet";
@@ -71,6 +72,54 @@ export function Topbar() {
   // backoff gap before the next one. The pill reports one settled state
   // instead of blinking between "checking…" and "offline" every few seconds.
   const backendRechecking = backendLoading || backendRetrying;
+
+  let backendPill: ReactNode;
+  if (backendError) {
+    // A stale success must not outrank a live failure — report the most
+    // recent attempt, not the best one.
+    backendPill = (
+      <button
+        type="button"
+        onClick={recheckBackend}
+        disabled={backendRechecking}
+        title={`backend unreachable — ${backendError}`}
+        aria-label={`backend unreachable — ${backendError}. Retry`}
+        className={`disabled:opacity-50 ${focusRing}`}
+      >
+        {/* On a phone the pill is its dot (and the ↻ that makes it a
+            retry): the words stay for screen readers, and the page's own
+            crumb gets the room. */}
+        <Badge tone="magenta" dot>
+          {backendRechecking ? (
+            <span className="max-sm:sr-only">checking…</span>
+          ) : (
+            <>
+              <span className="max-sm:sr-only">offline </span>↻
+            </>
+          )}
+        </Badge>
+      </button>
+    );
+  } else if (backend) {
+    backendPill = (
+      <span title={`backend reachable · ${backend.network}`}>
+        <Badge tone="success" dot>
+          <span className="max-sm:sr-only">live</span>
+        </Badge>
+      </span>
+    );
+  } else {
+    backendPill = (
+      <span title="checking backend…">
+        <Badge tone="muted">
+          <span aria-hidden="true" className="sm:hidden">
+            …
+          </span>
+          <span className="max-sm:sr-only">checking…</span>
+        </Badge>
+      </span>
+    );
+  }
 
   return (
     <>
@@ -160,46 +209,7 @@ export function Topbar() {
               address chip may not wrap. */}
           <ConnectWallet className="max-sm:[&>span]:hidden [&_button]:whitespace-nowrap" />
           <div role="status" aria-live="polite" className="flex items-center">
-            {backendError ? (
-              // A stale success must not outrank a live failure — report the
-              // most recent attempt, not the best one.
-              <button
-                type="button"
-                onClick={recheckBackend}
-                disabled={backendRechecking}
-                title={`backend unreachable — ${backendError}`}
-                aria-label={`backend unreachable — ${backendError}. Retry`}
-                className={`disabled:opacity-50 ${focusRing}`}
-              >
-                {/* On a phone the pill is its dot (and the ↻ that makes it
-                    a retry): the words stay for screen readers, and the
-                    page's own crumb gets the room. */}
-                <Badge tone="magenta" dot>
-                  {backendRechecking ? (
-                    <span className="max-sm:sr-only">checking…</span>
-                  ) : (
-                    <>
-                      <span className="max-sm:sr-only">offline </span>↻
-                    </>
-                  )}
-                </Badge>
-              </button>
-            ) : backend ? (
-              <span title={`backend reachable · ${backend.network}`}>
-                <Badge tone="success" dot>
-                  <span className="max-sm:sr-only">live</span>
-                </Badge>
-              </span>
-            ) : (
-              <span title="checking backend…">
-                <Badge tone="muted">
-                  <span aria-hidden="true" className="sm:hidden">
-                    …
-                  </span>
-                  <span className="max-sm:sr-only">checking…</span>
-                </Badge>
-              </span>
-            )}
+            {backendPill}
           </div>
         </div>
       </header>
