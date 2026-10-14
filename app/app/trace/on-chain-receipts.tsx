@@ -26,14 +26,14 @@ export function OnChainReceipts({
   chargeTx,
   proofTx,
   generation,
-}: {
+}: Readonly<{
   state: SettlementState | undefined;
   /** The escrow the run settled through, which decides what a failed
    *  settlement did with the buyer's money (`escrowGeneration`). */
   generation: EscrowGeneration;
   chargeTx: string | null;
   proofTx: string | null;
-}) {
+}>) {
   if (state === "settled") {
     return (
       <Card>
