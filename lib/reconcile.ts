@@ -134,6 +134,34 @@ const sum = (xs: (bigint | null)[]): bigint | null =>
     ? xs.reduce((a, b) => a + b, 0n)
     : null;
 
+type StepMoney = { charged: bigint | null; returned: bigint | null };
+
+/** What a step was charged and what went back, as far as the settlement's
+ *  phase establishes them. */
+function stepMoney(
+  step: SettlementStepView,
+  phase: SettlementState,
+  planned: bigint | null,
+): StepMoney {
+  switch (phase) {
+    case "unconfirmed":
+      return { charged: null, returned: null };
+    case "failed":
+      return { charged: 0n, returned: null };
+    case "released":
+    case "skipped":
+      return { charged: 0n, returned: planned };
+    case "settled": {
+      const charged = chargedOf(step);
+      if (sent(step, "returned"))
+        return { charged, returned: exactOf(step.returned) };
+      const returned =
+        planned === null || charged === null ? null : planned - charged;
+      return { charged, returned };
+    }
+  }
+}
+
 export function reconcileSettlement(
   settlement: SettlementView,
   state: SettlementState | null | undefined,
@@ -146,31 +174,7 @@ export function reconcileSettlement(
     .sort((a, b) => a.step_index - b.step_index)
     .map((step) => {
       const planned = plannedOf(step);
-      let charged: bigint | null;
-      let returned: bigint | null;
-      switch (phase) {
-        case "unconfirmed":
-          charged = null;
-          returned = null;
-          break;
-        case "failed":
-          charged = 0n;
-          returned = null;
-          break;
-        case "released":
-        case "skipped":
-          charged = 0n;
-          returned = planned;
-          break;
-        case "settled":
-          charged = chargedOf(step);
-          returned = sent(step, "returned")
-            ? exactOf(step.returned)
-            : planned === null || charged === null
-              ? null
-              : planned - charged;
-          break;
-      }
+      const { charged, returned } = stepMoney(step, phase, planned);
       return {
         stepIndex: step.step_index,
         agent: agentLabel(step),
