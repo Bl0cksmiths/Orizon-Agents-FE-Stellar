@@ -236,7 +236,8 @@ export type PlanFloorNotice = {
  *  Claude Sonnet 5.5, complex → Claude Opus 5.5 (the backend's defaults). */
 export const TIERS = ["low", "moderate", "complex"] as const;
 export type Tier = (typeof TIERS)[number];
-export const isTier = (v: unknown): v is Tier => TIERS.some((k) => k === v);
+export const isTier = (v: unknown): v is Tier =>
+  (TIERS as readonly unknown[]).includes(v);
 
 /**
  * What the backend understood the buyer to be asking for (`Spec`): the
