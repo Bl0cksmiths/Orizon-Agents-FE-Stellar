@@ -913,14 +913,14 @@ function AuthorizeStatus({
   amount,
   escrowId,
   error,
-}: {
+}: Readonly<{
   state: TxState;
   hash: string | null;
   generation: EscrowGeneration;
   amount: string;
   escrowId: string | undefined;
   error: FriendlyError | null;
-}) {
+}>) {
   const v2 = generation === "v2";
   return (
     <TxStatus
