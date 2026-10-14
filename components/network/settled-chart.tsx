@@ -29,8 +29,9 @@ export function seriesSummary(days: SettledDay[]): string {
   if (days.length === 0) return "Settled workflows per day: no days reported.";
   const [first] = days;
   const total = days.reduce((sum, d) => sum + d.settled, 0);
+  const last = days.at(-1) ?? first;
   const peak = days.reduce((a, b) => (b.settled > a.settled ? b : a), first);
-  return `Settled workflows per day, ${formatDay(first.date)} to ${formatDay(days[days.length - 1].date)}: ${plural(total)} in total, at most ${peak.settled} on ${formatDay(peak.date)}.`;
+  return `Settled workflows per day, ${formatDay(first.date)} to ${formatDay(last.date)}: ${plural(total)} in total, at most ${peak.settled} on ${formatDay(peak.date)}.`;
 }
 
 const EMPTY =
