@@ -56,6 +56,29 @@ export default function EcosystemPage() {
   // never a guessed one — least of all the "usdc" in the wire field's name.
   const { data: network } = useFetch(getStellarNetwork, []);
 
+  // What stands in for the figures while there are none to show: the failed
+  // read, or the wait for the first one.
+  const placeholder = failure ? (
+    <ErrorNote onRetry={reload} retrying={loading || retrying}>
+      <span className="block">
+        Could not read ecosystem adoption. Nothing below is a count of zero; the
+        figures simply did not arrive.
+      </span>
+      <span className="mt-0.5 block break-all opacity-80">{failure}</span>
+    </ErrorNote>
+  ) : (
+    <Card className="space-y-4">
+      {building ? (
+        <BuildingStatus retryInMs={retryInMs} />
+      ) : (
+        <WakeStatus active what="ecosystem adoption" />
+      )}
+      <Skeleton className="h-6 w-48" />
+      <Skeleton className="h-28 w-full" />
+      <Skeleton className="h-28 w-full" />
+    </Card>
+  );
+
   return (
     <div className="space-y-6">
       <div className="min-w-0">
@@ -69,26 +92,7 @@ export default function EcosystemPage() {
       </div>
 
       {!shown ? (
-        failure ? (
-          <ErrorNote onRetry={reload} retrying={loading || retrying}>
-            <span className="block">
-              Could not read ecosystem adoption. Nothing below is a count of
-              zero; the figures simply did not arrive.
-            </span>
-            <span className="mt-0.5 block break-all opacity-80">{failure}</span>
-          </ErrorNote>
-        ) : (
-          <Card className="space-y-4">
-            {building ? (
-              <BuildingStatus retryInMs={retryInMs} />
-            ) : (
-              <WakeStatus active what="ecosystem adoption" />
-            )}
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-28 w-full" />
-            <Skeleton className="h-28 w-full" />
-          </Card>
-        )
+        placeholder
       ) : (
         <>
           {!data && (
