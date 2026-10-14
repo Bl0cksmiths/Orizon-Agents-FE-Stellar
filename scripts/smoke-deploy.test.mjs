@@ -271,6 +271,42 @@ test("exits 1, never skips, when the address book is missing", async () => {
   assert.match(out, /does not exist/);
 });
 
+test("exits 1 when the network route fails: no parity to compare, no pin to check", async () => {
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/api/stellar/network": 404 }),
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ \/api\/stellar\/network → 404/);
+  assert.match(
+    out,
+    /✗ contract parity → nothing to compare\n {4}FAIL {2}\/api\/stellar\/network returned no JSON body; see its check above\n/,
+  );
+  assert.match(
+    out,
+    /✗ escrow v2 pin\n {4}FAIL {2}\/api\/stellar\/network returned no JSON body; see its check above\n/,
+  );
+  assert.match(out, new RegExp(`3/${TOTAL} checks failed`));
+  assert.match(
+    out,
+    / {2}- escrow v2 pin → \/api\/stellar\/network returned no JSON body; see its check above\n/,
+  );
+  // The request failed, so the proxy hint is printed; no comparison ran, so
+  // the parity hint is not.
+  assert.match(out, /check NEXT_PUBLIC_API_BASE/);
+  assert.doesNotMatch(out, /production and the deploy scripts/);
+});
+
+test("exits 1 when the escrow pins cannot be read", async () => {
+  const { code, out } = await smoke(await origin(HEALTHY), {
+    ORIZON_ESCROW_PINS: join(scratch, "no-such-pins.json"),
+  });
+  assert.equal(code, 1, out);
+  assert.match(out, /✓ contract parity → 3 live contract ids match/);
+  assert.match(out, /✗ escrow v2 pin\n {4}FAIL {2}ENOENT: no such file/);
+  assert.match(out, new RegExp(`1/${TOTAL} checks failed`));
+  assert.doesNotMatch(out, /NEXT_PUBLIC_API_BASE/);
+});
+
 test("exits 1 when the backend reports a network other than the expected", async () => {
   const { code, out } = await smoke(await origin(HEALTHY), {
     SMOKE_EXPECT_NETWORK: "mainnet",
