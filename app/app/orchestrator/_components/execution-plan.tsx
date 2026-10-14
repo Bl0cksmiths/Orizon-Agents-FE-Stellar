@@ -144,6 +144,27 @@ function bytesToHex(v: unknown): string | null {
   return null;
 }
 
+/** The id of the authorization a broadcast confirmed. A broadcast that did
+ *  not succeed, or whose id cannot be read, throws. */
+function confirmedAuthId(
+  broadcast: Awaited<ReturnType<typeof submitSigned>>,
+): string {
+  if (broadcast.status !== "SUCCESS") {
+    throw new Error(
+      [
+        `authorize tx ${broadcast.status}`,
+        broadcast.diagnostic,
+        broadcast.explorer,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+  }
+  const authHex = bytesToHex(broadcast.return_value);
+  if (!authHex) throw new Error("failed to read auth_id from tx result");
+  return authHex;
+}
+
 /**
  * The decomposed-plan card: step list, totals, and the execute flows
  * (simulate / fiat funding / on-chain authorize). Mirrors the FiatFund
@@ -314,19 +335,7 @@ export function ExecutionPlan({
       setStep("broadcast");
       setTxState("broadcasting");
       const broadcast = await submitSigned(signedXdr);
-      if (broadcast.status !== "SUCCESS") {
-        throw new Error(
-          [
-            `authorize tx ${broadcast.status}`,
-            broadcast.diagnostic,
-            broadcast.explorer,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        );
-      }
-      const authHex = bytesToHex(broadcast.return_value);
-      if (!authHex) throw new Error("failed to read auth_id from tx result");
+      const authHex = confirmedAuthId(broadcast);
 
       setAuthorizeHash(broadcast.hash);
       setTxState("success");
