@@ -79,12 +79,13 @@ export function draftToSpec(draft: SpecDraft): SpecDraftResult {
     errors.deliverable = `Keep the deliverable to ${SPEC_LIMITS.deliverable} characters or fewer.`;
   if (summary.length > SPEC_LIMITS.summary)
     errors.summary = `Keep the summary to ${SPEC_LIMITS.summary} characters or fewer.`;
-  const listError = (items: string[]) =>
-    items.length > SPEC_LIMITS.items
-      ? `List at most ${SPEC_LIMITS.items} items, one per line.`
-      : items.some((i) => i.length > SPEC_LIMITS.item)
-        ? `Keep each line to ${SPEC_LIMITS.item} characters or fewer.`
-        : null;
+  const listError = (items: string[]): string | null => {
+    if (items.length > SPEC_LIMITS.items)
+      return `List at most ${SPEC_LIMITS.items} items, one per line.`;
+    if (items.some((i) => i.length > SPEC_LIMITS.item))
+      return `Keep each line to ${SPEC_LIMITS.item} characters or fewer.`;
+    return null;
+  };
   const c = listError(constraints);
   if (c) errors.constraints = c;
   const d = listError(done_criteria);
