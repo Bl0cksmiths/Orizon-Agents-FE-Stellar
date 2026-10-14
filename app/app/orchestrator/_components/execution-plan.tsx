@@ -45,6 +45,7 @@ import {
   executeRefusal,
   refusalSentence,
   type EscrowRelease,
+  type ExecuteRefusal,
 } from "@/lib/execute-refusal";
 import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
 import {
@@ -163,6 +164,14 @@ function confirmedAuthId(
   const authHex = bytesToHex(broadcast.return_value);
   if (!authHex) throw new Error("failed to read auth_id from tx result");
   return authHex;
+}
+
+/** Why a run did not start after its authorization confirmed: the backend's
+ *  refusal when it gave one, otherwise the failed request itself. */
+function runErrorSentence(refusal: ExecuteRefusal | null, e: unknown): string {
+  return refusal !== null
+    ? refusalSentence(refusal)
+    : `The request to start it failed: ${toMessage(e)}`;
 }
 
 /**
@@ -392,11 +401,7 @@ export function ExecutionPlan({
       // confirmed rather than turning into a failure card, and the reason is
       // stated beside what became of the funds.
       if (confirmed !== null) {
-        setRunError(
-          refusal !== null
-            ? refusalSentence(refusal)
-            : `The request to start it failed: ${toMessage(e)}`,
-        );
+        setRunError(runErrorSentence(refusal, e));
         setRelease(refusal?.release ?? null);
         setStep("");
         return;
