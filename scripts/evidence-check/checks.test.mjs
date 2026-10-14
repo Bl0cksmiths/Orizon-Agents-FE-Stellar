@@ -325,3 +325,124 @@ describe("checkTx: finding the transaction on testnet", () => {
     assert.deepEqual(client.asked, [H_TX, RPC]);
   });
 });
+
+describe("checkTx: the link's hash, a mainnet hash, and its date", () => {
+  const HASH = "b".repeat(64);
+  const H_TX = `${TESTNET_ENDPOINTS.horizon}/transactions/${HASH}`;
+  const MAIN_TX = `${TESTNET_ENDPOINTS.mainnetHorizon}/transactions/${HASH}`;
+  const notFound = {
+    getTransaction: { status: 200, json: { result: { status: "NOT_FOUND" } } },
+  };
+  const closed = {
+    status: 200,
+    text: JSON.stringify({
+      ledger: 4242,
+      created_at: "2026-09-20T23:30:00Z",
+      source_account: "GSOURCE",
+      successful: true,
+    }),
+  };
+  /** @param {ReturnType<typeof stubClient>} client @param {Record<string, unknown>} link */
+  const run = async (client, link) =>
+    checkTx(
+      client,
+      link,
+      TESTNET_ENDPOINTS,
+      { horizon: true, rpc: true },
+      await loadStellarSdk(),
+    );
+
+  it("fails a link with no hash, asking nothing", async () => {
+    const client = stubClient({});
+    assert.deepEqual(await run(client, { url: "https://example.com/tx" }), {
+      checks: [
+        {
+          name: "testnet-tx",
+          result: "fail",
+          detail: "no tx hash on the link",
+        },
+      ],
+      chain: null,
+    });
+    assert.deepEqual(client.asked, []);
+  });
+
+  it("fails a hash testnet lacks, saying whether mainnet has it", async () => {
+    const link = { tx_hash: HASH };
+    const detailOf = async (
+      /** @type {StubAnswer | Error | undefined} */ main,
+    ) => {
+      const pages = { [H_TX]: { status: 404 } };
+      const client = stubClient(
+        main ? { ...pages, [MAIN_TX]: main } : pages,
+        notFound,
+      );
+      const { checks, chain } = await run(client, link);
+      assert.equal(chain, null);
+      assert.equal(checks.length, 1);
+      assert.equal(checks[0].result, "fail");
+      return checks[0].detail;
+    };
+    assert.equal(
+      await detailOf({ status: 200, text: "{}" }),
+      "not on testnet: this hash exists on MAINNET; the index is testnet only",
+    );
+    assert.equal(
+      await detailOf({ status: 404 }),
+      "not found on testnet (Horizon and RPC)",
+    );
+    assert.equal(
+      await detailOf(undefined),
+      "not found on testnet (Horizon and RPC); the mainnet lookup got no answer",
+    );
+  });
+
+  it("passes a successful transaction, and checks a date only when one is given", async () => {
+    const client = stubClient({ [H_TX]: closed });
+    const where =
+      "ledger 4242, 2026-09-20T23:30:00Z, source GSOURCE, via horizon";
+    const pass = {
+      name: "testnet-tx",
+      result: "pass",
+      detail: `successful on testnet: ${where}`,
+    };
+    assert.deepEqual((await run(client, { tx_hash: HASH })).checks, [pass]);
+    assert.deepEqual((await run(client, { tx_hash: HASH, date: "" })).checks, [
+      pass,
+    ]);
+    assert.deepEqual(
+      (await run(client, { tx_hash: HASH, date: "2026-09-20T22:00:00Z" }))
+        .checks,
+      [
+        pass,
+        {
+          name: "date",
+          result: "pass",
+          detail: "date 2026-09-20 matches (UTC)",
+        },
+      ],
+    );
+    assert.deepEqual(
+      (await run(client, { tx_hash: HASH, date: "soon" })).checks[1],
+      {
+        name: "date",
+        result: "fail",
+        detail: "the index says soon, but the tx closed 2026-09-20 (UTC)",
+      },
+    );
+  });
+
+  it("cannot verify a date when testnet gives no time", async () => {
+    const client = stubClient({
+      [H_TX]: { status: 200, text: JSON.stringify({ successful: true }) },
+    });
+    assert.deepEqual(
+      (await run(client, { tx_hash: HASH, date: "2026-09-20" })).checks[1],
+      {
+        name: "date",
+        result: "unverified",
+        detail: "testnet gave no created_at to compare",
+      },
+    );
+  });
+});
