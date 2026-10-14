@@ -493,6 +493,16 @@ describe("isComputingError", () => {
     expect(isComputingError(new Error("GET /x → 503"))).toBe(false);
     expect(isComputingError(null)).toBe(false);
   });
+
+  it("reads a thrown string, and no message from any other value", () => {
+    expect(isComputingError("the adoption report is still being built")).toBe(
+      true,
+    );
+    expect(
+      isComputingError({ message: "the adoption report is still being built" }),
+    ).toBe(false);
+    expect(isComputingError(202)).toBe(false);
+  });
 });
 
 describe("isWakingError", () => {
