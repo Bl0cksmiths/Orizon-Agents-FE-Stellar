@@ -331,13 +331,13 @@ function OperatorCard({
   network,
   asset,
   windowDays,
-}: {
+}: Readonly<{
   operator: ExternalOperator;
   ours: Map<string, ExcludedWallet>;
   network: string;
   asset: string | null;
   windowDays: EcosystemAdoption["window_days"];
-}) {
+}>) {
   return (
     <Card className="space-y-4">
       <h3 className="text-base font-semibold tracking-tight">
