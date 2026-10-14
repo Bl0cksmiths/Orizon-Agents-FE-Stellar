@@ -180,6 +180,13 @@ describe("stroopsToDecimal", () => {
     expect(stroopsToDecimal(10_000_001n)).toBe("1.0000001");
   });
 
+  it("drops a long run of trailing zeros in linear time", () => {
+    const started = performance.now();
+    expect(stroopsToDecimal(10n ** 99_999n, 100_000)).toBe("0.100");
+    expect(stroopsToDecimal(1n, 100_000)).toBe(`0.${"0".repeat(99_999)}1`);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
   it("reads back to the same stroops for the authorize request", () => {
     // `max_amount_usdc` is parsed as a float and rounded with `round(x*1e7)`
     // by the backend; the decimal must survive that for every cap it accepts.

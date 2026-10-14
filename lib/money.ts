@@ -121,11 +121,19 @@ export function stroopsToDecimal(
     .toString()
     .padStart(decimals + 1, "0");
   const whole = digits.slice(0, digits.length - decimals);
-  const frac = digits
-    .slice(digits.length - decimals)
-    .replace(/0+$/, "")
-    .padEnd(Math.min(MIN_DISPLAY_DECIMALS, decimals), "0");
+  const frac = dropTrailingZeros(digits.slice(digits.length - decimals)).padEnd(
+    Math.min(MIN_DISPLAY_DECIMALS, decimals),
+    "0",
+  );
   return `${negative ? "-" : ""}${whole}${frac ? `.${frac}` : ""}`;
+}
+
+/** The digits less their trailing zeros: a scan from the end, where `/0+$/`
+ *  would retry the whole run of zeros from each of its digits. */
+function dropTrailingZeros(digits: string): string {
+  let end = digits.length;
+  while (end > 0 && digits[end - 1] === "0") end--;
+  return digits.slice(0, end);
 }
 
 /**
