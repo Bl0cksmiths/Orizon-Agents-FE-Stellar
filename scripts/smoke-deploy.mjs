@@ -272,6 +272,47 @@ function checkHomeBudget(name, homeMs, budgetMs) {
 }
 
 /**
+ * Every route in CHECKS, through the deployed proxy: why each one failed, as
+ * failure lines, and the parsed body of each that answered 2xx. Prints a row
+ * per check as it goes.
+ *
+ * @returns {Promise<{ failures: string[], bodies: Map<string, unknown> }>}
+ */
+async function checkApi() {
+  const failures = [];
+  /** Parsed bodies of the checks that answered 2xx, for the parity step. */
+  const bodies = new Map();
+  for (const check of CHECKS) {
+    try {
+      const { res, body, text, ms } = await fetchJson(
+        check.path,
+        CHECK_TIMEOUT_MS,
+      );
+      if (!res.ok) {
+        failures.push(
+          `${check.path} → HTTP ${res.status}: ${text.slice(0, 200)}`,
+        );
+        console.log(`  ✗ ${check.path} → ${res.status} (${ms}ms)`);
+        continue;
+      }
+      bodies.set(check.path, body);
+      const problem = check.expect(body);
+      if (problem) {
+        failures.push(`${check.path} → ${problem}`);
+        console.log(`  ✗ ${check.path} → ${problem} (${ms}ms)`);
+        continue;
+      }
+      console.log(`  ✓ ${check.path} → ${res.status} (${ms}ms)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      failures.push(`${check.path} → ${msg}`);
+      console.log(`  ✗ ${check.path} → ${msg}`);
+    }
+  }
+  return { failures, bodies };
+}
+
+/**
  * Every page in PAGES, then the home page's time against HOME_BUDGET_MS: why
  * each one failed, as failure lines. Prints a row per check as it goes.
  */
@@ -477,36 +518,7 @@ async function main() {
     return;
   }
 
-  const failures = [];
-  /** Parsed bodies of the checks that answered 2xx, for the parity step. */
-  const bodies = new Map();
-  for (const check of CHECKS) {
-    try {
-      const { res, body, text, ms } = await fetchJson(
-        check.path,
-        CHECK_TIMEOUT_MS,
-      );
-      if (!res.ok) {
-        failures.push(
-          `${check.path} → HTTP ${res.status}: ${text.slice(0, 200)}`,
-        );
-        console.log(`  ✗ ${check.path} → ${res.status} (${ms}ms)`);
-        continue;
-      }
-      bodies.set(check.path, body);
-      const problem = check.expect(body);
-      if (problem) {
-        failures.push(`${check.path} → ${problem}`);
-        console.log(`  ✗ ${check.path} → ${problem} (${ms}ms)`);
-        continue;
-      }
-      console.log(`  ✓ ${check.path} → ${res.status} (${ms}ms)`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      failures.push(`${check.path} → ${msg}`);
-      console.log(`  ✗ ${check.path} → ${msg}`);
-    }
-  }
+  const { failures, bodies } = await checkApi();
 
   // Counted before parity adds its own, so the proxy hint below is only
   // printed when a proxied request actually failed.
