@@ -30,7 +30,10 @@ const isElement = (n: unknown): n is Element =>
 
 function textOf(n: Element | Root): string {
   return n.children
-    .map((c) => (c.type === "text" ? c.value : isElement(c) ? textOf(c) : ""))
+    .map((c) => {
+      if (c.type === "text") return c.value;
+      return isElement(c) ? textOf(c) : "";
+    })
     .join("");
 }
 
