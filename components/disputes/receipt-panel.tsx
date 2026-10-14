@@ -374,7 +374,7 @@ function SettledReceipt({
   onConnect,
   reasonUnlock,
   generation,
-}: {
+}: Readonly<{
   view: SettledView;
   headingId: string;
   generation: EscrowGeneration;
@@ -382,7 +382,7 @@ function SettledReceipt({
   onDispute: (step: SettlementStepView) => void;
   onConnect: () => void;
   reasonUnlock: ReasonUnlockControl | null;
-}) {
+}>) {
   const formatAmount = useFormatAmount();
   // "Settled 3h ago" is measured on the server's clock where the view carries
   // it — an open window is closesAt minus what is left — so a skewed laptop
