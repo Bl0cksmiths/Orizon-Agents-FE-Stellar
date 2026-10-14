@@ -126,6 +126,18 @@ const EMPTY_PLAN =
 const FREE_PLAN =
   "This plan is priced at zero, so there is nothing to authorize. Run it without payment.";
 
+/** What the pay panel says with no wallet connected: nothing to pay for an
+ *  empty or free plan, otherwise what paying on-chain does. */
+function walletRequiredSentence(
+  empty: boolean,
+  free: boolean,
+  generation: EscrowGeneration,
+): string {
+  if (empty) return EMPTY_PLAN;
+  if (free) return FREE_PLAN;
+  return connectSentence(generation);
+}
+
 /** Normalize the 16-byte auth_id a tx returns (hex, base64, or byte list). */
 function bytesToHex(v: unknown): string | null {
   if (typeof v === "string") {
@@ -773,11 +785,7 @@ export function ExecutionPlan({
                   ▸ wallet required
                 </div>
                 <div className="text-sm">
-                  {empty
-                    ? EMPTY_PLAN
-                    : free
-                      ? FREE_PLAN
-                      : connectSentence(generation)}
+                  {walletRequiredSentence(empty, free, generation)}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
