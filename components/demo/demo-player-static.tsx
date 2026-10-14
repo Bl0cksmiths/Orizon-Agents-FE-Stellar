@@ -21,11 +21,11 @@ export function DemoPlayerStatic({
   video,
   chapters,
   index,
-}: {
+}: Readonly<{
   video: DemoVideo;
   chapters: DemoChapter[];
   index: number;
-}) {
+}>) {
   return (
     <div className="space-y-8">
       <div>
