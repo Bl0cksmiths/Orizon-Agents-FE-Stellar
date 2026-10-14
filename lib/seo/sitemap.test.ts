@@ -118,6 +118,24 @@ describe("newestDay", () => {
   it("has none to pick from nothing", () => {
     expect(newestDay([])).toBeUndefined();
   });
+
+  it("orders across months and years without touching its input", () => {
+    const days = ["2026-10-09", "2027-01-01", "2026-12-31", "2026-02-28"];
+    expect(newestDay(days)).toBe("2027-01-01");
+    expect(days).toEqual([
+      "2026-10-09",
+      "2027-01-01",
+      "2026-12-31",
+      "2026-02-28",
+    ]);
+  });
+
+  it("picks the shared day when days repeat", () => {
+    expect(newestDay(["2026-10-02", "2026-09-30", "2026-10-02"])).toBe(
+      "2026-10-02",
+    );
+    expect(newestDay(["2026-10-02", "2026-10-02"])).toBe("2026-10-02");
+  });
 });
 
 describe("demoLastmod", () => {
