@@ -61,8 +61,10 @@ export function traceLineTier(line: Pick<TraceLine, "tier">): Tier | null {
 }
 
 /** The handoff lane's wording: "<step> uses output from: <a>, <b>", and
- *  "external.<id> receives output from: …" for an operator's step. */
-const HANDOFF = /\b(?:uses|receives) output from(?::\s*|\s+)(.+)$/i;
+ *  "external.<id> receives output from: …" for an operator's step. The
+ *  sources open on a non-blank, so the blanks before them match one way
+ *  only: `(?::\s*|\s+)(.+)` retried every split of a long run of them. */
+const HANDOFF = /\b(?:uses|receives) output from[:\s]\s*(\S.*)$/i;
 
 /**
  * The earlier steps a line says this step builds on, or null when it is not

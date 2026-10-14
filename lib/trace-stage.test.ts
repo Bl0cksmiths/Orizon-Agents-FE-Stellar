@@ -135,5 +135,21 @@ describe("traceHandoff", () => {
       traceHandoff(line("code.gen → calculator app generated")),
     ).toBeNull();
     expect(traceHandoff(line("uses output from:"))).toBeNull();
+    expect(traceHandoff(line("uses output fromx"))).toBeNull();
+    expect(traceHandoff(line("uses output from: a\nb"))).toBeNull();
+  });
+
+  it("reads the sources after any blanks, a line break among them", () => {
+    expect(traceHandoff(line("uses output from:\n\t code.gen"))).toEqual([
+      "code.gen",
+    ]);
+    expect(traceHandoff(line("USES OUTPUT FROM  a , b"))).toEqual(["a", "b"]);
+  });
+
+  it("reads a line of thousands of blanks in linear time", () => {
+    const started = performance.now();
+    const blanks = " ".repeat(100_000);
+    expect(traceHandoff(line(`uses output from${blanks}a\nb`))).toBeNull();
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
