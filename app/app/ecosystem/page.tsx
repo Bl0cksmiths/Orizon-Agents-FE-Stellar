@@ -148,13 +148,13 @@ export default function EcosystemPage() {
 function BuildingStatus({ retryInMs }: Readonly<{ retryInMs: number | null }>) {
   const seconds = retryInMs === null ? null : Math.round(retryInMs / 1_000);
   return (
-    <p
-      role="status"
-      className="font-mono text-[11px] leading-relaxed text-muted"
+    <output
+      aria-live="polite"
+      className="block font-mono text-[11px] leading-relaxed text-muted"
     >
       Building the adoption report… The backend reads every external
       agent&apos;s settlements from the chain, which takes a few minutes.
       {seconds !== null && ` This page checks again in ${seconds} s.`}
-    </p>
+    </output>
   );
 }
