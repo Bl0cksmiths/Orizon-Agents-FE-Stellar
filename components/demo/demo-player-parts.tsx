@@ -30,7 +30,10 @@ export function PlayGlyph() {
   );
 }
 
-export function Poster({ video, first }: { video: DemoVideo; first: boolean }) {
+export function Poster({
+  video,
+  first,
+}: Readonly<{ video: DemoVideo; first: boolean }>) {
   return (
     <Image
       src={youtubePosterUrl(video.id)}
