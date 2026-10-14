@@ -100,7 +100,13 @@ const styles = {
     textTransform: "uppercase",
     textUnderlineOffset: 4,
   },
-  status: { margin: 0, fontFamily: MONO, fontSize: 12, color: palette.muted },
+  status: {
+    display: "block",
+    margin: 0,
+    fontFamily: MONO,
+    fontSize: 12,
+    color: palette.muted,
+  },
 } satisfies Record<string, CSSProperties>;
 
 export default function GlobalError({
@@ -120,9 +126,9 @@ export default function GlobalError({
       <body style={styles.body}>
         <main id="main" style={styles.main}>
           {phase === "reloading" ? (
-            <p role="status" style={styles.status}>
+            <output aria-live="polite" style={styles.status}>
               {ERROR_COPY.reloading}
-            </p>
+            </output>
           ) : (
             <div style={styles.panel}>
               <h1 ref={headingRef} tabIndex={-1} style={styles.heading}>
