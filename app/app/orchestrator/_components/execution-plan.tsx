@@ -943,7 +943,7 @@ function HeldFundsNotice({
   release,
   amount,
   escrowId,
-}: {
+}: Readonly<{
   held: HeldAuthorization | null;
   generation: EscrowGeneration;
   expired: ExpiredRun | null;
@@ -951,7 +951,7 @@ function HeldFundsNotice({
   release: EscrowRelease | null;
   amount: string;
   escrowId: string | undefined;
-}) {
+}>) {
   // Only escrow v2 holds anything to hand back or reclaim. A v1 authorization
   // moved nothing, and while the escrow is unknown the card claims neither.
   if (!held || generation !== "v2" || !(expired === "authorize" || runError))
