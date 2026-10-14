@@ -334,6 +334,19 @@ describe("link labels are plain language", () => {
     );
     expect(labelProblem("Merged PR #42")).toBe(null);
   });
+
+  it("counts a word wrapped in punctuation, but not punctuation alone", () => {
+    expect(labelProblem("(Merged) «réglé»…")).toBe(null);
+    expect(labelProblem("Merged ... --")).toMatch(/at least two words/);
+  });
+
+  it("reads a label with a long run of punctuation in linear time", () => {
+    const started = performance.now();
+    expect(labelProblem(`a${".".repeat(100_000)}b word`)).toMatch(
+      /at least two words/,
+    );
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe("link URLs", () => {
