@@ -13,6 +13,7 @@ import { NetworkTiles } from "@/components/network/network-tiles";
 import { SettledChart } from "@/components/network/settled-chart";
 import { getStellarNetwork, listTasks } from "@/lib/api";
 import { formatSpent, taskSpent } from "@/lib/trace-amounts";
+import type { NetworkStats } from "@/lib/network-stats";
 import type { Task } from "@/lib/types";
 import { loadNetworkStats } from "@/lib/use-network-stats";
 import { useFetch } from "@/lib/use-fetch";
@@ -30,6 +31,29 @@ const statusTone: Record<
 
 /** Both panels refresh on this cadence; each backs off on its own. */
 const POLL_MS = 5_000;
+
+/** The throughput chart, or why it is not drawn yet. */
+function ThroughputBody({
+  stats,
+  failed,
+}: {
+  stats: NetworkStats | null;
+  failed: boolean;
+}) {
+  if (stats) return <SettledChart series={stats.series} />;
+  if (failed)
+    return (
+      <div className="grid h-36 place-items-center border border-dashed border-border font-mono text-[11px] text-muted">
+        throughput unavailable — backend unreachable
+      </div>
+    );
+  return (
+    <>
+      <Skeleton className="h-36 w-full" />
+      <LoadingStatus label="Loading throughput chart…" />
+    </>
+  );
+}
 
 export default function OverviewPage() {
   // Two panels, two reads, two failure states: the figures stay up when the
@@ -132,18 +156,7 @@ export default function OverviewPage() {
               settled workflows per day · all payers · last 14 days (UTC)
             </p>
           </div>
-          {stats ? (
-            <SettledChart series={stats.series} />
-          ) : statsError ? (
-            <div className="grid h-36 place-items-center border border-dashed border-border font-mono text-[11px] text-muted">
-              throughput unavailable — backend unreachable
-            </div>
-          ) : (
-            <>
-              <Skeleton className="h-36 w-full" />
-              <LoadingStatus label="Loading throughput chart…" />
-            </>
-          )}
+          <ThroughputBody stats={stats} failed={Boolean(statsError)} />
         </Card>
 
         <Card>
