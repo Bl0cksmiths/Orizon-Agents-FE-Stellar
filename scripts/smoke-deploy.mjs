@@ -258,11 +258,12 @@ async function fetchPage(path, timeoutMs) {
  * @returns {string[]}
  */
 function checkHomeBudget(name, homeMs, budgetMs) {
-  const budget = `${name} → ${
-    homeMs === null
-      ? "no page to time"
-      : `${homeMs}ms, ${homeMs > budgetMs ? "over" : "within"} the ${budgetMs}ms budget`
-  }`;
+  let verdict = "no page to time";
+  if (homeMs !== null) {
+    const side = homeMs > budgetMs ? "over" : "within";
+    verdict = `${homeMs}ms, ${side} the ${budgetMs}ms budget`;
+  }
+  const budget = `${name} → ${verdict}`;
   if (homeMs === null || homeMs > budgetMs) {
     console.log(`  ✗ ${budget}`);
     return [budget];
