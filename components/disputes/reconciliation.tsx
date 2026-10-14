@@ -176,7 +176,7 @@ export function ReconciliationTable({
               id={recon.settleTx}
               className="inline-flex min-h-6 items-center gap-[1ch]"
             >
-              view the settlement that paid and returned on stellar.expert
+              {"view the settlement that paid and returned on stellar.expert"}
               <span aria-hidden="true"> ▸</span>
             </StellarExpertLink>
           )}
