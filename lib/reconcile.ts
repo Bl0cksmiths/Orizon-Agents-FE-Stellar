@@ -230,6 +230,13 @@ function authorizationIssues(
   return issues;
 }
 
+/** False when a check failed, true when every figure is known and all
+ *  passed, null while a figure is not known. */
+function verdict(issues: string[], known: boolean): boolean | null {
+  if (issues.length > 0) return false;
+  return known ? true : null;
+}
+
 export function reconcileSettlement(
   settlement: SettlementView,
   state: SettlementState | null | undefined,
@@ -313,7 +320,7 @@ export function reconcileSettlement(
     returned,
     authorized,
     headroom,
-    balanced: issues.length > 0 ? false : known ? true : null,
+    balanced: verdict(issues, known),
     issues,
     held: phase === "failed",
     allReturnedBuiltIn:
