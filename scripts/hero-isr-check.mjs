@@ -128,13 +128,15 @@ async function assertPortsFree() {
   }
 }
 
-async function main() {
-  await assertPortsFree();
-  const backend = await startStatsBackend(BACKEND_PORT);
-  const set = (s) => Object.assign(backend.state, s);
-  rmSync(`${root}/${DIST}`, { recursive: true, force: true });
-
-  // ── build ──
+/**
+ * Builds the site against a complete backend (a dead one with --cold) and
+ * checks / is prerendered with the page's revalidate window. Returns when
+ * the build finished, the start of the first window.
+ *
+ * @param {(state: object) => void} set sets the fake backend's state
+ * @returns {Promise<number>}
+ */
+async function build(set) {
   if (COLD) set({ down: true });
   else set({ ...A, signal: "none", synced: true, down: false });
   log(`building against a ${COLD ? "dead" : "complete, signal-less"} backend…`);
@@ -160,6 +162,16 @@ async function main() {
   if (COLD && !/no complete network figures after 120s/.test(built)) {
     fail("the cold build did not log its give-up");
   }
+  return builtAt;
+}
+
+async function main() {
+  await assertPortsFree();
+  const backend = await startStatsBackend(BACKEND_PORT);
+  const set = (s) => Object.assign(backend.state, s);
+  rmSync(`${root}/${DIST}`, { recursive: true, force: true });
+
+  const builtAt = await build(set);
 
   // ── serve ──
   const serverLog = join(tmpdir(), "hero-isr-server.log");
