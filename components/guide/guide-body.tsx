@@ -46,7 +46,7 @@ function labelCells(n: Element | Root): void {
     }
     const sections = child.children.filter(isElement);
     const head = sections.find((e) => e.tagName === "thead");
-    const headRow = head?.children.filter(isElement)[0];
+    const headRow = head?.children.find(isElement);
     const names = (headRow?.children.filter(isElement) ?? []).map((th) =>
       textOf(th).trim(),
     );
