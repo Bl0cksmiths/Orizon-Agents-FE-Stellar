@@ -119,6 +119,8 @@ export function WakeStatus({
           </span>
         )}
       </p>
+      {/* A div, not <progress>: a native bar cannot hold the fill below,
+          and its pseudo-element fill eases its width in some browsers only. */}
       <div
         role="progressbar"
         aria-label="Waking the network"
