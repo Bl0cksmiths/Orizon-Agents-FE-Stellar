@@ -39,6 +39,8 @@ import type {
   DisputeStatus,
   DisputeViewer,
   OpenDisputeReq,
+  SealKind,
+  SealState,
   SettlementRemainder,
   SettlementState,
   SettlementStepView,
@@ -1093,6 +1095,17 @@ export function settlementRemainder(
   }
 }
 
+/** The run's seal and what it attests, each only where the backend says. */
+function sealFields(res: TaskDisputes): {
+  seal?: SealState | null;
+  sealKind?: SealKind | null;
+} {
+  return {
+    ...(res.seal === undefined ? {} : { seal: res.seal }),
+    ...(res.seal_kind === undefined ? {} : { sealKind: res.seal_kind }),
+  };
+}
+
 /**
  * The whole receipt panel from the backend's answer, the connected wallet,
  * whether the run has finished, and the clock — the panel renders this and
@@ -1136,8 +1149,7 @@ export function disputeView(input: {
         : {}),
       // A delivery-only run seals with no settlement: its attestation is
       // still this receipt's to state.
-      ...(res.seal === undefined ? {} : { seal: res.seal }),
-      ...(res.seal_kind === undefined ? {} : { sealKind: res.seal_kind }),
+      ...sealFields(res),
     };
 
   const viewer = viewerOf(settlement.payer, viewerAddress);
@@ -1178,8 +1190,7 @@ export function disputeView(input: {
     // The seal's own hash, from the task, once known: the settlement record
     // was written before the seal confirmed and may not carry it.
     proofTx: res.proof_tx ?? settlement.proof_tx,
-    ...(res.seal === undefined ? {} : { seal: res.seal }),
-    ...(res.seal_kind === undefined ? {} : { sealKind: res.seal_kind }),
+    ...sealFields(res),
     policy: settlement.policy,
     steps,
     ...(settlementState === undefined ? {} : { settlementState }),
