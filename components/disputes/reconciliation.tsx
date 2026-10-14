@@ -19,7 +19,9 @@ import type { Reconciliation } from "@/lib/reconcile";
 import { cn } from "@/lib/utils";
 import { useAmountAsset } from "./amount-asset";
 
-export function ReconciliationTable({ recon }: { recon: Reconciliation }) {
+export function ReconciliationTable({
+  recon,
+}: Readonly<{ recon: Reconciliation }>) {
   const headingId = useId();
   const networkAsset = useAmountAsset();
   const asset = recon.asset ?? networkAsset;
