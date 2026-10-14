@@ -14,9 +14,9 @@ const code = "text-cyan";
  */
 export function EventsEmptyHint({
   generation,
-}: {
+}: Readonly<{
   generation: EscrowGeneration;
-}): JSX.Element {
+}>): JSX.Element {
   return (
     <div className="text-sm text-muted">
       No events yet. Run a workflow on{" "}
