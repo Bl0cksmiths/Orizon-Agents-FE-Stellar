@@ -238,9 +238,9 @@ function TargetItem({
  */
 function PartialMarker({
   partial,
-}: {
+}: Readonly<{
   partial: { headline: string; details: string[] };
-}) {
+}>) {
   return (
     <section
       aria-label="Partial report"
