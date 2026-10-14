@@ -77,6 +77,7 @@ export default function EventsPage() {
   // with nothing to show. Track the failure explicitly so the UI can say so.
   const failureMessage = loadError ?? error;
   const feedState = failureMessage !== null ? "error" : status;
+  const eventsWord = events.length === 1 ? "event" : "events";
 
   // Failure first, ahead of both the loading and the empty branch. Never fall
   // through to the "no events yet" copy on a failure — an empty feed we could
@@ -217,7 +218,7 @@ export default function EventsPage() {
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
             {failureMessage !== null && events.length === 0
               ? "unavailable"
-              : `${events.length} ${events.length === 1 ? "event" : "events"}`}
+              : `${events.length} ${eventsWord}`}
           </span>
         </div>
 
