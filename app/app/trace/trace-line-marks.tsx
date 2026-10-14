@@ -33,7 +33,7 @@ export function StageMark({ line }: Readonly<{ line: TraceLine }>) {
 
 /** Opens a line that reports a pipeline handoff: this step building on the
  *  output of the steps before it. The line's own words name them. */
-export function HandoffMark({ line }: { line: TraceLine }) {
+export function HandoffMark({ line }: Readonly<{ line: TraceLine }>) {
   if (!traceHandoff(line)) return null;
   return (
     <Badge tone="cyan" className="mr-2 align-middle">
