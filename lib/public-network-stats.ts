@@ -236,6 +236,18 @@ async function fromOwners(
   };
 }
 
+/** The backend's v2 overview, or null for an unreachable or legacy one: the
+ *  registry then decides. */
+async function readOverview(api: Read): Promise<OverviewV2 | null> {
+  try {
+    const { body } = await api("/metrics/overview");
+    if (isOverviewV2(body)) return body;
+  } catch {
+    // An unreachable or legacy overview: the registry decides.
+  }
+  return null;
+}
+
 /**
  * One attempt at the three figures. Never throws: whatever went wrong is the
  * `reason` of a not-ok result.
@@ -252,13 +264,7 @@ export async function readCompleteStats(
   const api = reader(deps, `${base}/api`);
   const root = reader(deps, base);
 
-  let overview: OverviewV2 | null = null;
-  try {
-    const { body } = await api("/metrics/overview");
-    if (isOverviewV2(body)) overview = body;
-  } catch {
-    // An unreachable or legacy overview: the registry decides below.
-  }
+  const overview = await readOverview(api);
   if (overview) {
     const signal = overviewSyncSignal(overview);
     if (signal === "synced") return fromOverview(overview, "overview flag");
