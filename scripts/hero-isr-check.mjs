@@ -119,12 +119,17 @@ const taken = (port) =>
     () => false,
   );
 
-async function main() {
+/** Throws when the site's or the backend's port already answers. */
+async function assertPortsFree() {
   for (const port of [PORT, BACKEND_PORT]) {
     if (await taken(port)) {
       throw new Error(`port ${port} is in use; stop what holds it first`);
     }
   }
+}
+
+async function main() {
+  await assertPortsFree();
   const backend = await startStatsBackend(BACKEND_PORT);
   const set = (s) => Object.assign(backend.state, s);
   rmSync(`${root}/${DIST}`, { recursive: true, force: true });
