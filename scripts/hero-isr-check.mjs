@@ -165,15 +165,14 @@ async function build(set) {
   return builtAt;
 }
 
-async function main() {
-  await assertPortsFree();
-  const backend = await startStatsBackend(BACKEND_PORT);
-  const set = (s) => Object.assign(backend.state, s);
-  rmSync(`${root}/${DIST}`, { recursive: true, force: true });
-
-  const builtAt = await build(set);
-
-  // ── serve ──
+/**
+ * Starts `next start` on the build, teeing its output to a log, and waits
+ * up to a minute for it to answer. Throws, having stopped it, if it never
+ * does.
+ *
+ * @returns {Promise<{ server: import("node:child_process").ChildProcess, serverLog: string }>}
+ */
+async function serve() {
   const serverLog = join(tmpdir(), "hero-isr-server.log");
   const out = createWriteStream(serverLog);
   // Next's own binary, not npx: killing an npx wrapper leaves the server it
@@ -195,6 +194,18 @@ async function main() {
     server.kill();
     throw new Error(`next start never answered; see ${serverLog}`);
   }
+  return { server, serverLog };
+}
+
+async function main() {
+  await assertPortsFree();
+  const backend = await startStatsBackend(BACKEND_PORT);
+  const set = (s) => Object.assign(backend.state, s);
+  rmSync(`${root}/${DIST}`, { recursive: true, force: true });
+
+  const builtAt = await build(set);
+
+  const { server, serverLog } = await serve();
 
   try {
     await expectRow(COLD ? null : A, "fresh from the build");
