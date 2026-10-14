@@ -521,6 +521,44 @@ function reportContractParity(live) {
 }
 
 /**
+ * The live escrow against the frontend's escrow v2 pin, printed as a row.
+ * Returns the failure line, if any; an unset pin is pending, not a failure.
+ *
+ * @param {unknown} live  the NETWORK_PATH body; undefined if none arrived
+ * @returns {string[]}
+ */
+function checkEscrowPinOf(live) {
+  let pin;
+  try {
+    pin =
+      live === undefined
+        ? {
+            pinned: null,
+            problems: [
+              `${NETWORK_PATH} returned no JSON body; see its check above`,
+            ],
+          }
+        : compareEscrowPin(live, loadEscrowPins());
+  } catch (err) {
+    pin = {
+      pinned: null,
+      problems: [err instanceof Error ? err.message : String(err)],
+    };
+  }
+  if (pin.problems.length === 0) {
+    console.log(
+      pin.pinned === null
+        ? "  ✓ escrow v2 pin → not pinned for this network yet (pending)"
+        : `  ✓ escrow v2 pin → live escrow is ${pin.pinned}`,
+    );
+    return [];
+  }
+  console.log("  ✗ escrow v2 pin");
+  for (const problem of pin.problems) console.log(`    FAIL  ${problem}`);
+  return [`escrow v2 pin → ${pin.problems.join("; ")}`];
+}
+
+/**
  * One health request with a long timeout, to wake a sleeping backend.
  * Returns false, having said why, when the origin does not answer at all.
  *
@@ -572,35 +610,7 @@ async function main() {
 
   // The frontend's escrow v2 pin against the escrow production settles
   // through: the console's payment copy describes the pinned one.
-  let pin;
-  try {
-    const live = bodies.get(NETWORK_PATH);
-    pin =
-      live === undefined
-        ? {
-            pinned: null,
-            problems: [
-              `${NETWORK_PATH} returned no JSON body; see its check above`,
-            ],
-          }
-        : compareEscrowPin(live, loadEscrowPins());
-  } catch (err) {
-    pin = {
-      pinned: null,
-      problems: [err instanceof Error ? err.message : String(err)],
-    };
-  }
-  if (pin.problems.length === 0) {
-    console.log(
-      pin.pinned === null
-        ? "  ✓ escrow v2 pin → not pinned for this network yet (pending)"
-        : `  ✓ escrow v2 pin → live escrow is ${pin.pinned}`,
-    );
-  } else {
-    console.log("  ✗ escrow v2 pin");
-    for (const problem of pin.problems) console.log(`    FAIL  ${problem}`);
-    failures.push(`escrow v2 pin → ${pin.problems.join("; ")}`);
-  }
+  failures.push(...checkEscrowPinOf(bodies.get(NETWORK_PATH)));
 
   failures.push(...(await checkPages()));
   if (BROWSER) {
