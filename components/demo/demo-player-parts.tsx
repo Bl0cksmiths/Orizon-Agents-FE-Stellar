@@ -122,7 +122,7 @@ export function ChapterList({
 }
 
 /** A chapter link's content: its time, its title and its deliverable tag. */
-export function ChapterLabel({ chapter }: { chapter: DemoChapter }) {
+export function ChapterLabel({ chapter }: Readonly<{ chapter: DemoChapter }>) {
   return (
     <>
       <time
