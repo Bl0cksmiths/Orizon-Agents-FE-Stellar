@@ -249,6 +249,29 @@ async function fetchPage(path, timeoutMs) {
 }
 
 /**
+ * The home page's time against a budget, printed as a row. Returns the
+ * failure line when it is over, or when there was no page to time.
+ *
+ * @param {string} name  the row's name, e.g. "home page budget"
+ * @param {number | null} homeMs  null when the home page never answered 2xx
+ * @param {number} budgetMs
+ * @returns {string[]}
+ */
+function checkHomeBudget(name, homeMs, budgetMs) {
+  const budget = `${name} → ${
+    homeMs === null
+      ? "no page to time"
+      : `${homeMs}ms, ${homeMs > budgetMs ? "over" : "within"} the ${budgetMs}ms budget`
+  }`;
+  if (homeMs === null || homeMs > budgetMs) {
+    console.log(`  ✗ ${budget}`);
+    return [budget];
+  }
+  console.log(`  ✓ ${budget}`);
+  return [];
+}
+
+/**
  * Every page in PAGES, then the home page's time against HOME_BUDGET_MS: why
  * each one failed, as failure lines. Prints a row per check as it goes.
  */
@@ -284,17 +307,7 @@ async function checkPages() {
 
   // A home page that never arrived has no time to judge, and that is not a
   // pass: the budget fails beside the page's own failure.
-  const budget = `home page budget → ${
-    homeMs === null
-      ? "no page to time"
-      : `${homeMs}ms, ${homeMs > HOME_BUDGET_MS ? "over" : "within"} the ${HOME_BUDGET_MS}ms budget`
-  }`;
-  if (homeMs === null || homeMs > HOME_BUDGET_MS) {
-    failures.push(budget);
-    console.log(`  ✗ ${budget}`);
-  } else {
-    console.log(`  ✓ ${budget}`);
-  }
+  failures.push(...checkHomeBudget("home page budget", homeMs, HOME_BUDGET_MS));
   return failures;
 }
 
