@@ -56,16 +56,26 @@ export function OnChainReceipts({
         {state !== undefined && <SettlementBadge state={state} />}
       </div>
       <p role="status" className="max-w-2xl text-xs leading-relaxed text-muted">
-        {state === undefined
-          ? "The backend has not reported how this run settled, so no transaction is shown here as evidence of payment."
-          : `No transaction is shown here as evidence of payment: ${
-              state === "failed"
-                ? failedReason(generation)
-                : TRACE_SETTLEMENT_REASON[state]
-            }`}
+        {noReceiptsSentence(state, generation)}
       </p>
     </Card>
   );
+}
+
+/** What stands in for the receipts on a run that did not settle, or whose
+ *  settlement the backend never reported. */
+function noReceiptsSentence(
+  state: Exclude<SettlementState, "settled"> | undefined,
+  generation: EscrowGeneration,
+): string {
+  if (state === undefined) {
+    return "The backend has not reported how this run settled, so no transaction is shown here as evidence of payment.";
+  }
+  const reason =
+    state === "failed"
+      ? failedReason(generation)
+      : TRACE_SETTLEMENT_REASON[state];
+  return `No transaction is shown here as evidence of payment: ${reason}`;
 }
 
 /**
