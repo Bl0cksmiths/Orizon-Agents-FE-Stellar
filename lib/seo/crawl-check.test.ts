@@ -173,4 +173,58 @@ describe("checkSite", () => {
       "https://orizons.xyz/gone: answered 404, not 200",
     ]);
   });
+
+  it("reports failed answers, a missing declaration and unfetchable locs", async () => {
+    const { fetchImpl, asked } = site({
+      "/robots.txt": { ...robots, status: 500 },
+      "/sitemap.xml": {
+        status: 503,
+        headers: { "content-type": "text/xml" },
+        body: `<urlset><url><loc>not-a-url</loc></url><url><loc>${SITE}/a#top</loc></url><url><loc>${SITE}</loc></url></urlset>`,
+      },
+      "/": { body: page(SITE) },
+    });
+    const { problems } = await checkSite("http://localhost:1", { fetchImpl });
+    expect(problems).toEqual([
+      "robots.txt answered 500, not 200",
+      "sitemap.xml answered 503, not 200",
+      "sitemap.xml does not declare XML 1.0 in UTF-8 first",
+      "not-a-url: not an absolute URL",
+      "https://orizons.xyz/a#top: has a fragment",
+    ]);
+    expect(asked).toEqual(["/robots.txt", "/sitemap.xml", "/"]);
+  });
+
+  it("reports a robots.txt served as something other than text", async () => {
+    const { fetchImpl } = site({
+      "/robots.txt": { body: ROBOTS },
+      "/sitemap.xml": xml(sitemap(SITE)),
+      "/": { body: page(SITE) },
+    });
+    const { problems } = await checkSite("http://localhost:1", { fetchImpl });
+    expect(problems).toEqual([
+      "robots.txt is served as text/html; charset=utf-8, not text/plain",
+    ]);
+  });
+
+  it("reports a sitemap over 50 MB and over 50,000 URLs", async () => {
+    const locs = Array.from({ length: 50_001 }, () => SITE);
+    const padding = `<!--${"x".repeat(50 * 1024 * 1024)}-->`;
+    const { fetchImpl } = site({
+      "/robots.txt": robots,
+      "/sitemap.xml": xml(
+        sitemap(...locs).replace("</urlset>", `${padding}</urlset>`),
+      ),
+      "/": { body: page(SITE) },
+    });
+    const { locs: unique, problems } = await checkSite("http://localhost:1", {
+      fetchImpl,
+    });
+    expect(unique).toEqual([SITE]);
+    expect(problems).toEqual([
+      "sitemap.xml is larger than 50 MB",
+      "sitemap.xml lists 50001 URLs, over 50,000",
+      "sitemap.xml lists https://orizons.xyz twice",
+    ]);
+  });
 });
