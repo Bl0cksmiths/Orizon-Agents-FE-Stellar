@@ -195,6 +195,12 @@ function largestRemainder(weights: number[]): number[] {
   return pcts;
 }
 
+/** Two skill names in code-unit order, for a stable tie-break. */
+function byName(a: string, b: string): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
 /**
  * The registry's skill mix, by the backend overview's own definition
  * (`_skills` in app/routers/metrics.py), so the two paths cannot disagree:
@@ -219,7 +225,7 @@ export function deriveSkillMix(
   const size = (s: string) => holders.get(s)?.size ?? 0;
   const ranked = Array.from(holders.keys())
     .filter((s) => s !== OTHER_SKILLS)
-    .sort((a, b) => size(b) - size(a) || (a < b ? -1 : a > b ? 1 : 0));
+    .sort((a, b) => size(b) - size(a) || byName(a, b));
   const named = ranked.slice(0, top);
   const rest = ranked.slice(top);
   if (holders.has(OTHER_SKILLS)) rest.push(OTHER_SKILLS);
