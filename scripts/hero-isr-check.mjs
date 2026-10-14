@@ -280,7 +280,9 @@ async function main() {
   process.exit(failures.length ? 1 : 0);
 }
 
-main().catch((e) => {
+try {
+  await main();
+} catch (e) {
   console.error(e);
   process.exit(1);
-});
+}
