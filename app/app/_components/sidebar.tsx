@@ -458,12 +458,12 @@ export function Sidebar() {
       );
       if (focusables.length === 0) return;
       const first = focusables[0];
-      const last = focusables[focusables.length - 1];
+      const last = focusables.at(-1);
       const active = document.activeElement;
       const inside = aside.contains(active) && active !== aside;
       if (e.shiftKey && (active === first || !inside)) {
         e.preventDefault();
-        last.focus();
+        last?.focus();
       } else if (!e.shiftKey && (active === last || !inside)) {
         e.preventDefault();
         first.focus();
