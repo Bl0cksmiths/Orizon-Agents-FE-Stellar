@@ -203,6 +203,33 @@ function authorizeFailure(
 }
 
 /**
+ * Every notice above the Authorize panel that is on the page, in reading
+ * order. Composed, never chosen between: a fallback plan built during a
+ * failed reputation read owes the buyer both facts at the button. None at
+ * all is no attribute rather than an empty one, and an id is only named
+ * while its notice renders — a reference to an absent id describes nothing
+ * and is flagged by accessibility audits.
+ */
+function payNoticeIds(
+  plan: DecomposeResponse,
+  escrowMismatch: boolean,
+  priceNotice: boolean,
+): string | undefined {
+  return (
+    [
+      isPlannerFallback(plan) && PLANNER_FALLBACK_NOTICE_ID,
+      // The banner's one-sentence summary, not the banner: four paragraphs
+      // read out as a button's description bury the decision under them.
+      hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
+      escrowMismatch && ESCROW_MISMATCH_ID,
+      priceNotice && PRICE_NOTICE_ID,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined
+  );
+}
+
+/**
  * The decomposed-plan card: step list, totals, and the execute flows
  * (simulate / fiat funding / on-chain authorize). Mirrors the FiatFund
  * pattern — self-contained state and actions, fed by the plan and by its own
@@ -427,23 +454,11 @@ export function ExecutionPlan({
     }
   });
 
-  // Every notice above the Authorize panel that is on the page, in reading
-  // order. Composed, never chosen between: a fallback plan built during a
-  // failed reputation read owes the buyer both facts at the button. None at
-  // all is no attribute rather than an empty one, and an id is only named
-  // while its notice renders — a reference to an absent id describes nothing
-  // and is flagged by accessibility audits.
-  const authorizeDescribedBy =
-    [
-      isPlannerFallback(plan) && PLANNER_FALLBACK_NOTICE_ID,
-      // The banner's one-sentence summary, not the banner: four paragraphs
-      // read out as a button's description bury the decision under them.
-      hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
-      escrowMismatch && ESCROW_MISMATCH_ID,
-      pricing.kind !== "priced" && PRICE_NOTICE_ID,
-    ]
-      .filter(Boolean)
-      .join(" ") || undefined;
+  const authorizeDescribedBy = payNoticeIds(
+    plan,
+    escrowMismatch,
+    pricing.kind !== "priced",
+  );
 
   const executing = simulate.pending || authorize.pending;
   // The controls that run the plan. An expired plan cannot run again, and a
