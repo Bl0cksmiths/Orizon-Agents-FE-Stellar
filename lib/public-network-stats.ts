@@ -236,6 +236,18 @@ async function fromOwners(
   };
 }
 
+/** The confirmed registry, or why it could not be read. */
+async function registryOrWhy(
+  deps: StatsDeps,
+  api: Read,
+): Promise<Registry | string> {
+  try {
+    return await confirmedRegistry(deps, api);
+  } catch (e) {
+    return why(e);
+  }
+}
+
 /** Whether there is an overview, and it counted the external agents and
  *  their wallets. */
 function overviewCountsOwners(overview: OverviewV2 | null): boolean {
@@ -287,12 +299,7 @@ export async function readCompleteStats(
   // is asked only of a backend whose overview cannot answer, and started now
   // so it runs during the interim rule's wait.
   const adoption = ownersFromOverview ? null : quickAdoption(api);
-  let registry: Registry | string;
-  try {
-    registry = await confirmedRegistry(deps, api);
-  } catch (e) {
-    registry = why(e);
-  }
+  const registry = await registryOrWhy(deps, api);
   if (typeof registry === "string") return partial(registry);
 
   // The overview counted this same registry: its owner figures stand.
