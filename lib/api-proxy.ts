@@ -278,17 +278,11 @@ export class CachedRead {
       });
       text = await res.text();
     } catch (err) {
-      if (controller.signal.aborted) {
-        throw new UpstreamError(
-          `GET ${path} timed out after ${upstreamTimeoutMs / 1000}s`,
-          504,
-          "backend_timeout",
-        );
-      }
-      throw new UpstreamError(
-        `GET ${path} failed: ${err instanceof Error ? err.message : String(err)}`,
-        503,
-        "backend_unreachable",
+      throw transportError(
+        err,
+        controller.signal.aborted,
+        path,
+        upstreamTimeoutMs,
       );
     } finally {
       clearTimeout(timer);
@@ -349,6 +343,28 @@ export class CachedRead {
       headers,
     };
   }
+}
+
+/** A backend read that never answered: timed out (aborted at
+ * `upstreamTimeoutMs`) or failed in transport. */
+function transportError(
+  err: unknown,
+  aborted: boolean,
+  path: string,
+  upstreamTimeoutMs: number,
+): UpstreamError {
+  if (aborted) {
+    return new UpstreamError(
+      `GET ${path} timed out after ${upstreamTimeoutMs / 1000}s`,
+      504,
+      "backend_timeout",
+    );
+  }
+  return new UpstreamError(
+    `GET ${path} failed: ${err instanceof Error ? err.message : String(err)}`,
+    503,
+    "backend_unreachable",
+  );
 }
 
 /** When a snapshot's data dates from, by the backend's `X-Snapshot-Age`
