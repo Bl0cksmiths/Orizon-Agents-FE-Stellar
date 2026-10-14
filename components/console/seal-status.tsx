@@ -28,7 +28,7 @@ export function SealStatus({
   seal,
   kind,
   className,
-}: {
+}: Readonly<{
   /** What the seal attests. `delivery_only` is worded with no payment and
    *  no dispute; absent (an older backend) keeps the paid wording. */
   kind?: SealKind | null;
@@ -36,7 +36,7 @@ export function SealStatus({
    *  nothing: the caller keeps its own wording then.) */
   seal: SealState | null;
   className?: string;
-}) {
+}>) {
   if (seal === null) {
     return (
       <p
