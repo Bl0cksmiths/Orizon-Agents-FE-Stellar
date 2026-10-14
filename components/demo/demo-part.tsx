@@ -23,7 +23,10 @@ import { DemoPlayerStatic } from "./demo-player-static";
 const term = "font-mono text-[10px] uppercase tracking-[0.25em] text-muted";
 const value = "font-mono text-xs text-text";
 
-export function DemoPart({ part, index }: { part: Part; index: number }) {
+export function DemoPart({
+  part,
+  index,
+}: Readonly<{ part: Part; index: number }>) {
   const id = `demo-part-${index + 1}`;
   return (
     <section aria-labelledby={id} data-demo-part={part.role}>
