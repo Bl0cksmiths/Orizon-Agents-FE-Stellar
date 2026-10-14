@@ -179,7 +179,7 @@ function TargetItem({
   partial,
   unverified,
   windowNote,
-}: {
+}: Readonly<{
   row: TargetRow;
   /** The report is partial: this count is a floor. */
   partial: boolean;
@@ -187,7 +187,7 @@ function TargetItem({
   /** The ledger window this count covers, when the backend says; null
    * otherwise, and for the targets it does not bound. */
   windowNote: string | null;
-}) {
+}>) {
   const copy = TARGET_COPY[row.key];
   return (
     <li
