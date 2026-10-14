@@ -21,13 +21,13 @@ export function ScrollRegion({
   children,
   className,
   scrollerClassName,
-}: {
+}: Readonly<{
   /** The region's accessible name; say that it scrolls. */
   label: string;
   children: ReactNode;
   className?: string;
   scrollerClassName?: string;
-}) {
+}>) {
   const ref = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
 
