@@ -244,6 +244,14 @@ export function deriveSkillMix(
   return rows.map((r, i) => ({ name: r.name, agents: r.agents, pct: pcts[i] }));
 }
 
+/** The note for registry entries the guard dropped, or null for none. */
+function droppedNote(list: Agent[]): string | null {
+  const dropped = droppedCount(list);
+  if (dropped > 0)
+    return `${formatCount(dropped)} registry ${dropped === 1 ? "entry" : "entries"} couldn't be read and ${dropped === 1 ? "isn't" : "aren't"} counted.`;
+  return null;
+}
+
 /**
  * The figures an older backend's own reads support. Each read fails alone:
  * a dead adoption read leaves the registry counts standing, and the reverse.
@@ -265,12 +273,8 @@ export function deriveNetworkStats(reads: {
     fromRegistry((list) => list.filter(keep).length);
 
   if (agents.ok) {
-    const dropped = droppedCount(agents.value);
-    if (dropped > 0) {
-      notes.push(
-        `${formatCount(dropped)} registry ${dropped === 1 ? "entry" : "entries"} couldn't be read and ${dropped === 1 ? "isn't" : "aren't"} counted.`,
-      );
-    }
+    const dropped = droppedNote(agents.value);
+    if (dropped !== null) notes.push(dropped);
   }
   if (adoption.ok) {
     const unread = adoption.value.unreadable_agents?.length ?? 0;
