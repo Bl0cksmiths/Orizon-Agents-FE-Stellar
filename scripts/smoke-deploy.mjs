@@ -397,17 +397,9 @@ async function checkPagesInBrowser() {
     await browser.close();
   }
 
-  const budget = `home page load budget → ${
-    homeMs === null
-      ? "no page to time"
-      : `${homeMs}ms, ${homeMs > HOME_LOAD_BUDGET_MS ? "over" : "within"} the ${HOME_LOAD_BUDGET_MS}ms budget`
-  }`;
-  if (homeMs === null || homeMs > HOME_LOAD_BUDGET_MS) {
-    failures.push(budget);
-    console.log(`  ✗ ${budget}`);
-  } else {
-    console.log(`  ✓ ${budget}`);
-  }
+  failures.push(
+    ...checkHomeBudget("home page load budget", homeMs, HOME_LOAD_BUDGET_MS),
+  );
   return failures;
 }
 
