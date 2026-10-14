@@ -74,7 +74,11 @@ export type MobileMenuProps = {
   pathname: string | null;
 };
 
-export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
+export function MobileMenu({
+  open,
+  onOpenChange,
+  pathname,
+}: Readonly<MobileMenuProps>) {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const firstLinkRef = useRef<HTMLAnchorElement>(null);
