@@ -439,6 +439,7 @@ test.describe("an error screen is never indexed as the page", () => {
   test("the last-resort screen names the document and carries noindex", async ({
     page,
   }) => {
+    // Skipped under next dev, whose error overlay stands in for the last-resort screen.
     test.skip(
       !PRODUCTION,
       "development shows its error overlay instead of app/global-error.tsx",
