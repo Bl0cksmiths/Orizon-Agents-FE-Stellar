@@ -194,6 +194,7 @@ test.describe("escrow v2 receipt", () => {
   test("offers the paying tab no reclaim under escrow v1, and says nothing was charged", async ({
     page,
   }) => {
+    // Skipped once escrow v2 is pinned for testnet, when v1's story is history.
     test.skip(escrowV2Pin !== null, "escrow v2 is pinned: v1 is history");
     await openTrace(page, { settlement: null, state: "failed", held: true });
     await expect(receipt(page).getByRole("status")).toHaveText(
