@@ -55,11 +55,11 @@ const ROUTES = [
  * are both on screen before the page is judged.
  */
 const READY: Partial<Record<string, (page: Page) => Promise<void>>> = {
-  // Hydrated, so the sections in view have started their reveal, and then
-  // every entrance run out: the sweep judges the settled page, not text
-  // caught mid-fade.
+  // Hydrated, so the sections in view have started their reveal (the reveal
+  // observer arms the page once it has shown them), and then every entrance
+  // run out: the sweep judges the settled page, not text caught mid-fade.
   "/": async (page) => {
-    await page.waitForLoadState("networkidle");
+    await expect(page.locator("html")).toHaveAttribute("data-reveal", "armed");
     await entrancesSettled(page);
   },
   // The four measured tiles, so the sweep judges the figures and their
