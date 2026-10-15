@@ -744,8 +744,9 @@ export function ExecutionPlan({
             </span>
             , but this console is written for escrow{" "}
             <span className="break-all font-mono text-xs">{escrow.pinned}</span>
-            . Nothing is asked of your wallet until they agree. A simulated pass
-            is unaffected.
+            {
+              ". Nothing is asked of your wallet until they agree. A simulated pass is unaffected."
+            }
           </p>
         )}
 
