@@ -2039,11 +2039,11 @@ describe("openTraceStream polling fallback", () => {
     await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
     // Said once: the follow-up ending is not a second end of the run.
     expect(onDone).toHaveBeenCalledTimes(1);
-    expect(StubEventSource.instances.length).toBe(streams);
+    expect(StubEventSource.instances).toHaveLength(streams);
     // And it has stopped asking.
     const calls = fetchMock.mock.calls.length;
     await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 5);
-    expect(fetchMock.mock.calls.length).toBe(calls);
+    expect(fetchMock.mock.calls).toHaveLength(calls);
     dispose();
   });
 
