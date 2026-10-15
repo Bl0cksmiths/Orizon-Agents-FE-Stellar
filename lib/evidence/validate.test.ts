@@ -334,6 +334,19 @@ describe("link labels are plain language", () => {
     );
     expect(labelProblem("Merged PR #42")).toBe(null);
   });
+
+  it("counts a word wrapped in punctuation, but not punctuation alone", () => {
+    expect(labelProblem("(Merged) «réglé»…")).toBe(null);
+    expect(labelProblem("Merged ... --")).toMatch(/at least two words/);
+  });
+
+  it("reads a label with a long run of punctuation in linear time", () => {
+    const started = performance.now();
+    expect(labelProblem(`a${".".repeat(100_000)}b word`)).toMatch(
+      /at least two words/,
+    );
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe("link URLs", () => {
@@ -355,6 +368,18 @@ describe("link URLs", () => {
     }, /\.url is not a URL/);
   });
 
+  it("must be a string", () => {
+    expectOnly((i) => {
+      delete firstLink(i).url;
+    }, /\.url must be an https URL, not missing$/);
+  });
+
+  it("must be an object", () => {
+    expectOnly((i) => {
+      i.deliverables[0].items[0].links[0] = "https://orizons.xyz/app";
+    }, /^deliverables\[0\]\.items\[0\]\.links\[0\] must be an object, not "https:\/\/orizons\.xyz\/app"$/);
+  });
+
   it("must have a known kind", () => {
     expectOnly((i) => {
       firstLink(i).kind = "tweet";
@@ -368,6 +393,7 @@ describe("link URLs", () => {
     for (const url of [
       "https://orizons.xyz/app/trace?task=tsk_7e1c369cebaf41b3",
       "https://orizons.xyz/app/trace?foo=1&task=tsk_1",
+      "https://orizons.xyz/app/trace///?task=tsk_1",
       "https://orizons.xyz/api/tasks/tsk_7e1c369cebaf41b3",
       "https://orizon-agents-be-stellar.onrender.com/api/tasks/tsk_1/stream",
     ]) {
@@ -383,12 +409,23 @@ describe("link URLs", () => {
       "https://orizons.xyz/app/trace",
       "https://orizon-agents-be-stellar.onrender.com/api/disputes/dsp_1",
       "https://orizons.xyz/api/tasks",
+      "https://orizons.xyz/app/trace//x?task=tsk_1",
     ]) {
       const index = base();
       firstLink(index).url = url;
       firstLink(index).kind = "page";
       expect(problemsOf(index)).toEqual([]);
     }
+  });
+
+  it("reads a path of thousands of slashes in linear time", () => {
+    const started = performance.now();
+    const index = base();
+    firstLink(index).url =
+      `https://orizons.xyz/app${"/".repeat(100_000)}x?task=tsk_1`;
+    firstLink(index).kind = "page";
+    expect(problemsOf(index)).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
 
@@ -601,6 +638,13 @@ describe("removed metrics", () => {
     expectOnlyRemoved((i) => {
       i.metrics = i.metrics.filter((m: Json) => m.id !== "m05");
     }, /^metrics must be the SOW §6\.3 metrics m01 to m11 in order, less the removed m03; found 9: .*; m05 is left out with no removed_metrics entry$/);
+  });
+
+  it("names every metric left out with no entry", () => {
+    expectOnlyRemoved((i) => {
+      i.removed_metrics = [];
+      i.metrics = i.metrics.filter((m: Json) => m.id !== "m05");
+    }, /^metrics must be exactly the eleven of SOW §6\.3, m01 to m11 in order; found 9: .*; m03, m05 are left out with no removed_metrics entry$/);
   });
 
   it("refuses an entry for a metric still in the table", () => {

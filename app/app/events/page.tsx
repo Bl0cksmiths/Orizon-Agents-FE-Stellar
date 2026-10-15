@@ -1,5 +1,5 @@
 "use client";
-import { memo, useMemo } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ErrorNote } from "@/components/ui/error-note";
@@ -10,10 +10,22 @@ import { escrowGeneration } from "@/lib/escrow-generation";
 import { focusRing } from "@/lib/ui";
 import { EventsEmptyHint } from "./empty-hint";
 import { useFetch } from "@/lib/use-fetch";
-import { useStellarEvents, type FeedEvent } from "@/lib/stellar-events";
+import {
+  useStellarEvents,
+  type EventsFeedHook,
+  type FeedEvent,
+} from "@/lib/stellar-events";
 import { prettyName } from "@/lib/utils";
 
 const FEED_OPTIONS = { intervalMs: 5000, max: 60 };
+
+/** What the feed-state badge says for each state. */
+const FEED_STATE_LABEL: Record<EventsFeedHook["status"], string> = {
+  live: "live",
+  starting: "starting…",
+  error: "error",
+  idle: "idle",
+};
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -77,6 +89,66 @@ export default function EventsPage() {
   // with nothing to show. Track the failure explicitly so the UI can say so.
   const failureMessage = loadError ?? error;
   const feedState = failureMessage !== null ? "error" : status;
+  const eventsWord = events.length === 1 ? "event" : "events";
+
+  // Failure first, ahead of both the loading and the empty branch. Never fall
+  // through to the "no events yet" copy on a failure — an empty feed we could
+  // not even start is a broken feed, not an idle one — and never fall back to
+  // the connecting placeholder either, which would flicker in and out as
+  // `useFetch` retries.
+  let feed: ReactNode;
+  if (failureMessage !== null && events.length === 0) {
+    feed = (
+      <ErrorNote
+        className="border-0 bg-transparent p-0"
+        onRetry={retry}
+        retrying={reconnecting}
+      >
+        <span className="block text-[10px] uppercase tracking-[0.25em] mb-2">
+          ▸ feed unavailable
+        </span>
+        <span className="block text-[11px] break-all">{failureMessage}</span>
+      </ErrorNote>
+    );
+  } else if (feedLoading && events.length === 0) {
+    feed = (
+      <div className="space-y-2">
+        <output aria-live="polite" className="block text-sm text-muted">
+          Connecting to the event feed…
+        </output>
+        <div className="flex gap-3 pt-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="flex-1 h-16 clip-cyber-sm border border-border bg-bg/40 animate-pulse"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  } else if (events.length === 0) {
+    feed = (
+      <div className="space-y-2">
+        <EventsEmptyHint generation={escrowGeneration(info)} />
+        <div className="flex gap-3 pt-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="flex-1 h-16 clip-cyber-sm border border-border bg-bg/40 animate-pulse"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  } else {
+    feed = (
+      <ol className="space-y-2">
+        {events.map((e) => (
+          <EventRow key={e.id} event={e} idToLabel={idToLabel} />
+        ))}
+      </ol>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -91,13 +163,7 @@ export default function EventsPage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <Badge tone={feedState === "live" ? "success" : "magenta"} dot>
-            {feedState === "live"
-              ? "live"
-              : feedState === "starting"
-                ? "starting…"
-                : feedState === "error"
-                  ? "error"
-                  : "idle"}
+            {FEED_STATE_LABEL[feedState]}
           </Badge>
           {latestLedger !== null && (
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
@@ -158,61 +224,11 @@ export default function EventsPage() {
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
             {failureMessage !== null && events.length === 0
               ? "unavailable"
-              : `${events.length} ${events.length === 1 ? "event" : "events"}`}
+              : `${events.length} ${eventsWord}`}
           </span>
         </div>
 
-        {/* Failure first, ahead of both the loading and the empty branch.
-            Never fall through to the "no events yet" copy on a failure — an
-            empty feed we could not even start is a broken feed, not an idle
-            one — and never fall back to the connecting placeholder either,
-            which would flicker in and out as `useFetch` retries. */}
-        {failureMessage !== null && events.length === 0 ? (
-          <ErrorNote
-            className="border-0 bg-transparent p-0"
-            onRetry={retry}
-            retrying={reconnecting}
-          >
-            <span className="block text-[10px] uppercase tracking-[0.25em] mb-2">
-              ▸ feed unavailable
-            </span>
-            <span className="block text-[11px] break-all">
-              {failureMessage}
-            </span>
-          </ErrorNote>
-        ) : feedLoading && events.length === 0 ? (
-          <div className="space-y-2">
-            <div role="status" className="text-sm text-muted">
-              Connecting to the event feed…
-            </div>
-            <div className="flex gap-3 pt-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="flex-1 h-16 clip-cyber-sm border border-border bg-bg/40 animate-pulse"
-                />
-              ))}
-            </div>
-          </div>
-        ) : events.length === 0 ? (
-          <div className="space-y-2">
-            <EventsEmptyHint generation={escrowGeneration(info)} />
-            <div className="flex gap-3 pt-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="flex-1 h-16 clip-cyber-sm border border-border bg-bg/40 animate-pulse"
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <ol className="space-y-2">
-            {events.map((e) => (
-              <EventRow key={e.id} event={e} idToLabel={idToLabel} />
-            ))}
-          </ol>
-        )}
+        {feed}
       </Card>
     </div>
   );

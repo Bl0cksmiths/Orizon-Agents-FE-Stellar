@@ -19,7 +19,7 @@ import {
 } from "@/lib/trace-stage";
 import type { TraceLine } from "@/lib/types";
 
-export function StageMark({ line }: { line: TraceLine }) {
+export function StageMark({ line }: Readonly<{ line: TraceLine }>) {
   const stage = traceStage(line);
   if (!stage) return null;
   return (
@@ -33,18 +33,18 @@ export function StageMark({ line }: { line: TraceLine }) {
 
 /** Opens a line that reports a pipeline handoff: this step building on the
  *  output of the steps before it. The line's own words name them. */
-export function HandoffMark({ line }: { line: TraceLine }) {
+export function HandoffMark({ line }: Readonly<{ line: TraceLine }>) {
   if (!traceHandoff(line)) return null;
   return (
     <Badge tone="cyan" className="mr-2 align-middle">
       <span className="sr-only">Builds on earlier steps: </span>
       <span aria-hidden="true">⤷</span>
-      handoff
+      {"handoff"}
     </Badge>
   );
 }
 
-export function StepMarks({ line }: { line: TraceLine }) {
+export function StepMarks({ line }: Readonly<{ line: TraceLine }>) {
   const model = traceLineModel(line);
   // Named once: when the line's own words already say it, a tag repeating
   // it is noise.

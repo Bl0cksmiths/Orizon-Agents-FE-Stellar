@@ -644,7 +644,9 @@ const UNAVAILABLE_STATE: WalletState = {
  * signing call rejects with WALLET_UNAVAILABLE, which the pages' error copy
  * already knows how to show (it is a FriendlyError).
  */
-export function WalletUnavailable({ children }: { children: React.ReactNode }) {
+export function WalletUnavailable({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <WalletCtx.Provider value={UNAVAILABLE_STATE}>
       {children}

@@ -15,12 +15,12 @@ const nameOf = (s: PlanStep) => s.agent_name ?? s.agent_id;
 export function PipelineOverview({
   steps,
   namedSources = false,
-}: {
+}: Readonly<{
   steps: PlanStep[];
   /** The planner named each step's sources (`inputs_from`), so the steps
    *  say them and the chain is only the run order. */
   namedSources?: boolean;
-}) {
+}>) {
   if (steps.length < 2) return null;
   const names = steps.map(nameOf);
   return (
@@ -67,7 +67,7 @@ export function PipelineOverview({
  *  sits right below, under its own name, and a second mention of that name
  *  here would make every agent appear in two rows. `index` is the receiving
  *  step's 0-based position, numbered as the step list numbers it. */
-export function HandoffNote({ index }: { index: number }) {
+export function HandoffNote({ index }: Readonly<{ index: number }>) {
   return (
     <p className="basis-full pl-12 font-mono text-[10px] tracking-wide text-muted [overflow-wrap:anywhere]">
       <span aria-hidden="true">↓</span> hands its output to step{" "}
@@ -84,12 +84,12 @@ function listOf(sources: number[]): string {
   const nums = sources.map(num);
   return nums.length < 2
     ? nums.join("")
-    : `${nums.slice(0, -1).join(", ")} and ${nums[nums.length - 1]}`;
+    : `${nums.slice(0, -1).join(", ")} and ${nums.at(-1)}`;
 }
 
 /** Under a step: the earlier steps whose output it uses, as the planner
  *  named them (`inputs_from`). Nothing for a step that builds on nothing. */
-export function InputsNote({ sources }: { sources: number[] }) {
+export function InputsNote({ sources }: Readonly<{ sources: number[] }>) {
   if (sources.length === 0) return null;
   return (
     <p className="basis-full pl-12 font-mono text-[10px] tracking-wide text-muted [overflow-wrap:anywhere]">

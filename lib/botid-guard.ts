@@ -5,9 +5,9 @@
  *
  *   - Judged a bot: 403 `bot_detected`, and the backend never hears of it.
  *   - The check could not run (Vercel's verdict unreachable, the project's
- *     OIDC token missing): 503 `bot_check_unavailable`. Closed, not open: the
- *     routes behind it spend money and AI, so an unverified request is not
- *     forwarded.
+ *     OIDC token missing): the request is forwarded unchecked and the failure
+ *     logged, unless `BOTID_ON_CHECK_ERROR=closed` (lib/botid-routes.ts
+ *     `botIdFailsClosed`), which answers 503 `bot_check_unavailable` instead.
  *   - Off Vercel (lib/botid-routes.ts `botIdActive`): no check, as there is no
  *     challenge for the browser to have answered.
  *
@@ -24,7 +24,7 @@ import {
   BOT_DETECTED_CODE,
   BOT_DETECTED_MESSAGE,
 } from "./bot-check-message";
-import { botIdActive } from "./botid-routes";
+import { botIdActive, botIdFailsClosed } from "./botid-routes";
 
 /** Seconds a browser is asked to wait after the check could not run. */
 const UNAVAILABLE_RETRY_AFTER_S = 5;
@@ -36,6 +36,8 @@ export type BotGuardDeps = {
   active: boolean;
   /** The verdict for the current request; BotID's `checkBotId` by default. */
   check: () => Promise<BotVerdict>;
+  /** Whether a failed check refuses the request; `botIdFailsClosed()` by default. */
+  failClosed: boolean;
 };
 
 /**
@@ -54,9 +56,12 @@ export async function refuseBots(
   } catch (err) {
     // The message only: BotID's errors name what is misconfigured and carry
     // no token, and nothing about the request is logged.
-    console.error(
-      `[botid] check failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    const reason = err instanceof Error ? err.message : String(err);
+    if (!(deps.failClosed ?? botIdFailsClosed())) {
+      console.warn(`[botid] check failed, forwarding unchecked: ${reason}`);
+      return null;
+    }
+    console.error(`[botid] check failed: ${reason}`);
     return apiErrorResponse(
       503,
       BOT_CHECK_UNAVAILABLE_CODE,

@@ -16,14 +16,16 @@ export const TRACE_STAGES = ["guard", "improve", "recheck", "plan"] as const;
 export type TraceStage = (typeof TRACE_STAGES)[number];
 
 const isTraceStage = (v: unknown): v is TraceStage =>
-  TRACE_STAGES.some((s) => s === v);
+  (TRACE_STAGES as readonly unknown[]).includes(v);
 
 /** Each stage's documented opening words. Anchored at the start: a step
- *  line that only mentions planning mid-sentence is not a stage. */
+ *  line that only mentions planning mid-sentence is not a stage. The
+ *  recheck's two wordings are the exception: "re-checked by" anywhere, or a
+ *  line that ends by falling back to the user's own words. */
 const STAGE_WORDING: Record<TraceStage, RegExp> = {
   guard: /^request check(?:ed by\b|\b)/i,
   improve: /^(?:prompt improve|using your edited reading\b)/i,
-  recheck: /\bre-checked by\b|planning from your own words$/i,
+  recheck: /(?:\bre-checked by\b)|(?:planning from your own words$)/i,
   plan: /^planned by\b/i,
 };
 
@@ -59,8 +61,10 @@ export function traceLineTier(line: Pick<TraceLine, "tier">): Tier | null {
 }
 
 /** The handoff lane's wording: "<step> uses output from: <a>, <b>", and
- *  "external.<id> receives output from: …" for an operator's step. */
-const HANDOFF = /\b(?:uses|receives) output from(?::\s*|\s+)(.+)$/i;
+ *  "external.<id> receives output from: …" for an operator's step. The
+ *  sources open on a non-blank, so the blanks before them match one way
+ *  only: `(?::\s*|\s+)(.+)` retried every split of a long run of them. */
+const HANDOFF = /\b(?:uses|receives) output from[:\s]\s*(\S.*)$/i;
 
 /**
  * The earlier steps a line says this step builds on, or null when it is not
@@ -70,8 +74,9 @@ const HANDOFF = /\b(?:uses|receives) output from(?::\s*|\s+)(.+)$/i;
 export function traceHandoff(line: Pick<TraceLine, "msg">): string[] | null {
   const m = HANDOFF.exec(line.msg.trim());
   if (!m) return null;
+  // Split on the separators alone; each piece's blanks are trimmed after.
   const sources = m[1]
-    .split(/\s*(?:,|\band\b)\s*/i)
+    .split(/,|\band\b/i)
     .map((s) => s.trim())
     .filter(Boolean);
   return sources.length > 0 ? sources : null;

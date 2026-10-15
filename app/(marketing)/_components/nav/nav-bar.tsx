@@ -140,12 +140,12 @@ function MenuSlot({
   openMenu,
   setOpenMenu,
   pathname,
-}: {
+}: Readonly<{
   group: NavGroup;
   openMenu: NavGroup["id"] | null;
   setOpenMenu: (id: NavGroup["id"] | null) => void;
   pathname: string | null;
-}) {
+}>) {
   const onOpenChange = useCallback(
     (open: boolean) => setOpenMenu(open ? group.id : null),
     [group.id, setOpenMenu],

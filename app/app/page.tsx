@@ -13,6 +13,7 @@ import { NetworkTiles } from "@/components/network/network-tiles";
 import { SettledChart } from "@/components/network/settled-chart";
 import { getStellarNetwork, listTasks } from "@/lib/api";
 import { formatSpent, taskSpent } from "@/lib/trace-amounts";
+import type { NetworkStats } from "@/lib/network-stats";
 import type { Task } from "@/lib/types";
 import { loadNetworkStats } from "@/lib/use-network-stats";
 import { useFetch } from "@/lib/use-fetch";
@@ -30,6 +31,62 @@ const statusTone: Record<
 
 /** Both panels refresh on this cadence; each backs off on its own. */
 const POLL_MS = 5_000;
+
+/** The throughput chart, or why it is not drawn yet. */
+function ThroughputBody({
+  stats,
+  failed,
+}: Readonly<{
+  stats: NetworkStats | null;
+  failed: boolean;
+}>) {
+  if (stats) return <SettledChart series={stats.series} />;
+  if (failed)
+    return (
+      <div className="grid h-36 place-items-center border border-dashed border-border font-mono text-[11px] text-muted">
+        throughput unavailable — backend unreachable
+      </div>
+    );
+  return (
+    <>
+      <Skeleton className="h-36 w-full" />
+      <LoadingStatus label="Loading throughput chart…" />
+    </>
+  );
+}
+
+/** The network's composition, or why it is not drawn yet. */
+function CompositionBody({
+  stats,
+  failed,
+}: Readonly<{
+  stats: NetworkStats | null;
+  failed: boolean;
+}>) {
+  if (stats) return <Composition stats={stats} />;
+  if (failed)
+    return (
+      <p className="font-mono text-[11px] text-muted">
+        composition unavailable — backend unreachable
+      </p>
+    );
+  return (
+    <div className="space-y-3">
+      <LoadingStatus label="Loading network composition…" />
+      {/* Four fixed placeholder bars with no data behind them and nothing to
+          reorder, so their position is the only key they have. */}
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-4 w-full" />
+      ))}
+    </div>
+  );
+}
+
+/** What the recent-tasks heading says of the list: its size once read. */
+function tasksCountLabel(tasks: Task[] | null, failed: boolean): string {
+  if (tasks) return `${tasks.length} tracked`;
+  return failed ? "unavailable" : "loading…";
+}
 
 export default function OverviewPage() {
   // Two panels, two reads, two failure states: the figures stay up when the
@@ -132,18 +189,7 @@ export default function OverviewPage() {
               settled workflows per day · all payers · last 14 days (UTC)
             </p>
           </div>
-          {stats ? (
-            <SettledChart series={stats.series} />
-          ) : statsError ? (
-            <div className="grid h-36 place-items-center border border-dashed border-border font-mono text-[11px] text-muted">
-              throughput unavailable — backend unreachable
-            </div>
-          ) : (
-            <>
-              <Skeleton className="h-36 w-full" />
-              <LoadingStatus label="Loading throughput chart…" />
-            </>
-          )}
+          <ThroughputBody stats={stats} failed={Boolean(statsError)} />
         </Card>
 
         <Card>
@@ -151,20 +197,7 @@ export default function OverviewPage() {
           <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted mb-5">
             registered agents by source
           </p>
-          {stats ? (
-            <Composition stats={stats} />
-          ) : statsError ? (
-            <p className="font-mono text-[11px] text-muted">
-              composition unavailable — backend unreachable
-            </p>
-          ) : (
-            <div className="space-y-3">
-              <LoadingStatus label="Loading network composition…" />
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-full" />
-              ))}
-            </div>
-          )}
+          <CompositionBody stats={stats} failed={Boolean(statsError)} />
         </Card>
       </div>
 
@@ -172,11 +205,7 @@ export default function OverviewPage() {
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold">Recent tasks</h2>
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted">
-            {tasks
-              ? `${tasks.length} tracked`
-              : tasksError
-                ? "unavailable"
-                : "loading…"}
+            {tasksCountLabel(tasks, Boolean(tasksError))}
           </span>
         </div>
         {/* This panel's own failure, with its own retry: the figures above
@@ -284,6 +313,9 @@ export default function OverviewPage() {
                     </td>
                   </tr>
                 ) : (
+                  // Four fixed placeholder rows with no task behind them and
+                  // nothing to reorder, so their position is the only key
+                  // they have; the first carries the waking line.
                   Array.from({ length: 4 }).map((_, i) => (
                     <tr key={i} className="border-b border-border/50">
                       <td colSpan={6} className="py-3">

@@ -113,7 +113,7 @@ function detailOf(e: unknown, field: string, code: string): string | null {
   );
   if (text === undefined && typeof error.message === "string") {
     const m = error.message.trim();
-    if (m && m !== code && m !== code.replace(/_/g, " ")) text = m;
+    if (m && m !== code && m !== code.replaceAll("_", " ")) text = m;
   }
   if (text === undefined) return null;
   const t = text.trim();

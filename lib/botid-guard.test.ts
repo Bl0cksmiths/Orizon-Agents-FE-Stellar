@@ -63,7 +63,17 @@ describe("on Vercel", () => {
     expect(checkBotId).toHaveBeenCalledWith();
   });
 
-  it("fails closed, 503 bot_check_unavailable, when the check cannot run", async () => {
+  it("forwards unchecked, and logs, when the check cannot run", async () => {
+    const log = vi.spyOn(console, "warn").mockImplementation(() => {});
+    checkBotId.mockRejectedValue(new Error("VERCEL_OIDC_TOKEN is not set"));
+    expect(await refuseBots(visit())).toBeNull();
+    expect(log).toHaveBeenCalledWith(
+      "[botid] check failed, forwarding unchecked: VERCEL_OIDC_TOKEN is not set",
+    );
+  });
+
+  it("fails closed, 503 bot_check_unavailable, when BOTID_ON_CHECK_ERROR=closed", async () => {
+    vi.stubEnv("BOTID_ON_CHECK_ERROR", "closed");
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     checkBotId.mockRejectedValue(new Error("VERCEL_OIDC_TOKEN is not set"));
     const res = await refuseBots(visit());

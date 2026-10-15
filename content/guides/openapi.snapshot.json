@@ -3102,7 +3102,7 @@
       "post": {
         "tags": ["stellar"],
         "summary": "Build Reclaim",
-        "description": "Build unsigned XDR for PaymentEscrow v2 `reclaim(payer, auth_id)`. The payer signs.\n\nThe payer's way back to custody no settle ever spent: allowed once the\nauthorization has expired, and never after it was settled or reclaimed.\nEach of those is checked first with a read-only simulate and refused with\nits own 409 (`authorization_settled`, `authorization_revoked`,\n`authorization_locked`), so the wallet is never asked to sign a\ntransaction the contract will refuse. A v1 escrow holds no custody and\nanswers 409 `reclaim_unsupported`; an unreadable chain is 503\n`authorization_unverifiable` (ADR 0011).",
+        "description": "Build unsigned XDR for PaymentEscrow v2 `reclaim(payer, auth_id)`. The payer signs.\n\nThe payer's way back to custody no settle ever spent: allowed once the\nauthorization has expired, and never after it was settled or reclaimed.\nEach of those is checked first with a read-only simulate and refused with\nits own 409 (`authorization_settled`, `authorization_revoked`,\n`authorization_locked`), so the wallet is never asked to sign a\ntransaction the contract will refuse. A v1 escrow holds no custody and\nanswers 409 `reclaim_unsupported`; an unreadable chain is 503\n`authorization_unreadable` (ADR 0011).",
         "operationId": "build_reclaim_api_stellar_build_reclaim_post",
         "requestBody": {
           "content": {

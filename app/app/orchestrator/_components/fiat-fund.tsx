@@ -49,7 +49,7 @@ export function FiatFund({
   amount,
   stellarAddress,
   asset,
-}: {
+}: Readonly<{
   /** The cap the buyer signs, as an exact plain decimal ("0.123") — never
    *  a float's `String()`, which writes 1e-7 for a stroop. */
   amount: string;
@@ -57,8 +57,8 @@ export function FiatFund({
   /** What the escrow's SAC wraps: the plan's asset, or GET
    *  /api/stellar/network's "native" on testnet. Null or absent while
    *  neither has been read. */
-  asset?: AssetRef;
-}) {
+  asset?: Exclude<AssetRef, undefined>;
+}>) {
   // What the ramp credits is fixed: PDAX buys USDC and withdraws USDCXLM —
   // USDC on Stellar — to the address below (backend app/pdax/ramp.py). What
   // the authorization spends is not: the cap is signed in whatever the

@@ -28,6 +28,22 @@ describe("parseSitemapLocs", () => {
       ),
     ).toEqual(["https://a.test/x?b=1&c=2", "https://a.test"]);
   });
+
+  it("trims the blanks around a loc, and skips one never closed", () => {
+    expect(
+      parseSitemapLocs(
+        "<loc>\n\t https://a.test/y \r\n</loc><loc> </loc><loc>https://a.test/z",
+      ),
+    ).toEqual(["https://a.test/y", ""]);
+  });
+
+  it("reads a loc of thousands of blanks in linear time", () => {
+    const started = performance.now();
+    const blanks = " ".repeat(100_000);
+    expect(parseSitemapLocs(`<loc>${blanks}x${blanks}`)).toEqual([]);
+    expect(parseSitemapLocs(`<loc>${blanks}x${blanks}</loc>`)).toEqual(["x"]);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe("parseRobots", () => {
@@ -40,6 +56,63 @@ describe("parseRobots", () => {
       groups: [{ agents: ["*"], allow: ["/"], disallow: ["/api/"] }],
       sitemaps: ["https://a.test/sitemap.xml"],
     });
+  });
+
+  it("groups consecutive agents, and ignores comments, rules outside a group and empty rules", () => {
+    expect(
+      parseRobots(
+        [
+          "Disallow: /early",
+          "# a comment line",
+          "User-agent: a",
+          "User-agent: b # trailing comment",
+          "Disallow:",
+          "Disallow: /x",
+          "Crawl-delay: 5",
+          "User-agent: c",
+          "Allow: /y",
+          "not a field",
+          "User-agent: d",
+        ].join("\r\n"),
+      ),
+    ).toEqual({
+      groups: [
+        { agents: ["a", "b"], allow: [], disallow: ["/x"] },
+        { agents: ["c"], allow: ["/y"], disallow: [] },
+        { agents: ["d"], allow: [], disallow: [] },
+      ],
+      sitemaps: [],
+    });
+  });
+
+  it("reads a value after any blanks, and skips one broken across lines", () => {
+    const lineSeparator = String.fromCharCode(0x2028);
+    expect(
+      parseRobots(
+        [
+          "User-agent:\t \t*",
+          `Disallow:${lineSeparator} /a`,
+          `Disallow: /b${lineSeparator}c`,
+          "Allow  :",
+        ].join("\n"),
+      ),
+    ).toEqual({
+      groups: [{ agents: ["*"], allow: [], disallow: ["/a"] }],
+      sitemaps: [],
+    });
+  });
+
+  it("reads a line of thousands of blanks in linear time", () => {
+    const lineSeparator = String.fromCharCode(0x2028);
+    const started = performance.now();
+    const blanks = " ".repeat(100_000);
+    expect(
+      parseRobots(`User-agent: *\nDisallow:${blanks}x${lineSeparator}y`),
+    ).toEqual({
+      groups: [{ agents: ["*"], allow: [], disallow: [] }],
+      sitemaps: [],
+    });
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
 
@@ -92,6 +165,20 @@ describe("pageProblems", () => {
     const problems = pageProblems(loc, response);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatch(problem);
+  });
+
+  it("reads attributes with blanks around '=', a namespaced name and any case", () => {
+    const body = `<head><meta NAME = "robots" xml:lang="en" content=\n"noindex"/><link REL="canonical" data-x-y="1" href="${loc}"/></head>`;
+    expect(pageProblems(loc, { status: 200, headers: HTML, body })).toEqual([
+      "its robots meta says noindex",
+    ]);
+  });
+
+  it("reads a tag with a long unquoted name in linear time", () => {
+    const started = performance.now();
+    const body = `<head><meta ${"a".repeat(100_000)} ${"b:".repeat(50_000)}= x/><link rel="canonical" href="${loc}"/></head>`;
+    expect(pageProblems(loc, { status: 200, headers: HTML, body })).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
 
@@ -171,6 +258,83 @@ describe("checkSite", () => {
       "http://orizons.xyz/x?y=1: has a query string",
       "https://orizons.xyz/guide: robots.txt disallows it (Disallow: /guide)",
       "https://orizons.xyz/gone: answered 404, not 200",
+    ]);
+  });
+
+  it("reports failed answers, a missing declaration and unfetchable locs", async () => {
+    const { fetchImpl, asked } = site({
+      "/robots.txt": { ...robots, status: 500 },
+      "/sitemap.xml": {
+        status: 503,
+        headers: { "content-type": "text/xml" },
+        body: `<urlset><url><loc>not-a-url</loc></url><url><loc>${SITE}/a#top</loc></url><url><loc>${SITE}</loc></url></urlset>`,
+      },
+      "/": { body: page(SITE) },
+    });
+    const { problems } = await checkSite("http://localhost:1", { fetchImpl });
+    expect(problems).toEqual([
+      "robots.txt answered 500, not 200",
+      "sitemap.xml answered 503, not 200",
+      "sitemap.xml does not declare XML 1.0 in UTF-8 first",
+      "not-a-url: not an absolute URL",
+      "https://orizons.xyz/a#top: has a fragment",
+    ]);
+    expect(asked).toEqual(["/robots.txt", "/sitemap.xml", "/"]);
+  });
+
+  it("reports a robots.txt served as something other than text", async () => {
+    const { fetchImpl } = site({
+      "/robots.txt": { body: ROBOTS },
+      "/sitemap.xml": xml(sitemap(SITE)),
+      "/": { body: page(SITE) },
+    });
+    const { problems } = await checkSite("http://localhost:1", { fetchImpl });
+    expect(problems).toEqual([
+      "robots.txt is served as text/html; charset=utf-8, not text/plain",
+    ]);
+  });
+
+  it("reports a sitemap over 50 MB and over 50,000 URLs", async () => {
+    const locs = Array.from({ length: 50_001 }, () => SITE);
+    const padding = `<!--${"x".repeat(50 * 1024 * 1024)}-->`;
+    const { fetchImpl } = site({
+      "/robots.txt": robots,
+      "/sitemap.xml": xml(
+        sitemap(...locs).replace("</urlset>", `${padding}</urlset>`),
+      ),
+      "/": { body: page(SITE) },
+    });
+    const { locs: unique, problems } = await checkSite("http://localhost:1", {
+      fetchImpl,
+    });
+    expect(unique).toEqual([SITE]);
+    expect(problems).toEqual([
+      "sitemap.xml is larger than 50 MB",
+      "sitemap.xml lists 50001 URLs, over 50,000",
+      "sitemap.xml lists https://orizons.xyz twice",
+    ]);
+  });
+
+  it("drops the origin's trailing slashes, in linear time", async () => {
+    const asked: string[] = [];
+    const fetchImpl = async (url: string): Promise<Response> => {
+      asked.push(url);
+      throw new Error("offline");
+    };
+    const slashes = "/".repeat(100_000);
+    const started = performance.now();
+    for (const origin of [
+      "http://localhost:1///",
+      "http://localhost:1",
+      `http://localhost:1${slashes}x`,
+    ]) {
+      await expect(checkSite(origin, { fetchImpl })).rejects.toThrow("offline");
+    }
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(asked).toEqual([
+      "http://localhost:1/robots.txt",
+      "http://localhost:1/robots.txt",
+      `http://localhost:1${slashes}x/robots.txt`,
     ]);
   });
 });

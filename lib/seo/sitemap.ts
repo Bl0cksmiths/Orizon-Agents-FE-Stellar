@@ -73,9 +73,21 @@ export type SitemapEntry = {
 /** The longest description a video sitemap allows. */
 export const VIDEO_DESCRIPTION_MAX = 2048;
 
-/** The newest of some YYYY-MM-DD days: they sort as strings. */
+/**
+ * Zero-padded YYYY-MM-DD days order by their characters, so a plain
+ * code-unit comparison is the date order. Not `localeCompare`: a locale's
+ * collation can weigh digits and hyphens differently, and the sitemap must
+ * not change with the server's locale.
+ */
+function byDay(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
+/** The newest of some YYYY-MM-DD days. */
 export function newestDay(days: readonly string[]): string | undefined {
-  return [...days].sort().at(-1);
+  return [...days].sort(byDay).at(-1);
 }
 
 /**

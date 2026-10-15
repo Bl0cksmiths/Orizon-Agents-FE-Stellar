@@ -150,7 +150,7 @@ const unknownMark = (kind: string) =>
   ({
     tone: "muted",
     glyph: "◇",
-    label: kind.replace(/_/g, " "),
+    label: kind.replaceAll("_", " "),
   }) as const;
 
 /** How unknown kinds are counted in the closed summary. */
@@ -245,18 +245,42 @@ function reasonCopy(notice: PlanFloorNotice): string | undefined {
 
 /** What to call the agent. The id is the fallback, not the decoration: a
  *  notice with no `agent_name` still has to name somebody. */
-const nameOf = (n: PlanFloorNotice) =>
-  namesNoAgent(n)
-    ? isExternalNotRouted(n)
-      ? "Operator agents"
-      : "Some agents"
-    : n.agent_name?.trim() || n.agent_id;
+const nameOf = (n: PlanFloorNotice) => {
+  if (namesNoAgent(n)) {
+    return isExternalNotRouted(n) ? "Operator agents" : "Some agents";
+  }
+  return n.agent_name?.trim() || n.agent_id;
+};
 
 /** The agent that took the work instead, or null. Null is rendered as no
  *  clause at all rather than as "another agent" — a substitution whose
  *  replacement we cannot name is not one we should describe. */
 const replacementOf = (n: PlanFloorNotice) =>
   n.replacement_name ?? n.replacement_id ?? null;
+
+/** The badge a row wears: the mark of why it was left out where that is not
+ *  the floor's verdict, otherwise its kind's — or, for a kind this build does
+ *  not know, the backend's own word for it. */
+function markOf(notice: PlanFloorNotice): {
+  tone: "magenta" | "cyan" | "violet" | "muted";
+  glyph: string;
+  label: string;
+} {
+  if (isUnbound(notice)) return UNBOUND_MARK;
+  if (isExternalNotRouted(notice)) return EXTERNAL_MARK;
+  if (isSimulatedWorker(notice)) return SIMULATED_MARK;
+  if (notice.reason_code === "no_image_input") return NO_IMAGE_MARK;
+  if (notice.reason_code === "no_step_input") return NO_INPUT_MARK;
+  if (isProviderUnavailable(notice)) return PROVIDER_MARK;
+  if (isUnreachable(notice)) return UNREACHABLE_MARK;
+  const kind = knownKind(notice);
+  if (kind === null) return unknownMark(notice.kind);
+  return {
+    tone: KIND_TONE[kind],
+    glyph: KIND_GLYPH[kind],
+    label: KIND_LABEL[kind],
+  };
+}
 
 const numbersRow =
   "flex flex-wrap items-baseline gap-x-4 gap-y-1 font-mono text-[11px] text-muted";
@@ -265,10 +289,10 @@ const footnote = "break-words font-mono text-[11px] leading-relaxed text-muted";
 function NoticeRow({
   notice,
   planFloorBps,
-}: {
+}: Readonly<{
   notice: PlanFloorNotice;
   planFloorBps: number | undefined;
-}): JSX.Element {
+}>): JSX.Element {
   const awaiting = isAwaitingFreshRead(notice);
   const copy = awaiting ? AWAITING_COPY : reasonCopy(notice);
   const replacement =
@@ -288,28 +312,7 @@ function NoticeRow({
   const unreachable = isUnreachable(notice);
   // Left out by how plans are built: no bound was read, no floor compared.
   const policy = isPlanShaping(notice);
-  const kind = knownKind(notice);
-  const mark = unbound
-    ? UNBOUND_MARK
-    : isExternalNotRouted(notice)
-      ? EXTERNAL_MARK
-      : isSimulatedWorker(notice)
-        ? SIMULATED_MARK
-        : notice.reason_code === "no_image_input"
-          ? NO_IMAGE_MARK
-          : notice.reason_code === "no_step_input"
-            ? NO_INPUT_MARK
-            : isProviderUnavailable(notice)
-              ? PROVIDER_MARK
-              : unreachable
-                ? UNREACHABLE_MARK
-                : kind === null
-                  ? unknownMark(notice.kind)
-                  : {
-                      tone: KIND_TONE[kind],
-                      glyph: KIND_GLYPH[kind],
-                      label: KIND_LABEL[kind],
-                    };
+  const mark = markOf(notice);
 
   const bound = notice.lower_bound_bps;
   // null and undefined are different facts and must not collapse into one
@@ -401,11 +404,77 @@ function NoticeRow({
   );
 }
 
+/**
+ * The floor's changes counted per kind. Only a kind this build knows indexes
+ * the per-kind counts. The guard lets any string through, so that one new kind
+ * cannot blank the plan; a kind with no arm is still counted, apart, and never
+ * silently left out of the total the buyer reads with the panel shut.
+ */
+function countKinds(changes: PlanFloorNotice[]): {
+  counts: Record<PlanFloorNoticeKind, number>;
+  other: number;
+} {
+  const counts: Record<PlanFloorNoticeKind, number> = {
+    excluded: 0,
+    substituted: 0,
+    degraded: 0,
+  };
+  let other = 0;
+  for (const n of changes) {
+    const kind = knownKind(n);
+    if (kind === null) other += 1;
+    else counts[kind] += 1;
+  }
+  return { counts, other };
+}
+
+/** What the panel counted, for the closed summary's breakdown. */
+type NoticeTally = {
+  counts: Record<PlanFloorNoticeKind, number>;
+  other: number;
+  unbound: number;
+  unreachable: number;
+  external: number;
+  /** An external notice names no agent, so there is no count to print. */
+  externalUncounted: boolean;
+  simulated: number;
+  noInput: number;
+  noProvider: number;
+  hidden: number;
+};
+
+/** The operator agents' part of the breakdown: counted where the notices
+ *  name them, and said without a number where they do not. */
+function externalText(t: NoticeTally): string {
+  if (t.externalUncounted) return "operator agents";
+  return `${t.external} operator agent${t.external === 1 ? "" : "s"}`;
+}
+
+/** The closed summary's per-kind breakdown: every non-zero count, in
+ *  `KIND_ORDER` first and then the counts kept apart from the floor's. */
+function breakdownText(t: NoticeTally): string {
+  return [
+    ...KIND_ORDER.filter((k) => t.counts[k] > 0).map(
+      (k) => `${t.counts[k]} ${KIND_COUNT_LABEL[k]}`,
+    ),
+    ...(t.other > 0 ? [`${t.other} ${OTHER_COUNT_LABEL}`] : []),
+    ...(t.unbound > 0 ? [`${t.unbound} with no endpoint bound`] : []),
+    ...(t.unreachable > 0
+      ? [`${t.unreachable} with an unreachable endpoint`]
+      : []),
+    ...(t.external > 0 ? [externalText(t)] : []),
+    ...(t.simulated > 0 ? [`${t.simulated} not live yet`] : []),
+    ...(t.noInput > 0 ? [`${t.noInput} without input`] : []),
+    ...(t.noProvider > 0 ? [`${t.noProvider} unavailable`] : []),
+    ...(t.hidden > 0 ? [hiddenNoticesText(t.hidden)] : []),
+  ].join(" · ");
+}
+
 export function ExclusionsPanel({
   plan,
-}: {
+}: Readonly<{
   plan: DecomposeResponse;
-}): JSX.Element | null {
+}>): JSX.Element | null {
   // Optional on the type, nullable through the guard, and both mean the same
   // thing here: there is nothing to disclose, so no disclosure renders.
   const notices = plan.notices ?? [];
@@ -431,41 +500,22 @@ export function ExclusionsPanel({
   const noProvider = notices.filter(isProviderUnavailable).length;
   const shaped = notices.filter(isPlanShaping).length;
 
-  // Only a kind this build knows indexes the per-kind counts. The guard lets
-  // any string through, so that one new kind cannot blank the plan; a kind
-  // with no arm is still counted, apart, and never silently left out of the
-  // total the buyer reads with the panel shut.
-  const counts: Record<PlanFloorNoticeKind, number> = {
-    excluded: 0,
-    substituted: 0,
-    degraded: 0,
-  };
-  let other = 0;
-  for (const n of changes) {
-    const kind = knownKind(n);
-    if (kind === null) other += 1;
-    else counts[kind] += 1;
-  }
+  const { counts, other } = countKinds(changes);
 
-  const breakdown = [
-    ...KIND_ORDER.filter((k) => counts[k] > 0).map(
-      (k) => `${counts[k]} ${KIND_COUNT_LABEL[k]}`,
-    ),
-    ...(other > 0 ? [`${other} ${OTHER_COUNT_LABEL}`] : []),
-    ...(unbound > 0 ? [`${unbound} with no endpoint bound`] : []),
-    ...(unreachable > 0 ? [`${unreachable} with an unreachable endpoint`] : []),
-    ...(external > 0
-      ? [
-          externalUncounted
-            ? "operator agents"
-            : `${external} operator agent${external === 1 ? "" : "s"}`,
-        ]
-      : []),
-    ...(simulated > 0 ? [`${simulated} not live yet`] : []),
-    ...(noInput > 0 ? [`${noInput} without input`] : []),
-    ...(noProvider > 0 ? [`${noProvider} unavailable`] : []),
-    ...(hidden > 0 ? [hiddenNoticesText(hidden)] : []),
-  ].join(" · ");
+  const changesWord = changes.length === 1 ? "change" : "changes";
+
+  const breakdown = breakdownText({
+    counts,
+    other,
+    unbound,
+    unreachable,
+    external,
+    externalUncounted,
+    simulated,
+    noInput,
+    noProvider,
+    hidden,
+  });
 
   return (
     <details className="clip-cyber-sm group border border-violet/40 bg-violet/5">
@@ -483,7 +533,7 @@ export function ExclusionsPanel({
           Reputation floor ·{" "}
           {changes.length === 0
             ? "no changes"
-            : `${changes.length} change${changes.length === 1 ? "" : "s"}`}
+            : `${changes.length} ${changesWord}`}
         </h3>
         {/* w-full puts the breakdown on its own flex line. It is inside the
             summary on purpose: the count is the part a buyer who never opens
@@ -535,9 +585,12 @@ export function ExclusionsPanel({
           </p>
         )}
         <ul className="space-y-3">
-          {notices.map((n, i) => (
+          {/* The backend sends at most one notice per agent for a given kind
+              and reason, so those three name a row on their own. `reason`
+              stands in for a code an older backend does not send. */}
+          {notices.map((n) => (
             <NoticeRow
-              key={`${n.kind}-${n.agent_id}-${i}`}
+              key={`${n.kind}-${n.agent_id}-${n.reason_code ?? n.reason}`}
               notice={n}
               planFloorBps={plan.floor_bps}
             />

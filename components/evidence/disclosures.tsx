@@ -18,10 +18,10 @@ const item =
 export function Disclosures({
   disclosures,
   removedMetrics = [],
-}: {
+}: Readonly<{
   disclosures: EvidenceDisclosure[];
   removedMetrics?: RemovedMetric[];
-}) {
+}>) {
   return (
     <section aria-labelledby="disclosures">
       <h2

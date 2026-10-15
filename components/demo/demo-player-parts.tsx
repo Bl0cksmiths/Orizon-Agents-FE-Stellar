@@ -30,7 +30,10 @@ export function PlayGlyph() {
   );
 }
 
-export function Poster({ video, first }: { video: DemoVideo; first: boolean }) {
+export function Poster({
+  video,
+  first,
+}: Readonly<{ video: DemoVideo; first: boolean }>) {
   return (
     <Image
       src={youtubePosterUrl(video.id)}
@@ -53,10 +56,10 @@ export function Poster({ video, first }: { video: DemoVideo; first: boolean }) {
 export function PosterLink({
   video,
   first,
-}: {
+}: Readonly<{
   video: DemoVideo;
   first: boolean;
-}) {
+}>) {
   return (
     <a
       href={youtubeWatchUrl(video.id)}
@@ -76,10 +79,10 @@ export function PosterLink({
 export function WatchLink({
   video,
   index,
-}: {
+}: Readonly<{
   video: DemoVideo;
   index: number;
-}) {
+}>) {
   return (
     <p className="mt-3 text-right text-sm">
       <a
@@ -97,10 +100,10 @@ export function WatchLink({
 export function ChapterList({
   index,
   children,
-}: {
+}: Readonly<{
   index: number;
   children: ReactNode;
-}) {
+}>) {
   return (
     <section aria-labelledby={`demo-part-${index + 1}-chapters`}>
       <h3
@@ -122,7 +125,7 @@ export function ChapterList({
 }
 
 /** A chapter link's content: its time, its title and its deliverable tag. */
-export function ChapterLabel({ chapter }: { chapter: DemoChapter }) {
+export function ChapterLabel({ chapter }: Readonly<{ chapter: DemoChapter }>) {
   return (
     <>
       <time

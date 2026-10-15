@@ -34,14 +34,14 @@ export function UnderstoodAsPanel({
   spec,
   onRespec,
   busy = false,
-}: {
+}: Readonly<{
   spec: PlanSpec;
   /** Plans again from the edited brief. Absent, the brief is read-only. */
   onRespec?: (spec: PlanSpec) => void;
   /** This plan is being paid for, or a new one is on its way: editing waits,
    *  as the card's other actions do. */
   busy?: boolean;
-}) {
+}>) {
   const uid = useId();
   const headingId = `${uid}-heading`;
   const [editing, setEditing] = useState(false);
@@ -102,7 +102,7 @@ export function UnderstoodAsPanel({
   );
 }
 
-function SpecView({ spec }: { spec: PlanSpec }) {
+function SpecView({ spec }: Readonly<{ spec: PlanSpec }>) {
   return (
     <>
       <p className="mt-2 text-sm leading-relaxed text-text [overflow-wrap:anywhere]">
@@ -122,7 +122,10 @@ function SpecView({ spec }: { spec: PlanSpec }) {
   );
 }
 
-function Row({ term, children }: { term: string; children: React.ReactNode }) {
+function Row({
+  term,
+  children,
+}: Readonly<{ term: string; children: React.ReactNode }>) {
   return (
     <>
       <dt className={cn(label, "pt-1")}>{term}</dt>
@@ -133,7 +136,7 @@ function Row({ term, children }: { term: string; children: React.ReactNode }) {
   );
 }
 
-function Items({ items }: { items: string[] }) {
+function Items({ items }: Readonly<{ items: string[] }>) {
   if (items.length === 0)
     return <span className="text-muted">None stated</span>;
   return (
