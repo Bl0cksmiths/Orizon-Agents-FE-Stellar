@@ -133,7 +133,7 @@ describe("planPricing — an older backend (legacy floats)", () => {
   it("has no asset of its own", () => {
     expect(
       priced(plan({ steps: [step({ est_price_usdc: 0.01 })] })).asset,
-    ).toBe(null);
+    ).toBeNull();
   });
 });
 
