@@ -2633,13 +2633,13 @@ describe("bindErrorCode", () => {
   });
 
   it("returns null for an ApiError carrying no code", () => {
-    expect(bindErrorCode(new ApiError("m", 500))).toBe(null);
+    expect(bindErrorCode(new ApiError("m", 500))).toBeNull();
   });
 
   it("returns null for a timeout or network rejection", () => {
     expect(bindErrorCode(new Error("POST /agents/x/bind → timeout"))).toBe(
       null,
     );
-    expect(bindErrorCode(undefined)).toBe(null);
+    expect(bindErrorCode(undefined)).toBeNull();
   });
 });
