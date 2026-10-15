@@ -1358,7 +1358,7 @@ describe("post (via decompose)", () => {
     expect(err.message).toContain("POST /orchestrator/decompose → 400 — ");
     expect(err.message).toContain('{"error":"zzz');
     const detail = err.message.split(" — ")[1];
-    expect(detail.length).toBe(300);
+    expect(detail).toHaveLength(300);
   });
 
   it("falls back to the raw text body when the error payload is not JSON", async () => {
@@ -1888,7 +1888,7 @@ describe("openTraceStream polling fallback", () => {
 
     const calls = fetchMock.mock.calls.length;
     await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 5);
-    expect(fetchMock.mock.calls.length).toBe(calls); // no loop left running
+    expect(fetchMock.mock.calls).toHaveLength(calls); // no loop left running
     dispose();
   });
 
@@ -2112,7 +2112,7 @@ describe("openTraceStream polling fallback", () => {
     const calls = fetchMock.mock.calls.length;
     await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 10);
 
-    expect(fetchMock.mock.calls.length).toBe(calls);
+    expect(fetchMock.mock.calls).toHaveLength(calls);
   });
 });
 
