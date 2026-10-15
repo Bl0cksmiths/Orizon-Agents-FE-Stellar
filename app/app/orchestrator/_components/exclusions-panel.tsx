@@ -150,7 +150,7 @@ const unknownMark = (kind: string) =>
   ({
     tone: "muted",
     glyph: "◇",
-    label: kind.replace(/_/g, " "),
+    label: kind.replaceAll("_", " "),
   }) as const;
 
 /** How unknown kinds are counted in the closed summary. */
