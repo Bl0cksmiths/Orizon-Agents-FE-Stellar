@@ -172,6 +172,7 @@ test.describe("escrow v2 receipt", () => {
   test("offers the paying tab the reclaim a failed settlement leaves", async ({
     page,
   }) => {
+    // Skipped until this build pins escrow v2 for testnet, the only escrow this story runs on.
     test.skip(escrowV2Pin === null, "escrow v2 is not pinned on testnet yet");
     await openTrace(page, {
       settlement: null,
