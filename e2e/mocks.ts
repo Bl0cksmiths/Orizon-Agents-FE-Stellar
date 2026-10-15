@@ -1964,12 +1964,12 @@ export type MockDisputeApiOptions = {
    * when a spec needs one. Absent by default — the answer of a backend that
    * predates it.
    */
-  settlementState?: TaskDisputes["settlement_state"];
+  settlementState?: Exclude<TaskDisputes["settlement_state"], undefined>;
   /** The run's seal as the read reports it (`seal`, `proof_tx`). Absent by
    * default — a backend that predates them. */
-  seal?: TaskDisputes["seal"];
-  sealKind?: TaskDisputes["seal_kind"];
-  proofTx?: TaskDisputes["proof_tx"];
+  seal?: Exclude<TaskDisputes["seal"], undefined>;
+  sealKind?: Exclude<TaskDisputes["seal_kind"], undefined>;
+  proofTx?: Exclude<TaskDisputes["proof_tx"], undefined>;
 };
 
 /** The `msg` FastAPI puts on a reason over `OpenDisputeReq`'s 500 cap. */
