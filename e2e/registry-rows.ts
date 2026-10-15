@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
  */
 
 const escapeRegExp = (s: string) =>
-  s.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 /** The accessible name the registry gives an agent's row header. */
 export function registryRowName(agent: { id: string; name: string }): string {
