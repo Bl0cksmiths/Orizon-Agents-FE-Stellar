@@ -263,11 +263,11 @@ describe("an asset the backend could not read", () => {
   });
 
   it("is not a known asset, so the network's names the unit instead", () => {
-    expect(knownAsset({ code: "UNKNOWN", issuer: null, decimals: 7 })).toBe(
-      null,
-    );
-    expect(knownAsset({ code: "", issuer: null })).toBe(null);
-    expect(knownAsset(null)).toBe(null);
+    expect(
+      knownAsset({ code: "UNKNOWN", issuer: null, decimals: 7 }),
+    ).toBeNull();
+    expect(knownAsset({ code: "", issuer: null })).toBeNull();
+    expect(knownAsset(null)).toBeNull();
     const xlm = { code: "XLM", issuer: null, decimals: 7 };
     expect(knownAsset(xlm)).toBe(xlm);
   });
