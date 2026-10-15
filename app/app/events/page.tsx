@@ -10,10 +10,22 @@ import { escrowGeneration } from "@/lib/escrow-generation";
 import { focusRing } from "@/lib/ui";
 import { EventsEmptyHint } from "./empty-hint";
 import { useFetch } from "@/lib/use-fetch";
-import { useStellarEvents, type FeedEvent } from "@/lib/stellar-events";
+import {
+  useStellarEvents,
+  type EventsFeedHook,
+  type FeedEvent,
+} from "@/lib/stellar-events";
 import { prettyName } from "@/lib/utils";
 
 const FEED_OPTIONS = { intervalMs: 5000, max: 60 };
+
+/** What the feed-state badge says for each state. */
+const FEED_STATE_LABEL: Record<EventsFeedHook["status"], string> = {
+  live: "live",
+  starting: "starting…",
+  error: "error",
+  idle: "idle",
+};
 
 // Display label for the configured network — "mainnet" | "testnet".
 
@@ -151,13 +163,7 @@ export default function EventsPage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <Badge tone={feedState === "live" ? "success" : "magenta"} dot>
-            {feedState === "live"
-              ? "live"
-              : feedState === "starting"
-                ? "starting…"
-                : feedState === "error"
-                  ? "error"
-                  : "idle"}
+            {FEED_STATE_LABEL[feedState]}
           </Badge>
           {latestLedger !== null && (
             <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted">
