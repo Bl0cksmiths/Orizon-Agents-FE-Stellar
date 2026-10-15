@@ -366,6 +366,7 @@ test.describe("a page whose own code never arrives", () => {
   test("keeps its content, with plain stand-ins for its interactive parts", async ({
     page,
   }) => {
+    // Skipped under next dev, whose chunks hold different code from run to run.
     test.skip(
       !PRODUCTION,
       "a development build splits chunks by compile order, so what the lost chunk holds varies run to run (at times the error screens' own code)",
