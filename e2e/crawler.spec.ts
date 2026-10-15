@@ -175,6 +175,7 @@ test.describe("Googlebot renders each public page as itself", () => {
   test("/demo with its video published keeps its title and heading, with no error", async ({
     page,
   }) => {
+    // Skipped in the production run, which serves the unpublished demo instead.
     test.skip(PRODUCTION, "the production run serves the unpublished demo");
     const errors = collectPageErrors(page);
     await render(page, PUBLISHED_DEMO.path);
