@@ -313,6 +313,9 @@ export default function OverviewPage() {
                     </td>
                   </tr>
                 ) : (
+                  // Four fixed placeholder rows with no task behind them and
+                  // nothing to reorder, so their position is the only key
+                  // they have; the first carries the waking line.
                   Array.from({ length: 4 }).map((_, i) => (
                     <tr key={i} className="border-b border-border/50">
                       <td colSpan={6} className="py-3">
