@@ -407,6 +407,7 @@ test.describe("an error screen is never indexed as the page", () => {
   test("the site's error screen carries noindex, under the page's own title", async ({
     page,
   }) => {
+    // Skipped in the production run, which loads a route with a lost chunk in full.
     test.skip(
       PRODUCTION,
       "a production build loads a route whose chunk is lost in navigation in full instead",
