@@ -779,6 +779,7 @@ test.describe("plan card — what each claim rests on", () => {
   test("the authorize line names the cap in the network's asset", async ({
     page,
   }) => {
+    // Skipped once escrow v2 is pinned for testnet, when v1's story is history.
     test.skip(escrowV2Pin !== null, "escrow v2 is pinned: v1 is history");
     await page.setViewportSize(EVIDENCE_FRAME);
     await decomposeWith(page, mockPlanStepEvidence, {
