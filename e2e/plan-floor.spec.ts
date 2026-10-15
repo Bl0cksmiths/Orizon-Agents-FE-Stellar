@@ -807,6 +807,7 @@ test.describe("plan card — what each claim rests on", () => {
   test("the authorize line says a v2 signature moves the cap into escrow", async ({
     page,
   }) => {
+    // Skipped until this build pins escrow v2 for testnet, the only escrow this story runs on.
     test.skip(escrowV2Pin === null, "escrow v2 is not pinned on testnet yet");
     await page.setViewportSize(EVIDENCE_FRAME);
     await decomposeWith(page, mockPlanStepEvidence, {
