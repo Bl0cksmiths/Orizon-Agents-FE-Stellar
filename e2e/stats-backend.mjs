@@ -32,12 +32,20 @@ export const INITIAL_STATE = {
   wallets: 248,
 };
 
+/** Who owns the `i`th agent: no one for the seeded catalog, then the first
+ * `external` agents spread over `wallets` outside operators, the rest the
+ * team. */
+function ownerOf(i, external, wallets) {
+  if (i < SEEDED) return null;
+  const n = i - SEEDED;
+  return n < external ? operator(n % wallets) : TEAM;
+}
+
 /** The registry the state describes: the seeded catalog, then `external`
  * agents spread over `wallets` outside operators, the rest the team's. */
 export function registryFor({ registered, external, wallets }) {
   return Array.from({ length: registered }, (_, i) => {
     const seeded = i < SEEDED;
-    const n = i - SEEDED;
     return {
       id: seeded ? `agt_${i}` : `ext_${i}`,
       name: `agent ${i}`,
@@ -46,7 +54,7 @@ export function registryFor({ registered, external, wallets }) {
       rep: 4,
       status: "online",
       runs: 0,
-      owner: seeded ? null : n < external ? operator(n % wallets) : TEAM,
+      owner: ownerOf(i, external, wallets),
       source: seeded ? "seeded" : "onchain",
       bound: seeded ? null : false,
     };
