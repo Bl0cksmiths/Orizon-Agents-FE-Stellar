@@ -477,7 +477,7 @@ describe("readCompleteStats — reads", () => {
       "/readiness": {},
     });
     await readCompleteStats(deps(f).d);
-    expect(f.mock.calls.length).toBe(6);
+    expect(f.mock.calls).toHaveLength(6);
     for (const [, init] of f.mock.calls) {
       expect(init.cache).toBe("no-store");
       expect((init as { next?: unknown }).next).toBeUndefined();
