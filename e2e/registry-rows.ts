@@ -20,7 +20,7 @@ export function registryRowName(agent: { id: string; name: string }): string {
 /** The row header of the agent with this id. */
 export function registryRowHeader(page: Page, agentId: string) {
   return page.getByRole("rowheader", {
-    name: new RegExp(`\\(id: ${escapeRegExp(agentId)}\\)$`),
+    name: new RegExp(String.raw`\(id: ${escapeRegExp(agentId)}\)$`),
   });
 }
 
