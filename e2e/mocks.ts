@@ -41,11 +41,14 @@ export const mockLegacyOverview = {
 /** The legacy overview's invented figures, as a page would print them. */
 export const LEGACY_FIGURES = /2,48\d|1\.234|98\.4%|4\.87/;
 
+/** The days of the series below with settlements, by index, and how many. */
+const settledOnDay: Readonly<Record<number, number>> = { 11: 2, 13: 1 };
+
 /** The last fourteen UTC days ending 2026-10-02, two of them with
  * settlements. */
 const settledSeries = Array.from({ length: 14 }, (_, i) => ({
   date: new Date(Date.UTC(2026, 8, 19 + i)).toISOString().slice(0, 10),
-  settled: i === 11 ? 2 : i === 13 ? 1 : 0,
+  settled: settledOnDay[i] ?? 0,
 }));
 
 /** The measured overview (BE PR #103), every part read. */
