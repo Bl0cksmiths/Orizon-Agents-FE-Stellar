@@ -585,9 +585,12 @@ export function ExclusionsPanel({
           </p>
         )}
         <ul className="space-y-3">
-          {notices.map((n, i) => (
+          {/* The backend sends at most one notice per agent for a given kind
+              and reason, so those three name a row on their own. `reason`
+              stands in for a code an older backend does not send. */}
+          {notices.map((n) => (
             <NoticeRow
-              key={`${n.kind}-${n.agent_id}-${i}`}
+              key={`${n.kind}-${n.agent_id}-${n.reason_code ?? n.reason}`}
               notice={n}
               planFloorBps={plan.floor_bps}
             />
