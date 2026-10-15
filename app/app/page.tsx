@@ -73,6 +73,8 @@ function CompositionBody({
   return (
     <div className="space-y-3">
       <LoadingStatus label="Loading network composition…" />
+      {/* Four fixed placeholder bars with no data behind them and nothing to
+          reorder, so their position is the only key they have. */}
       {Array.from({ length: 4 }).map((_, i) => (
         <Skeleton key={i} className="h-4 w-full" />
       ))}
