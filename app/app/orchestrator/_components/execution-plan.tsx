@@ -573,6 +573,10 @@ export function ExecutionPlan({
         <PipelineOverview steps={plan.steps} namedSources={inputs !== null} />
 
         <ol className="space-y-3">
+          {/* Keyed by position on purpose. A step's place in the plan is its
+              identity: it is the number shown beside it and the one other
+              steps' inputs refer to, one agent may run twice, and the list is
+              never reordered or filtered here, only replaced whole. */}
           {plan.steps.map((s, i) => (
             <m.li
               key={`${s.agent_id}-${i}`}
