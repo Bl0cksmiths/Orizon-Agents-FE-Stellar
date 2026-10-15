@@ -472,9 +472,9 @@ function breakdownText(t: NoticeTally): string {
 
 export function ExclusionsPanel({
   plan,
-}: {
+}: Readonly<{
   plan: DecomposeResponse;
-}): JSX.Element | null {
+}>): JSX.Element | null {
   // Optional on the type, nullable through the guard, and both mean the same
   // thing here: there is nothing to disclose, so no disclosure renders.
   const notices = plan.notices ?? [];
