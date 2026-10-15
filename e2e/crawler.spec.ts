@@ -319,6 +319,7 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
   test("the demo player throwing leaves a plain player for each part", async ({
     page,
   }) => {
+    // Skipped in the production run, which serves the unpublished demo instead.
     test.skip(PRODUCTION, "the production run serves the unpublished demo");
     await breakParts(page, ["demo-player"]);
     await render(page, PUBLISHED_DEMO.path);
