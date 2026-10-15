@@ -134,6 +134,109 @@ const sum = (xs: (bigint | null)[]): bigint | null =>
     ? xs.reduce((a, b) => a + b, 0n)
     : null;
 
+type StepMoney = { charged: bigint | null; returned: bigint | null };
+
+/** What a step was charged and what went back, as far as the settlement's
+ *  phase establishes them. */
+function stepMoney(
+  step: SettlementStepView,
+  phase: SettlementState,
+  planned: bigint | null,
+): StepMoney {
+  switch (phase) {
+    case "unconfirmed":
+      return { charged: null, returned: null };
+    case "failed":
+      return { charged: 0n, returned: null };
+    case "released":
+    case "skipped":
+      return { charged: 0n, returned: planned };
+    case "settled": {
+      const charged = chargedOf(step);
+      if (sent(step, "returned"))
+        return { charged, returned: exactOf(step.returned) };
+      const returned =
+        planned === null || charged === null ? null : planned - charged;
+      return { charged, returned };
+    }
+  }
+}
+
+/**
+ * What the escrow returned beyond the steps' own returns: checked against the
+ * authorization's reported surplus, and shown as the headroom when the record
+ * reports none. A failed settlement returned nothing, so nothing is checked.
+ */
+function checkReturnBeyondSteps(
+  phase: SettlementState,
+  returned: bigint | null,
+  reportedReturned: bigint | null,
+  surplus: bigint | null,
+): { issue: string | null; headroom: bigint | null } {
+  if (returned === null || reportedReturned === null || phase === "failed")
+    return { issue: null, headroom: surplus };
+  const beyond = reportedReturned - returned;
+  let issue: string | null = null;
+  if (beyond < 0n) issue = "the escrow returned less than the steps' returns";
+  else if (surplus !== null && beyond !== surplus)
+    issue = "the return beyond the steps is not the authorization's surplus";
+  return { issue, headroom: surplus ?? (beyond >= 0n ? beyond : null) };
+}
+
+/** The checks that the steps' own figures sum to the settlement's totals. */
+function stepSumIssues(
+  phase: SettlementState,
+  planned: bigint | null,
+  reportedPlanned: bigint | null,
+  charged: bigint | null,
+  reportedCharged: bigint | null,
+): string[] {
+  const issues: string[] = [];
+  if (
+    planned !== null &&
+    reportedPlanned !== null &&
+    planned !== reportedPlanned
+  )
+    issues.push("the steps' prices do not sum to the planned total");
+  if (phase === "settled" && charged !== null && reportedCharged !== null) {
+    if (charged !== reportedCharged)
+      issues.push("the steps' charges do not sum to the settlement's total");
+  }
+  return issues;
+}
+
+/** The checks against what the authorization moved into escrow: a confirmed
+ *  settlement must charge and return all of it, and it must cover the plan. */
+function authorizationIssues(
+  phase: SettlementState,
+  authorized: bigint | null,
+  planned: bigint | null,
+  reportedCharged: bigint | null,
+  reportedReturned: bigint | null,
+): string[] {
+  const issues: string[] = [];
+  if (
+    authorized !== null &&
+    reportedCharged !== null &&
+    reportedReturned !== null &&
+    phase === "settled" &&
+    authorized !== reportedCharged + reportedReturned
+  ) {
+    issues.push("charged + returned ≠ authorized");
+  }
+  if (authorized !== null && planned !== null && authorized < planned) {
+    issues.push("the authorization is smaller than the plan");
+  }
+  return issues;
+}
+
+/** False when a check failed, true when every figure is known and all
+ *  passed, null while a figure is not known. */
+function verdict(issues: string[], known: boolean): boolean | null {
+  if (issues.length > 0) return false;
+  return known ? true : null;
+}
+
 export function reconcileSettlement(
   settlement: SettlementView,
   state: SettlementState | null | undefined,
@@ -146,31 +249,7 @@ export function reconcileSettlement(
     .sort((a, b) => a.step_index - b.step_index)
     .map((step) => {
       const planned = plannedOf(step);
-      let charged: bigint | null;
-      let returned: bigint | null;
-      switch (phase) {
-        case "unconfirmed":
-          charged = null;
-          returned = null;
-          break;
-        case "failed":
-          charged = 0n;
-          returned = null;
-          break;
-        case "released":
-        case "skipped":
-          charged = 0n;
-          returned = planned;
-          break;
-        case "settled":
-          charged = chargedOf(step);
-          returned = sent(step, "returned")
-            ? exactOf(step.returned)
-            : planned === null || charged === null
-              ? null
-              : planned - charged;
-          break;
-      }
+      const { charged, returned } = stepMoney(step, phase, planned);
       return {
         stepIndex: step.step_index,
         agent: agentLabel(step),
@@ -207,39 +286,26 @@ export function reconcileSettlement(
     if (r.balanced === false)
       issues.push(`step ${r.stepIndex + 1}: charged + returned ≠ planned`);
   }
-  if (
-    planned !== null &&
-    reportedPlanned !== null &&
-    planned !== reportedPlanned
-  )
-    issues.push("the steps' prices do not sum to the planned total");
-  if (phase === "settled" && charged !== null && reportedCharged !== null) {
-    if (charged !== reportedCharged)
-      issues.push("the steps' charges do not sum to the settlement's total");
-  }
-  let headroom: bigint | null = surplus;
-  if (returned !== null && reportedReturned !== null && phase !== "failed") {
-    const beyond = reportedReturned - returned;
-    if (beyond < 0n)
-      issues.push("the escrow returned less than the steps' returns");
-    else if (surplus !== null && beyond !== surplus)
-      issues.push(
-        "the return beyond the steps is not the authorization's surplus",
-      );
-    headroom = headroom ?? (beyond >= 0n ? beyond : null);
-  }
-  if (
-    authorized !== null &&
-    reportedCharged !== null &&
-    reportedReturned !== null &&
-    phase === "settled" &&
-    authorized !== reportedCharged + reportedReturned
-  ) {
-    issues.push("charged + returned ≠ authorized");
-  }
-  if (authorized !== null && planned !== null && authorized < planned) {
-    issues.push("the authorization is smaller than the plan");
-  }
+  issues.push(
+    ...stepSumIssues(phase, planned, reportedPlanned, charged, reportedCharged),
+  );
+  const beyondCheck = checkReturnBeyondSteps(
+    phase,
+    returned,
+    reportedReturned,
+    surplus,
+  );
+  if (beyondCheck.issue !== null) issues.push(beyondCheck.issue);
+  const headroom = beyondCheck.headroom;
+  issues.push(
+    ...authorizationIssues(
+      phase,
+      authorized,
+      planned,
+      reportedCharged,
+      reportedReturned,
+    ),
+  );
 
   const known = planned !== null && charged !== null && returned !== null;
   const exact =
@@ -254,7 +320,7 @@ export function reconcileSettlement(
     returned,
     authorized,
     headroom,
-    balanced: issues.length > 0 ? false : known ? true : null,
+    balanced: verdict(issues, known),
     issues,
     held: phase === "failed",
     allReturnedBuiltIn:

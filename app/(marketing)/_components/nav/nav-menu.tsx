@@ -27,7 +27,12 @@ export type NavMenuProps = {
   pathname: string | null;
 };
 
-export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
+export function NavMenu({
+  group,
+  open,
+  onOpenChange,
+  pathname,
+}: Readonly<NavMenuProps>) {
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -75,7 +80,9 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
     focusLink(event.key === "ArrowDown" ? 0 : -1);
   }
 
-  function onPanelKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  // On each link rather than delegated to the panel, so only the links —
+  // the menu's native interactive elements — take the arrow keys.
+  function onLinkKeyDown(event: KeyboardEvent<HTMLAnchorElement>) {
     const all = links();
     const index = all.indexOf(document.activeElement as HTMLAnchorElement);
     if (index === -1) return;
@@ -145,7 +152,6 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
         ref={panelRef}
         id={panelId}
         data-state={open ? "open" : "closed"}
-        onKeyDown={onPanelKeyDown}
         className={cn(
           "absolute left-1/2 top-full z-10 -translate-x-1/2 pt-3",
           "duration-150 ease-out motion-reduce:transition-none",
@@ -174,6 +180,7 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
                   index={i}
                   current={isCurrent(link, pathname)}
                   onNavigate={() => onOpenChange(false)}
+                  onKeyDown={onLinkKeyDown}
                 />
               </li>
             ))}
@@ -185,7 +192,7 @@ export function NavMenu({ group, open, onOpenChange, pathname }: NavMenuProps) {
 }
 
 /** The short cyan bar under a top-level item whose page is open. */
-export function CurrentMark({ show }: { show: boolean }) {
+export function CurrentMark({ show }: Readonly<{ show: boolean }>) {
   if (!show) return null;
   return (
     <span
@@ -200,12 +207,14 @@ function MenuLink({
   index,
   current,
   onNavigate,
-}: {
+  onKeyDown,
+}: Readonly<{
   link: NavGroup["links"][number];
   index: number;
   current: boolean;
   onNavigate: () => void;
-}) {
+  onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => void;
+}>) {
   // Named by its label alone, described by its one line: "Litepaper", not
   // "Litepaper The protocol in full…", is what a screen reader reads first
   // and what a voice user says.
@@ -214,6 +223,7 @@ function MenuLink({
     <Link
       href={link.href}
       onClick={onNavigate}
+      onKeyDown={onKeyDown}
       aria-current={current ? "page" : undefined}
       aria-labelledby={`${id}-label`}
       aria-describedby={`${id}-description`}

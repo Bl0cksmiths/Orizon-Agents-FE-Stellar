@@ -52,7 +52,7 @@ export function PlanExpiredNotice({
   onReplan,
   busy,
   fundsReturned = false,
-}: {
+}: Readonly<{
   run: ExpiredRun;
   /** The escrow the authorization went to, which decides what became of it. */
   generation: EscrowGeneration;
@@ -61,7 +61,7 @@ export function PlanExpiredNotice({
   /** Decomposes this plan's intent again, as the page's own submit does. */
   onReplan?: () => void;
   busy?: boolean;
-}): JSX.Element {
+}>): JSX.Element {
   const signed = authorizationSentence(generation, fundsReturned);
   return (
     // `role="alert"`: this arrives unbidden after the buyer pressed a pay

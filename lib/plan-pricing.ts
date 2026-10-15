@@ -55,6 +55,18 @@ export type PlanPricing =
   /** A step's price could not be read at all. */
   | { kind: "unpriced"; stepIndex: number };
 
+/** Where a priced plan's figures came from: `exact` of its `steps` priced
+ *  in stroops (a plan with no steps counts as exact when it states its
+ *  total in stroops), none of them, or some. */
+function pricingSource(
+  exact: number,
+  steps: number,
+  stated: bigint | null,
+): PricedPlan["source"] {
+  if (exact === steps && (steps > 0 || stated !== null)) return "stroops";
+  return exact === 0 ? "legacy" : "mixed";
+}
+
 export function planPricing(plan: DecomposeResponse): PlanPricing {
   const steps: bigint[] = [];
   let exact = 0;
@@ -90,12 +102,7 @@ export function planPricing(plan: DecomposeResponse): PlanPricing {
     total,
     cap: total > 0n ? total : null,
     asset,
-    source:
-      exact === steps.length && (steps.length > 0 || stated !== null)
-        ? "stroops"
-        : exact === 0
-          ? "legacy"
-          : "mixed",
+    source: pricingSource(exact, steps.length, stated),
   };
 }
 

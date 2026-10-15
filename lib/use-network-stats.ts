@@ -145,8 +145,13 @@ function sharedRead<T>(
   return entry.promise as Promise<T>;
 }
 
-const message = (e: unknown) =>
-  e instanceof Error ? e.message : String(e ?? "read failed");
+/** A failure's message: an Error's own, or a thrown string as it is.
+ *  Anything else says only that the read failed: an object would read
+ *  "[object Object]". */
+function message(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return typeof e === "string" ? e : "read failed";
+}
 
 /** A read's outcome within `waitMs`: its answer, its failure, or pending. */
 async function settle<T>(

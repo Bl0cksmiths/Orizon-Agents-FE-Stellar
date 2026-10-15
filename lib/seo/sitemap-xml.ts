@@ -15,6 +15,9 @@ import type { SitemapEntry, SitemapVideo } from "./sitemap";
 /** The most URLs one sitemap file may list (sitemaps.org). */
 export const MAX_SITEMAP_URLS = 50_000;
 
+// XML namespace names, not addresses: nothing fetches them, and the protocols
+// define them with http, so an https spelling would be a different namespace
+// that crawlers do not recognise.
 const SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9";
 const VIDEO_NS = "http://www.google.com/schemas/sitemap-video/1.1";
 
@@ -56,9 +59,10 @@ export function renderSitemap(entries: readonly SitemapEntry[]): string {
     );
   }
   const hasVideos = entries.some((e) => e.videos?.length);
+  const videoNs = hasVideos ? ` xmlns:video="${VIDEO_NS}"` : "";
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    `<urlset xmlns="${SITEMAP_NS}"${hasVideos ? ` xmlns:video="${VIDEO_NS}"` : ""}>`,
+    `<urlset xmlns="${SITEMAP_NS}"${videoNs}>`,
   ];
   for (const entry of entries) {
     lines.push("  <url>", tag("loc", entry.loc, "    "));

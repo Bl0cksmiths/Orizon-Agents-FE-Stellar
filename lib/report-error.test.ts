@@ -163,4 +163,34 @@ describe("scrubForTelemetry", () => {
       "Minified React error #418; visit https://reactjs.org/docs/error-decoder.html for the full message",
     );
   });
+
+  it("drops each relative path's query, and leaves a path without one", () => {
+    expect(
+      scrubForTelemetry("GET /a/b?x=1 then /c/d and '/e?y=2' (/f#g?h)"),
+    ).toBe("GET /a/b then /c/d and '/e' (/f#g?h)");
+  });
+
+  it("redacts each address, up to its last dotted name", () => {
+    expect(
+      scrubForTelemetry("a@b@c.com, (Ana.B@Mail.Example.ORG) x@y.c1@z.io q@r"),
+    ).toBe("a@[email], ([email]) x@[email] q@r");
+  });
+
+  it("reads a long word with no address, or a broken one, in linear time", () => {
+    const started = performance.now();
+    const word = "z".repeat(50_000);
+    expect(scrubForTelemetry(`${word} x`)).toBe(`${word} x`);
+    expect(scrubForTelemetry(`${word}@${".".repeat(50_000)}`)).toBe(
+      `${word}@${".".repeat(50_000)}`,
+    );
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it("reads a path of thousands of slashes in linear time", () => {
+    const started = performance.now();
+    const path = "/(".repeat(50_000);
+    expect(scrubForTelemetry(`${path} x`)).toBe(`${path} x`);
+    expect(scrubForTelemetry(`${path}?q=1`)).toBe(path);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });

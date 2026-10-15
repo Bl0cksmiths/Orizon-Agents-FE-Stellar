@@ -369,6 +369,29 @@ describe("deriveNetworkStats (an older backend)", () => {
       ]);
     });
 
+    it("notes several dropped registry entries in the plural", () => {
+      const screened = screenAgentList([
+        ...agents,
+        { id: "broken" },
+        { id: "broken-too" },
+      ]);
+      expect(screened).not.toBeNull();
+      expect(
+        deriveNetworkStats({ ...all, agents: ok(screened!) }).notes,
+      ).toEqual(["2 registry entries couldn't be read and aren't counted."]);
+    });
+
+    it("notes one unverified owner in the singular", () => {
+      expect(
+        deriveNetworkStats({
+          ...all,
+          adoption: ok(adoption({ unreadable_agents: ["x"] })),
+        }).notes,
+      ).toEqual([
+        "Couldn't verify the owner of 1 agent right now — the external count may be low.",
+      ]);
+    });
+
     it("notes an adoption read that could not verify every owner", () => {
       expect(
         deriveNetworkStats({

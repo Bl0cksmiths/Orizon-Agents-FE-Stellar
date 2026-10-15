@@ -107,6 +107,68 @@ function probe(file) {
   return { seconds };
 }
 
+/** Print the one-line summary of a manifest that passed. */
+function reportManifest(shown, raw) {
+  if (raw.status !== "published") {
+    console.log(
+      `  ok  ${shown}: unpublished — no part and no evidence, so the page shows neither`,
+    );
+    return;
+  }
+  const { parts, evidence } = raw;
+  const each = parts
+    .map(
+      (p, i) =>
+        `part ${i + 1} ${p.role}: youtube ${p.id}, ${p.duration_seconds} s, ${p.chapters.length} chapters`,
+    )
+    .join("; ");
+  const total = parts.reduce((sum, p) => sum + p.duration_seconds, 0);
+  console.log(
+    `  ok  ${shown}: published — ${each}; ${total} s together, ${evidence.items.length} evidence items`,
+  );
+}
+
+/**
+ * Measure one video and hold it to its part, when the manifest is published.
+ * Returns its running time, or the exit code to stop with once the failure
+ * has been printed.
+ *
+ * @param {string} video as given on the command line
+ * @param {number} i its position among the --video files
+ * @param {{ duration_seconds: number }[] | null} parts the published parts
+ * @returns {{ seconds: number } | { exit: number }}
+ */
+function checkVideo(video, i, parts) {
+  const file = path.resolve(video);
+  if (!existsSync(file)) {
+    console.error(`FAIL  video: ${video} does not exist`);
+    return { exit: 1 };
+  }
+  const measured = probe(file);
+  if (measured.missingTool) {
+    console.error(
+      `NOT VERIFIED  video: ffprobe is not installed, so the running time of ${video} was not checked. Install ffmpeg and run this again.`,
+    );
+    return { exit: 3 };
+  }
+  if (measured.error) {
+    console.error(
+      `FAIL  video: ffprobe could not read ${video}: ${measured.error}`,
+    );
+    return { exit: 1 };
+  }
+  const { seconds } = measured;
+  const shownSeconds = seconds.toFixed(2);
+  if (parts && Math.abs(seconds - parts[i].duration_seconds) > 1) {
+    console.error(
+      `FAIL  video: ${video} runs ${shownSeconds} s but the manifest says part ${i + 1} runs ${parts[i].duration_seconds} s`,
+    );
+    return { exit: 1 };
+  }
+  console.log(`  ok  video: ${video} runs ${shownSeconds} s`);
+  return { seconds };
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args) {
@@ -120,23 +182,7 @@ function main() {
     for (const p of problems) console.error(`  - ${p}`);
     return 1;
   }
-  if (raw.status === "published") {
-    const { parts, evidence } = raw;
-    const each = parts
-      .map(
-        (p, i) =>
-          `part ${i + 1} ${p.role}: youtube ${p.id}, ${p.duration_seconds} s, ${p.chapters.length} chapters`,
-      )
-      .join("; ");
-    const total = parts.reduce((sum, p) => sum + p.duration_seconds, 0);
-    console.log(
-      `  ok  ${shown}: published — ${each}; ${total} s together, ${evidence.items.length} evidence items`,
-    );
-  } else {
-    console.log(
-      `  ok  ${shown}: unpublished — no part and no evidence, so the page shows neither`,
-    );
-  }
+  reportManifest(shown, raw);
 
   if (args.videos.length === 0) return 0;
 
@@ -150,34 +196,9 @@ function main() {
 
   let total = 0;
   for (const [i, video] of args.videos.entries()) {
-    const file = path.resolve(video);
-    if (!existsSync(file)) {
-      console.error(`FAIL  video: ${video} does not exist`);
-      return 1;
-    }
-    const measured = probe(file);
-    if (measured.missingTool) {
-      console.error(
-        `NOT VERIFIED  video: ffprobe is not installed, so the running time of ${video} was not checked. Install ffmpeg and run this again.`,
-      );
-      return 3;
-    }
-    if (measured.error) {
-      console.error(
-        `FAIL  video: ffprobe could not read ${video}: ${measured.error}`,
-      );
-      return 1;
-    }
-    const { seconds } = measured;
-    const shownSeconds = seconds.toFixed(2);
-    if (parts && Math.abs(seconds - parts[i].duration_seconds) > 1) {
-      console.error(
-        `FAIL  video: ${video} runs ${shownSeconds} s but the manifest says part ${i + 1} runs ${parts[i].duration_seconds} s`,
-      );
-      return 1;
-    }
-    console.log(`  ok  video: ${video} runs ${shownSeconds} s`);
-    total += seconds;
+    const checked = checkVideo(video, i, parts);
+    if ("exit" in checked) return checked.exit;
+    total += checked.seconds;
   }
   const shownTotal = total.toFixed(2);
   if (total < MIN_DURATION_SECONDS || total > MAX_DURATION_SECONDS) {

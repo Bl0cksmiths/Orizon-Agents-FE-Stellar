@@ -30,7 +30,10 @@ const isElement = (n: unknown): n is Element =>
 
 function textOf(n: Element | Root): string {
   return n.children
-    .map((c) => (c.type === "text" ? c.value : isElement(c) ? textOf(c) : ""))
+    .map((c) => {
+      if (c.type === "text") return c.value;
+      return isElement(c) ? textOf(c) : "";
+    })
     .join("");
 }
 
@@ -43,7 +46,7 @@ function labelCells(n: Element | Root): void {
     }
     const sections = child.children.filter(isElement);
     const head = sections.find((e) => e.tagName === "thead");
-    const headRow = head?.children.filter(isElement)[0];
+    const headRow = head?.children.find(isElement);
     const names = (headRow?.children.filter(isElement) ?? []).map((th) =>
       textOf(th).trim(),
     );

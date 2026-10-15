@@ -493,6 +493,16 @@ describe("isComputingError", () => {
     expect(isComputingError(new Error("GET /x → 503"))).toBe(false);
     expect(isComputingError(null)).toBe(false);
   });
+
+  it("reads a thrown string, and no message from any other value", () => {
+    expect(isComputingError("the adoption report is still being built")).toBe(
+      true,
+    );
+    expect(
+      isComputingError({ message: "the adoption report is still being built" }),
+    ).toBe(false);
+    expect(isComputingError(202)).toBe(false);
+  });
 });
 
 describe("isWakingError", () => {
@@ -516,6 +526,14 @@ describe("isWakingError", () => {
     ).toBe(false);
     expect(isWakingError(new Error("GET /agents → 404"))).toBe(false);
     expect(isWakingError(null)).toBe(false);
+  });
+
+  it("reads a thrown string, and no message from any other value", () => {
+    const waking =
+      "GET /agents → 503 — the backend is waking up — this usually takes under a minute";
+    expect(isWakingError(waking)).toBe(true);
+    expect(isWakingError({ message: waking })).toBe(false);
+    expect(isWakingError(503)).toBe(false);
   });
 });
 
@@ -2021,11 +2039,11 @@ describe("openTraceStream polling fallback", () => {
     await vi.advanceTimersByTimeAsync(FOLLOW_UP_QUIET_MS + TRACE_POLL_MS * 2);
     // Said once: the follow-up ending is not a second end of the run.
     expect(onDone).toHaveBeenCalledTimes(1);
-    expect(StubEventSource.instances.length).toBe(streams);
+    expect(StubEventSource.instances).toHaveLength(streams);
     // And it has stopped asking.
     const calls = fetchMock.mock.calls.length;
     await vi.advanceTimersByTimeAsync(TRACE_POLL_MS * 5);
-    expect(fetchMock.mock.calls.length).toBe(calls);
+    expect(fetchMock.mock.calls).toHaveLength(calls);
     dispose();
   });
 

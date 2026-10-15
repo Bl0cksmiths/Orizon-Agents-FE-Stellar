@@ -45,6 +45,7 @@ import {
   executeRefusal,
   refusalSentence,
   type EscrowRelease,
+  type ExecuteRefusal,
 } from "@/lib/execute-refusal";
 import { escrowAgreement, pinnedEscrowId } from "@/lib/escrow-address";
 import {
@@ -56,8 +57,7 @@ import { rememberHeldAuthorization } from "@/lib/held-authorizations";
 import { toMessage, useAsyncAction } from "@/lib/use-async-action";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
-import type { DecomposeResponse } from "@/lib/types";
-import type { PlanSpec } from "@/lib/types";
+import type { DecomposeResponse, PlanSpec } from "@/lib/types";
 import { ModelTag, TierBadge } from "@/components/console/tier-badge";
 import { stepRunner } from "@/lib/plan-tier";
 import { FiatFund } from "./fiat-fund";
@@ -125,6 +125,18 @@ const EMPTY_PLAN =
 const FREE_PLAN =
   "This plan is priced at zero, so there is nothing to authorize. Run it without payment.";
 
+/** What the pay panel says with no wallet connected: nothing to pay for an
+ *  empty or free plan, otherwise what paying on-chain does. */
+function walletRequiredSentence(
+  empty: boolean,
+  free: boolean,
+  generation: EscrowGeneration,
+): string {
+  if (empty) return EMPTY_PLAN;
+  if (free) return FREE_PLAN;
+  return connectSentence(generation);
+}
+
 /** Normalize the 16-byte auth_id a tx returns (hex, base64, or byte list). */
 function bytesToHex(v: unknown): string | null {
   if (typeof v === "string") {
@@ -144,6 +156,78 @@ function bytesToHex(v: unknown): string | null {
   return null;
 }
 
+/** The id of the authorization a broadcast confirmed. A broadcast that did
+ *  not succeed, or whose id cannot be read, throws. */
+function confirmedAuthId(
+  broadcast: Awaited<ReturnType<typeof submitSigned>>,
+): string {
+  if (broadcast.status !== "SUCCESS") {
+    throw new Error(
+      [
+        `authorize tx ${broadcast.status}`,
+        broadcast.diagnostic,
+        broadcast.explorer,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+  }
+  const authHex = bytesToHex(broadcast.return_value);
+  if (!authHex) throw new Error("failed to read auth_id from tx result");
+  return authHex;
+}
+
+/** Why a run did not start after its authorization confirmed: the backend's
+ *  refusal when it gave one, otherwise the failed request itself. */
+function runErrorSentence(refusal: ExecuteRefusal | null, e: unknown): string {
+  return refusal !== null
+    ? refusalSentence(refusal)
+    : `The request to start it failed: ${toMessage(e)}`;
+}
+
+/**
+ * How a failed authorization is told to the buyer. The custody reading of a
+ * refusal ("could not move the maximum into escrow") is v2's; anything else
+ * gets the shared wallet wording. A price the platform no longer holds for
+ * this plan is said as that, whichever escrow: the way on is a fresh plan.
+ */
+function authorizeFailure(
+  e: unknown,
+  generation: EscrowGeneration,
+): FriendlyError {
+  return (
+    authorizeAmountMismatch(e) ??
+    (generation === "v2" ? classifyAuthorizeError(e) : classifyError(e))
+  );
+}
+
+/**
+ * Every notice above the Authorize panel that is on the page, in reading
+ * order. Composed, never chosen between: a fallback plan built during a
+ * failed reputation read owes the buyer both facts at the button. None at
+ * all is no attribute rather than an empty one, and an id is only named
+ * while its notice renders — a reference to an absent id describes nothing
+ * and is flagged by accessibility audits.
+ */
+function payNoticeIds(
+  plan: DecomposeResponse,
+  escrowMismatch: boolean,
+  priceNotice: boolean,
+): string | undefined {
+  return (
+    [
+      isPlannerFallback(plan) && PLANNER_FALLBACK_NOTICE_ID,
+      // The banner's one-sentence summary, not the banner: four paragraphs
+      // read out as a button's description bury the decision under them.
+      hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
+      escrowMismatch && ESCROW_MISMATCH_ID,
+      priceNotice && PRICE_NOTICE_ID,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined
+  );
+}
+
 /**
  * The decomposed-plan card: step list, totals, and the execute flows
  * (simulate / fiat funding / on-chain authorize). Mirrors the FiatFund
@@ -160,13 +244,13 @@ export function ExecutionPlan({
   plan,
   onReplan,
   onRespec,
-}: {
+}: Readonly<{
   plan: DecomposeResponse;
   /** Decomposes this plan's intent again — offered on a fallback plan. */
   onReplan?: () => void;
   /** Decomposes this plan's intent again from an edited brief. */
   onRespec?: (spec: PlanSpec) => void;
-}) {
+}>) {
   const router = useRouter();
   const wallet = useWallet();
   const [showFiat, setShowFiat] = useState(false);
@@ -314,19 +398,7 @@ export function ExecutionPlan({
       setStep("broadcast");
       setTxState("broadcasting");
       const broadcast = await submitSigned(signedXdr);
-      if (broadcast.status !== "SUCCESS") {
-        throw new Error(
-          [
-            `authorize tx ${broadcast.status}`,
-            broadcast.diagnostic,
-            broadcast.explorer,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        );
-      }
-      const authHex = bytesToHex(broadcast.return_value);
-      if (!authHex) throw new Error("failed to read auth_id from tx result");
+      const authHex = confirmedAuthId(broadcast);
 
       setAuthorizeHash(broadcast.hash);
       setTxState("success");
@@ -367,23 +439,12 @@ export function ExecutionPlan({
       // confirmed rather than turning into a failure card, and the reason is
       // stated beside what became of the funds.
       if (confirmed !== null) {
-        setRunError(
-          refusal !== null
-            ? refusalSentence(refusal)
-            : `The request to start it failed: ${toMessage(e)}`,
-        );
+        setRunError(runErrorSentence(refusal, e));
         setRelease(refusal?.release ?? null);
         setStep("");
         return;
       }
-      // The custody reading of a refusal ("could not move the maximum into
-      // escrow") is v2's; anything else gets the shared wallet wording.
-      // A price the platform no longer holds for this plan is said as that,
-      // whichever escrow: the way on is a fresh plan.
-      const friendly =
-        authorizeAmountMismatch(e) ??
-        (generation === "v2" ? classifyAuthorizeError(e) : classifyError(e));
-      setFriendlyError(friendly);
+      setFriendlyError(authorizeFailure(e, generation));
       setTxState("failed");
       setStep("");
       // Swallowed, not re-thrown: the failure renders once, in the TxStatus
@@ -392,23 +453,11 @@ export function ExecutionPlan({
     }
   });
 
-  // Every notice above the Authorize panel that is on the page, in reading
-  // order. Composed, never chosen between: a fallback plan built during a
-  // failed reputation read owes the buyer both facts at the button. None at
-  // all is no attribute rather than an empty one, and an id is only named
-  // while its notice renders — a reference to an absent id describes nothing
-  // and is flagged by accessibility audits.
-  const authorizeDescribedBy =
-    [
-      isPlannerFallback(plan) && PLANNER_FALLBACK_NOTICE_ID,
-      // The banner's one-sentence summary, not the banner: four paragraphs
-      // read out as a button's description bury the decision under them.
-      hasUnverifiedReputation(plan) && UNVERIFIED_SUMMARY_ID,
-      escrowMismatch && ESCROW_MISMATCH_ID,
-      pricing.kind !== "priced" && PRICE_NOTICE_ID,
-    ]
-      .filter(Boolean)
-      .join(" ") || undefined;
+  const authorizeDescribedBy = payNoticeIds(
+    plan,
+    escrowMismatch,
+    pricing.kind !== "priced",
+  );
 
   const executing = simulate.pending || authorize.pending;
   // The controls that run the plan. An expired plan cannot run again, and a
@@ -708,32 +757,12 @@ export function ExecutionPlan({
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-cyan mb-1">
                   ▸ ready to authorize on-chain
                 </div>
-                {empty ? (
-                  <div className="text-sm">{EMPTY_PLAN}</div>
-                ) : free ? (
-                  <div className="text-sm">{FREE_PLAN}</div>
-                ) : generation === "v2" ? (
-                  // Escrow v2 takes custody at authorize: this signature moves
-                  // the money now, not at settlement. A buyer who reads "up
-                  // to" as a cap on a later charge has been told v1's story.
-                  <div className="max-w-xl text-sm leading-relaxed">
-                    Freighter will prompt for{" "}
-                    <b className="text-text">one signature</b> that moves up to{" "}
-                    <b className="text-text">{capText}</b> from your wallet into
-                    escrow now. Delivered steps are paid from it, and the rest
-                    comes back to you when the run settles.
-                  </div>
-                ) : (
-                  // v1 moves nothing at signing, and says so; until the
-                  // escrow is known, the sentence claims neither.
-                  <div className="max-w-xl text-sm leading-relaxed">
-                    Freighter will prompt for{" "}
-                    <b className="text-text">one signature</b> authorizing up to{" "}
-                    <b className="text-text">{capText}</b>.
-                    {generation === "v1" &&
-                      ` It records a spending allowance on the escrow contract; no funds move when you sign. ${V1_CANNOT_SETTLE}`}
-                  </div>
-                )}
+                <SignatureSentence
+                  empty={empty}
+                  free={free}
+                  generation={generation}
+                  capText={capText}
+                />
               </div>
               {/* flex-wrap: three buttons are wider than a 390px card, and the
                   card's clip-path cuts off whatever overflows it — at phone
@@ -759,11 +788,7 @@ export function ExecutionPlan({
                   // description — each one only while it exists.
                   aria-describedby={authorizeDescribedBy}
                 >
-                  {executing
-                    ? step
-                      ? stepLabel(step, generation)
-                      : "◉ Launching…"
-                    : "Authorize & Execute ▸"}
+                  {authorizeLabel(executing, step, generation)}
                 </Button>
               </div>
             </div>
@@ -774,11 +799,7 @@ export function ExecutionPlan({
                   ▸ wallet required
                 </div>
                 <div className="text-sm">
-                  {empty
-                    ? EMPTY_PLAN
-                    : free
-                      ? FREE_PLAN
-                      : connectSentence(generation)}
+                  {walletRequiredSentence(empty, free, generation)}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 items-center">
@@ -836,25 +857,15 @@ export function ExecutionPlan({
           </div>
         )}
 
-        {/* Only escrow v2 holds anything to hand back or reclaim. A v1
-            authorization moved nothing, and while the escrow is unknown the
-            card claims neither. */}
-        {held &&
-          generation === "v2" &&
-          (expired === "authorize" || runError) &&
-          (release?.kind === "returned" ? (
-            <FundsReturnedNotice amount={capText} txHash={release.txHash} />
-          ) : (
-            <EscrowHeldNotice
-              held={held}
-              amount={capText}
-              escrowId={network?.contracts.payment_escrow || null}
-              // The backend answered: no task was minted. Without an answer
-              // a run may have started and will settle as usual.
-              runRefused={release !== null}
-              releaseFailed={release?.kind === "not_returned"}
-            />
-          ))}
+        <HeldFundsNotice
+          held={held}
+          generation={generation}
+          expired={expired}
+          runError={runError}
+          release={release}
+          amount={capText}
+          escrowId={network?.contracts.payment_escrow}
+        />
 
         {error && (
           <div
@@ -875,24 +886,137 @@ export function ExecutionPlan({
           </div>
         )}
 
-        {/* A confirmed authorize under escrow v2 is a transfer: the cap left
-            the wallet for the escrow contract. The card says so with the
-            figure signed and the contract it went to — only once both are
-            known, since a guessed destination would be a false receipt. Under
-            any other escrow nothing was sent, so no "sent" row is drawn. */}
-        <TxStatus
+        <AuthorizeStatus
           state={txState}
-          hash={authorizeHash ?? undefined}
-          amount={authorizeHash && generation === "v2" ? capText : undefined}
-          destination={
-            generation === "v2"
-              ? network?.contracts.payment_escrow || undefined
-              : undefined
-          }
+          hash={authorizeHash}
+          generation={generation}
+          amount={capText}
+          escrowId={network?.contracts.payment_escrow}
           error={friendlyError}
         />
       </Card>
     </m.div>
+  );
+}
+
+/**
+ * The authorize transaction's status. A confirmed authorize under escrow v2
+ * is a transfer: the cap left the wallet for the escrow contract. The card
+ * says so with the figure signed and the contract it went to — only once both
+ * are known, since a guessed destination would be a false receipt. Under any
+ * other escrow nothing was sent, so no "sent" row is drawn.
+ */
+function AuthorizeStatus({
+  state,
+  hash,
+  generation,
+  amount,
+  escrowId,
+  error,
+}: Readonly<{
+  state: TxState;
+  hash: string | null;
+  generation: EscrowGeneration;
+  amount: string;
+  escrowId: string | undefined;
+  error: FriendlyError | null;
+}>) {
+  const v2 = generation === "v2";
+  return (
+    <TxStatus
+      state={state}
+      hash={hash ?? undefined}
+      amount={hash && v2 ? amount : undefined}
+      destination={v2 ? escrowId || undefined : undefined}
+      error={error}
+    />
+  );
+}
+
+/** What became of the cap an authorization moved into escrow, once the run
+ *  it paid for expired or could not start: returned, or held to reclaim. */
+function HeldFundsNotice({
+  held,
+  generation,
+  expired,
+  runError,
+  release,
+  amount,
+  escrowId,
+}: Readonly<{
+  held: HeldAuthorization | null;
+  generation: EscrowGeneration;
+  expired: ExpiredRun | null;
+  runError: string | null;
+  release: EscrowRelease | null;
+  amount: string;
+  escrowId: string | undefined;
+}>) {
+  // Only escrow v2 holds anything to hand back or reclaim. A v1 authorization
+  // moved nothing, and while the escrow is unknown the card claims neither.
+  if (!held || generation !== "v2" || !(expired === "authorize" || runError))
+    return null;
+  if (release?.kind === "returned")
+    return <FundsReturnedNotice amount={amount} txHash={release.txHash} />;
+  return (
+    <EscrowHeldNotice
+      held={held}
+      amount={amount}
+      escrowId={escrowId || null}
+      // The backend answered: no task was minted. Without an answer a run may
+      // have started and will settle as usual.
+      runRefused={release !== null}
+      releaseFailed={release?.kind === "not_returned"}
+    />
+  );
+}
+
+/** The Authorize button's words: the stage a run is at while one is. */
+function authorizeLabel(
+  executing: boolean,
+  step: ExecStep,
+  generation: EscrowGeneration,
+): string {
+  if (!executing) return "Authorize & Execute ▸";
+  return step ? stepLabel(step, generation) : "◉ Launching…";
+}
+
+/** What the pay panel says the one signature does, with a wallet connected:
+ *  nothing to sign for an empty or free plan, otherwise the escrow's story. */
+function SignatureSentence({
+  empty,
+  free,
+  generation,
+  capText,
+}: Readonly<{
+  empty: boolean;
+  free: boolean;
+  generation: EscrowGeneration;
+  capText: string;
+}>) {
+  if (empty) return <div className="text-sm">{EMPTY_PLAN}</div>;
+  if (free) return <div className="text-sm">{FREE_PLAN}</div>;
+  if (generation === "v2")
+    return (
+      // Escrow v2 takes custody at authorize: this signature moves the money
+      // now, not at settlement. A buyer who reads "up to" as a cap on a later
+      // charge has been told v1's story.
+      <div className="max-w-xl text-sm leading-relaxed">
+        Freighter will prompt for <b className="text-text">one signature</b>{" "}
+        that moves up to <b className="text-text">{capText}</b> from your wallet
+        into escrow now. Delivered steps are paid from it, and the rest comes
+        back to you when the run settles.
+      </div>
+    );
+  return (
+    // v1 moves nothing at signing, and says so; until the escrow is known,
+    // the sentence claims neither.
+    <div className="max-w-xl text-sm leading-relaxed">
+      Freighter will prompt for <b className="text-text">one signature</b>{" "}
+      authorizing up to <b className="text-text">{capText}</b>.
+      {generation === "v1" &&
+        ` It records a spending allowance on the escrow contract; no funds move when you sign. ${V1_CANNOT_SETTLE}`}
+    </div>
   );
 }
 
@@ -905,10 +1029,10 @@ export function ExecutionPlan({
 function StepModel({
   step,
   models,
-}: {
+}: Readonly<{
   step: DecomposeResponse["steps"][number];
   models: DecomposeResponse["models"];
-}) {
+}>) {
   const runner = stepRunner(step, models);
   if (!runner) return null;
   if (runner.kind === "external") {

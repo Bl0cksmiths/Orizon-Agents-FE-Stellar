@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
  * on this page (lib/wallet.tsx, WalletUnavailable): a plain statement, not a
  * disabled button, since there is nothing to press until the page reloads.
  */
-export function WalletUnavailableNote({ className }: { className?: string }) {
+export function WalletUnavailableNote({
+  className,
+}: Readonly<{ className?: string }>) {
   return (
     <div className={cn("flex items-center", className)}>
       <p className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.2em] text-muted">
@@ -31,7 +33,7 @@ export function ConnectWallet({
   showWalletName = true,
   className,
   describedBy,
-}: {
+}: Readonly<{
   size?: "sm" | "md";
   /** The connect button's weight. Beside a primary call to action (the
    *  marketing nav's Launch App) it steps back to `outline`. */
@@ -43,7 +45,7 @@ export function ConnectWallet({
   /** Ids of notices the connect button is described by, when connecting is
    *  the first step of a payment those notices are about. */
   describedBy?: string;
-}) {
+}>) {
   faultPoint("connect-wallet");
   const {
     available,

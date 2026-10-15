@@ -65,6 +65,19 @@ describe("usePolledRead", () => {
     expect(read.mock.calls.length).toBeGreaterThan(1);
   });
 
+  it("shows a thrown string as it is, and any other value as a failed fetch", async () => {
+    const errorOf = async (reason: unknown) => {
+      const read = vi.fn<() => Promise<string>>().mockRejectedValue(reason);
+      const { result, unmount } = renderHook(() => usePolledRead(read, 5_000));
+      await tick();
+      unmount();
+      return result.current.error;
+    };
+    expect(await errorOf("GET /tasks → 502")).toBe("GET /tasks → 502");
+    expect(await errorOf({ status: 502 })).toBe("fetch failed");
+    expect(await errorOf(undefined)).toBe("fetch failed");
+  });
+
   it("stops polling a terminal failure; the retry is the way back", async () => {
     const read = vi
       .fn<() => Promise<string>>()

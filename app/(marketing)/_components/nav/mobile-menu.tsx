@@ -74,7 +74,11 @@ export type MobileMenuProps = {
   pathname: string | null;
 };
 
-export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
+export function MobileMenu({
+  open,
+  onOpenChange,
+  pathname,
+}: Readonly<MobileMenuProps>) {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const firstLinkRef = useRef<HTMLAnchorElement>(null);
@@ -125,10 +129,10 @@ export function MobileMenu({ open, onOpenChange, pathname }: MobileMenuProps) {
     );
     if (all.length === 0) return;
     const first = all[0];
-    const last = all[all.length - 1];
+    const last = all.at(-1);
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
-      last.focus();
+      last?.focus();
     } else if (!event.shiftKey && document.activeElement === last) {
       event.preventDefault();
       first.focus();
@@ -299,11 +303,11 @@ function SheetLink({
   link,
   current,
   linkRef,
-}: {
+}: Readonly<{
   link: NavLink;
   current: boolean;
   linkRef?: Ref<HTMLAnchorElement>;
-}) {
+}>) {
   const id = useId();
   return (
     <Link

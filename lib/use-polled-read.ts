@@ -33,8 +33,13 @@ export type PolledRead<T> = {
   waiting: boolean;
 };
 
-const messageOf = (e: unknown) =>
-  e instanceof Error ? e.message : String(e ?? "fetch failed");
+/** A failure's message: an Error's own, or a thrown string as it is.
+ *  Anything else says only that the fetch failed: an object would read
+ *  "[object Object]". */
+function messageOf(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return typeof e === "string" ? e : "fetch failed";
+}
 
 export function usePolledRead<T>(
   read: () => Promise<T>,

@@ -453,8 +453,6 @@ export function partialReport(
       c.agents_listed === null
         ? `Agents accounted for: ${count(c.agents_accounted)} — the registry listing could not be read, so how many exist is unknown.`
         : `Agents accounted for: ${count(c.agents_accounted)} of ${count(c.agents_listed)} listed.`,
-    );
-    details.push(
       c.settlement_ledgers_in_window === 0
         ? "Settlement history could not be read in this build."
         : `Settlement history read: ${count(c.settlement_ledgers_scanned)} of ${count(c.settlement_ledgers_in_window)} ledgers.`,

@@ -89,7 +89,7 @@ export function GuardNotice({
   busy = false,
   fromBrief = false,
   className,
-}: {
+}: Readonly<{
   refusal: DecomposeRefusal;
   /** The refused request was an edited brief: a needs-detail answer then
    *  means the edit changed what was asked. */
@@ -99,7 +99,7 @@ export function GuardNotice({
   /** A decompose is already out; a retry waits for it. */
   busy?: boolean;
   className?: string;
-}) {
+}>) {
   const badge = BADGE[refusal.kind];
   return (
     <div
@@ -142,10 +142,10 @@ const TITLE: Record<DecomposeRefusal["kind"], string> = {
 function Body({
   refusal,
   fromBrief,
-}: {
+}: Readonly<{
   refusal: DecomposeRefusal;
   fromBrief: boolean;
-}) {
+}>) {
   switch (refusal.kind) {
     case "blocked":
       return (
@@ -200,7 +200,7 @@ function Body({
 
 /** When planning resumes, as a time in the buyer's own zone. The deadline is
  *  read once, on mount, so a re-render never moves it. */
-function ResumesAt({ waitMs }: { waitMs: number | null }) {
+function ResumesAt({ waitMs }: Readonly<{ waitMs: number | null }>) {
   const [at] = useState(() => (waitMs === null ? null : Date.now() + waitMs));
   if (at === null) {
     return <>AI planning resumes when the daily budget resets.</>;
@@ -220,11 +220,11 @@ function RetryRow({
   waitMs,
   onRetry,
   busy,
-}: {
+}: Readonly<{
   waitMs: number | null;
   onRetry: () => void;
   busy: boolean;
-}) {
+}>) {
   const seconds = useSecondsLeft(waitMs);
   const waiting = seconds !== null && seconds > 0;
   return (

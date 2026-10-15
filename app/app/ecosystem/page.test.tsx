@@ -648,7 +648,7 @@ describe("EcosystemPage — states", () => {
     getEcosystemAdoption.mockRejectedValue(BUILDING);
     render(<EcosystemPage />);
     const status = await screen.findByText(/Building the adoption report…/);
-    expect(status.closest('[role="status"]')).not.toBeNull();
+    expect(status.closest('output[aria-live="polite"]')).not.toBeNull();
     expect(text(document.body)).toMatch(/checks again in 30 s/);
     expect(screen.queryByRole("alert")).toBeNull();
     expect(text(document.body)).not.toContain("No external operators");

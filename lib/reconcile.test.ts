@@ -358,3 +358,64 @@ describe("reconcileSettlement — steps nobody could pay", () => {
     },
   );
 });
+
+describe("reconcileSettlement — characterization of the totals checks", () => {
+  it("reads a record with no state as a confirmed charge", () => {
+    expect(reconcileSettlement(exact, null)).toEqual(
+      reconcileSettlement(exact, "settled"),
+    );
+  });
+
+  it("flags steps' prices that do not sum to the planned total", () => {
+    const off = reconcileSettlement(
+      { ...exact, totals: { ...exact.totals!, planned: amt(750_001) } },
+      "settled",
+    );
+    expect(off?.balanced).toBe(false);
+    expect(off?.issues).toEqual([
+      "the steps' prices do not sum to the planned total",
+    ]);
+  });
+
+  it("flags an authorization smaller than the plan", () => {
+    const off = reconcileSettlement(
+      settlement({
+        steps: [exactStep(0, 100, 0, 100)],
+        totals: totals({
+          authorized: 99,
+          planned: 100,
+          charged: 0,
+          returned: 100,
+          surplus: null,
+        }),
+      }),
+      "settled",
+    );
+    expect(off?.headroom).toBe(0n);
+    expect(off?.issues).toEqual([
+      "charged + returned ≠ authorized",
+      "the authorization is smaller than the plan",
+    ]);
+  });
+
+  it("leaves the headroom unknown when the escrow returned less than the steps", () => {
+    const off = reconcileSettlement(
+      settlement({
+        steps: [exactStep(0, 100, 0, 100)],
+        totals: totals({
+          authorized: 100,
+          planned: 100,
+          charged: 0,
+          returned: 90,
+          surplus: null,
+        }),
+      }),
+      "settled",
+    );
+    expect(off?.headroom).toBeNull();
+    expect(off?.issues).toEqual([
+      "the escrow returned less than the steps' returns",
+      "charged + returned ≠ authorized",
+    ]);
+  });
+});
