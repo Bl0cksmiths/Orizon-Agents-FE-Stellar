@@ -115,12 +115,13 @@ export function startStatsBackend(port) {
       return send(res, 200, { state, reads });
     }
     reads[path] = (reads[path] ?? 0) + 1;
+    const sync = state.synced ? "synced" : "syncing";
     timeline.push({
       at: Date.now(),
       path,
       answer: state.down
         ? "503"
-        : `${state.registered} ${state.synced ? "synced" : "syncing"} (${state.signal})`,
+        : `${state.registered} ${sync} (${state.signal})`,
     });
     if (state.down) return send(res, 503, { detail: "waking up" });
 
