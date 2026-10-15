@@ -500,7 +500,7 @@ describe("readCompleteStats — reads", () => {
     await readCompleteStats(
       deps(withToken, { ...ENV, [PROXY_TOKEN_ENV]: "s3cret" }).d,
     );
-    expect(withToken.mock.calls.length).toBe(6);
+    expect(withToken.mock.calls).toHaveLength(6);
     for (const [, init] of withToken.mock.calls) {
       expect(header(init)).toBe("s3cret");
       expect(new Headers(init.headers).get("accept")).toBe("application/json");
@@ -508,7 +508,7 @@ describe("readCompleteStats — reads", () => {
 
     const without = backend(routes);
     await readCompleteStats(deps(without).d);
-    expect(without.mock.calls.length).toBe(6);
+    expect(without.mock.calls).toHaveLength(6);
     for (const [, init] of without.mock.calls) {
       expect(header(init)).toBeNull();
     }
