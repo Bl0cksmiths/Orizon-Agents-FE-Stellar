@@ -431,6 +431,7 @@ test.describe("plan card — a plan that expired before it ran", () => {
   test("after a confirmed authorization, says no task ran, where the funds are, and rebuilds the same request", async ({
     page,
   }) => {
+    // Skipped until this build pins escrow v2 for testnet, the only escrow this story runs on.
     test.skip(escrowV2Pin === null, "escrow v2 is not pinned on testnet yet");
     const { asked, authorize, notice } = await authorizeThenExpire(page, "v2");
     // Escrow v2 took custody when the authorization confirmed: nothing ran
