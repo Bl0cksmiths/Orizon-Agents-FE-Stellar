@@ -113,9 +113,9 @@ export default function EventsPage() {
   } else if (feedLoading && events.length === 0) {
     feed = (
       <div className="space-y-2">
-        <div role="status" className="text-sm text-muted">
+        <output aria-live="polite" className="block text-sm text-muted">
           Connecting to the event feed…
-        </div>
+        </output>
         <div className="flex gap-3 pt-3">
           {[1, 2, 3, 4].map((i) => (
             <div
