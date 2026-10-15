@@ -283,7 +283,7 @@ describe("sitemapEntries: the demo's videos", () => {
       ],
     } as unknown as PublishedDemo;
     const [video] = demoVideos(long);
-    expect(video.description.length).toBe(2048);
+    expect(video.description).toHaveLength(2048);
     expect(video.description.endsWith("…")).toBe(true);
   });
 });
