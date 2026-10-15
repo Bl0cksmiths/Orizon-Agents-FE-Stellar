@@ -289,10 +289,10 @@ const footnote = "break-words font-mono text-[11px] leading-relaxed text-muted";
 function NoticeRow({
   notice,
   planFloorBps,
-}: {
+}: Readonly<{
   notice: PlanFloorNotice;
   planFloorBps: number | undefined;
-}): JSX.Element {
+}>): JSX.Element {
   const awaiting = isAwaitingFreshRead(notice);
   const copy = awaiting ? AWAITING_COPY : reasonCopy(notice);
   const replacement =
