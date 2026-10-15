@@ -208,6 +208,6 @@ describe("planPricing — the plan's asset", () => {
         asset: { code: "UNKNOWN", issuer: null, decimals: 7 },
       }),
     );
-    expect(p.asset).toBe(null);
+    expect(p.asset).toBeNull();
   });
 });
