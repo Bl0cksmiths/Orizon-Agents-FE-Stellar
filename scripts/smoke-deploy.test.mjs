@@ -89,10 +89,14 @@ after(() => {
   rmSync(scratch, { recursive: true, force: true });
 });
 
+/** A route that drops the connection without answering. */
+const DROP = Symbol("drop");
+
 /**
  * A local origin answering `routes`; a path mapped to a number answers that
- * HTTP status with a small error body instead, and one mapped to `{ html }`
- * answers that page, `delayMs` late when it has one.
+ * HTTP status with a small error body instead, one mapped to `{ html }`
+ * answers that page, `delayMs` late when it has one, and one mapped to DROP
+ * closes the connection unanswered.
  * @param {Record<string, unknown>} routes
  * @returns {Promise<string>} the origin
  */
@@ -100,6 +104,10 @@ async function origin(routes) {
   const server = createServer((req, res) => {
     const path = new URL(req.url ?? "/", "http://x").pathname;
     const body = Object.hasOwn(routes, path) ? routes[path] : 404;
+    if (body === DROP) {
+      req.socket.destroy();
+      return;
+    }
     if (typeof body === "number") {
       res.writeHead(body, { "content-type": "application/json" });
       res.end(JSON.stringify({ detail: "Not Found" }));
@@ -271,6 +279,42 @@ test("exits 1, never skips, when the address book is missing", async () => {
   assert.match(out, /does not exist/);
 });
 
+test("exits 1 when the network route fails: no parity to compare, no pin to check", async () => {
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/api/stellar/network": 404 }),
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ \/api\/stellar\/network → 404/);
+  assert.match(
+    out,
+    /✗ contract parity → nothing to compare\n {4}FAIL {2}\/api\/stellar\/network returned no JSON body; see its check above\n/,
+  );
+  assert.match(
+    out,
+    /✗ escrow v2 pin\n {4}FAIL {2}\/api\/stellar\/network returned no JSON body; see its check above\n/,
+  );
+  assert.match(out, new RegExp(`3/${TOTAL} checks failed`));
+  assert.match(
+    out,
+    / {2}- escrow v2 pin → \/api\/stellar\/network returned no JSON body; see its check above\n/,
+  );
+  // The request failed, so the proxy hint is printed; no comparison ran, so
+  // the parity hint is not.
+  assert.match(out, /check NEXT_PUBLIC_API_BASE/);
+  assert.doesNotMatch(out, /production and the deploy scripts/);
+});
+
+test("exits 1 when the escrow pins cannot be read", async () => {
+  const { code, out } = await smoke(await origin(HEALTHY), {
+    ORIZON_ESCROW_PINS: join(scratch, "no-such-pins.json"),
+  });
+  assert.equal(code, 1, out);
+  assert.match(out, /✓ contract parity → 3 live contract ids match/);
+  assert.match(out, /✗ escrow v2 pin\n {4}FAIL {2}ENOENT: no such file/);
+  assert.match(out, new RegExp(`1/${TOTAL} checks failed`));
+  assert.doesNotMatch(out, /NEXT_PUBLIC_API_BASE/);
+});
+
 test("exits 1 when the backend reports a network other than the expected", async () => {
   const { code, out } = await smoke(await origin(HEALTHY), {
     SMOKE_EXPECT_NETWORK: "mainnet",
@@ -326,6 +370,19 @@ test("exits 1 when a page does not answer 200", async () => {
   assert.match(out, /✗ page \/evidence → HTTP 500/);
   // The API answered, so the proxy hint is not printed for a page.
   assert.doesNotMatch(out, /NEXT_PUBLIC_API_BASE/);
+});
+
+test("exits 1 when a request gets no answer, naming it", async () => {
+  const { code, out } = await smoke(
+    await origin({ ...HEALTHY, "/api/tasks": DROP, "/demo": DROP }),
+  );
+  assert.equal(code, 1, out);
+  assert.match(out, /✗ \/api\/tasks → fetch failed\n/);
+  assert.match(out, /✗ page \/demo → fetch failed\n/);
+  assert.match(out, new RegExp(`2/${TOTAL} checks failed`));
+  assert.match(out, / {2}- \/api\/tasks → fetch failed\n/);
+  assert.match(out, / {2}- page \/demo → fetch failed\n/);
+  assert.match(out, /check NEXT_PUBLIC_API_BASE/);
 });
 
 test("opens every public page and console route", () => {
@@ -437,6 +494,31 @@ test(
     assert.match(
       out,
       new RegExp(`2/${TOTAL + PAGES.length + 1} checks failed`),
+    );
+  },
+);
+
+test(
+  "the browser pass fails a page that does not answer 200, one that drops, and a slow home page",
+  { skip: chromium ? false : "Playwright is not installed here" },
+  async () => {
+    const { code, out } = await smoke(
+      await origin({ ...HEALTHY, "/evidence": 500, "/demo": DROP }),
+      {
+        SMOKE_BROWSER: "1",
+        SMOKE_SETTLE_MS: "100",
+        SMOKE_HOME_LOAD_BUDGET_MS: "1",
+      },
+    );
+    assert.equal(code, 1, out);
+    assert.match(out, /✗ browser \/evidence → HTTP 500 \(\d+ms\)\n/);
+    assert.match(out, /✗ browser \/demo → page\.goto: net::ERR_[A-Z_]+/);
+    assert.match(out, /✓ browser \/guide → 200/);
+    assert.match(out, /✗ home page load budget → \d+ms, over the 1ms budget/);
+    // The plain pass fails both pages too, beside the browser's three.
+    assert.match(
+      out,
+      new RegExp(`5/${TOTAL + PAGES.length + 1} checks failed`),
     );
   },
 );

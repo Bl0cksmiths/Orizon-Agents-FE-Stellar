@@ -197,7 +197,7 @@ export function RepLeaderboard({
   onRetryAgents,
   onRetryBatch,
   asset = null,
-}: {
+}: Readonly<{
   agents: Agent[] | null;
   batch: ReputationBatch | null;
   loading: boolean;
@@ -217,7 +217,7 @@ export function RepLeaderboard({
   /** The network route's `asset`: what evidence weight is denominated in
    *  ("native" → XLM on testnet). Unknown → no unit, never "USDC". */
   asset?: string | null;
-}) {
+}>) {
   const unit = assetLabel(asset);
   const [sort, setSort] = useState<{ col: SortCol; dir: SortDir }>({
     col: "score",
@@ -534,12 +534,12 @@ export function RepLeaderboard({
 
       {hiddenRows > 0 && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
-          <p
-            role="status"
-            className="font-mono text-[11px] uppercase tracking-widest text-muted"
+          <output
+            aria-live="polite"
+            className="block font-mono text-[11px] uppercase tracking-widest text-muted"
           >
             Showing the top {visible.length.toLocaleString()}
-          </p>
+          </output>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -569,7 +569,7 @@ export function RepLeaderboard({
  * agent column to its full width and pushed the score off a phone. The whole
  * text is still in the cell for assistive tech, and in the title on hover.
  */
-function AgentIdentity({ agent }: { agent: Agent }) {
+function AgentIdentity({ agent }: Readonly<{ agent: Agent }>) {
   return (
     <>
       <div title={agent.name} className="max-w-[12rem] truncate font-mono">

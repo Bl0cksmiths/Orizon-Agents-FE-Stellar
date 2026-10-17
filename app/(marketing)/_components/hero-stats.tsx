@@ -12,7 +12,9 @@ const isCount = (v: unknown): v is number =>
  * the registered count beside no external figure invites reading the gap as
  * zero — and never a placeholder number.
  */
-export function HeroStats({ stats }: { stats: PublicNetworkStats | null }) {
+export function HeroStats({
+  stats,
+}: Readonly<{ stats: PublicNetworkStats | null }>) {
   if (!stats) return null;
   const items = [
     { k: "Registered agents", v: stats.registered },

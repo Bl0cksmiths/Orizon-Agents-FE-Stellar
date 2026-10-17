@@ -25,7 +25,9 @@ export function RevealOnScroll() {
     const pending = document.querySelectorAll<HTMLElement>(
       ".reveal:not([data-revealed])",
     );
-    const show = (el: Element) => el.setAttribute("data-revealed", "");
+    const show = (el: HTMLElement) => {
+      el.dataset.revealed = "";
+    };
 
     if (typeof IntersectionObserver === "undefined") {
       pending.forEach(show);
@@ -35,7 +37,8 @@ export function RevealOnScroll() {
       (entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
-          show(entry.target);
+          // Only `pending`'s elements are observed.
+          show(entry.target as HTMLElement);
           observer.unobserve(entry.target);
         }
       },

@@ -28,7 +28,7 @@ const USE: Record<ArtifactFormat, string> = {
 
 const KIND = { new: "New", corrected: "Corrected" } as const;
 
-export function LitepaperArticle({ paper }: { paper: Litepaper }) {
+export function LitepaperArticle({ paper }: Readonly<{ paper: Litepaper }>) {
   const html = paper.downloads.find((d) => d.format === "html")!;
   return (
     <article
@@ -38,7 +38,7 @@ export function LitepaperArticle({ paper }: { paper: Litepaper }) {
       <header>
         <p className="mb-4 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.3em] text-cyan">
           <span aria-hidden="true" className="h-px w-8 bg-cyan/60" />
-          Litepaper
+          {"Litepaper"}
         </p>
         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl">
           {paper.title}

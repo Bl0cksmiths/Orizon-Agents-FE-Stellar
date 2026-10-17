@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * after a restart, so the registry's figures beside it are the last complete
  * ones this session read, or dashes — never the partial count.
  */
-export function SyncingNote({ className }: { className?: string }) {
+export function SyncingNote({ className }: Readonly<{ className?: string }>) {
   return (
     <span
       data-registry-syncing

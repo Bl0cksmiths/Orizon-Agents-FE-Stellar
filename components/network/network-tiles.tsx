@@ -35,6 +35,10 @@ type Tile = {
 const fmt = (m: Measured<number>): Measured<string> =>
   m.ok ? { ok: true, value: formatCount(m.value) } : m;
 
+/** "across 12 rated agents": how many agents the average is over. */
+const ratedCaption = (n: number): string =>
+  `across ${formatCount(n)} rated agent${n === 1 ? "" : "s"}`;
+
 function tiles(s: NetworkStats): Tile[] {
   const wallets = walletsCaption(s);
   return [
@@ -73,9 +77,7 @@ function tiles(s: NetworkStats): Tile[] {
         ? { ok: true, value: s.trust.value.avg.toFixed(2) }
         : s.trust,
       unit: s.trust.ok ? "/ 5" : undefined,
-      caption: s.trust.ok
-        ? `across ${formatCount(s.trust.value.ratedAgents)} rated agent${s.trust.value.ratedAgents === 1 ? "" : "s"}`
-        : undefined,
+      caption: s.trust.ok ? ratedCaption(s.trust.value.ratedAgents) : undefined,
     },
   ];
 }
@@ -94,10 +96,10 @@ const CAPTION = "mt-2 text-[11px] leading-4 text-muted";
 export function NetworkTiles({
   stats,
   failed,
-}: {
+}: Readonly<{
   stats: NetworkStats | null;
   failed: boolean;
-}) {
+}>) {
   if (!stats) {
     return (
       <>

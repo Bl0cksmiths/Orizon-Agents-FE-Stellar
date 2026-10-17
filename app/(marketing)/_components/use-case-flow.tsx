@@ -67,7 +67,7 @@ export function UseCasesHeading() {
 }
 
 /** One use case's intent, agent chain and outcome. */
-export function UseCaseFlow({ useCase }: { useCase: UseCase }) {
+export function UseCaseFlow({ useCase }: Readonly<{ useCase: UseCase }>) {
   return (
     <Card>
       <div className="grid gap-6 md:grid-cols-[1fr_2fr_1fr] items-center">

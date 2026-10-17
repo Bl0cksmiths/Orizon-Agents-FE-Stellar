@@ -37,9 +37,12 @@ export default function Error({
     >
       <meta name="robots" content="noindex" />
       {phase === "reloading" ? (
-        <p role="status" className="font-mono text-xs text-muted">
+        <output
+          aria-live="polite"
+          className="block font-mono text-xs text-muted"
+        >
           {ERROR_COPY.reloading}
-        </p>
+        </output>
       ) : (
         <div className="w-full max-w-md">
           <h1

@@ -8,7 +8,9 @@ import { HeroStats } from "./hero-stats";
 
 /** `stats` is read on the server (app/page.tsx); null leaves the stat row
  * out. */
-export function Hero({ stats }: { stats: PublicNetworkStats | null }) {
+export function Hero({
+  stats,
+}: Readonly<{ stats: PublicNetworkStats | null }>) {
   return (
     <section className="relative overflow-hidden pt-32 pb-24 md:pt-40 md:pb-32">
       <GridBg />

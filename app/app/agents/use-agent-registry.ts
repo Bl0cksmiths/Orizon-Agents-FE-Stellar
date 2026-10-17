@@ -74,12 +74,10 @@ export function useAgentRegistry(opts: {
   const complete = more ? rest.data !== null : first.data !== null;
   const signal: SyncSignal | null =
     rest.data?.signal ?? first.data?.signal ?? null;
-  const total =
-    signal === "synced"
-      ? complete && agents
-        ? agents.length
-        : (first.data?.total ?? null)
-      : null;
+  let total: number | null = null;
+  if (signal === "synced") {
+    total = complete && agents ? agents.length : (first.data?.total ?? null);
+  }
 
   const failure = (e: string | null) => (e && !isWakingError(e) ? e : null);
   // The first page failing leaves nothing; the rest failing leaves the first

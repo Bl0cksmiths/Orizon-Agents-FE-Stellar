@@ -175,6 +175,7 @@ test.describe("Googlebot renders each public page as itself", () => {
   test("/demo with its video published keeps its title and heading, with no error", async ({
     page,
   }) => {
+    // Skipped in the production run, which serves the unpublished demo instead.
     test.skip(PRODUCTION, "the production run serves the unpublished demo");
     const errors = collectPageErrors(page);
     await render(page, PUBLISHED_DEMO.path);
@@ -318,6 +319,7 @@ test.describe("a part that fails stays local, and the page stays itself", () => 
   test("the demo player throwing leaves a plain player for each part", async ({
     page,
   }) => {
+    // Skipped in the production run, which serves the unpublished demo instead.
     test.skip(PRODUCTION, "the production run serves the unpublished demo");
     await breakParts(page, ["demo-player"]);
     await render(page, PUBLISHED_DEMO.path);
@@ -364,6 +366,7 @@ test.describe("a page whose own code never arrives", () => {
   test("keeps its content, with plain stand-ins for its interactive parts", async ({
     page,
   }) => {
+    // Skipped under next dev, whose chunks hold different code from run to run.
     test.skip(
       !PRODUCTION,
       "a development build splits chunks by compile order, so what the lost chunk holds varies run to run (at times the error screens' own code)",
@@ -404,6 +407,7 @@ test.describe("an error screen is never indexed as the page", () => {
   test("the site's error screen carries noindex, under the page's own title", async ({
     page,
   }) => {
+    // Skipped in the production run, which loads a route with a lost chunk in full.
     test.skip(
       PRODUCTION,
       "a production build loads a route whose chunk is lost in navigation in full instead",
@@ -435,6 +439,7 @@ test.describe("an error screen is never indexed as the page", () => {
   test("the last-resort screen names the document and carries noindex", async ({
     page,
   }) => {
+    // Skipped under next dev, whose error overlay stands in for the last-resort screen.
     test.skip(
       !PRODUCTION,
       "development shows its error overlay instead of app/global-error.tsx",

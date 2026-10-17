@@ -9,7 +9,8 @@ import type { Page } from "@playwright/test";
  * on the id at the end of that name, which is unique where a name is not.
  */
 
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (s: string) =>
+  s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 /** The accessible name the registry gives an agent's row header. */
 export function registryRowName(agent: { id: string; name: string }): string {
@@ -19,7 +20,7 @@ export function registryRowName(agent: { id: string; name: string }): string {
 /** The row header of the agent with this id. */
 export function registryRowHeader(page: Page, agentId: string) {
   return page.getByRole("rowheader", {
-    name: new RegExp(`\\(id: ${escapeRegExp(agentId)}\\)$`),
+    name: new RegExp(String.raw`\(id: ${escapeRegExp(agentId)}\)$`),
   });
 }
 

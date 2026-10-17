@@ -267,6 +267,36 @@ const PAGES: ConsolePage[] = [
   },
 ];
 
+/**
+ * Waits until every entrance in view has started. A section framer-motion
+ * fades in on reaching the viewport waits at opacity 0 until its observer
+ * sees it, and that observer exists only once motion's lazy features have
+ * loaded. In view is 80px inside the screen, the margin those entrances use.
+ */
+async function entrancesInViewStarted(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.locator("main").evaluate((root) => {
+          const inside = 81;
+          return Array.from(
+            root.querySelectorAll<HTMLElement>('[style*="opacity"]'),
+          ).filter((el) => {
+            if (el.style.opacity !== "0") return false;
+            const box = el.getBoundingClientRect();
+            return (
+              box.top < window.innerHeight - inside &&
+              box.bottom > inside &&
+              box.left < window.innerWidth - inside &&
+              box.right > inside
+            );
+          }).length;
+        }),
+      { message: "an entrance in view has not started" },
+    )
+    .toBe(0);
+}
+
 /** Scrolls to the bottom a screen at a time, then back to the top. */
 async function scrollThrough(page: Page): Promise<void> {
   const { height, step } = await page.evaluate(() => ({
@@ -275,9 +305,9 @@ async function scrollThrough(page: Page): Promise<void> {
   }));
   for (let y = step; y < height; y += step) {
     await page.evaluate((top) => window.scrollTo(0, top), y);
-    // Long enough for an IntersectionObserver round: scrolled past within a
-    // frame, a section is never seen, and never fades in.
-    await page.waitForTimeout(200);
+    // Seen at each screen: scrolled past before its observer looked, a
+    // section is never seen, and never fades in.
+    await entrancesInViewStarted(page);
   }
   await page.evaluate(() => window.scrollTo(0, 0));
 }

@@ -70,7 +70,7 @@ export function ReceiptPanel({
   onConnect,
   reasonUnlock = null,
   escrowGeneration,
-}: {
+}: Readonly<{
   view: DisputePanelView;
   /**
    * The escrow the deployment settles through (`escrowGeneration`), which
@@ -93,7 +93,7 @@ export function ReceiptPanel({
    * drawn only when the view also says the payer's words were withheld.
    */
   reasonUnlock?: ReasonUnlockControl | null;
-}) {
+}>) {
   // Called before any early return: hooks run in the same order every render.
   const headingId = useId();
 
@@ -144,7 +144,7 @@ function NotSettled({
   generation,
   seal,
   sealKind,
-}: {
+}: Readonly<{
   /** A seal on a run with no settlement — a delivery-only one, attesting
    *  work that was delivered with nobody to pay. */
   seal?: SealState | null;
@@ -155,7 +155,7 @@ function NotSettled({
   settlementState: SettlementState | null;
   /** The panel stopped re-reading an unconfirmed settlement. */
   stoppedChecking: boolean;
-}) {
+}>) {
   const said = running ? null : settlementState;
   const loud = said === "failed" || said === "unconfirmed";
   return (
@@ -374,7 +374,7 @@ function SettledReceipt({
   onConnect,
   reasonUnlock,
   generation,
-}: {
+}: Readonly<{
   view: SettledView;
   headingId: string;
   generation: EscrowGeneration;
@@ -382,7 +382,7 @@ function SettledReceipt({
   onDispute: (step: SettlementStepView) => void;
   onConnect: () => void;
   reasonUnlock: ReasonUnlockControl | null;
-}) {
+}>) {
   const formatAmount = useFormatAmount();
   // "Settled 3h ago" is measured on the server's clock where the view carries
   // it — an open window is closesAt minus what is left — so a skewed laptop

@@ -45,13 +45,13 @@ export function SpecForm({
   onSubmit,
   onCancel,
   headingId,
-}: {
+}: Readonly<{
   spec: PlanSpec;
   busy: boolean;
   onSubmit: (spec: PlanSpec) => void;
   onCancel: () => void;
   headingId: string;
-}) {
+}>) {
   const uid = useId();
   const [draft, setDraft] = useState<SpecDraft>(() => specToDraft(spec));
   const [errors, setErrors] = useState<Partial<Record<SpecField, string>>>({});
@@ -169,9 +169,12 @@ export function SpecForm({
           Cancel
         </Button>
         {/* Always mounted, so the sentence is announced when it appears. */}
-        <p role="status" className="font-mono text-[11px] text-muted">
+        <output
+          aria-live="polite"
+          className="block font-mono text-[11px] text-muted"
+        >
           {unchanged ? "Nothing changed yet — edit a field to plan again." : ""}
-        </p>
+        </output>
       </div>
     </form>
   );

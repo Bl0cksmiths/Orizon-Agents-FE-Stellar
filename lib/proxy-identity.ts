@@ -40,7 +40,7 @@ export function proxyToken(
   env: Record<string, string | undefined> = process.env,
 ): string | null {
   const token = env[PROXY_TOKEN_ENV]?.trim();
-  return token ? token : null;
+  return token || null;
 }
 
 /** `value` when it looks like an address, else null. */

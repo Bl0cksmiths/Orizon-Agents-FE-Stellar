@@ -63,9 +63,7 @@ export function grammarFor(language: string | null | undefined): string {
   if (!language) return "text";
   const key = language.trim().toLowerCase();
   // Own keys only: "constructor" must not find Object.prototype's.
-  return Object.prototype.hasOwnProperty.call(LANG_MAP, key)
-    ? LANG_MAP[key]
-    : "text";
+  return Object.hasOwn(LANG_MAP, key) ? LANG_MAP[key] : "text";
 }
 
 /**
@@ -81,17 +79,16 @@ export function CodeViewer({
   code,
   label,
   maxHeight = 560,
-}: {
+}: Readonly<{
   language?: string | null;
   code: string;
   /** Names the scrollable region for assistive tech — the file it shows. */
   label: string;
   maxHeight?: number;
-}) {
+}>) {
   const lang = grammarFor(language);
   return (
-    <div
-      role="region"
+    <section
       aria-label={label}
       // A region that scrolls must be reachable to scroll: keyboard users
       // otherwise cannot read past the first screen of a long file.
@@ -127,6 +124,6 @@ export function CodeViewer({
       >
         {code}
       </SyntaxHighlighter>
-    </div>
+    </section>
   );
 }

@@ -18,7 +18,9 @@ import { WalletProvider, WalletUnavailable } from "@/lib/wallet";
  * resolves the reference to null, and hydration fails ("Cannot destructure
  * property 'parallelRouterKey'") on a share of loads.
  */
-export function WalletBoundary({ children }: { children: ReactNode }) {
+export function WalletBoundary({
+  children,
+}: Readonly<{ children: ReactNode }>) {
   return (
     <Isolate
       name="wallet"

@@ -79,7 +79,7 @@ export class InterimCountTracker {
 
   observe(sample: CountSample): boolean {
     const run = this.run;
-    if (!run || run.count !== sample.count) {
+    if (run?.count !== sample.count) {
       this.run = sample;
       return false;
     }

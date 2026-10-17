@@ -73,17 +73,16 @@ export function unitsToStroops(units: number): bigint | null {
   if (!Number.isFinite(units) || units < 0) return null;
   const scaled = units * STROOPS_PER_UNIT;
   if (scaled > Number.MAX_SAFE_INTEGER) return null;
-  const floor = Math.floor(scaled);
-  const frac = scaled - floor;
-  const rounded =
-    frac > 0.5
-      ? floor + 1
-      : frac < 0.5
-        ? floor
-        : floor % 2 === 0
-          ? floor
-          : floor + 1;
-  return BigInt(rounded);
+  return BigInt(roundHalfEven(scaled));
+}
+
+/** The nearest whole number, an exact half going to the even neighbour. */
+function roundHalfEven(x: number): number {
+  const floor = Math.floor(x);
+  const frac = x - floor;
+  if (frac > 0.5) return floor + 1;
+  if (frac < 0.5) return floor;
+  return floor % 2 === 0 ? floor : floor + 1;
 }
 
 /**
@@ -122,11 +121,20 @@ export function stroopsToDecimal(
     .toString()
     .padStart(decimals + 1, "0");
   const whole = digits.slice(0, digits.length - decimals);
-  const frac = digits
-    .slice(digits.length - decimals)
-    .replace(/0+$/, "")
-    .padEnd(Math.min(MIN_DISPLAY_DECIMALS, decimals), "0");
-  return `${negative ? "-" : ""}${whole}${frac ? `.${frac}` : ""}`;
+  const frac = dropTrailingZeros(digits.slice(digits.length - decimals)).padEnd(
+    Math.min(MIN_DISPLAY_DECIMALS, decimals),
+    "0",
+  );
+  const point = frac ? "." : "";
+  return `${negative ? "-" : ""}${whole}${point}${frac}`;
+}
+
+/** The digits less their trailing zeros: a scan from the end, where `/0+$/`
+ *  would retry the whole run of zeros from each of its digits. */
+function dropTrailingZeros(digits: string): string {
+  let end = digits.length;
+  while (end > 0 && digits[end - 1] === "0") end--;
+  return digits.slice(0, end);
 }
 
 /**

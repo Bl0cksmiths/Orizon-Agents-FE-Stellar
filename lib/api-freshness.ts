@@ -41,14 +41,20 @@ export function readAtOf(value: unknown): number | null {
  * backend is building the report and has nothing to serve yet. */
 export const COMPUTING_MESSAGE = "the adoption report is still being built";
 
+/** A failure's message: an Error's own, or a thrown string as it is.
+ *  Anything else has none (an object would read "[object Object]"). */
+function messageOf(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === "string" ? error : "";
+}
+
 /**
  * Whether a read was told the backend is still building what it asked for
  * (`202 {"status":"computing"}` from the adoption route): a wait with a
  * Retry-After, never a failure and never a payload.
  */
 export function isComputingError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.includes(COMPUTING_MESSAGE);
+  return messageOf(error).includes(COMPUTING_MESSAGE);
 }
 
 /**
@@ -60,6 +66,5 @@ export function isComputingError(error: unknown): boolean {
  * its connection, which is worth saying.
  */
 export function isWakingError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.includes(WAKING_MESSAGE);
+  return messageOf(error).includes(WAKING_MESSAGE);
 }

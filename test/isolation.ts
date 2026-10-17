@@ -45,5 +45,6 @@ export function unisolated(
   return found;
 }
 
-/** A component, as opposed to an HTML element: a capitalised or dotted tag. */
-export const isComponent = (tag: string) => /^[A-Z]|\./.test(tag);
+/** A component, as opposed to an HTML element: a tag that starts with a
+ *  capital, or has a dot anywhere (`motion.div`). */
+export const isComponent = (tag: string) => /(?:^[A-Z])|(?:\.)/.test(tag);

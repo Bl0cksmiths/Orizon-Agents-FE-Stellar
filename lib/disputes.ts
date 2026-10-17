@@ -39,6 +39,8 @@ import type {
   DisputeStatus,
   DisputeViewer,
   OpenDisputeReq,
+  SealKind,
+  SealState,
   SettlementRemainder,
   SettlementState,
   SettlementStepView,
@@ -1020,26 +1022,32 @@ export function stepPayout(
           payeeRole: step.payee_role ?? null,
         };
       }
-      // The backend's own reason first; the reserved `agt_` prefix only
-      // for a record written before it named one.
-      switch (step.unpaid_reason) {
-        case "no_onchain_owner":
-          return { kind: "platform" };
-        case "free":
-          return { kind: "not_billed", reason: "free" };
-        case "owner_unreadable":
-          return { kind: "not_billed", reason: "owner_unreadable" };
-        case "over_authorized_cap":
-          return { kind: "not_billed", reason: "over_cap" };
-        case undefined:
-        case null:
-          return isPlatformAgent(step.agent_id)
-            ? { kind: "platform" }
-            : { kind: "not_paid" };
-        default:
-          return { kind: "not_paid" };
-      }
+      return unpaidPayout(step);
     }
+  }
+}
+
+/**
+ * Why a settled step was paid nothing: the backend's own reason first; the
+ * reserved `agt_` prefix only for a record written before it named one.
+ */
+function unpaidPayout(step: SettlementStepView): StepPayout {
+  switch (step.unpaid_reason) {
+    case "no_onchain_owner":
+      return { kind: "platform" };
+    case "free":
+      return { kind: "not_billed", reason: "free" };
+    case "owner_unreadable":
+      return { kind: "not_billed", reason: "owner_unreadable" };
+    case "over_authorized_cap":
+      return { kind: "not_billed", reason: "over_cap" };
+    case undefined:
+    case null:
+      return isPlatformAgent(step.agent_id)
+        ? { kind: "platform" }
+        : { kind: "not_paid" };
+    default:
+      return { kind: "not_paid" };
   }
 }
 
@@ -1087,6 +1095,37 @@ export function settlementRemainder(
   }
 }
 
+/** The run's seal and what it attests, each only where the backend says. */
+function sealFields(res: TaskDisputes): {
+  seal?: SealState | null;
+  sealKind?: SealKind | null;
+} {
+  return {
+    ...(res.seal === undefined ? {} : { seal: res.seal }),
+    ...(res.seal_kind === undefined ? {} : { sealKind: res.seal_kind }),
+  };
+}
+
+/** The receipt of a run with no settlement on record. */
+function notSettledView(
+  res: TaskDisputes,
+  workflowDone: boolean,
+  waitOver: boolean,
+): DisputePanelView {
+  const settlementState = res.settlement_state;
+  return {
+    kind: "not_settled",
+    running: !workflowDone,
+    ...(settlementState === undefined ? {} : { settlementState }),
+    ...(settlementState === "unconfirmed" && waitOver
+      ? { settlementStoppedChecking: true }
+      : {}),
+    // A delivery-only run seals with no settlement: its attestation is
+    // still this receipt's to state.
+    ...sealFields(res),
+  };
+}
+
 /**
  * The whole receipt panel from the backend's answer, the connected wallet,
  * whether the run has finished, and the clock — the panel renders this and
@@ -1120,19 +1159,7 @@ export function disputeView(input: {
   const settlement = res.settlement;
   const settlementState = res.settlement_state;
   if (settlement === undefined) return HIDDEN;
-  if (settlement === null)
-    return {
-      kind: "not_settled",
-      running: !workflowDone,
-      ...(settlementState === undefined ? {} : { settlementState }),
-      ...(settlementState === "unconfirmed" && waitOver
-        ? { settlementStoppedChecking: true }
-        : {}),
-      // A delivery-only run seals with no settlement: its attestation is
-      // still this receipt's to state.
-      ...(res.seal === undefined ? {} : { seal: res.seal }),
-      ...(res.seal_kind === undefined ? {} : { sealKind: res.seal_kind }),
-    };
+  if (settlement === null) return notSettledView(res, workflowDone, waitOver);
 
   const viewer = viewerOf(settlement.payer, viewerAddress);
   const closesAtMs = settlement.window_closes_at * 1_000;
@@ -1172,8 +1199,7 @@ export function disputeView(input: {
     // The seal's own hash, from the task, once known: the settlement record
     // was written before the seal confirmed and may not carry it.
     proofTx: res.proof_tx ?? settlement.proof_tx,
-    ...(res.seal === undefined ? {} : { seal: res.seal }),
-    ...(res.seal_kind === undefined ? {} : { sealKind: res.seal_kind }),
+    ...sealFields(res),
     policy: settlement.policy,
     steps,
     ...(settlementState === undefined ? {} : { settlementState }),
