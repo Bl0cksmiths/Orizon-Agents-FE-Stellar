@@ -11,6 +11,7 @@
 import { ApiError, bindErrorCode } from "./api";
 import { botCheckMessage } from "./bot-check-message";
 import { rateLimitMessage } from "./rate-limit-message";
+import { storeOutage } from "./store-outage";
 import type { BindChallenge, BindTimestamp } from "./types";
 
 /**
@@ -274,6 +275,23 @@ export function bindErrorView(err: unknown): BindErrorView {
   const unverified = botCheckMessage(err);
   if (unverified) {
     return { placement: "banner", message: unverified, retryable: true };
+  }
+
+  // The binding records' store unreachable — a 503 naming it — where an
+  // older backend answered 500 and the operator read "internal server
+  // error". The store is where a binding is written, so nothing was bound,
+  // and the same attempt works once it is back: after the wait the backend
+  // asked for, which the screen holds the submit to.
+  const outage = storeOutage(err);
+  if (outage?.kind === "store") {
+    const view: BindErrorView = {
+      placement: "banner",
+      message:
+        "The endpoint binding records are temporarily unreachable, so nothing was bound. Try again in a moment.",
+      retryable: true,
+    };
+    if (outage.retryAfterMs !== null) view.retryAfterMs = outage.retryAfterMs;
+    return view;
   }
 
   switch (bindErrorCode(err)) {
