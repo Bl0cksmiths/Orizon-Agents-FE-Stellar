@@ -16,7 +16,7 @@
  * there; what is left here is state and markup.
  */
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -28,6 +28,7 @@ import {
 } from "@/lib/api";
 import {
   bindErrorView,
+  bindingOutageText,
   bindPhaseMessage,
   challengeExpiresAtMs,
   endpointRefusalText,
@@ -43,8 +44,10 @@ import {
 } from "@/lib/bind-ui";
 import { TRUST_BOUNDARY } from "@/lib/binding-status";
 import { validateAgentId } from "@/lib/register-validation";
+import { storeOutage } from "@/lib/store-outage";
 import { useAsyncAction } from "@/lib/use-async-action";
 import { useFetch } from "@/lib/use-fetch";
+import { useOutageRetry } from "@/lib/use-outage-retry";
 import { useWallet } from "@/lib/wallet";
 import { classifyError, type FriendlyError } from "@/lib/wallet-errors";
 import { focusRing, inlineLink } from "@/lib/ui";
@@ -138,7 +141,23 @@ function BindPageInner() {
     data: currentBinding,
     pending: bindingLoading,
     error: bindingLookupFailed,
+    cause: bindingLookupCause,
   } = useAsyncAction(getAgentBindingOrNull);
+
+  // A read that met an outage — the binding records unreachable, or a 5xx a
+  // moment cures — is said in words and asked again on its own, backed off
+  // and bounded (lib/use-outage-retry), for the agent the field names now.
+  // The cause outlives the retry in flight, so the note stays up while it is
+  // out rather than flickering to "reading…" and back on every attempt.
+  const bindingOutage = useMemo(
+    () => storeOutage(bindingLookupCause),
+    [bindingLookupCause],
+  );
+  const retryBindingLookup = useCallback(() => {
+    if (agentIdError === null) void lookUpBinding(agentId);
+  }, [agentId, agentIdError, lookUpBinding]);
+  const { gaveUp: bindingRetriesSpent, resetBudget: resetBindingRetries } =
+    useOutageRetry(bindingOutage, retryBindingLookup);
 
   useEffect(() => {
     resetBindingLookup();
@@ -451,6 +470,31 @@ function BindPageInner() {
                 <p className="font-mono text-[11px] text-muted">
                   enter an agent id to see what it points at today
                 </p>
+              ) : bindingOutage !== null ? (
+                <>
+                  <ErrorNote
+                    className="border-0 bg-transparent p-0 text-[11px]"
+                    onRetry={() => {
+                      resetBindingRetries();
+                      retryBindingLookup();
+                    }}
+                    retrying={bindingLoading}
+                    retryLabel="retry"
+                  >
+                    {bindingOutageText(bindingOutage)}
+                  </ErrorNote>
+                  {/* Beside the alert, not in it: a change inside an alert is
+                      spoken again, assertively, and this one only says what
+                      the panel is doing about it. */}
+                  <output
+                    aria-live="polite"
+                    className="mt-1 block font-mono text-[11px] text-muted"
+                  >
+                    {bindingRetriesSpent
+                      ? "Stopped retrying automatically — press retry to try again."
+                      : "Retrying automatically."}
+                  </output>
+                </>
               ) : bindingLoading ? (
                 <p className="font-mono text-[11px] text-muted">
                   ◉ reading the registry…
