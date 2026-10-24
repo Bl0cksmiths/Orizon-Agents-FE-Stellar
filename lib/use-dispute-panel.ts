@@ -23,6 +23,11 @@
  * - `refresh()` refetches and resolves once the answer is on screen. It never
  *   rejects: a failure lands in `error`. The page calls it after a submit and
  *   on `duplicate_dispute`.
+ * - `outage` is set beside `error` when the failure is one a moment cures —
+ *   the backend's record store unreachable (503 `store_unavailable`), or a
+ *   500/502/504 — and the hook then retries on its own, backed off and
+ *   bounded (`useOutageRetry`), keeping the banner up meanwhile rather than
+ *   flashing a skeleton. `outageGaveUp` says the retries are spent.
  * - `adopt(dispute)` folds a dispute the server itself returned — the one a
  *   submit resolved to, or the original a `duplicate_dispute` refusal
  *   carries — into the view at once, without a read. It holds until a read
@@ -54,6 +59,7 @@ import {
 import { storeOutage, type StoreOutage } from "./store-outage";
 import type { Dispute, DisputePanelView, TaskDisputes } from "./types";
 import { toMessage } from "./use-async-action";
+import { useOutageRetry } from "./use-outage-retry";
 import { useWallet } from "./wallet";
 
 const HOUR_MS = 3_600_000;
@@ -378,6 +384,11 @@ export type UseDisputePanelResult = {
    * rather than print `error`, which is the technical line. Null otherwise.
    */
   outage: StoreOutage | null;
+  /**
+   * The outage's automatic retries are spent (lib/use-outage-retry), so
+   * nothing more is asked until `refresh()` is.
+   */
+  outageGaveUp: boolean;
   refresh: () => Promise<void>;
   /** Server clock minus local clock, in ms; 0 while nothing measured it. */
   offsetMs: number;
@@ -656,12 +667,6 @@ export function useDisputePanel(
     void load(target, doneRef.current);
   }, [target, address, state, load]);
 
-  const refresh = useCallback(async (): Promise<void> => {
-    const id = targetRef.current;
-    if (id === null) return;
-    await load(id, doneRef.current);
-  }, [load]);
-
   const adopt = useCallback((dispute: Dispute): void => {
     const id = targetRef.current;
     if (id === null || dispute.task_id !== id) return;
@@ -867,11 +872,37 @@ export function useDisputePanel(
     };
   }, [target, pollMs, moving, state, load]);
 
+  // An outage's own retries (lib/use-outage-retry): backed off, bounded,
+  // paused in a hidden tab. Only while nothing else reads — a receipt the
+  // poll above re-reads on its cadence is already being asked again, and a
+  // second timer would double the reads on a backend that is struggling.
+  // Quiet, so the banner stays up while each attempt is out.
+  const retryQuietly = useCallback(() => {
+    const id = targetRef.current;
+    if (id === null || inFlightRef.current) return;
+    void load(id, doneRef.current, true);
+  }, [load]);
+  const { gaveUp, resetBudget } = useOutageRetry(
+    outage,
+    retryQuietly,
+    pollMs === null,
+  );
+
+  // Asked for by the page — a reader's Retry, a submit, a refusal — so the
+  // outage's retry budget starts afresh: someone is watching again.
+  const refresh = useCallback(async (): Promise<void> => {
+    const id = targetRef.current;
+    if (id === null) return;
+    resetBudget();
+    await load(id, doneRef.current);
+  }, [load, resetBudget]);
+
   return {
     view,
     loading,
     error,
     outage,
+    outageGaveUp: gaveUp,
     refresh,
     offsetMs: snapshot?.offsetMs ?? 0,
     adopt,

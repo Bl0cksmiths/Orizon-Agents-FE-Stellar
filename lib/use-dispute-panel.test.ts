@@ -44,6 +44,7 @@ import {
   pendingKey,
   useDisputePanel,
 } from "./use-dispute-panel";
+import { OUTAGE_MAX_RETRIES } from "./use-outage-retry";
 
 // The wallet hands the hook a `signMessage` it must never call: a poll, a
 // refresh, a dropped grant — nothing here may put a prompt in front of the
@@ -1367,7 +1368,7 @@ describe("useDisputePanel — the run finishing", () => {
     expect(result.current.error).toBeNull();
   });
 
-  it("spends that seal once: a second failure is an error to retry by hand", async () => {
+  it("spends that seal once: a second failure is left to the outage's bounded retries, then to a hand", async () => {
     const first = deferred<TaskDisputes>();
     fetchDisputes.mockReturnValueOnce(first.promise);
     const { result, rerender } = mount({ workflowDone: false });
@@ -1383,8 +1384,14 @@ describe("useDisputePanel — the run finishing", () => {
     expect(fetchDisputes).toHaveBeenCalledTimes(2);
     expect(result.current.error).toBe("GET /tasks/task_a/disputes → 503");
 
-    await advance(10 * M);
-    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    // A 503 is an outage, so it is asked again on its own — on the outage's
+    // budget, never on the seal a second time, and never past that budget.
+    fetchDisputes.mockRejectedValue(
+      new ApiError("GET /tasks/task_a/disputes → 503", 503),
+    );
+    await stepThrough(10 * M);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2 + OUTAGE_MAX_RETRIES);
+    expect(result.current.outageGaveUp).toBe(true);
   });
 
   it("reads again when the run finishes after an answer has landed", async () => {
