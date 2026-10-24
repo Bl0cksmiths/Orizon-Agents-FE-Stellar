@@ -386,6 +386,33 @@ describe("bindErrorView", () => {
     expect(view.message).toMatch(/nothing was changed/i);
   });
 
+  it("banners a binding store outage as nothing bound, holding the submit for its Retry-After", () => {
+    const view = bindErrorView(
+      new ApiError(
+        "POST /agents/weather_bot/bind → 503 — store unavailable",
+        503,
+        5_000,
+        "store_unavailable",
+      ),
+    );
+    expect(view).toEqual({
+      placement: "banner",
+      message:
+        "The endpoint binding records are temporarily unreachable, so nothing was bound. Try again in a moment.",
+      retryable: true,
+      retryAfterMs: 5_000,
+    });
+  });
+
+  it("keeps the registry's own 503 apart, and invents no wait for a store outage", () => {
+    expect(
+      bindErrorView(bindError("registry_unavailable", 503)).message,
+    ).toMatch(/agent registry/i);
+    expect(
+      bindErrorView(bindError("store_unavailable", 503)).retryAfterMs,
+    ).toBeUndefined();
+  });
+
   it("honours the limiter's Retry-After on a 429", () => {
     const view = bindErrorView(
       new ApiError("POST /x → 429 — rate limited", 429, 7_000, "rate_limited"),
