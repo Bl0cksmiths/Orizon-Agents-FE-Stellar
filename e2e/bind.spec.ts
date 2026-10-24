@@ -99,4 +99,65 @@ test.describe("agent endpoint binding", () => {
       page.getByRole("button", { name: /Bind endpoint/i }),
     ).toBeDisabled();
   });
+
+  // The production incident's other face: the database down, and the
+  // current-binding read answered 500. The backend now says 503
+  // `store_unavailable` with a Retry-After; the panel says so in words and
+  // asks again on its own, after the wait it was given.
+  test("a binding read that meets a store outage says so, waits, and asks again", async ({
+    page,
+  }) => {
+    await page.clock.install({ time: Date.now() });
+    await mockWallet(page);
+    await mockApi(page);
+    let failing = true;
+    let reads = 0;
+    await page.route(
+      (url) => url.pathname === `/api/agents/${mockBindAgentId}/binding`,
+      async (route) => {
+        reads += 1;
+        if (!failing) return route.fallback();
+        return route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          headers: { "Retry-After": "30" },
+          body: JSON.stringify({
+            detail: "store_unavailable",
+            error: {
+              code: "store_unavailable",
+              message: "store unavailable",
+              request_id: "e2e0000000000503",
+            },
+          }),
+        });
+      },
+    );
+    await page.goto("/app/bind");
+    await page.getByLabel("agent id").fill(mockBindAgentId);
+
+    const note = page.getByRole("alert").filter({
+      hasText: "binding records are temporarily unreachable",
+    });
+    await expect(note).toHaveText(
+      /^⚠ The endpoint binding records are temporarily unreachable, so the current binding can't be read yet\./,
+    );
+    await expect(note).not.toContainText("503");
+    await expect(note).not.toContainText("GET /agents");
+    await expect(page.getByText("Retrying automatically.")).toBeVisible();
+    await page.waitForTimeout(1_000);
+    const asked = reads;
+
+    // Not before the thirty seconds the backend asked for — the page's clock
+    // runs on in real time too, so this stops well short of them…
+    await page.clock.runFor(20_000);
+    await page.waitForTimeout(1_000);
+    expect(reads).toBe(asked);
+
+    // …and then once, which finds the records back.
+    failing = false;
+    await page.clock.runFor(12_000);
+    await expect(page.getByText(/no endpoint bound yet/)).toBeVisible();
+    expect(reads).toBe(asked + 1);
+    await expect(note).toHaveCount(0);
+  });
 });
