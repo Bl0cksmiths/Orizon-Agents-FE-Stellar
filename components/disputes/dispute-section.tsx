@@ -524,12 +524,16 @@ export const DisputeSection = memo(function DisputeSection({
   return (
     <AmountAssetProvider asset={asset}>
       <div className="flex flex-col gap-4">
-        {/* Mounted with the panel, empty, so a change is announced: it must
-            exist before its text does. Out of flow (sr-only is absolute), so
-            it takes no gap in the stack. */}
-        <output aria-live="polite" className="sr-only">
-          {outageNotice}
-        </output>
+        {/* Mounted from the first outage on, and kept, so the changes after
+            it are announced — a region has to exist before its text changes,
+            and the outage's own start is the alert's to say. A receipt that
+            never met one carries no extra status. Out of flow (sr-only is
+            absolute), so it takes no gap in the stack. */}
+        {(outageShown || outageNotice !== "") && (
+          <output aria-live="polite" className="sr-only">
+            {outageNotice}
+          </output>
+        )}
         {error && outage ? (
           // An outage, said in words: the technical line is folded away
           // beneath it, and the panel retries on its own meanwhile.
