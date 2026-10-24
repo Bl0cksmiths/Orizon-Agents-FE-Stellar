@@ -19,6 +19,8 @@ vi.mock("@/lib/use-dispute-panel", () => ({
     view: panel.view,
     loading: false,
     error: null,
+    outage: null,
+    outageGaveUp: false,
     refresh: vi.fn(),
     offsetMs: 0,
     adopt: vi.fn(),
