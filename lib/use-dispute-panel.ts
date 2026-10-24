@@ -455,7 +455,11 @@ export function useDisputePanel(
   }, []);
 
   const load = useCallback(
-    async (id: string, doneAtRequest: boolean): Promise<void> => {
+    async (
+      id: string,
+      doneAtRequest: boolean,
+      quiet = false,
+    ): Promise<void> => {
       const epoch = ++epochRef.current;
       lastReadAtMs.current = Date.now();
       sealedInFlightRef.current = false;
@@ -478,10 +482,13 @@ export function useDisputePanel(
       // With nothing on screen, a new attempt is loading again rather than
       // failing again: the old error goes, so the two never show together.
       // With a view on screen, it stays — and so does any error that dates it.
+      // A QUIET attempt — an outage's automatic retry — leaves the error up
+      // either way: flipping the banner to a skeleton and back on every try
+      // would flash it, and re-announce its alert each time.
       setState((s) =>
         s.taskId !== id
           ? { taskId: id, snapshot: null, error: null, outage: null }
-          : s.snapshot === null
+          : s.snapshot === null && !quiet
             ? { ...s, error: null, outage: null }
             : s,
       );
