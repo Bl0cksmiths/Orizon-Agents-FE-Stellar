@@ -44,7 +44,7 @@ import {
   pendingKey,
   useDisputePanel,
 } from "./use-dispute-panel";
-import { OUTAGE_MAX_RETRIES } from "./use-outage-retry";
+import { OUTAGE_MAX_RETRIES, OUTAGE_RETRY_BASE_MS } from "./use-outage-retry";
 
 // The wallet hands the hook a `signMessage` it must never call: a poll, a
 // refresh, a dropped grant — nothing here may put a prompt in front of the
@@ -2661,5 +2661,159 @@ describe("useDisputePanel — what it must never do, and whose answer wins", () 
       task_id: "task_b",
     });
     expect(settledOf(result.current.view).jobIdHex).toBe(JOB_B);
+  });
+});
+
+describe("useDisputePanel — an outage of the dispute records", () => {
+  /** The backend's answer while its record store is unreachable. */
+  const storeDown = (retryAfterS?: number) =>
+    new ApiError(
+      "GET /tasks/task_a/disputes → 503 — store unavailable",
+      503,
+      retryAfterS === undefined ? undefined : retryAfterS * S,
+      "store_unavailable",
+      {
+        error: {
+          code: "store_unavailable",
+          message: "store unavailable",
+          request_id: "req_1",
+        },
+      },
+    );
+
+  function setVisibility(state: DocumentVisibilityState) {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => state,
+    });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(document, "visibilityState");
+  });
+
+  it("says what failed, and asks again on its own once Retry-After has passed", async () => {
+    fetchDisputes.mockRejectedValueOnce(storeDown(5));
+    const { result } = mount();
+    await act(async () => {});
+    expect(result.current).toMatchObject({
+      loading: false,
+      error: "GET /tasks/task_a/disputes → 503 — store unavailable",
+      outage: { kind: "store", retryAfterMs: 5 * S, requestId: "req_1" },
+      outageGaveUp: false,
+    });
+
+    const retry = nextRead();
+    await advance(5 * S - 1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    // Quiet: the banner stays up while the retry is out — no skeleton.
+    expect(result.current).toMatchObject({
+      loading: false,
+      outage: { kind: "store" },
+    });
+
+    await land(retry, answer(23 * H));
+    expect(result.current).toMatchObject({
+      loading: false,
+      error: null,
+      outage: null,
+    });
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("retries a receipt already on screen without denying it", async () => {
+    const { result } = await mountWith(answer(23 * H));
+    fetchDisputes.mockRejectedValueOnce(storeDown());
+    await act(() => result.current.refresh());
+    expect(result.current.outage?.kind).toBe("store");
+    expect(result.current.view.kind).toBe("settled");
+
+    fetchDisputes.mockResolvedValueOnce(answer(23 * H));
+    await advance(OUTAGE_RETRY_BASE_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+    expect(result.current.error).toBeNull();
+    expect(result.current.outage).toBeNull();
+  });
+
+  it("leaves the retrying to the poll while the receipt is polled", async () => {
+    const { result } = await mountWith(closedWith(dsp(1, "open")));
+    fetchDisputes.mockRejectedValue(storeDown(5));
+    await advance(ADJUDICATION_POLL_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.outage?.kind).toBe("store");
+
+    // Not on the outage's 5 s: on the poll's own cadence, one read each.
+    await stepThrough(ADJUDICATION_POLL_MS - S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    await advance(S);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives up after its budget, and a reader's retry starts a fresh one", async () => {
+    fetchDisputes.mockRejectedValue(storeDown());
+    const { result } = mount();
+    await act(async () => {});
+    await stepThrough(10 * M);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1 + OUTAGE_MAX_RETRIES);
+    expect(result.current.outageGaveUp).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+
+    await act(() => result.current.refresh());
+    expect(fetchDisputes).toHaveBeenCalledTimes(2 + OUTAGE_MAX_RETRIES);
+    expect(result.current.outageGaveUp).toBe(false);
+    await advance(OUTAGE_RETRY_BASE_MS);
+    expect(fetchDisputes).toHaveBeenCalledTimes(3 + OUTAGE_MAX_RETRIES);
+  });
+
+  it("asks nothing while the tab is hidden, and asks on return", async () => {
+    fetchDisputes.mockRejectedValueOnce(storeDown());
+    const { result } = mount();
+    await act(async () => {});
+    setVisibility("hidden");
+    expect(vi.getTimerCount()).toBe(0);
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+
+    fetchDisputes.mockResolvedValueOnce(answer(23 * H));
+    setVisibility("visible");
+    await advance(0);
+    expect(fetchDisputes).toHaveBeenCalledTimes(2);
+    expect(result.current.view.kind).toBe("settled");
+  });
+
+  it("stops asking once unmounted", async () => {
+    fetchDisputes.mockRejectedValueOnce(storeDown());
+    const { unmount } = mount();
+    await act(async () => {});
+    unmount();
+    await advance(H);
+    expect(fetchDisputes).toHaveBeenCalledTimes(1);
+  });
+
+  it("never retries on its own what is not an outage", async () => {
+    for (const err of [
+      new Error("Failed to fetch"),
+      new Error("GET /tasks/task_a/disputes → timeout after 60s"),
+      new ApiError(
+        "GET /tasks/task_a/disputes → 403",
+        403,
+        undefined,
+        "forbidden",
+      ),
+    ]) {
+      fetchDisputes.mockReset();
+      fetchDisputes.mockRejectedValueOnce(err);
+      const { result, unmount } = mount();
+      await act(async () => {});
+      expect(result.current.outage).toBeNull();
+      await advance(10 * M);
+      expect(fetchDisputes).toHaveBeenCalledTimes(1);
+      unmount();
+    }
   });
 });
