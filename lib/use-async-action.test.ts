@@ -160,6 +160,55 @@ describe("useAsyncAction", () => {
     expect(result.current.data).toBe("first");
   });
 
+  it("keeps the last rejection as thrown, through the retry that answers it", async () => {
+    const thrown = new ApiError("GET /x → 503 — store unavailable", 503);
+    const next = deferred<string>();
+    let attempt = 0;
+    const { result } = renderHook(() =>
+      useAsyncAction(async () => {
+        attempt += 1;
+        if (attempt === 1) throw thrown;
+        return next.promise;
+      }),
+    );
+    expect(result.current.cause).toBeNull();
+
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.cause).toBe(thrown);
+
+    // While the retry is out, the error is cleared but its cause is not.
+    let retry: Promise<string | undefined>;
+    act(() => {
+      retry = result.current.run();
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.cause).toBe(thrown);
+
+    await act(async () => {
+      next.resolve("back");
+      await retry;
+    });
+    expect(result.current.cause).toBeNull();
+  });
+
+  it("reset() clears the cause too", async () => {
+    const { result } = renderHook(() =>
+      useAsyncAction(async () => {
+        throw new Error("boom");
+      }),
+    );
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.cause).toBeInstanceOf(Error);
+    act(() => {
+      result.current.reset();
+    });
+    expect(result.current.cause).toBeNull();
+  });
+
   it("reset() clears data and error", async () => {
     const { result } = renderHook(() => useAsyncAction(async () => "value"));
     await act(async () => {
