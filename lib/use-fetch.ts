@@ -110,7 +110,11 @@ export function retryAfterHintMs(error: unknown): number | null {
 }
 
 /** Delay before retry `attempt` (0-based), honouring a Retry-After hint. */
-function retryDelayMs(attempt: number, baseMs: number, error: unknown): number {
+export function retryDelayMs(
+  attempt: number,
+  baseMs: number,
+  error: unknown,
+): number {
   const backoff = Math.min(baseMs * 2 ** attempt, MAX_BACKOFF_MS);
   const hint = retryAfterHintMs(error);
   return Math.min(
