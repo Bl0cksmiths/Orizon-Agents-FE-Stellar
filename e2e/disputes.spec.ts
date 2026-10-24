@@ -1218,6 +1218,48 @@ test.describe("dispute action on the trace / receipt view", () => {
     expect(reads).toBe(asked + OUTAGE_MAX_RETRIES + 1);
   });
 
+  test("a store outage over a receipt on screen dates it, and keeps it", async ({
+    page,
+  }) => {
+    let failing = false;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            (route) =>
+              failing ? storeUnavailable(route, 5) : route.fallback(),
+          );
+        },
+      },
+    );
+    await expect(receipt(page)).toBeVisible();
+
+    // Raising a dispute re-reads the receipt; that read meets the outage.
+    const form = await openDialog(page, codeStep.agent_id);
+    await form
+      .getByRole("textbox", { name: /your reason/i })
+      .fill("the calculator app does not compute anything");
+    failing = true;
+    await form.getByRole("button", { name: /sign and submit/i }).click();
+    await expect(form).toContainText("dispute raised");
+    await form.getByRole("button", { name: "Done" }).click();
+
+    const alert = page.locator("main").getByRole("alert");
+    await expect(alert).toContainText("this receipt may be out of date");
+    await expect(alert).toContainText(
+      "the dispute records are temporarily unreachable, so it is shown as last read. Nothing already settled on-chain is affected.",
+    );
+    await expect(alert).not.toContainText("receipt unavailable");
+    await expect(alert).not.toContainText("GET /tasks");
+    await expect(receipt(page)).toBeVisible();
+    await expect(stepRow(page, codeStep.agent_id)).toContainText(
+      "Under review",
+    );
+  });
+
   // While the receipt loads, the region says so to assistive technology:
   // busy, with a status line naming what is loading — and stops saying it
   // once the receipt is in.
