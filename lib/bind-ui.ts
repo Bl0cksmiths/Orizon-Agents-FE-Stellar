@@ -11,7 +11,7 @@
 import { ApiError, bindErrorCode } from "./api";
 import { botCheckMessage } from "./bot-check-message";
 import { rateLimitMessage } from "./rate-limit-message";
-import { storeOutage } from "./store-outage";
+import { storeOutage, type StoreOutage } from "./store-outage";
 import type { BindChallenge, BindTimestamp } from "./types";
 
 /**
@@ -365,6 +365,19 @@ export function bindErrorView(err: unknown): BindErrorView {
         retryable: true,
       };
   }
+}
+
+/**
+ * What the current-binding panel says when its read met an outage, in place
+ * of "Couldn't read the current binding": the binding records unreachable
+ * (503 `store_unavailable`), or a 5xx that named nothing. It says what
+ * failed and no more — a failed read knows nothing of the binding — and the
+ * panel asks again on its own.
+ */
+export function bindingOutageText(outage: StoreOutage): string {
+  return outage.kind === "store"
+    ? "⚠ The endpoint binding records are temporarily unreachable, so the current binding can't be read yet."
+    : "⚠ The server couldn't read the current binding just now.";
 }
 
 /**
