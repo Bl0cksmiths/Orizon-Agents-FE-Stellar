@@ -57,6 +57,25 @@ const DISPUTES_READ = /\/api\/tasks\/[^/]+\/disputes$/;
 const nowS = () => Math.floor(Date.now() / 1000);
 
 /**
+ * The receipt read as the backend answers it while its record store is
+ * unreachable: 503 `store_unavailable`, with how long to wait.
+ */
+const storeUnavailable = (route: Route, retryAfterS: number) =>
+  route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    headers: { "Retry-After": String(retryAfterS) },
+    body: JSON.stringify({
+      detail: "store_unavailable",
+      error: {
+        code: "store_unavailable",
+        message: "store unavailable",
+        request_id: "e2e0000000000503",
+      },
+    }),
+  });
+
+/**
  * Opens the trace page on the settled workflow and waits for the run to
  * finish replaying — the receipt is only asked for once the stream seals.
  */
@@ -1046,6 +1065,94 @@ test.describe("dispute action on the trace / receipt view", () => {
     await expect(receipt(page)).toBeVisible();
     await expect(disputeButtons(page)).toHaveCount(2);
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+  });
+
+  // The production incident: the backend's database down, and the receipt
+  // printing `GET /tasks/…/disputes → 500 — internal server error` at the
+  // buyer. The backend now answers 503 `store_unavailable` with a
+  // Retry-After; the receipt says that in words, waits as long as it was
+  // asked to, and asks again on its own.
+  test("a store outage is said in words, retried after Retry-After, and its end announced", async ({
+    page,
+  }) => {
+    await page.clock.install({ time: Date.now() });
+    let failing = true;
+    let reads = 0;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            async (route) => {
+              reads += 1;
+              if (failing) await storeUnavailable(route, 20);
+              else await route.fallback();
+            },
+          );
+        },
+      },
+    );
+
+    const alert = page.locator("main").getByRole("alert");
+    await expect(alert).toContainText("receipt unavailable");
+    await expect(alert).toContainText(
+      "the dispute records are temporarily unreachable",
+    );
+    // The request line is not the reader's business, and is not printed…
+    await expect(alert).not.toContainText("GET /tasks");
+    await expect(alert).not.toContainText("503");
+    await expect(page.getByText(/internal server error/)).toHaveCount(0);
+    // …but it is one press away, folded, for a support request.
+    const detail = page.locator("main details").filter({
+      has: page.getByText("technical detail"),
+    });
+    await expect(detail).not.toHaveAttribute("open");
+    await detail.getByText("technical detail").click();
+    await expect(detail).toContainText("/disputes → 503");
+    await expect(detail).toContainText("request id e2e0000000000503");
+    // The trace is the stream's, whatever this read did.
+    await expect(page.getByText("seo.brief → outline drafted")).toBeVisible();
+    await expect(receipt(page)).toHaveCount(0);
+    // The reads the page made on its own account — on mount, and again when
+    // the run sealed — before any retry is due.
+    await networkBeat(page);
+    const asked = reads;
+
+    // Every text the polite region is given, in order: what a screen reader
+    // hears of the outage beyond the alert itself.
+    const region = page
+      .locator("main output[aria-live='polite']")
+      .filter({ hasText: "Retrying automatically." });
+    await expect(region).toHaveCount(1);
+    await region.evaluate((node) => {
+      const heard: string[] = [];
+      Object.assign(window, { __heard: heard });
+      new MutationObserver(() => {
+        const text = node.textContent ?? "";
+        if (text) heard.push(text);
+      }).observe(node, { childList: true, characterData: true, subtree: true });
+    });
+    const heard = () =>
+      page.evaluate(() => (window as unknown as { __heard: string[] }).__heard);
+
+    // Not before the twenty seconds the backend asked for.
+    await page.clock.runFor(15_000);
+    await networkBeat(page);
+    expect(reads).toBe(asked);
+    await expect(alert).toContainText("receipt unavailable");
+
+    // The records come back; the retry that falls due finds them.
+    failing = false;
+    await runToNextRead(page, () => reads);
+    expect(reads).toBe(asked + 1);
+    await expect(receipt(page)).toBeVisible();
+    await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+    await expect(disputeButtons(page)).toHaveCount(2);
+    expect(await heard()).toEqual([
+      "The dispute records are reachable again — the receipt is up to date.",
+    ]);
   });
 
   // While the receipt loads, the region says so to assistive technology:
