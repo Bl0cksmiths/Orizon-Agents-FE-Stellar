@@ -1090,7 +1090,7 @@ test.describe("dispute action on the trace / receipt view", () => {
             (url) => DISPUTES_READ.test(url.pathname),
             async (route) => {
               reads += 1;
-              if (failing) await storeUnavailable(route, 20);
+              if (failing) await storeUnavailable(route, 30);
               else await route.fallback();
             },
           );
@@ -1140,8 +1140,9 @@ test.describe("dispute action on the trace / receipt view", () => {
     const heard = () =>
       page.evaluate(() => (window as unknown as { __heard: string[] }).__heard);
 
-    // Not before the twenty seconds the backend asked for.
-    await page.clock.runFor(15_000);
+    // Not before the thirty seconds the backend asked for — the page's
+    // clock runs on in real time too, so this stops well short of them.
+    await page.clock.runFor(20_000);
     await networkBeat(page);
     expect(reads).toBe(asked);
     await expect(alert).toContainText("receipt unavailable");
