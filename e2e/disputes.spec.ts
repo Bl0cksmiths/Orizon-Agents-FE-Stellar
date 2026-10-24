@@ -75,6 +75,9 @@ const storeUnavailable = (route: Route, retryAfterS: number) =>
     }),
   });
 
+/** Automatic retries per outage (lib/use-outage-retry.ts). */
+const OUTAGE_MAX_RETRIES = 8;
+
 /**
  * Opens the trace page on the settled workflow and waits for the run to
  * finish replaying — the receipt is only asked for once the stream seals.
@@ -1153,6 +1156,66 @@ test.describe("dispute action on the trace / receipt view", () => {
     expect(await heard()).toEqual([
       "The dispute records are reachable again — the receipt is up to date.",
     ]);
+  });
+
+  test("a store outage stops retrying after its budget, says so, and a keyboard retry brings the receipt", async ({
+    page,
+  }) => {
+    await page.clock.install({ time: Date.now() });
+    let failing = true;
+    let reads = 0;
+    await openTrace(
+      page,
+      { settlement: mockSettlementView({ settledAtS: nowS() - HOUR_S }) },
+      {
+        routes: async (p) => {
+          await p.route(
+            (url) => DISPUTES_READ.test(url.pathname),
+            async (route) => {
+              reads += 1;
+              if (failing) await storeUnavailable(route, 5);
+              else await route.fallback();
+            },
+          );
+        },
+      },
+    );
+    const alert = page.locator("main").getByRole("alert");
+    await expect(alert).toContainText("receipt unavailable");
+    // Drawn beside the alert for the eye; the polite region says it aloud.
+    const status = page.locator("main p[aria-hidden='true']").filter({
+      hasText: /retrying automatically/i,
+    });
+    await expect(status).toHaveText("Retrying automatically.");
+    // The page's own reads, on mount and at the seal, before any retry.
+    await networkBeat(page);
+    const asked = reads;
+
+    // Eight automatic retries, each on its backoff, and then no more.
+    for (let i = 0; i < OUTAGE_MAX_RETRIES; i += 1) {
+      await runToNextRead(page, () => reads);
+    }
+    expect(reads).toBe(asked + OUTAGE_MAX_RETRIES);
+    await expect(status).toHaveText(
+      "Stopped retrying automatically — press retry to try again.",
+    );
+    await expect(
+      page.locator("main output.sr-only[aria-live='polite']"),
+    ).toHaveText("Stopped retrying automatically — press retry to try again.");
+    await page.clock.runFor(10 * 60_000);
+    await networkBeat(page);
+    expect(reads).toBe(asked + OUTAGE_MAX_RETRIES);
+    // Said once, in the alert, however many times it was asked.
+    await expect(alert).toHaveCount(1);
+
+    // The reader asks, from the keyboard, and the records are back.
+    failing = false;
+    const retry = alert.getByRole("button", { name: /retry/i });
+    await retry.focus();
+    await page.keyboard.press("Enter");
+    await expect(receipt(page)).toBeVisible();
+    await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
+    expect(reads).toBe(asked + OUTAGE_MAX_RETRIES + 1);
   });
 
   // While the receipt loads, the region says so to assistive technology:
