@@ -4,6 +4,11 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { DisputeDialogCloseReason } from "@/components/disputes/dispute-dialog";
 import { AmountAssetProvider } from "@/components/disputes/amount-asset";
 import { ReceiptPanel } from "@/components/disputes/receipt-panel";
+import {
+  RECEIPT_RECOVERED,
+  ReceiptOutageNote,
+  receiptOutageStatus,
+} from "@/components/disputes/receipt-outage";
 import { ReclaimControl } from "@/components/escrow/reclaim-control";
 import { Card } from "@/components/ui/card";
 import { ErrorNote } from "@/components/ui/error-note";
@@ -336,13 +341,19 @@ export const DisputeSection = memo(function DisputeSection({
   asset,
   escrowGeneration,
 }: Props) {
-  const { view, loading, error, refresh, offsetMs, adopt } = useDisputePanel(
-    taskId,
-    {
-      workflowDone,
-      demo,
-    },
-  );
+  const {
+    view,
+    loading,
+    error,
+    outage,
+    outageGaveUp,
+    refresh,
+    offsetMs,
+    adopt,
+  } = useDisputePanel(taskId, {
+    workflowDone,
+    demo,
+  });
   const { connect } = useWallet();
   // A settlement that FAILED leaves whatever the authorization moved into
   // escrow there, and the platform may not have released it. The reclaim
@@ -475,6 +486,24 @@ export const DisputeSection = memo(function DisputeSection({
     setRetrying(false);
   }, [refresh]);
 
+  // What the polite region says about an outage: that the panel is retrying,
+  // that it stopped, and — once a read lands — that the records are back.
+  // Only these transitions, never a countdown: the banner's own alert has
+  // already said what failed. A read that is merely loading again (a
+  // reader's retry with nothing on screen) says nothing either way.
+  const [outageNotice, setOutageNotice] = useState("");
+  const outageShown = outage !== null;
+  const failed = error !== null;
+  useEffect(() => {
+    if (outageShown) {
+      setOutageNotice(receiptOutageStatus(outageGaveUp));
+    } else if (!loading) {
+      setOutageNotice((said) =>
+        said !== "" && !failed ? RECEIPT_RECOVERED : "",
+      );
+    }
+  }, [outageShown, outageGaveUp, failed, loading]);
+
   if (demo || !taskId) return null;
   // Only before the first answer: a refresh keeps the receipt on screen.
   if (loading) return <ReceiptSkeleton steps={skeletonSteps} />;
@@ -495,7 +524,28 @@ export const DisputeSection = memo(function DisputeSection({
   return (
     <AmountAssetProvider asset={asset}>
       <div className="flex flex-col gap-4">
-        {error && (
+        {/* Mounted from the first outage on, and kept, so the changes after
+            it are announced — a region has to exist before its text changes,
+            and the outage's own start is the alert's to say. A receipt that
+            never met one carries no extra status. Out of flow (sr-only is
+            absolute), so it takes no gap in the stack. */}
+        {(outageShown || outageNotice !== "") && (
+          <output aria-live="polite" className="sr-only">
+            {outageNotice}
+          </output>
+        )}
+        {error && outage ? (
+          // An outage, said in words: the technical line is folded away
+          // beneath it, and the panel retries on its own meanwhile.
+          <ReceiptOutageNote
+            shown={view.kind}
+            outage={outage}
+            gaveUp={outageGaveUp}
+            error={error}
+            onRetry={() => void retry()}
+            retrying={retrying}
+          />
+        ) : error ? (
           // Beside the receipt, never instead of the page: the trace below
           // renders from its own stream whatever this read did.
           <ErrorNote
@@ -511,7 +561,7 @@ export const DisputeSection = memo(function DisputeSection({
               ? `⚠ receipt unavailable — ${error}`
               : `⚠ this receipt may be out of date — ${error}`}
           </ErrorNote>
-        )}
+        ) : null}
         {alreadyDisputed && (
           <p
             role="status"

@@ -11,6 +11,7 @@
 import { ApiError, bindErrorCode } from "./api";
 import { botCheckMessage } from "./bot-check-message";
 import { rateLimitMessage } from "./rate-limit-message";
+import { storeOutage, type StoreOutage } from "./store-outage";
 import type { BindChallenge, BindTimestamp } from "./types";
 
 /**
@@ -276,6 +277,23 @@ export function bindErrorView(err: unknown): BindErrorView {
     return { placement: "banner", message: unverified, retryable: true };
   }
 
+  // The binding records' store unreachable — a 503 naming it — where an
+  // older backend answered 500 and the operator read "internal server
+  // error". The store is where a binding is written, so nothing was bound,
+  // and the same attempt works once it is back: after the wait the backend
+  // asked for, which the screen holds the submit to.
+  const outage = storeOutage(err);
+  if (outage?.kind === "store") {
+    const view: BindErrorView = {
+      placement: "banner",
+      message:
+        "The endpoint binding records are temporarily unreachable, so nothing was bound. Try again in a moment.",
+      retryable: true,
+    };
+    if (outage.retryAfterMs !== null) view.retryAfterMs = outage.retryAfterMs;
+    return view;
+  }
+
   switch (bindErrorCode(err)) {
     case "endpoint_not_allowed":
       return {
@@ -347,6 +365,19 @@ export function bindErrorView(err: unknown): BindErrorView {
         retryable: true,
       };
   }
+}
+
+/**
+ * What the current-binding panel says when its read met an outage, in place
+ * of "Couldn't read the current binding": the binding records unreachable
+ * (503 `store_unavailable`), or a 5xx that named nothing. It says what
+ * failed and no more — a failed read knows nothing of the binding — and the
+ * panel asks again on its own.
+ */
+export function bindingOutageText(outage: StoreOutage): string {
+  return outage.kind === "store"
+    ? "⚠ The endpoint binding records are temporarily unreachable, so the current binding can't be read yet."
+    : "⚠ The server couldn't read the current binding just now.";
 }
 
 /**

@@ -11,6 +11,11 @@
  *   "Error: " prefix that `String(e)` produces.
  * - `data` is retained across failures and re-runs; call `reset()` first
  *   when the UI should drop stale results while a new run is in flight.
+ * - `cause` is what the last failed run rejected with, as thrown — for a
+ *   caller that must tell failures apart by more than their sentence (an
+ *   outage to retry, lib/store-outage). Unlike `error` it is NOT cleared
+ *   when a run starts, so the failure a retry is answering stays known while
+ *   that retry is out; a success or `reset()` clears it.
  * - Overlapping runs: only the latest `run()` commits state — a slower older
  *   run's settle is discarded (its returned promise still resolves to its own
  *   value). Settles that land after unmount never set state.
@@ -30,6 +35,8 @@ export type UseAsyncActionResult<Args extends unknown[], T> = {
   run: (...args: Args) => Promise<T | undefined>;
   data: T | null;
   error: string | null;
+  /** The last failed run's rejection, as thrown; null after a success. */
+  cause: unknown;
   pending: boolean;
   reset: () => void;
 };
@@ -39,6 +46,7 @@ export function useAsyncAction<Args extends unknown[], T>(
 ): UseAsyncActionResult<Args, T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cause, setCause] = useState<unknown>(null);
   const [pending, setPending] = useState(false);
 
   // Always call the latest `fn` without forcing callers to memoize it.
@@ -68,10 +76,16 @@ export function useAsyncAction<Args extends unknown[], T>(
     setPending(true);
     try {
       const result = await fnRef.current(...args);
-      if (current()) setData(result);
+      if (current()) {
+        setData(result);
+        setCause(null);
+      }
       return result;
     } catch (e) {
-      if (current()) setError(toMessage(e));
+      if (current()) {
+        setError(toMessage(e));
+        setCause(e);
+      }
       return undefined;
     } finally {
       if (current()) setPending(false);
@@ -81,7 +95,8 @@ export function useAsyncAction<Args extends unknown[], T>(
   const reset = useCallback(() => {
     setData(null);
     setError(null);
+    setCause(null);
   }, []);
 
-  return { run, data, error, pending, reset };
+  return { run, data, error, cause, pending, reset };
 }

@@ -23,6 +23,11 @@
  * - `refresh()` refetches and resolves once the answer is on screen. It never
  *   rejects: a failure lands in `error`. The page calls it after a submit and
  *   on `duplicate_dispute`.
+ * - `outage` is set beside `error` when the failure is one a moment cures —
+ *   the backend's record store unreachable (503 `store_unavailable`), or a
+ *   500/502/504 — and the hook then retries on its own, backed off and
+ *   bounded (`useOutageRetry`), keeping the banner up meanwhile rather than
+ *   flashing a skeleton. `outageGaveUp` says the retries are spent.
  * - `adopt(dispute)` folds a dispute the server itself returned — the one a
  *   submit resolved to, or the original a `duplicate_dispute` refusal
  *   carries — into the view at once, without a read. It holds until a read
@@ -51,8 +56,10 @@ import {
   receiptStillMoving,
   serverClockOffsetMs,
 } from "./disputes";
+import { storeOutage, type StoreOutage } from "./store-outage";
 import type { Dispute, DisputePanelView, TaskDisputes } from "./types";
 import { toMessage } from "./use-async-action";
+import { useOutageRetry } from "./use-outage-retry";
 import { useWallet } from "./wallet";
 
 const HOUR_MS = 3_600_000;
@@ -356,14 +363,32 @@ type FetchState = {
   taskId: string | null;
   snapshot: Snapshot | null;
   error: string | null;
+  /** What `error` was, when it was an outage a moment cures; else null. */
+  outage: StoreOutage | null;
 };
 
-const IDLE: FetchState = { taskId: null, snapshot: null, error: null };
+const IDLE: FetchState = {
+  taskId: null,
+  snapshot: null,
+  error: null,
+  outage: null,
+};
 
 export type UseDisputePanelResult = {
   view: DisputePanelView;
   loading: boolean;
   error: string | null;
+  /**
+   * The failure behind `error` when it is an outage — the dispute records
+   * unreachable, or a 5xx a moment cures — so the panel can say so in words
+   * rather than print `error`, which is the technical line. Null otherwise.
+   */
+  outage: StoreOutage | null;
+  /**
+   * The outage's automatic retries are spent (lib/use-outage-retry), so
+   * nothing more is asked until `refresh()` is.
+   */
+  outageGaveUp: boolean;
   refresh: () => Promise<void>;
   /** Server clock minus local clock, in ms; 0 while nothing measured it. */
   offsetMs: number;
@@ -441,7 +466,11 @@ export function useDisputePanel(
   }, []);
 
   const load = useCallback(
-    async (id: string, doneAtRequest: boolean): Promise<void> => {
+    async (
+      id: string,
+      doneAtRequest: boolean,
+      quiet = false,
+    ): Promise<void> => {
       const epoch = ++epochRef.current;
       lastReadAtMs.current = Date.now();
       sealedInFlightRef.current = false;
@@ -464,11 +493,14 @@ export function useDisputePanel(
       // With nothing on screen, a new attempt is loading again rather than
       // failing again: the old error goes, so the two never show together.
       // With a view on screen, it stays — and so does any error that dates it.
+      // A QUIET attempt — an outage's automatic retry — leaves the error up
+      // either way: flipping the banner to a skeleton and back on every try
+      // would flash it, and re-announce its alert each time.
       setState((s) =>
         s.taskId !== id
-          ? { taskId: id, snapshot: null, error: null }
-          : s.snapshot === null
-            ? { ...s, error: null }
+          ? { taskId: id, snapshot: null, error: null, outage: null }
+          : s.snapshot === null && !quiet
+            ? { ...s, error: null, outage: null }
             : s,
       );
       // Taken before the request leaves: the offset is measured against it,
@@ -483,7 +515,8 @@ export function useDisputePanel(
         // Whatever is on screen stays: it is this task's (the epoch says no
         // other load has started since), and the error dates it.
         const error = toMessage(err);
-        setState((s) => ({ ...s, error }));
+        const outage = storeOutage(err);
+        setState((s) => ({ ...s, error, outage }));
         // While the panel is waiting for a settlement or a rating, time
         // passed whether or not the answer came: both waits are bounded on
         // this clock, and a backend failing every read must not hold either
@@ -558,6 +591,7 @@ export function useDisputePanel(
             taskId: id,
             snapshot: { ...held, grant: dishonoured ? null : grant },
             error: lostSettlement(id),
+            outage: null,
           };
         }
         // A sealed run whose settlement has not appeared: the wait starts at
@@ -580,6 +614,7 @@ export function useDisputePanel(
             grant: dishonoured ? null : grant,
           },
           error: null,
+          outage: null,
         };
       });
       // The clock restarts at the arrival the offset was measured against,
@@ -632,12 +667,6 @@ export function useDisputePanel(
     void load(target, doneRef.current);
   }, [target, address, state, load]);
 
-  const refresh = useCallback(async (): Promise<void> => {
-    const id = targetRef.current;
-    if (id === null) return;
-    await load(id, doneRef.current);
-  }, [load]);
-
   const adopt = useCallback((dispute: Dispute): void => {
     const id = targetRef.current;
     if (id === null || dispute.task_id !== id) return;
@@ -666,6 +695,7 @@ export function useDisputePanel(
   const snapshot = current?.snapshot ?? null;
   const loading = target !== null && snapshot === null && !current?.error;
   const error = current?.error ?? null;
+  const outage = current?.outage ?? null;
 
   // How long a settlement the seal says should exist has been looked for, and
   // whether the panel is still looking. Both are 0/false unless it is waiting.
@@ -842,10 +872,37 @@ export function useDisputePanel(
     };
   }, [target, pollMs, moving, state, load]);
 
+  // An outage's own retries (lib/use-outage-retry): backed off, bounded,
+  // paused in a hidden tab. Only while nothing else reads — a receipt the
+  // poll above re-reads on its cadence is already being asked again, and a
+  // second timer would double the reads on a backend that is struggling.
+  // Quiet, so the banner stays up while each attempt is out.
+  const retryQuietly = useCallback(() => {
+    const id = targetRef.current;
+    if (id === null || inFlightRef.current) return;
+    void load(id, doneRef.current, true);
+  }, [load]);
+  const { gaveUp, resetBudget } = useOutageRetry(
+    outage,
+    retryQuietly,
+    pollMs === null,
+  );
+
+  // Asked for by the page — a reader's Retry, a submit, a refusal — so the
+  // outage's retry budget starts afresh: someone is watching again.
+  const refresh = useCallback(async (): Promise<void> => {
+    const id = targetRef.current;
+    if (id === null) return;
+    resetBudget();
+    await load(id, doneRef.current);
+  }, [load, resetBudget]);
+
   return {
     view,
     loading,
     error,
+    outage,
+    outageGaveUp: gaveUp,
     refresh,
     offsetMs: snapshot?.offsetMs ?? 0,
     adopt,
