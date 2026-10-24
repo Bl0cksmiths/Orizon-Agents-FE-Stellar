@@ -51,6 +51,7 @@ import {
   receiptStillMoving,
   serverClockOffsetMs,
 } from "./disputes";
+import { storeOutage, type StoreOutage } from "./store-outage";
 import type { Dispute, DisputePanelView, TaskDisputes } from "./types";
 import { toMessage } from "./use-async-action";
 import { useWallet } from "./wallet";
@@ -356,14 +357,27 @@ type FetchState = {
   taskId: string | null;
   snapshot: Snapshot | null;
   error: string | null;
+  /** What `error` was, when it was an outage a moment cures; else null. */
+  outage: StoreOutage | null;
 };
 
-const IDLE: FetchState = { taskId: null, snapshot: null, error: null };
+const IDLE: FetchState = {
+  taskId: null,
+  snapshot: null,
+  error: null,
+  outage: null,
+};
 
 export type UseDisputePanelResult = {
   view: DisputePanelView;
   loading: boolean;
   error: string | null;
+  /**
+   * The failure behind `error` when it is an outage — the dispute records
+   * unreachable, or a 5xx a moment cures — so the panel can say so in words
+   * rather than print `error`, which is the technical line. Null otherwise.
+   */
+  outage: StoreOutage | null;
   refresh: () => Promise<void>;
   /** Server clock minus local clock, in ms; 0 while nothing measured it. */
   offsetMs: number;
@@ -466,9 +480,9 @@ export function useDisputePanel(
       // With a view on screen, it stays — and so does any error that dates it.
       setState((s) =>
         s.taskId !== id
-          ? { taskId: id, snapshot: null, error: null }
+          ? { taskId: id, snapshot: null, error: null, outage: null }
           : s.snapshot === null
-            ? { ...s, error: null }
+            ? { ...s, error: null, outage: null }
             : s,
       );
       // Taken before the request leaves: the offset is measured against it,
@@ -483,7 +497,8 @@ export function useDisputePanel(
         // Whatever is on screen stays: it is this task's (the epoch says no
         // other load has started since), and the error dates it.
         const error = toMessage(err);
-        setState((s) => ({ ...s, error }));
+        const outage = storeOutage(err);
+        setState((s) => ({ ...s, error, outage }));
         // While the panel is waiting for a settlement or a rating, time
         // passed whether or not the answer came: both waits are bounded on
         // this clock, and a backend failing every read must not hold either
@@ -558,6 +573,7 @@ export function useDisputePanel(
             taskId: id,
             snapshot: { ...held, grant: dishonoured ? null : grant },
             error: lostSettlement(id),
+            outage: null,
           };
         }
         // A sealed run whose settlement has not appeared: the wait starts at
@@ -580,6 +596,7 @@ export function useDisputePanel(
             grant: dishonoured ? null : grant,
           },
           error: null,
+          outage: null,
         };
       });
       // The clock restarts at the arrival the offset was measured against,
@@ -666,6 +683,7 @@ export function useDisputePanel(
   const snapshot = current?.snapshot ?? null;
   const loading = target !== null && snapshot === null && !current?.error;
   const error = current?.error ?? null;
+  const outage = current?.outage ?? null;
 
   // How long a settlement the seal says should exist has been looked for, and
   // whether the panel is still looking. Both are 0/false unless it is waiting.
@@ -846,6 +864,7 @@ export function useDisputePanel(
     view,
     loading,
     error,
+    outage,
     refresh,
     offsetMs: snapshot?.offsetMs ?? 0,
     adopt,
